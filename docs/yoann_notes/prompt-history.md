@@ -510,3 +510,67 @@ Claude added the bytecode cache directory to .gitignore to prevent future accide
 **Yoann:**
 
 > Excellent. Let's commit.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:53
+
+**Yoann:**
+
+> 4
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:54
+
+**Yoann:**
+
+> you timedout previously that's why it didn't work. Let's try again, 5 long sentences, maybe actually the smae
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:55
+
+**Yoann:**
+
+> I pick 4
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:55
+
+**Yoann:**
+
+> hmm, it didn't work
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:55
+
+**Yoann:**
+
+> maybe someying in your hook is not working? Or I need to close the session to take that into effect?
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:59
+
+**Yoann:**
+
+> and do we need to restart the ssession to take effect?
+
+**Claude (summary):**
+
+Claude was debugging a failing nested summarizer call to identify the actual error.
+Claude discovered a bug: `flush_pending` clears pending files even when `summarize()` fails silently.
+Claude planned to fix the bug and add better diagnostics for failure reasons.
+Claude would add `DEBUG_LOG` path constant and ensure it was gitignored.
+Claude first had to fix accidental pollution of the log file from testing.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 11:13
+
+**Yoann:**
+
+> let's commit first

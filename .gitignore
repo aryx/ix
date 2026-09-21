@@ -1,2 +1,3 @@
 .claude/hooks/.pending-answer.json
+.claude/hooks/.debug.log
 __pycache__/

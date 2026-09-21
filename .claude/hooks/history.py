@@ -29,6 +29,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 PATH = os.path.join(ROOT, "docs", "yoann_notes", "prompt-history.md")
 PENDING = os.path.join(ROOT, ".claude", "hooks", ".pending-answer.json")
+DEBUG_LOG = os.path.join(ROOT, ".claude", "hooks", ".debug.log")
 
 # set in the environment of the summarizing `claude -p`, so that its own
 # hooks, if any, don't log or summarize it
@@ -119,13 +120,22 @@ def clear_pending():
     if os.path.exists(PENDING):
         os.remove(PENDING)
 
+def debug_log(msg):
+    with open(DEBUG_LOG, "a") as f:
+        f.write("[%s] %s\n" % (
+            datetime.datetime.now(datetime.timezone.utc).isoformat(), msg))
+
 def flush_pending(next_prompt):
     pending = load_pending()
     if not pending:
         return
+    # Never lose the exchange: if summarization fails, fall back to a
+    # truncated raw answer instead of clearing pending with nothing written.
     s = summarize(pending["prompt"], pending["answer"], next_prompt)
-    if s:
-        append(render_summary(s))
+    if not s:
+        s = "(summary generation failed - raw answer follows)\n\n" + \
+            pending["answer"][:1000]
+    append(render_summary(s))
     clear_pending()
 
 def summarize(prompt, answer, next_prompt=None):
@@ -134,15 +144,22 @@ def summarize(prompt, answer, next_prompt=None):
     env = dict(os.environ, **{GUARD: "1"})
     next_text = clean_prompt(next_prompt) if next_prompt and next_prompt.strip() \
         else "(none - this is the last message so far)"
-    r = subprocess.run(
-        ["claude", "-p", "--model", "haiku", "--tools", "",
-         "--no-session-persistence"],
-        input=SUMMARY_PROMPT.format(prompt=clean_prompt(prompt),
-                                    answer=answer[-40000:],
-                                    next_prompt=next_text),
-        capture_output=True, text=True, cwd="/tmp", env=env, timeout=300)
-    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() \
-        else None
+    try:
+        r = subprocess.run(
+            ["claude", "-p", "--model", "haiku", "--tools", "",
+             "--no-session-persistence"],
+            input=SUMMARY_PROMPT.format(prompt=clean_prompt(prompt),
+                                        answer=answer[-40000:],
+                                        next_prompt=next_text),
+            capture_output=True, text=True, cwd="/tmp", env=env, timeout=120)
+    except subprocess.TimeoutExpired:
+        debug_log("summarize: timed out after 120s")
+        return None
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.strip()
+    debug_log("summarize: returncode=%d stderr=%r stdout=%r" %
+              (r.returncode, r.stderr[-2000:], r.stdout[-500:]))
+    return None
 
 # A transcript is a .jsonl of entries; a user prompt is a "user" entry
 # whose content is text (tool results are lists without text), and
