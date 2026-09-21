@@ -21,11 +21,10 @@ how the project came to be and how it got its name.
 ## Tiny, not Toy
 
 There is a good tradition of teaching whole computer systems:
-Nand2Tetris (*The Elements of Computing Systems*), Nachos, Minix,
-xv6. The Nand2Tetris route makes everything minimal: a made-up
-machine, a made-up assembler, a made-up OS. xv6 is also narrower in
-scope than the others: it's a teaching kernel, not a full OS with its
-own toolchain, shell and utilities. ix aims for the full stack, like
+Nand2Tetris (*The Elements of Computing Systems*), Minix.
+The Nand2Tetris route makes everything minimal: a made-up
+machine, a made-up assembler, a made-up OS.
+ix aims for the full stack, like
 TECS and Minix, but makes the programs tiny, not the things they deal
 with:
 
