@@ -415,3 +415,34 @@ Claude finished writing `.claude/hooks/history.py` to implement the planned logg
 Claude tightened the summary format and properly handled safeguards errors in the output.
 Claude wired the `Stop` hook into the system and rebuilt the session log.
 Claude rebuilt the full prompt-history file from the transcript with turn summaries.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:05
+
+**Yoann:**
+
+> let's test this prompt automatic saving hook we setup previously
+
+**Claude (summary):**
+
+Claude confirmed the UserPromptSubmit hook had already fired and appended the prompt to docs/yoann_notes/prompt-history.md.
+Claude explained the Stop hook runs asynchronously after each response to append a Claude summary block.
+Claude noted the prompt-capture side test was already passing based on the appended entry.
+Claude recommended checking the file after turn completion since the Stop hook has a 60-second timeout.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:08
+
+**Yoann:**
+
+> Check the tail of /home/pad/github/ix/docs/yoann_notes/prompt-history.md to confirm the Stop hook appended a "**Claude (summary):**" block for the "let's test this prompt automatic saving hook" entry, and report the result to the user.
+
+**Claude (summary):**
+
+Claude reported that the UserPromptSubmit hook fired and appended the prompt to prompt-history.md.
+Claude explained the Stop hook will run asynchronously and append a summary block after finishing.
+Claude confirmed the prompt-capture side of the test was passing successfully so far.
+Claude noted the Stop hook runs async with up to sixty-second timeout for the summary.
+Claude planned to check the file in about two minutes to verify the summary got appended.
