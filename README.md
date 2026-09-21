@@ -1,7 +1,9 @@
 # ix
 
-**[xix](https://aryx.github.io/xix/), but tiny: the whole Principia Softwarica system, from the
-machine to the web browser, as small but real programs in OCaml.**
+**ix is like [xix](https://aryx.github.io/xix/), but tiny: the whole
+Principia Softwarica system, from the
+machine to the web browser, as small as possible, and as real programs
+in OCaml.**
 
 ix is a series of *Tiny* programs, one for each program explained in
 the [Principia Softwarica](https://principia-softwarica.org/) books:
