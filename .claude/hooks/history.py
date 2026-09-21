@@ -3,10 +3,24 @@
 # Yoann's prompts verbatim, followed by a short summary of Claude's answer
 # (written by Haiku, since the full answers are long and not deterministic).
 #
-#   history.py prompt              UserPromptSubmit hook: append the prompt
-#   history.py answer              Stop hook: append a summary of the answer
+#   history.py prompt              UserPromptSubmit hook: flush the pending
+#                                  summary (see below), then append the
+#                                  new prompt
+#   history.py answer              Stop hook: stash the answer as pending,
+#                                  instead of summarizing it right away
+#   history.py stage-if-commit     PreToolUse (Bash) hook: `git add` this
+#                                  file when the command is a `git commit`,
+#                                  so pending history rides along with it
 #   history.py rebuild TRANSCRIPT  regenerate the whole file from a session
 #                                  transcript (.jsonl)
+#
+# The summary of an answer is written lazily, on the *next* prompt rather
+# than right after the answer (Stop hook just stashes prompt+answer in
+# PENDING). That next prompt is what Yoann actually reacted to, so it is
+# passed to the summarizer as extra context to judge what in the answer
+# mattered, without being summarized itself. This means the last exchange
+# of a session stays pending until something (even in a later session)
+# triggers a new prompt in this repo.
 #
 # The hooks get their JSON payload on stdin.
 import concurrent.futures, datetime, json, os, re, subprocess, sys
@@ -14,6 +28,7 @@ import concurrent.futures, datetime, json, os, re, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 PATH = os.path.join(ROOT, "docs", "yoann_notes", "prompt-history.md")
+PENDING = os.path.join(ROOT, ".claude", "hooks", ".pending-answer.json")
 
 # set in the environment of the summarizing `claude -p`, so that its own
 # hooks, if any, don't log or summarize it
@@ -24,7 +39,8 @@ HEADER = """# Prompt history
 Every prompt Yoann wrote to Claude to build this repository, in order,
 verbatim (typos included), each followed by a short summary of Claude's
 answer. The summaries are written by a small model (Haiku) from the
-answer's text: they are paraphrases, not records, and the commits show
+answer's text, once Yoann's next prompt is known so it can weigh what
+mattered to him: they are paraphrases, not records, and the commits show
 what was actually done. Together with `git log`, this file tells how ix
 came to be.
 
@@ -48,15 +64,22 @@ paragraph). No heading, no bullet list, no markdown emphasis. Say what \
 Claude recommended, found, decided, or did (files written, commits \
 made), keeping concrete names. Write in the past tense with Claude as \
 the subject ("Claude recommended ..."). Do not restate Yoann's prompt. \
-If Claude's answer is just an error message and contains no actual \
-response (e.g. "API Error", "safeguards flagged this message"), reply \
-with exactly: (no answer: the request errored out)
+Yoann's next message is included below, after the answer: use it only to \
+judge which parts of Claude's answer actually mattered to Yoann (what he \
+followed up on, corrected, or built on), and weight the summary toward \
+that; do not describe or summarize the next message itself. If Claude's \
+answer is just an error message and contains no actual response (e.g. \
+"API Error", "safeguards flagged this message"), reply with exactly: \
+(no answer: the request errored out)
 
 === YOANN'S PROMPT ===
 {prompt}
 
 === CLAUDE'S ANSWER ===
 {answer}
+
+=== YOANN'S NEXT PROMPT (context only, do not summarize this) ===
+{next_prompt}
 """
 
 def clean_prompt(text):
@@ -82,15 +105,41 @@ def append(text):
             f.write(HEADER)
         f.write(text)
 
-def summarize(prompt, answer):
+def save_pending(prompt, answer):
+    with open(PENDING, "w") as f:
+        json.dump({"prompt": prompt, "answer": answer}, f)
+
+def load_pending():
+    if not os.path.exists(PENDING):
+        return None
+    with open(PENDING) as f:
+        return json.load(f)
+
+def clear_pending():
+    if os.path.exists(PENDING):
+        os.remove(PENDING)
+
+def flush_pending(next_prompt):
+    pending = load_pending()
+    if not pending:
+        return
+    s = summarize(pending["prompt"], pending["answer"], next_prompt)
+    if s:
+        append(render_summary(s))
+    clear_pending()
+
+def summarize(prompt, answer, next_prompt=None):
     if not answer.strip():
         return None
     env = dict(os.environ, **{GUARD: "1"})
+    next_text = clean_prompt(next_prompt) if next_prompt and next_prompt.strip() \
+        else "(none - this is the last message so far)"
     r = subprocess.run(
         ["claude", "-p", "--model", "haiku", "--tools", "",
          "--no-session-persistence"],
         input=SUMMARY_PROMPT.format(prompt=clean_prompt(prompt),
-                                    answer=answer[-40000:]),
+                                    answer=answer[-40000:],
+                                    next_prompt=next_text),
         capture_output=True, text=True, cwd="/tmp", env=env, timeout=300)
     return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() \
         else None
@@ -129,19 +178,29 @@ def main():
     if mode == "prompt":
         prompt = json.load(sys.stdin).get("prompt", "")
         if prompt.strip():
+            flush_pending(prompt)
             append(render_prompt(prompt,
                                  datetime.datetime.now(datetime.timezone.utc)))
     elif mode == "answer":
         turns = exchanges(json.load(sys.stdin)["transcript_path"])
         if turns:
-            s = summarize(turns[-1]["prompt"], turns[-1]["answer"])
-            if s:
-                append(render_summary(s))
+            save_pending(turns[-1]["prompt"], turns[-1]["answer"])
+    elif mode == "stage-if-commit":
+        data = json.load(sys.stdin)
+        command = data.get("tool_input", {}).get("command", "")
+        if re.search(r"\bgit\s+commit\b", command):
+            subprocess.run(
+                ["git", "-C", ROOT, "add", "--",
+                 os.path.relpath(PATH, ROOT)],
+                capture_output=True)
     elif mode == "rebuild":
         turns = exchanges(sys.argv[2])
+        next_prompts = [turns[i + 1]["prompt"] if i + 1 < len(turns) else None
+                        for i in range(len(turns))]
         with concurrent.futures.ThreadPoolExecutor(4) as pool:
-            sums = list(pool.map(lambda t: summarize(t["prompt"], t["answer"]),
-                                 turns))
+            sums = list(pool.map(
+                lambda a: summarize(a[0]["prompt"], a[0]["answer"], a[1]),
+                zip(turns, next_prompts)))
         with open(PATH, "w") as f:
             f.write(HEADER)
             for t, s in zip(turns, sums):

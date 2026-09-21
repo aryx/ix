@@ -15,9 +15,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/history.py\" answer",
-            "timeout": 60,
-            "async": true
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/history.py\" answer"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/history.py\" stage-if-commit"
           }
         ]
       }

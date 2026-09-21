@@ -446,3 +446,67 @@ Claude explained the Stop hook will run asynchronously and append a summary bloc
 Claude confirmed the prompt-capture side of the test was passing successfully so far.
 Claude noted the Stop hook runs async with up to sixty-second timeout for the summary.
 Claude planned to check the file in about two minutes to verify the summary got appended.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:30
+
+**Yoann:**
+
+> let's fix a few things in the README.md. First xv6 was just a kernel, not a full OS, so different scope than TECS. then xix are o5c o5l not 5c/5l. Then the ARM machine will have to deal with coprocessor because we want to emulate the virual memory of it, the supervisor vs user mode, etc. so a real kernel can run on top of it. for TinyEmulator let's call it TinyRaspberryPi because it will emulate a full machine, not just the processor, with its devices (e.g., a framebuffer, key/mouse, storage SD card, etc.). For TinyLibc I'm not sure because the programs in ix will likely be all in OCaml. I don't like Nachos, so the kernel will be in OCaml but we will need to find a way (write some C code and assembly and make the ocaml(light) runtime works). we will get a real binary that could run on our TinyRaspberryPi and a real RaspberryPi! we will try hard to generate the subset of ARM instructions handled by the TinyEmulator. Then not all tools will be terminal programs, but most will be true. Rio is a graphical program. We will need to emulate the frambebuffer in the emulator and mouse/raw-keyboard and those virtual /dev/cons of plan9 to ease all of that. But we will probably need to use this TinyDraw. Only the TinyEmulator will depend on ocaml-elm-playground (as well as the gui/ library in ocaml-elm-playground).
+
+**Claude (summary):**
+
+Claude planned to update README.md systematically section by section with the requested changes.
+Claude identified table updates needed for Emulator renaming to TinyRaspberryPi and TinyLibc uncertainty.
+Claude noted the Design section required major changes including kernel architecture and graphics support.
+Claude said it would review the complete updated file for consistency and coherence.
+Claude planned to clean up the diagram formatting to improve overall readability.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:44
+
+**Yoann:**
+
+> ok let's commit
+
+**Claude (summary):**
+
+Claude identified prompt-history.md as an auto-generated file from a system logging hook.
+Claude recognized the file was completely unrelated to the README documentation fix.
+Claude staged only README.md to keep the commit focused on the actual fix.
+Claude excluded auto-generated changes to maintain separation between intentional and automatic modifications.
+Claude performed selective staging based on the origin and purpose of each change.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:46
+
+**Yoann:**
+
+> ok let's adjust your hook in two ways: first, I think before doing your summary of your response, it's better you wait for my next prompt to do it that way you know what I was interested in your response and give more important to it as you summarize your response. Second we should actually add modifications to the prompt-history as part of the commit as it's nice to have them together so we know what triggered the commit, what discussion.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:49
+
+**Yoann:**
+
+> note that when I say "let's commit" or something, you will need to trigger the actual summary so we have an up to date prompt-history.md to commit
+
+**Claude (summary):**
+
+Claude updated settings.json to store hook responses instead of summarizing responses immediately upon completion.
+Claude added a PreToolUse staging hook to track prompt-history modifications together with each commit.
+Claude verified the staging logic end-to-end with a test using a fake PreToolUse payload.
+Claude cleaned up the bytecode cache directory that had been created during the testing process.
+Claude added the bytecode cache directory to .gitignore to prevent future accidental tracking.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 10:51
+
+**Yoann:**
+
+> Excellent. Let's commit.
