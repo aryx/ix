@@ -23,7 +23,7 @@
 # triggers a new prompt in this repo.
 #
 # The hooks get their JSON payload on stdin.
-import concurrent.futures, datetime, json, os, re, subprocess, sys
+import concurrent.futures, datetime, json, os, re, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -64,13 +64,20 @@ each, so five plain sentences, one per line, no line wrapping into a \
 paragraph). No heading, no bullet list, no markdown emphasis. Say what \
 Claude recommended, found, decided, or did (files written, commits \
 made), keeping concrete names. Write in the past tense with Claude as \
-the subject ("Claude recommended ..."). Do not restate Yoann's prompt. \
-Yoann's next message is included below, after the answer: use it only to \
-judge which parts of Claude's answer actually mattered to Yoann (what he \
-followed up on, corrected, or built on), and weight the summary toward \
-that; do not describe or summarize the next message itself. If Claude's \
-answer is just an error message and contains no actual response (e.g. \
-"API Error", "safeguards flagged this message"), reply with exactly: \
+the subject ("Claude recommended ..."). Do not restate Yoann's prompt.
+
+Yoann's next message is included below, after the answer: use it to find \
+the one part of Claude's answer he actually reacted to (what he picked, \
+followed up on, corrected, or built on). Skew the summary hard toward \
+that part: spend MOST of the lines (3-4 of the 5) on it, with real detail \
+and concrete names, and compress everything else Claude's answer covered \
+into AT MOST one single line, or drop it entirely if it's minor. Do not \
+spread the lines evenly across everything Claude said. Do not describe \
+or summarize the next message itself, only use it to pick the focus. If \
+nothing in the next message points to a specific part of the answer, \
+summarize normally instead of forcing a skew. If Claude's answer is just \
+an error message and contains no actual response (e.g. "API Error", \
+"safeguards flagged this message"), reply with exactly: \
 (no answer: the request errored out)
 
 === YOANN'S PROMPT ===
@@ -199,9 +206,20 @@ def main():
             append(render_prompt(prompt,
                                  datetime.datetime.now(datetime.timezone.utc)))
     elif mode == "answer":
-        turns = exchanges(json.load(sys.stdin)["transcript_path"])
-        if turns:
+        transcript_path = json.load(sys.stdin)["transcript_path"]
+        turns = exchanges(transcript_path)
+        # The transcript file can lag slightly behind the Stop event: retry
+        # briefly rather than stash an empty answer and lose the exchange.
+        for _ in range(5):
+            if turns and turns[-1]["answer"].strip():
+                break
+            time.sleep(0.3)
+            turns = exchanges(transcript_path)
+        if turns and turns[-1]["answer"].strip():
             save_pending(turns[-1]["prompt"], turns[-1]["answer"])
+        elif turns:
+            debug_log("answer: empty answer after retries for prompt=%r" %
+                      turns[-1]["prompt"][:200])
     elif mode == "stage-if-commit":
         data = json.load(sys.stdin)
         command = data.get("tool_input", {}).get("command", "")

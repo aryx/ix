@@ -574,3 +574,61 @@ Claude first had to fix accidental pollution of the log file from testing.
 **Yoann:**
 
 > let's commit first
+
+**Claude (summary):**
+
+Claude confirmed that the flush mechanism actually worked correctly this particular time.
+Claude verified that the deferred summary had been generated properly for the debugging exchange.
+Claude then proposed that they should proceed to stage and commit the changes.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 11:14
+
+**Yoann:**
+
+> ok please generate 5 long sentences
+
+**Claude (summary):**
+
+Claude generated TinyKernel's syscall dispatcher design matching Plan 9 ABI byte-for-byte for ARM emulation.
+Claude described TinyDraw implementing libdraw compositing with software blitting, fonts, and window overlap support.
+Claude outlined TinyMk build system parsing dependencies to bootstrap ix cross-compilation for ARM targets.
+Claude proposed TinyGit and TinyDiff reimplementing Plan 9 tools for ix source version control.
+Claude detailed TinyNet bringing up minimal IP stack enabling TinyBrowser to fetch pages end-to-end.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 11:14
+
+**Yoann:**
+
+> I pick 5
+
+**Claude (summary):**
+
+Claude identified the root cause: the previous answer was saved as empty pending.
+This caused summarize() to exit immediately without running the subprocess as expected.
+Claude intended to regenerate the summary from transcript data and fix the log.
+Claude planned to replace the broken fallback entry with the properly generated summary.
+The diagnosis addressed why the summary generation process failed for that exchange.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 11:20
+
+**Yoann:**
+
+> tighten the prompt to skew it more toward the picked one
+
+**Claude (summary):**
+
+Claude proposed re-testing the tightened prompt using the same real data as before. The test compared the improved version against the previous weaker prompt result. This validation verified that the prompt refinements actually worked as intended. Yoann approved this approach and proceeded to commit the changes.
+
+------------------------------------------------------------------------
+
+## 2026-09-21 12:50
+
+**Yoann:**
+
+> ok let's commit
