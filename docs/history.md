@@ -22,6 +22,13 @@ Tiny emulator, tiny kernel, tiny linker, tiny compiler, etc."
 - [xix](https://aryx.github.io/xix/) ports the Plan 9 programs to
   OCaml, at full size.
 
+The "etc." turned out to be large. Once the README was written, Yoann
+made the scope explicit: ix covers the programs of **all** the
+Principia Softwarica books, not only the emulator and the kernel. That
+means the core libraries, shell, C toolchain, editor, mk, version
+control, debuggers, profilers, graphics stack, windowing system, GUI
+toolkit, network stack, web browser and command-line utilities too.
+
 The first question was where the new series should live.
 
 ## Same repo or separate repo?
@@ -52,7 +59,7 @@ Yoann's counter-arguments moved the decision:
 dune could enforce point 2 inside one repo. What it could not fix is
 installation: building the repo needs SDL, cairo, curl and
 js_of_ocaml even for someone who only wants the assembler. The tools
-also belong with xix's conventions (capabilities, `Cap.stdout`), which
+also belong with [xix](https://aryx.github.io/xix/)'s conventions (capabilities, `Cap.stdout`), which
 ocaml-elm-playground doesn't use. So the decision became a separate
 repository, with the emulator's display as its only Playground
 dependency. The Playground side needs one addition for that: a public
@@ -66,7 +73,7 @@ really toy arch, really toy assembler, toy OS. Here I want Tiny but not
 Toy."
 
 Yoann's proposal was a **subset of ARM**. The emulator implements only
-the subset but runs real ARM binaries, produced by xix's linker once it
+the subset but runs real ARM binaries, produced by [xix](https://aryx.github.io/xix/)'s linker once it
 is changed to emit only that subset. Yoann noted that ARM's condition
 codes and shifted operands are nice but complicate things.
 
@@ -92,7 +99,7 @@ Claude's additions:
 
 Yoann decided that all the Tiny programs, the kernel included, would be
 written in OCaml, "as the goal is teaching and OCaml is a great
-implementation language". xix already has a C compiler written in
+implementation language". [xix](https://aryx.github.io/xix/) already has a C compiler written in
 OCaml. For the kernel, Yoann added, "that will be a bit challenging but
 we can make it work."
 
@@ -184,7 +191,7 @@ while xix is mostly my code."
 
 So the two projects are twins in a second way:
 
-- **xix**: Plan 9 in OCaml, full-size, mostly written by Yoann;
+- **[xix](https://aryx.github.io/xix/)**: Plan 9 in OCaml, full-size, mostly written by Yoann;
 - **ix**: its tiny twin, mostly written by Claude under Yoann's
   direction. Yoann chooses the design and reviews the code; Claude
   writes most of the lines.

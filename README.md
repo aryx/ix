@@ -1,12 +1,16 @@
 # ix
 
-**xix, but tiny: a small but real computer, from ARM emulator to
-kernel, in OCaml.**
+**[xix](https://aryx.github.io/xix/), but tiny: the whole Principia Softwarica system, from the
+machine to the web browser, as small but real programs in OCaml.**
 
-ix is a series of *Tiny* programs that together make a whole computer
-system: an emulator for a subset of ARM, an assembler, a linker, a C
-compiler, a kernel, a shell and its utilities. Each program is small
-enough to read in one sitting, but none of them is a toy. The
+ix is a series of *Tiny* programs, one for each program explained in
+the [Principia Softwarica](https://principia-softwarica.org/) books:
+the machine, the kernel, the core libraries, the shell, the C
+toolchain, the editor, mk, version control, the debugger and profiler,
+the graphics stack, the windowing system, the GUI toolkit, the network
+stack, the web browser and the command-line utilities. Together they
+make a whole computer system that a programmer can use. Each program
+is small enough to read in one sitting, but none of them is a toy. The
 emulator runs real ARM binaries, and the kernel runs real Plan 9
 programs.
 
@@ -26,7 +30,7 @@ tiny, not the things they deal with:
   Thumb, no coprocessors). The emulator stops with "undefined
   instruction" on anything outside the subset, so it also checks that
   a binary stays inside it.
-- **The binaries are real.** xix's `5c`/`5l`, restricted to emit only
+- **The binaries are real.** [xix](https://aryx.github.io/xix/)'s `5c`/`5l`, restricted to emit only
   the subset, produce them in Plan 9 a.out format. The same binary
   runs on the ix emulator, on qemu-arm and on a real ARM machine.
   Running it on both and comparing the results is the main test.
@@ -35,14 +39,31 @@ tiny, not the things they deal with:
 
 ## The series (planned)
 
-| ix | what it is | its full-size twin in xix |
+One Tiny program (or a few) per Principia Softwarica book. The Plan 9
+programs in the right column are the full-size originals: the books
+explain them in C, and [xix](https://aryx.github.io/xix/) ports them
+to OCaml.
+
+| Book | ix | Plan 9 original |
 |---|---|---|
-| TinyEmulator | the ARM-subset machine: CPU, memory, devices | (none yet) |
-| TinyAssembler | assembly to object files | `5a` |
-| TinyLinker | object files to an a.out | `5l` |
-| TinyCompiler | a C compiler | `5c` |
-| TinyKernel | processes, memory, files, syscalls | the xix kernel |
-| TinyShell ... | the shell and its utilities | `rc`, ... |
+| Emulator | TinyEmulator | `5i` |
+| Kernel | TinyKernel | `9pi` |
+| Core libraries | TinyLibc, ... | `libc`, `libthread`, `libbio`, `libregexp`, ... |
+| Shell | TinyShell | `rc` |
+| C compiler | TinyCompiler | `5c` |
+| Assembler | TinyAssembler | `5a` |
+| Linker | TinyLinker | `5l` |
+| Editor | TinyEditor | `ed` |
+| Build system | TinyMk | `mk` |
+| Version control | TinyGit, TinyDiff | `git9`, `diff`, `patch` |
+| Debuggers | TinyDebugger | `db`, `acid` |
+| Profilers | TinyProfiler | `prof`, `tprof`, ... |
+| Graphics stack | TinyDraw | `libdraw`, `libmemdraw`, `devdraw`, ... |
+| Windowing system | TinyRio | `rio` |
+| GUI toolkit | TinyPanel | `libpanel` |
+| Network stack | TinyNet | `devip`, `libip`, `lib9p` |
+| Web browser | TinyBrowser | `mothra`, `webfs` |
+| CLI utilities | TinyCat, TinyLs, TinyGrep, ... | `cat`, `ls`, `grep`, `sed`, `awk`, ... |
 
 The list and the names are not final. Each program may also get a
 two-letter command name, Unix style (see the history).
@@ -66,13 +87,16 @@ two-letter command name, Unix style (see the history).
   ```
 
 - **The tools are terminal programs.** They read and write files, stdin
-  and stdout, and depend on nothing graphical. They follow xix's
+  and stdout, and depend on nothing graphical. They follow [xix](https://aryx.github.io/xix/)'s
   capability style (`Cap.*`) for OS access.
 - **Only the emulator's display uses a GUI library:**
   [ocaml-elm-playground](https://github.com/aryx/ocaml-elm-playground),
   through opam, draws the machine's framebuffer and feeds it the
   keyboard. The machine itself is a pure library, so it also runs in a
-  terminal, and in a browser via js_of_ocaml.
+  terminal, and in a browser via js_of_ocaml. The graphics stack, the
+  windowing system and the web browser are ix programs themselves:
+  they run on the machine and draw into its framebuffer, so they
+  don't depend on the Playground either.
 
 ## Relation to principia-softwarica and xix
 
@@ -101,5 +125,5 @@ and like "ai", which writes most of it. The full story is in
 
 ## License
 
-LGPL 2.1 with the OCaml-style linking exception, like xix: see
+LGPL 2.1 with the OCaml-style linking exception, like [xix](https://aryx.github.io/xix/): see
 [license.txt](license.txt) and [copyright.txt](copyright.txt).
