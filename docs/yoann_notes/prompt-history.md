@@ -632,3 +632,100 @@ Claude proposed re-testing the tightened prompt using the same real data as befo
 **Yoann:**
 
 > ok let's commit
+
+**Claude (summary):**
+
+Claude verified that both fixes from earlier work were present and ready for committing.
+Claude recommended staging and committing these changes as the next step to proceed.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:13
+
+**Yoann:**
+
+> if you analyze deeply my ~/playground project, especially its docs/claude_notes/ with inside the plans/, tutorial/, related-work/, and look at the .ml and .mli in this project, you'll understand what I want for the ix project to follow; for each principia program (kernel, build system, linker, etc.), a plan, a tutorial, a related work,  following the structure of the code under ~/principia/ and ~/xix/ but with the "tiny" flavor and style of the playground project. Now to kickoff here, let's first pick one program (the build system? the shell? the linker?) and generate a plan, a tutorial, and a related work for it, like we did in the playground for ai, physics, audio, etc., so I can check if the style is good and matching and adapted for this ix project.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:14
+
+**Yoann:**
+
+> note that because in ix the roles are reversed, no need here to put those markdown under a docs/claude_notes/.  put them under docs/, instead there is now a docs/yoann_notes/
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:15
+
+**Yoann:**
+
+> note that you can use as inspiration the principia (C) code of mk, and xix (OCaml) code of omk, but ideally you can come up with a different design that leads to even more "tiny" code (while still being functionally equivalent)
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:15
+
+**Yoann:**
+
+> sometimes we can imagine sacrificing some features (like I did in xix) for reaching even more simplicity; but we should try hard not too
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:16
+
+**Yoann:**
+
+> unless the simplicity benefit is really big (and also the reduction in LOC)
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:16
+
+**Yoann:**
+
+> for instance in xix I tended to remove support for unicode, to simplify things, so you might do so (unless you find a way to have as compact code with unicode support too)
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:19
+
+**Yoann:**
+
+> note that as opposed to the playground, we will probably want to split TinyMk in multiple files, possibly use lex and yacc (unless it's not really needed and handmade parser is more readable)
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:19
+
+**Yoann:**
+
+> so the rules are sligtly different than in the playground
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:20
+
+**Yoann:**
+
+> and the goal here is making a Tiny build system, so in theory one can also think outside the box and outside mk
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:20
+
+**Yoann:**
+
+> or it could be a section in the plan
+
+**Claude (summary):**
+
+Claude analyzed the playground project's structure and chose mk as the first ix program. Claude wrote a plan (`docs/plans/plan_mk.md`) explaining TinyMk's architecture and code savings. Claude wrote a tutorial (`docs/tutorials/notes_mk.md`) with worked examples validated against actual mk and omk. Claude wrote a related-work note covering other build systems and historical influences. All three documents matched the playground project's style and formatting conventions.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:41
+
+**Yoann:**
+
+> I like it! let's commit this
