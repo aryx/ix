@@ -85,7 +85,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
       Env.set env "pid" [ string_of_int (Unix.getpid ()) ];
       if not (Env.flag env 'I') && Env.get env "cflag" = [] && args = [] && Unix.isatty Unix.stdin then
         Env.set_flag env 'i' true;
-      if Env.flag env 'i' then Sys.set_signal Sys.sigint Sys.Signal_ignore;
+      Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ -> Eval.interrupted := true));
       let t = Eval.create caps ~argv0 env in
       let text =
         match !main_file with
@@ -95,7 +95,10 @@ let main (caps : < caps; .. >) (argv : string array) : int =
       let finish status =
         (* sigexit, if defined, runs once on the way out *)
         (match Env.fn env "sigexit" with
-         | Some body -> Env.set_fn env "sigexit" None; (try Eval.run t body with _ -> ())
+         | Some body ->
+             Env.set_fn env "sigexit" None;
+             Env.set_status env status;
+             (try Eval.run t body with _ -> ())
          | None -> ());
         flush stdout;
         Process.code status
@@ -105,4 +108,6 @@ let main (caps : < caps; .. >) (argv : string array) : int =
       | exception Eval.Exit s -> finish s
       | exception (Eval.Error m | Word.Error m) ->
           if m <> "" then Eval.eprint (Printf.sprintf "rc (%s): %s\n" argv0 m);
+          (* claude: an error ends rc without its sigexit, as 9base's *)
+          Env.set_fn env "sigexit" None;
           finish "error"

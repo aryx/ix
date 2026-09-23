@@ -457,6 +457,43 @@ written):
     figure was 2.4 times too low. The C rc: 5,678 by the book, orc
     2,876 and partial.
 
+- **2026-09-23, phase 5, and milestones 3 and 1.** Signals: `fn
+  sigint` runs on an interrupt, and `sigexit` on the way out with
+  `$status` set (two cases). Milestone 3, an interactive session
+  through a pipe (`session.in`, against 9base's `session.expected`):
+  the same, once `.` of a regular file read line by line when
+  interactive, for the prompts. **Milestone 1: principia's 133
+  scripts**, each run with no arguments, in an empty directory, with
+  stubs for what destroys (`rm`, `kill`, `git`, ...), under both
+  shells, 10 s each: first 25 of 30, then **120 of 133 the same**.
+  What the differences taught, each now in the code and a case:
+  - a redirection's file that can't be opened is named first:
+    `file: rc (argv0): can't open: why`;
+  - `< requires file` and `>` end with a newline of their own, `>>`
+    without: a blank line in 9base's output;
+  - an error ends rc without its `sigexit`;
+  - a status is an exit code by its leading number (rc's `atoi`),
+    so `3|4|5|6` is `3|6`, the left side's child exiting 3; `0|4` is
+    1;
+  - a relative name with a `/` (`git/add`) is looked up in `$path`,
+    and the error is the last candidate's (`Not a directory` where
+    `/bin/git` exists);
+  - a here document is read raw: its backslash-newlines stay (found
+    by `dopermind`, whose troff input lost a line).
+
+  The 13 left: 4 where 9base's rc, after a failed `exec`, spins
+  forever and is killed (`git/rm`, `upas/mail`, `mk9660.rc`,
+  `psh.rc`; a case, `exec_fail`, with only a `.tiny.out`); 3 using
+  `` `sep{} ``, which 9base lacks (`compat` then runs the system's rc
+  on TinyRc's exported functions); `tests/rc/loop.rc`, the documented
+  subshell one; 3 that print what changes run to run (`who`'s ps,
+  `unpack`'s page faults) or the order of two failing stages' errors
+  (`mkdev`); and `scsicodes`, where a missing program in a pipe's
+  stage exits in 9base with the `$status` it inherited -- a quirk,
+  not copied. The harness itself had one bug: 9base's rc ignores the
+  SIGTERM of `timeout`, so it is now `timeout -s KILL`.
+  1,634 lines of `.ml` now; the corpus 43 cases.
+
 ## Verification
 
 - `make test`: the `.mli` examples, the laws, the corpus against its

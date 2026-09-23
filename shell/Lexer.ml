@@ -122,7 +122,10 @@ let read_heredoc lx (h : Ast.heredoc) =
       if more then lines ()
     end
   in
+  (* claude: raw, so that a backslash-newline stays in the body *)
+  lx.raw <- true;
   lines ();
+  lx.raw <- false;
   h.body <- Buffer.contents b
 
 (*****************************************************************************)

@@ -1,0 +1,3 @@
+fn sigexit { echo in sigexit $status }
+echo body
+exit 7

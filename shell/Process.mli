@@ -44,8 +44,8 @@ val wait : < Cap.wait; .. > -> int -> string
 (* wait for any child: its pid and status, None if there is none *)
 val wait_any : < Cap.wait; .. > -> (int * string) option
 
-(* a status as an exit code: a true one ("" "0|0") 0, a number that
- * number, else 1 *)
+(* a status as an exit code: a true one ("" "0|0") 0, else its leading
+ * number, as rc's atoi ("3|4" 3), or 1 if that is 0 or none ("0|4") *)
 val code : string -> int
 
 val pipe : unit -> fd * fd   (* read end, write end *)

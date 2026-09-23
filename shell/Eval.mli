@@ -53,6 +53,9 @@ val source : t -> name:string option -> interactive:bool -> Lexer.t -> unit
 (* the expanded, globbed words of a list *)
 val words : t -> Ast.word list -> string list
 
+(* set by the SIGINT handler; acted on before the next command *)
+val interrupted : bool ref
+
 (* the builtins, filled by Builtin *)
 val builtins : (string, t -> string list -> unit) Hashtbl.t
 

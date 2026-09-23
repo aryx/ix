@@ -1,0 +1,9 @@
+# a relative name with a / is looked up in $path; the error is the
+# last candidate's
+mkdir -p bin/sub
+printf '#!/bin/sh\necho found sub/prog\n' > bin/sub/prog
+chmod +x bin/sub/prog
+path=(`{pwd}^/bin /bin)
+sub/prog
+./sub/prog
+sub/nope

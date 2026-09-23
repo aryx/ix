@@ -1,0 +1,4 @@
+before
+caught interrupt
+in sigexit
+[exit 3]

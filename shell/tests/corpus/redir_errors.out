@@ -1,0 +1,11 @@
+rc (ARGV0): < requires file
+
+rc (ARGV0): >> requires singleton
+rc (ARGV0): > requires singleton
+
+rc (ARGV0): < requires singleton
+
+/nonexistent/file: rc (ARGV0): can't open: No such file or directory
+1
+/nonexistent/file: rc (ARGV0): can't open: No such file or directory
+[exit 1]

@@ -1,0 +1,18 @@
+echo hello
+x=(a b c)
+echo $#x
+for(i in $x) {
+echo $i
+}
+ls /nonexistent-dir
+echo $status
+cd /
+pwd
+echo (a b)^(c d e)
+echo still here
+if(false) echo no
+if not echo yes
+fn f { echo in f }
+whatis f
+exit 4
+echo not reached

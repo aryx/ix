@@ -1,0 +1,13 @@
+% hello
+% % 3
+% 		a
+b
+c
+% ls: cannot access '/nonexistent-dir': No such file or directory
+% 2
+% % /
+% rc (ARGV0): mismatched list lengths in concatenation
+% still here
+% % yes
+% % fn f {echo in f}
+% [exit 4]

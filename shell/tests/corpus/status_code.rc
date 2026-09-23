@@ -1,0 +1,8 @@
+# a status as an exit code is its leading number (rc's atoi), 1 if 0
+sh -c 'exit 3' | sh -c 'exit 4' | sh -c 'exit 5' | sh -c 'exit 6'
+echo $status
+sh -c 'exit 0' | sh -c 'exit 4' | true
+echo $status
+@{ sh -c 'exit 7' | true }
+echo $status
+sh -c 'exit 3' | sh -c 'exit 4'

@@ -56,6 +56,22 @@ let process_laws = [
     Testo.Promise.return ());
 ]
 
-let tests _env = Unit_rc.tests @ process_laws @ corpus ()
+(* milestone 3: an interactive session, through a pipe, prompts and all,
+ * against what 9base's rc printed for it *)
+let session =
+  Testo.create "session: the prompt, errors, exit" (fun () ->
+    let cmd =
+      Printf.sprintf "cd /tmp && env -i PATH=/usr/bin:/bin HOME=/nonexistent %s -i < %s/session.in 2>&1; echo \"[exit $?]\""
+        (Sys.getcwd () ^ "/" ^ tinyrc) (Sys.getcwd () ^ "/" ^ corpus_dir)
+    in
+    let tmp = Filename.temp_file "session" ".out" in
+    ignore (Sys.command (Printf.sprintf "(%s) | sed 's|rc ([^)]*)|rc (ARGV0)|' > %s" cmd tmp));
+    let got = In_channel.with_open_bin tmp In_channel.input_all in
+    Sys.remove tmp;
+    let expected = In_channel.with_open_bin (corpus_dir ^ "/session.expected") In_channel.input_all in
+    Alcotest.(check string) "as 9base's rc" expected got;
+    Testo.Promise.return ())
+
+let tests _env = Unit_rc.tests @ process_laws @ (session :: corpus ())
 
 let () = Cap.main (fun (_ : Cap.all_caps) -> Testo.interpret_argv ~project_name:"ix-rc" tests)

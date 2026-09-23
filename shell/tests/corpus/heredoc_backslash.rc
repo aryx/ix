@@ -1,0 +1,10 @@
+# a backslash-newline in a here document stays, quoted or not
+cat <<'!'
+.if !""\\$1" \{\
+.ie a b
+!
+x=1
+cat <<!
+$x\
+end
+!

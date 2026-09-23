@@ -80,7 +80,7 @@ let dot t args =
                   | [] -> ()
               in
               let lx =
-                if (Unix.fstat fd).Unix.st_kind = Unix.S_REG then begin
+                if (not interactive) && (Unix.fstat fd).Unix.st_kind = Unix.S_REG then begin
                   let ic = Unix.in_channel_of_descr fd in
                   let text = really_input_string ic (in_channel_length ic) in
                   close_in ic;

@@ -1,0 +1,6 @@
+fn sigint { echo caught interrupt; exit 3 }
+fn sigexit { echo in sigexit }
+echo before
+kill -INT $pid
+sleep 1
+echo not reached

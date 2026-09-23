@@ -1,0 +1,4 @@
+found sub/prog
+./sub/prog: No such file or directory
+sub/nope: No such file or directory
+[exit 1]

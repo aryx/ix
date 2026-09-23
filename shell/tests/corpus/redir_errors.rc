@@ -1,0 +1,13 @@
+# a redirection without its file, or with two: < and > say it with an
+# extra newline, >> without; a file that can't be opened names itself.
+# Each error ends the rc it happens in, here a subshell.
+echo a < $nothing | cat
+x=(a b)
+@{ echo a >> $x }
+@{ echo a > $x }
+@{ cat < $x }
+@{ cat < /nonexistent/file }
+echo $status
+fn sigexit { echo not run: an error ends rc without its sigexit }
+if(cat < /nonexistent/file) echo no
+echo not reached

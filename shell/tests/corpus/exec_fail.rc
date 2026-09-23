@@ -1,0 +1,7 @@
+# exec of what is not there: the message, then exit 1. 9base's rc says
+# it too, then spins forever (principia's git/rm, upas/mail and
+# mk9660.rc do this), so there is no exec_fail.out, only TinyRc's
+# exec_fail.tiny.out
+echo before
+exec /nonexistent/prog
+echo not reached

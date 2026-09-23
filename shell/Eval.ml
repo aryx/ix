@@ -37,6 +37,10 @@ let builtins : (string, t -> string list -> unit) Hashtbl.t = Hashtbl.create 17
 let print s = print_string s; flush stdout
 let eprint s = prerr_string s; flush stderr
 
+(* SIGINT only sets this; the next command acts on it (trap.c's notes,
+ * delivered between instructions: here, between commands) *)
+let interrupted = ref false
+
 let set_status t s = Env.set_status t.env s
 let ok t = Env.ok t.env
 
@@ -94,7 +98,16 @@ and singleton t w = try Word.singleton (ctx t) w with Word.Error m -> raise (Err
 (* -e: a failed command ends rc *)
 and check t ~e = if e && Env.flag t.env 'e' && not (ok t) then raise (Exit (Env.status t.env))
 
+(* fn sigint, if there is one; else a script ends, and the terminal
+ * gets its prompt back *)
+and interrupt t =
+  interrupted := false;
+  match Env.fn t.env "sigint" with
+  | Some body -> run t body
+  | None -> if Env.flag t.env 'i' then raise (Error "") else raise (Exit "interrupt")
+
 and run_e t ~e (c : cmd) : unit =
+  if !interrupted then interrupt t;
   match c with
   | Empty -> ()
   | Simple ws -> simple t (words t ws); check t ~e
@@ -201,11 +214,17 @@ and redirect t (r : redir) ~keep (f : unit -> unit) : unit =
           | [ file ] -> file
           | l ->
               let op = match k with Write -> ">" | Append -> ">>" | Read -> "<" | RdWr -> "<>" in
-              raise (Error (op ^ if l = [] then " requires file" else " requires singleton"))
+              (* claude: 9base's messages for < and > (not >>) end with a
+               * newline of their own *)
+              raise (Error (op ^ (if l = [] then " requires file" else " requires singleton")
+                            ^ if k = Append then "" else "\n"))
         in
         let n =
           try Process.open_file t.caps k file
-          with Unix.Unix_error (e, _, _) -> raise (Error (file ^ ": can't open: " ^ Unix.error_message e))
+          with Unix.Unix_error (e, _, _) ->
+            (* claude: 9base's words for it: file: rc (argv0): can't open: why *)
+            eprint (Printf.sprintf "%s: rc (%s): can't open: %s\n" file t.argv0 (Unix.error_message e));
+            raise (Error "")
         in
         Process.dup2 n fd;
         Process.close n

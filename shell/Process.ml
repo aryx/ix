@@ -18,19 +18,26 @@ type fd = int
 let ufd (n : fd) : Unix.file_descr = Obj.magic n
 let num (d : Unix.file_descr) : fd = Obj.magic d
 
-let search ~path name =
-  if String.contains name '/' then Some name
-  else
-    List.find_map (fun dir ->
-      let f = if dir = "" || dir = "." then name else Filename.concat dir name in
-      if Sys.file_exists f && not (Sys.is_directory f) then Some f else None) path
+(* claude: as Plan 9's rc, a relative name is looked up in $path even
+ * with a / in it (git/add), unless it starts with ./ or ../ *)
+let candidates ~path name =
+  let starts p = String.length name >= String.length p && String.sub name 0 (String.length p) = p in
+  if starts "/" || starts "./" || starts "../" then [ name ]
+  else List.map (fun dir -> if dir = "" || dir = "." then name else Filename.concat dir name) path
 
+let search ~path name =
+  List.find_opt (fun f -> Sys.file_exists f && not (Sys.is_directory f)) (candidates ~path name)
+
+(* each candidate in turn; the message is the last one's error, as 9base's *)
 let exec caps ~path ~env (argv : string list) =
   let name = List.hd argv in
-  (match search ~path name with
-   | Some prog -> (try CapUnix.execve caps prog (Array.of_list argv) env with _ -> ())
-   | None -> ());
-  prerr_endline (name ^ ": No such file or directory");
+  let why =
+    List.fold_left (fun _ f ->
+      try CapUnix.execve caps f (Array.of_list argv) env; ""
+      with Unix.Unix_error (e, _, _) -> Unix.error_message e)
+      "No such file or directory" (candidates ~path name)
+  in
+  prerr_endline (name ^ ": " ^ why);
   Unix._exit 1
 
 let fork caps (f : unit -> int) : int =
@@ -79,7 +86,12 @@ let rec wait_any caps =
 (* a true status, like "" or "0|0", is 0 *)
 let code (s : string) : int =
   if String.for_all (fun c -> c = '0' || c = '|') s then 0
-  else match int_of_string_opt s with Some n -> n | None -> 1
+  else
+    (* claude: as rc's atoi: the leading number, 1 if none or 0 ("3|4" is 3, "0|4" 1) *)
+    let n = ref 0 and i = ref 0 in
+    while !i < String.length s && s.[!i] >= '0' && s.[!i] <= '9' do
+      n := (!n * 10) + Char.code s.[!i] - 48; incr i done;
+    if !n = 0 then 1 else !n
 
 let pipe () = let r, w = Unix.pipe () in num r, num w
 let dup2 a b = Unix.dup2 (ufd a) (ufd b)
