@@ -29,9 +29,9 @@ type caps = < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.open_out >
  * with -: no counts, no !, q and e never complain), filter -o *)
 val create : < caps; .. > -> Input.t -> verbose:bool -> filter:bool -> t
 
-(* [run t first]: the loop, until q or the end of the input (after an
- * optional first command, ed.c's globp: "r" to read the file named on
- * the command line, "a" for -o); the loop starts again after each
+(* [run t ~file]: the loop, until q or the end of the input, after a
+ * first command as ed.c's globp: r, to read [file] (the one named on
+ * the command line), or a for -o; the loop starts again after each
  * error, as ed.c's setjmp does *)
 val run : t -> file:string option -> unit
 
