@@ -131,8 +131,11 @@ consequences, and they are why ix keeps this design:
   both targets, and the linker's machine part is one module each.
 
 The cost: an object is not machine code, so it can't be disassembled,
-only listed; and the linker is the bigger program. Neither matters for
-ix.
+only listed; and the linker is the bigger program, and does the same
+work again at every link. That last cost is why Go, which started from
+this toolchain, moved the encoding back into the compiler and the
+assembler in 2013: Google's programs are large, and linked often. For
+ix, whose programs are small, the smaller design wins.
 
 ## 4. Objects, libraries, and symbols
 
