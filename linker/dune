@@ -1,6 +1,6 @@
 (library
  (name ix_ld)
- (modules Link Arm Exe CLI)
+ (modules Link Arm Arm64 Exe CLI)
  (libraries ix_asm)
  (flags (:standard -open Ix_asm)))
 

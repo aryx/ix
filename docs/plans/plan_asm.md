@@ -535,6 +535,33 @@ lines; the test is the same: the same executables, running.
   - Next: arm64 (Arm64.ml, milestone 1 for 7), then milestone 2 on
     arm64 and Mach-O.
 
+- **2026-09-23, TinyLd for arm64: milestones 1 and 2 on arm64, byte
+  for byte** (the author: "let's do it"). `linker/Arm64.ml`, from 7l's
+  optab, span, noops and asmout.
+  - Milestone 1: `fixtures.sh 7` gives 20 the same as 7l `-H7 -s`:
+    goken's exit and hello, and 18 of xix's 22 `arm64_diff`. Out of
+    the subset: atomics, barriers, CSEL and TBZ.
+  - Milestone 2: `libc.sh 7` builds goken's libc through `7c -S`, and
+    all 17 hello_libc programs match. goken's section table bug
+    appears on arm64 too (10 of 17), and `dirread` fails from it here
+    as well. `mem` crashes in goken's own build, with bytes the same as
+    ix's, so that bug is goken's (on arm the program passes).
+  - 7l is not 5l: it has its own hash (int32, complemented), its own
+    data alignment (8 and 16), and one literal pool at the end of the
+    program, with 8-byte words for MOV. There are no FMOV immediates:
+    every float constant goes in the data. The frame is 16-aligned
+    with R30 at its bottom. TinyLd reproduces 7l's bitmask encoding
+    (the element size is left out below 64 bits), and it generates
+    the table of 5,334 immediates rather than copying bits.c.
+  - The design held: `follow` and the float constants moved into Link,
+    shared by the two machines, as did the data layout and the hash,
+    with a case per machine. Arm64.ml has no view of 5l's conditions
+    and 5l has no view of 7l's widths. Each machine is one module of
+    about 590 code lines.
+  - Code lines: Arm64 593 (the target was 580, which included Mach-O's
+    position independence), Link 332, Arm 582 (smaller, since `follow`
+    moved out).
+
 ## Verification
 
 `make test` runs the corpus against its recorded outputs and bytes,

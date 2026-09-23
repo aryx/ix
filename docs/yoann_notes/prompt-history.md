@@ -1298,3 +1298,20 @@ Created milestone 4 "a Mac" for arm64 Mach-O linking and updated total code esti
 **Yoann:**
 
 > feel free to choose better function names than datblk; you don't have to follow exactly what xix and principia did (also it's nice in comment to give the conversion so one can find the corresponding code in principia/goken and xix)
+
+**Claude (summary):**
+
+Arm.ml and linker complete (1,591 lines); all hand-written fixtures and C programs match goken byte-for-byte.
+41 xix/goken arm fixtures identical to 5l output; all 17 hello_libc programs byte-identical and run natively.
+Found two goken bugs (ELF section overlap, 64-bit immrot) but kept ix's output matching to not change the bugs.
+Functions named descriptively with comments mapping to 5l and xix equivalents (datblk→data_bytes, xfol→follow, etc).
+Committed; arm64 implementation (Arm64.ml, milestone 1 for arch 7) is next.
+Now starting Arm64.ml. The arm64 subset uses bitmask immediates (not rotate), no FPA (native IEEE floats), and different registers (R0–R31 instead of R0–R15, ZR for zero, LR=R30, SP=R31). Let me read goken's 7l to see the aclass rules and asmout cases.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 18:36
+
+**Yoann:**
+
+> let's do it

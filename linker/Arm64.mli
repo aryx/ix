@@ -1,0 +1,20 @@
+(* The arm64 machine (7l): frames and returns, the layout of the code
+ * with its literal pool, and the encoding of each instruction by the
+ * first of 7l's rules that takes its operands. *)
+
+(* frames rounded, negative ADD and SUB, float constants into the data
+ * (7l's ldobj) *)
+val prepare : Link.t -> unit
+
+(* the code in its flow's order (7l's follow) *)
+val follow : Link.t -> unit
+
+(* prologues and RETURN (7l's noops; xix's Rewrite7) *)
+val rewrite : Link.t -> unit
+
+(* each instruction's pc, the literal pool, t.text_size, t.data_start
+ * (7l's span; xix's Layout7) *)
+val layout : Link.t -> unit
+
+(* the text's bytes (7l's asmout; xix's Codegen7) *)
+val encode : Link.t -> Bytes.t

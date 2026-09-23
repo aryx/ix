@@ -41,7 +41,7 @@ type prog = {
   mutable target : prog option;   (* a branch's target; a load's pool word (5l's p->cond) *)
   version : int;                  (* its object's, for the object's name<>s *)
   where : string * int;           (* its file and line *)
-  mutable frame : int;            (* TEXT: the frame size *)
+  mutable frame : int;            (* TEXT: the frame size, as written; the machine rounds it *)
   mutable leaf : bool;            (* TEXT: calls nothing *)
   mutable rule : int;             (* the machine's cached choice of encoding, -1 before *)
 }
@@ -90,6 +90,11 @@ val make_library : string -> string list -> unit
  * final one (5l's patch and brloop; xix's Resolve) *)
 val resolve : t -> unit
 
+(* the code in the order its flow goes, the dead code dropped (5l's
+ * and 7l's follow): [ends] a prog that ends the flow, [invert] a
+ * conditional branch's opposite *)
+val follow : t -> ends:(prog -> bool) -> invert:(string -> string) -> unit
+
 (* each data symbol's offset (5l's dodata; xix's Layout.layout_data):
  * small ones (<= 64 bytes, bss included) first, then the data, then
  * the bss, each in 5l's hash-table order, so that the addresses are
@@ -101,6 +106,10 @@ val data_bytes : t -> Bytes.t
 
 (* a double's bits as a single's, as 5l rounds them (5l's ieeedtof) *)
 val single_bits : float -> int
+
+(* a float constant as a memory operand, its symbol and DATA made
+ * once; [single] for 4 bytes (5l's and 7l's ldobj) *)
+val float_constant : t -> float -> single:bool -> Asm.operand
 
 (* the entry's address *)
 val entry : t -> string -> int

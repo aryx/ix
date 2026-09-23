@@ -307,18 +307,9 @@ let rule ctx (p : prog) : rule =
 let prepare (t : Link.t) =
   List.iter (fun (p : prog) ->
     match p.op, p.args with
+    | "TEXT", _ -> p.frame <- rnd p.frame 4
     | ("MOVF" | "MOVD"), A.Fimm x :: rest when chip_float x = None ->
-        let bits = Int64.bits_of_float x in
-        let width, name =
-          if p.op = "MOVF" then 4, Printf.sprintf "$%x" (single_bits x)
-          else 8, Printf.sprintf "$%Lx.%Lx" (Int64.logand bits 0xffffffffL) (Int64.shift_right_logical bits 32) in
-        let s = lookup t name 0 in
-        if s.kind = Undefined then begin
-          s.kind <- Bss;
-          s.size <- width;
-          t.datas <- { dsym = s; off = 0; width; value = A.Fimm x; dversion = 0 } :: t.datas
-        end;
-        p.args <- A.Mem { base = SB; name = Some { sym = name; static = false }; off = 0L; index = None } :: rest
+        p.args <- float_constant t x ~single:(p.op = "MOVF") :: rest
     | _ -> ()) t.progs;
   List.iter (fun (p : prog) ->
     match p.op, List.partition (fun s -> condition s <> None) p.suffixes with
@@ -333,100 +324,9 @@ let invert = function
   | "BVS" -> "BVC" | "BVC" -> "BVS" | "BHI" -> "BLS" | "BLS" -> "BHI" | "BGE" -> "BLT" | "BLT" -> "BGE"
   | "BGT" -> "BLE" | "BLE" -> "BGT" | op -> error "unknown relation: %s" op
 
-(* the code in the order its flow goes, from the first TEXT: a branch
- * to code already placed becomes a copy of it when it is short and
- * ends the flow, else a B to it; a conditional branch is inverted when
- * that makes its target the next instruction; and what the flow never
- * reaches (code after a RET) is dropped. 5l's xfol, which builds the
- * new order in the progs' own links: once placed, an instruction's
- * next is what was placed after it. Here the links and the marks are
- * tables, by an id in pc (unused yet) *)
+(* 5l's follow: B and an unconditional RET end the flow *)
 let follow (t : Link.t) =
-  let link = Hashtbl.create 4096 and marked = Hashtbl.create 4096 in
-  let ids = ref 0 in
-  let fresh (p : prog) = p.pc <- !ids; incr ids in
-  let rec links = function
-    | (p : prog) :: (q :: _ as rest) -> fresh p; Hashtbl.replace link p.pc q; links rest
-    | [ p ] -> fresh p
-    | [] -> ()
-  in
-  links t.progs;
-  let next (p : prog) = Hashtbl.find_opt link p.pc in
-  let is_marked (p : prog) = Hashtbl.mem marked p.pc in
-  let mark (p : prog) = Hashtbl.replace marked p.pc () in
-  (* a TEXT's target is the next TEXT (5l's ldobj) *)
-  let texts = List.filter (fun (p : prog) -> p.op = "TEXT") t.progs in
-  List.iteri (fun i (p : prog) -> p.target <- List.nth_opt (List.tl texts) i) texts;
-  let ends (p : prog) = p.op = "B" || (p.op = "RET" && not (List.exists (fun s -> condition s <> None) p.suffixes)) in
-  let rec chain (p : prog option) i =
-    if i >= 20 then None else match p with Some (q : prog) when q.op = "B" -> chain q.target (i + 1) | _ -> p
-  in
-  let out = ref [] in
-  let last () = match !out with q :: _ -> Some q | [] -> None in
-  let emit (p : prog) =
-    (match !out with l :: _ -> Hashtbl.replace link l.pc p | [] -> ());
-    out := p :: !out
-  in
-  let rec xfol (p : prog option) =
-    match p with
-    | None -> ()
-    | Some ({ op = "B"; target = Some q; _ } as p) when not (is_marked q) -> mark p; xfol (Some q)
-    | Some p ->
-        let p = match p.op, p.target with "B", Some q -> mark p; q | _ -> p in
-        if is_marked p then begin
-          (* up to 4 instructions from p, if they end the flow *)
-          let rec find (q : prog) i =
-            if i >= 4 || (match last () with Some l -> l == q | None -> false) then None
-            else if ends q then Some q
-            else if (q.op = "BEQ" || q.op = "BNE") && (match q.target with Some c -> not (is_marked c) | None -> false) then Some q
-            else match next q with Some r -> find r (i + 1) | None -> None
-          in
-          match find p 0 with
-          | Some q ->
-              let rec copy (p : prog) =
-                let r = { p with rule = -1 } in
-                fresh r;
-                mark r;
-                Option.iter (Hashtbl.replace link r.pc) (next p);
-                emit r;
-                if p != q then copy (Option.get (next p))
-                else if not (ends q) then begin
-                  r.op <- invert q.op;
-                  r.target <- next q;
-                  Option.iter (Hashtbl.replace link r.pc) q.target;
-                  match q.target with Some l when not (is_marked l) -> xfol (Some l) | _ -> ()
-                end
-              in
-              copy p
-          | None ->
-              let b = { p with op = "B"; suffixes = []; args = [ A.Target 0 ]; target = Some p; rule = -1 } in
-              fresh b;
-              Hashtbl.remove link b.pc;
-              mark b;
-              emit b
-        end
-        else begin
-          mark p;
-          emit p;
-          if not (ends p) then
-            match p.target, next p with
-            | Some _, Some l when p.op <> "BL" ->
-                let q = chain (Some l) 0 in
-                (match q with
-                 | Some q when p.op <> "TEXT" && p.op <> "BCASE" && is_marked q ->
-                     p.op <- invert p.op;
-                     Hashtbl.replace link p.pc (Option.get p.target);
-                     p.target <- Some q
-                 | _ -> ());
-                xfol (next p);
-                let q = match chain p.target 0 with None -> Option.get p.target | Some q -> q in
-                if is_marked q then p.target <- Some q else xfol (Some q)
-            | _ -> xfol (next p)
-        end
-  in
-  (match t.progs with p :: _ -> xfol (Some p) | [] -> ());
-  List.iter (fun (p : prog) -> if p.op = "TEXT" then p.target <- None) texts;
-  t.progs <- List.rev !out
+  Link.follow t ~ends:(fun p -> p.op = "B" || (p.op = "RET" && not (List.exists (fun s -> condition s <> None) p.suffixes))) ~invert
 
 (*****************************************************************************)
 (* Rewriting: frames, RET, DIV and MOD (5l's noops; xix's Rewrite5) *)

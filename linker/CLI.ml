@@ -9,21 +9,32 @@
  *)
 (* See CLI.mli *)
 
+(* a machine's passes *)
+type machine = { prepare : Link.t -> unit; needs : Link.prog list -> string list; follow : Link.t -> unit;
+                 rewrite : Link.t -> unit; layout : Link.t -> unit; encode : Link.t -> Bytes.t }
+
+let machine = function
+  | Asm.Arm -> { prepare = Arm.prepare; needs = Arm.needs; follow = Arm.follow; rewrite = Arm.rewrite; layout = Arm.layout; encode = Arm.encode }
+  | Asm.Arm64 -> { prepare = Arm64.prepare; needs = (fun _ -> []); follow = Arm64.follow; rewrite = Arm64.rewrite; layout = Arm64.layout; encode = Arm64.encode }
+
 let link ~verbose arch format entry out files =
+  let m = machine arch in
   let t = Link.create arch ~text_start:0 in
   let headr = Exe.headr (format, arch) in
-  (* 5l's INITTEXT: after the header, in the page Linux's arm expects *)
-  t.text_start <- (match format with Exe.Elf -> 0x8000 + headr | Exe.Plan9 -> 4096 + headr);
+  (* 5l's and 7l's INITTEXT: after the header *)
+  t.text_start <- (match format, arch with
+    | Exe.Elf, Asm.Arm -> 0x8000 + headr | Exe.Elf, Asm.Arm64 -> 0x400000 + headr
+    | Exe.Plan9, Asm.Arm -> 4096 + headr | Exe.Plan9, Asm.Arm64 -> 0x10000 + headr);
   (* the entry is the first name needed, before any object (5l's main) *)
   ignore (Link.lookup t entry 0);
-  Link.load t ~needs:Arm.needs files;
-  Arm.prepare t;
+  Link.load t ~needs:m.needs files;
+  m.prepare t;
   Link.resolve t;
   Link.layout_data t;
-  Arm.follow t;
-  Arm.rewrite t;
-  Arm.layout t;
-  let text = Arm.encode t in
+  m.follow t;
+  m.rewrite t;
+  m.layout t;
+  let text = m.encode t in
   (* the listing, as 5l -a *)
   if verbose then
     List.iter (fun (p : Link.prog) ->
@@ -56,7 +67,6 @@ let main (argv : string array) : int =
   | _ -> (
       try
         if !lib <> "" then Link.make_library !lib files
-        else if !arch = Asm.Arm64 then Link.error "arm64: not yet"
         else link ~verbose:!verbose !arch !format !entry !out files;
         0
       with Link.Error m -> prerr_endline ("tinyld: " ^ m); 1)
