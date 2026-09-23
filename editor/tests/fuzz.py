@@ -14,6 +14,7 @@
 # Status). From the root, after dune build:
 #
 #   editor/tests/fuzz.py [seed] [count]
+import random, subprocess, sys, os, tempfile
 ED="/usr/lib/plan9/bin/ed"; T=os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../_build/default/editor/Main.exe")
 R=random.Random(int(sys.argv[1]) if len(sys.argv)>1 else 0)
 alpha="abc x"

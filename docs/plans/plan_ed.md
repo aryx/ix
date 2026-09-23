@@ -28,9 +28,9 @@ command is sed's, and vi began as the visual mode of ex, an extended
 ed. It edits a *buffer* of lines with commands read from standard
 input, one per line, each with up to two addresses. So it is
 scriptable, and that is still what it is used for: principia builds
-its assemblers' opcode
-tables with ed scripts (`compilers/5c/mkenam`), and `diff -e` prints
-the ed script that turns one file into another.
+its assemblers' opcode tables with ed scripts
+(`compilers/5c/mkenam`), and `diff -e` prints the ed script that turns
+one file into another.
 
 Why ed third:
 
