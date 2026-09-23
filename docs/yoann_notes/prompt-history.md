@@ -1692,3 +1692,23 @@ The hybrid gives the twin verification as a Plan 9 model while tiny/TinyC.ml exp
 **Yoann:**
 
 > so that we can compare more easily with the goken and xix models
+
+**Claude (summary):**
+
+Claude ported arm and arm64 backends and matched goken byte-for-byte on all 235 files. Claude discovered goken linker bug: section table offset causes pipe (arm), args/notify/utfmisc (arm64) to output garbage. Claude discovered 7c code generation bug on arm64: mem and stat crash in both tinycc and goken identically. Yoann asked to document these in docs/plan_bugs_goken.md and docs/plan_bugs_xix.md.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:47
+
+**Yoann:**
+
+> in this session I think you discovered bugs in goken or xix, let's save those findings in docs/plan_bugs_goken.md and docs/plan_bugs_xix.md
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:50
+
+**Yoann:**
+
+> can also be bugs you found in the code of mk, rc, etc.

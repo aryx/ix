@@ -12,7 +12,7 @@ where it sits among the real systems). `yoann_notes/` is the author's.
 | TinyRc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/`, `tiny/TinyShell.ml` |
 | TinyEd, the editor | [plan_ed.md](plans/plan_ed.md) | [notes_ed.md](tutorials/notes_ed.md) | [notes_ed_related_work.md](related-work/notes_ed_related_work.md) | `editor/`, `tiny/TinyEditor.ml` |
 | TinyAsm and TinyLd, the assembler and the linker | [plan_asm.md](plans/plan_asm.md) | [notes_asm.md](tutorials/notes_asm.md) | [notes_asm_related_work.md](related-work/notes_asm_related_work.md) | `assembler/`, `linker/`, `tiny/TinyAssembler.ml` |
-| TinyCompiler, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `compiler/` (front end) |
+| TinyCompiler, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `compiler/` |
 
 ## The principles
 
@@ -67,6 +67,15 @@ plan restates only where it differs.
     dates and names from memory marked as such.
 11. **Comments describe the code as it is**; new comments in existing
     code are tagged `claude:`.
+
+## Bugs found in the references
+
+What the differential tests and the ports found in the programs ix is
+tested against, for their authors to decide:
+[`plan_bugs_goken.md`](plan_bugs_goken.md) (goken's toolchain and
+sources, principia's C, 9base and plan9port) and
+[`plan_bugs_xix.md`](plan_bugs_xix.md) (xix's omk and orc, and what
+its toolchain doesn't do yet that goken's output depends on).
 
 ## References in the code
 
