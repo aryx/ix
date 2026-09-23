@@ -26,8 +26,9 @@ ed is Ken Thompson's editor (Unix V1, 1971, after his QED), and the
 editor the other Unix tools grew from: `g/re/p` is grep, the `s`
 command is sed's, and vi began as the visual mode of ex, an extended
 ed. It edits a *buffer* of lines with commands read from standard
-input, one per line, each with up to two addresses. So it is scriptable, and that is
-still what it is used for: principia builds its assemblers' opcode
+input, one per line, each with up to two addresses. So it is
+scriptable, and that is still what it is used for: principia builds
+its assemblers' opcode
 tables with ed scripts (`compilers/5c/mkenam`), and `diff -e` prints
 the ed script that turns one file into another.
 
@@ -141,6 +142,13 @@ file taken out, and it removes `getblock`, `blkio`, `putline`'s
 offset arithmetic, and the `TMP` error: some 250 lines of the C.
 
 ### 2. Regular expressions: backtracking with a memo, which is the Pike VM
+
+**Changed in phase 1** (see the Status): the claim below, that the
+memoized backtracker gives libregexp's answers, is true of a Pike VM
+that keeps its threads in priority order, and false of libregexp,
+whose thread order is not a priority. The fuzzer found it; TinyEd now
+runs libregexp's own algorithm, and the backtracker is TinyEditor.ml's.
+The text is kept as it was planned.
 
 The notation is Plan 9's (regexp(7)): egrep's, before egrep got
 complicated. `.`, `[...]` and `[^...]`, `^` and `$`, `*` `+` `?`, `|`,
@@ -325,6 +333,79 @@ written):
   - `;p` alone prints the whole buffer, as `,p` does;
   - `k` marks follow their line through `m`.
   - `sam -d` runs without a terminal, for TinyEditor.ml's tests.
+
+- **2026-09-23, phases 0-3 DONE: TinyEd.** `editor/`: Regex, Text,
+  Input, Out, Address, Command, CLI; a corpus harness
+  (`tests/differential.sh`, cases as `case.ed` with an optional
+  `case.txt`, `case.args` and `case.pipe`). The first 38 cases, one
+  per command and per check above, passed on the first run -- all of
+  them, which made me check the harness (it did run tinyed). The
+  numbers and the lessons:
+  - **A fuzzer against 9base's ed** (random files, random scripts of
+    every command, random patterns of the whole notation; a script in
+    the scratchpad): 15 mismatches in 5,000 at first, all in the
+    matcher, and each a lesson about libregexp, which is the
+    specification here:
+    - **Decision 2 was wrong.** `((x?)?)*` on `xxb` matches the empty
+      string on 9base, `xx` with the memoized backtracker. The cause is
+      in `regaux.c` and `rregexec.c`: an OR follows its left branch at
+      once and puts its right branch at the *end* of the thread list,
+      and the left of `*`, `+`, `?` is the skip (of `a|b`, the `b`) --
+      so the list is not in priority order. And the dedup of an OR's
+      branch only looks at the threads not yet run (it passes its own
+      place, `tlp`, not the list's start: the "optimization" its
+      comment calls a bug), so a loop that can match empty adds the
+      same instruction again and again, until the list of 10 overflows,
+      and then the one of 50; `rregexec` then returns -1, which ed
+      takes for a match: the best found so far, here the empty one.
+      TinyEd now compiles to regcomp's program and runs regexec's lists,
+      sizes and all (Regex.ml: 307 lines, against 220 planned).
+    - **regcomp's postfix operators don't apply left to right.** They
+      go through its operator stack, with `*` < `+` < `?`, and an
+      operator only pops those of higher or equal priority: so `x*+` is
+      `(x+)*` and `b?+?` is `(b??)+`. Found on `(c?)*+`.
+    - After both, 1 mismatch in 10,000, where 9base's ed segfaults
+      (exit -11): the list overflows before any match, ed takes -1 for
+      one, and dosub reads a null pointer.
+  - **Milestone 1, principia's mkenams**: `compilers/5c/mkenam` on
+    `include/obj/5.out.h` (the scripts name a path that moved) gives
+    the same 93-line `enam.c` under both eds; `8c/mkenam` no longer
+    fits its header, and both eds fail on it alike.
+  - **Milestone 2, xix's history**: `history.sh` over the last 3,000
+    commits of xix: **5,716 of 5,720 `diff -e` scripts** give the new
+    file under both eds, with the same counts printed. The 4 others
+    are files with Latin-1 bytes, which 9base's ed reads as runes,
+    each invalid byte a U+FFFD written back as such, where TinyEd keeps
+    the bytes -- a documented difference, `latin1`.
+  - **Two more documented differences**, each with a `.tiny.out`: a
+    line over 4,096 characters, which 9base refuses; and `v/x/d` on an
+    empty buffer, after which 9base's `$` is -1 (its g marks line 0
+    and gdelete deletes it).
+  - Interrupt and hangup checked by hand: the same output as 9base's,
+    and `ed.hup` written.
+  - The corpus: 44 cases, 3 of them documented differences; a Testo
+    suite of 57 (the `.mli` examples, the laws, the corpus).
+  - **Lines: 1,264 of `.ml`** (1,007 without blanks and comments),
+    against the 1,000 planned: Command 513, Regex 307, Address 132,
+    Input 108, Text 97, Out 69, CLI 26, Main 12. The C: 2,121 for ed.c
+    and 1,316 of libregexp's files for the part it uses; oed 1,794 and
+    partial.
+- **2026-09-23, phase 5: `editor/tiny/TinyEditor.ml`**, sam's command
+  language: the buffer a string, dot a range, addresses as ranges,
+  `x y g v` loops over matches, `{ }`, changes recorded against the
+  text as it was and applied at the end of the command ("changes not
+  in sequence" when they overlap), and the memoized backtracker of
+  decision 2 as its matcher. 666 lines (531 of code), against the 450
+  planned. `test.sh`: 28 scripts the same as 9base's `sam -d`, after
+  taking out a stray `d` that 9base's sam prints after its numbers
+  (plan9port's `%lud`). What sam's source taught, read for it
+  (plan9port's `address.c`, `xec.c`, `cmd.c`): a command is parsed
+  whole before it runs, unlike ed; dot after a loop is not the
+  obvious one (the first change's range after an `x` of `c`s, the last
+  deletion's position after an `x` of `d`s), so TinyEditor makes it
+  the text made and its tests don't compare it; and 9base's sam has a
+  broken character class (`[a-c]` matches only `a` and `c`, `[^ab]` a
+  newline), so the tests use none.
 
 ## Verification
 

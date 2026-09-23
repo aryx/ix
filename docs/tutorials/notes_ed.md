@@ -8,8 +8,11 @@ a user of ed**, and explains the ideas in the order the code needs
 them.
 
 It is the specification of the program planned in
-[`plan_ed.md`](../plans/plan_ed.md), written before the code, to be
-checked against it as [`notes_rc.md`](notes_rc.md) was. Every example
+[`plan_ed.md`](../plans/plan_ed.md). It was written before the code and
+then checked against it, as [`notes_rc.md`](notes_rc.md) was. It got
+two things wrong, corrected here and listed in the plan's Status: how
+TinyEd matches (§4: libregexp's own way, not the planned backtracker)
+and the line count (1,264, not about 1,000). Every example
 below was run on 9base's ed (`/usr/lib/plan9/bin/ed`) on 2026-09-23,
 unless it says "to check". Companions:
 [`notes_ed_related_work.md`](../related-work/notes_ed_related_work.md)
@@ -159,34 +162,46 @@ libregexp's):
 ```
    s/o|on/X/        on "one"     ->  Xe          (on, not o: longest)
    s/(a*)(a*)/[\1,\2]/   "aaa"   ->  [aaa,]      (the first group takes all)
-   s/(o|on)(e|ne)*/[\1,\2]/ "one" -> [o,ne]      (both ways are longest;
-                                                  the first alternative wins)
+   s/(o|on)(e|ne)*/[\1,\2]/ "one" -> [o,ne]      (both ways are longest:
+                                                  which one, see below)
 ```
 
 The last line is the subtle one: when several ways of matching give
-the same longest match, the captures are those of the way tried first,
-in **priority order** -- the left alternative before the right, `*`
-taking one more before taking none.
+the same longest match, which one's captures you get is not fixed by
+the notation. It is decided by how libregexp runs the pattern, and ed
+is specified by libregexp, so that is what TinyEd has to copy.
 
 **How libregexp does it.** It compiles the pattern to a small program
 (`RUNE c`, `ANY`, `CCLASS`, `OR` with two successors, `LBRA n` and
-`RBRA n` for the captures, `END`) and runs every way at once: a list
+`RBRA n` for the captures, `END`), and runs every way at once: a list
 of "threads", each an instruction with its own copy of the captures,
 advanced together over the line one character at a time. Two threads
-at the same instruction on the same character would do the same
-thing from then on, so only the first (the higher priority) is kept.
-That is Thompson's 1968 construction with captures added -- what Russ
-Cox calls the Pike VM, from its use in Rob Pike's sam. It never takes
-more than instructions x characters steps.
+at the same instruction on the same character would do the same thing
+from then on, so only one is kept, the one that started earlier or
+else the first in the list. That is Thompson's 1968 construction with
+captures added -- what Russ Cox calls the Pike VM, from its use in Rob
+Pike's sam -- and it never takes more than instructions x characters
+steps. Three details of it decide the corner cases:
 
-**How TinyEd does it.** Backtracking over the pattern's tree, which is
-the obvious program: try the first alternative, and if it fails the
-second; for `e*`, try one more `e`, then none. Leftmost-longest needs
-two changes. It does not stop at the first match found at a start
-position: it keeps going and remembers the longest end, with the
-captures of the first path that reached it. And it **remembers each
-(node, position) pair it has visited** from that start, and never
-visits one twice:
+```
+   the order     an OR follows its left side at once, and puts its right
+                 side at the END of the list; the left of * + ? is the
+                 skip, and of a|b it is b
+   the dedup     an OR's right side is checked only against the threads
+                 not run yet, so a loop that can match empty adds the
+                 same instruction again, and again
+   the overflow  the list holds 10 threads, then 50; past that, -1,
+                 which ed takes for a match: the best found so far
+```
+
+So `((x?)?)*` on `xxb` matches the empty string (checked on 9base):
+the list overflows, and the empty match at 0 was the only one found.
+
+**How TinyEd does it: the same way.** The plan chose something that
+looks different and gives the same answers: backtracking over the
+pattern's tree, keeping the longest end and the captures of the first
+path to reach it, and remembering each (node, position) pair visited,
+so that no pair is tried twice:
 
 ```
    pattern (a|ab)(c|bcd)       line "abcd"
@@ -195,14 +210,17 @@ visits one twice:
    result: "abcd", \1 = a, \2 = bcd
 ```
 
-The memo is what makes this the Pike VM rather than a naive
-backtracker. A second visit to (node, position) can only reach ends
-already reached, by a path of lower priority, so cutting it changes
-nothing -- which is exactly the Pike VM's rule of dropping the second
-thread. And it bounds the work to nodes x positions per start, where a
-naive backtracker is exponential on `(a*)*b`. The two programs are
-different, and they give the same answers; TinyEd's is a third of the
-size, with no instruction set.
+The memo makes it a Pike VM, in the same bound, and a second visit to
+a pair can only find ends already found, by a path of lower priority.
+So its answers are those of a Pike VM whose threads are in priority
+order, like RE2's. libregexp's are not in priority order, and a fuzzer
+against 9base's ed found the difference in its first 5,000 scripts.
+So TinyEd compiles to regcomp's program and runs regexec's lists,
+sizes and overflow included. One more thing the fuzzer found is in the
+parser: regcomp applies postfix operators through its operator stack,
+where `*` < `+` < `?`, so `x*+` is `(x+)*`. The backtracker lives on
+in `editor/tiny/TinyEditor.ml`, where there is no reference to match
+in the corners.
 
 **Unicode.** A line is UTF-8 bytes, and positions are byte offsets;
 the matcher decodes one character at each step, so `.` and `[^x]`
@@ -326,12 +344,14 @@ prints `?` and returns to the loop; a hangup writes the buffer to
 |---|---|---|---|
 | the buffer | offsets into a temp file, low bit stolen | lines in memory | lines in memory, records with identity |
 | input | `getchr`, `peekc`, `globp` | ocamllex | `getchr`, `peekc`, `globp` |
-| regular expressions | libregexp: compiled, Pike VM | the `re` library | backtracking with a memo |
+| regular expressions | libregexp: compiled, Pike VM | the `re` library | libregexp's program and lists, in OCaml |
 | `s///g`, `&`, `\1`, marks, `g` | yes | no | yes |
-| lines | 2,121, and libregexp 1,479 | 1,794 | about 1,000 (target) |
+| lines | 2,121, and libregexp 1,479 | 1,794 | 1,264 (1,007 of code) |
 
-The design difference that matters is the third row (the plan's
-decision 2).
+The design difference that matters is the first row (the plan's
+decision 1): lines as records in memory, with an identity. The third
+row was planned as the other difference, and went back to the C's
+design (§4).
 
 ## 12. How it is tested
 
@@ -341,7 +361,11 @@ decision 2).
 - **Laws**: `diff -e a b` makes `a` into `b`; `s` then `u` is nothing;
   `m` and `m` back is nothing; `g/re/p` is `grep re`.
 - **Real scripts**: principia's two `mkenam`s, and the `diff -e`
-  scripts of xix's last 300 commits.
+  scripts of xix's last 3,000 commits: 5,716 of 5,720 the same, the
+  other 4 files with bytes that are not UTF-8, which 9base's ed
+  rewrites.
+- **A fuzzer**: random scripts on random files, through both eds;
+  10,000 the same, but for one where 9base's ed crashes.
 
 ## 13. Exercises
 
@@ -360,8 +384,9 @@ decision 2).
 TinyEd is the editor of the ix user who has a terminal and no screen,
 and its regular expressions are the first piece of text processing
 the other programs can share (a grep, a sed, sam's language in
-`editor/tiny/`). TinyEditor.ml, in `editor/tiny/`, comes after it:
-one file, sam's structural regular expressions instead of ed's lines.
+`editor/tiny/`). TinyEditor.ml, in `editor/tiny/`, came after it:
+one file, sam's structural regular expressions instead of ed's lines,
+tested against 9base's `sam -d`.
 
 ## Glossary
 

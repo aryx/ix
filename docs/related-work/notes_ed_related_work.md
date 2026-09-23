@@ -22,8 +22,8 @@ them for teaching.
 | TECO (1962), Emacs (1976, 1984) | An editor as a programmable machine | macros, then Lisp |
 | sam (1987), acme (1992) | Structure, not lines; the mouse for the rest | `,x/re/c/new/`, and clicks |
 | vis (2014), kakoune (2011) | sam's structural regexps with vi's keys; selections first | `x/re/`, multiple selections |
-| `editor/` (TinyEd) | Seeing what an editor does, as ed, checked against Plan 9's | ed, run by about 1,000 lines of OCaml (target) |
-| `editor/tiny/TinyEditor.ml` | What an editor is, in sam's terms | sam's language, in one file (target 450 lines) |
+| `editor/` (TinyEd) | Seeing what an editor does, as ed, checked against Plan 9's | ed, run by 1,264 lines of OCaml |
+| `editor/tiny/TinyEditor.ml` | What an editor is, in sam's terms | sam's language, in one file of 666 lines |
 
 ## Part 1: the line editors
 
@@ -114,13 +114,19 @@ without the screen, as `sam -d` has it.
 - **POSIX** (1992) specified leftmost-longest with rules for captures
   that many implementations got wrong (Glenn Fowler's testregex found
   that).
-- **Memoized backtracking** (the idea TinyEd uses; its plan, decision
-  2): backtracking over the tree with a table of (node, position)
-  pairs visited. With the table, backtracking in priority order finds
-  what the Pike VM finds, in the same bound. The idea is old --
-  "backtracking with memoization is the NFA", in Cox's articles and
-  in parsing's packrat parsers (Bryan Ford, 2002) -- and it is the
-  smallest program that has the Pike VM's answers.
+- **Memoized backtracking** (TinyEditor.ml's matcher; the plan wanted
+  it for TinyEd too, its decision 2): backtracking over the tree with
+  a table of (node, position) pairs visited. With the table,
+  backtracking in priority order finds what a priority-ordered Pike
+  VM finds (RE2's), in the same bound. The idea is old --
+  "backtracking with memoization is the NFA", in Cox's articles and in
+  parsing's packrat parsers (Bryan Ford, 2002). What TinyEd's fuzzer
+  showed is that it is *not* libregexp's answers: libregexp's thread
+  list is not in priority order (an OR queues its right side at the
+  end of the list, and the skip of `*` is the side followed first),
+  and its dedup only looks ahead, so its corner cases (`((x?)?)*`)
+  come from the list order and a list overflow. A reimplementation that
+  must agree with a Pike VM has to be that Pike VM.
 - **The 30-line matcher**: Rob Pike's `match`, `matchhere` and
   `matchstar` (`c`, `.`, `^`, `$`, `*`), in Kernighan and Pike's *The
   Practice of Programming* (1999) and Kernighan's chapter of
@@ -154,9 +160,24 @@ As for TinyMk and TinyRc, two levels:
 **The ceiling, stated now**: no screen, no multiple buffers (QED's
 and sam's), no undo but `u`'s, no POSIX notation.
 
-## Postscript: the numbers (to come)
+## Postscript: the numbers
 
-Once built: TinyEd's lines per module against the plan's targets,
-ed.c's 2,121 with libregexp's 1,479, and oed's 1,794; the corpus
-cases that print what 9base's ed prints; the `mkenam`s; and how many
-of xix's `diff -e` scripts replay to the same file.
+- **Lines.** TinyEd has 1,264 lines of `.ml`, 1,007 of them code,
+  against the 1,000 planned. That is 37% of ed.c's 2,121 with the
+  1,316 lines of libregexp it uses, and 70% of oed's 1,794, which is
+  partial. TinyEditor.ml, sam's language with its own matcher, has 666
+  lines, 531 of them code; sam's command language in plan9port is
+  about 2,000 lines of C (`address.c`, `xec.c`, `cmd.c`, `regexp.c`).
+- **The corpus.** 44 cases, 41 the same as 9base's ed, and 3
+  documented differences, each with a `.tiny.out`: lines over 4,096
+  characters, `v/x/d` on an empty buffer, and bytes that are not UTF-8.
+- **The fuzzer.** 10,000 random scripts, the same as 9base's ed but
+  for one, where 9base's ed segfaults.
+- **The mkenams.** 5c's gives the same `enam.c` (93 lines); 8c's no
+  longer fits its header, under both eds.
+- **xix's history.** 5,716 of 5,720 `diff -e` scripts of xix's last
+  3,000 commits replay to the new file under both eds, with the same
+  counts; the other 4 are the Latin-1 case.
+- **sam -d.** 28 scripts the same as TinyEditor's, once 9base's stray
+  `d` after its numbers is taken out, and with no character classes,
+  which 9base's sam gets wrong.
