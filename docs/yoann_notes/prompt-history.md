@@ -1258,3 +1258,19 @@ Claude proposed command names (tinyasm/tinyld vs. 5a/7a/5l/7l), goken changes, a
 **Yoann:**
 
 > great. maybe we could do the same for the past plans (rc, ed, and mk)
+
+**Claude (summary):**
+
+Claude clarified that the plan already contained reasoning and tables but lacked the counting scripts and complete opcode lists.
+Claude saved `assembler/tests/count_opcodes.py` and added a complete opcode appendix to `plan_asm.md` for both architectures.
+Claude recovered `shell/tests/count_features.py` for rc and `shell/tests/principia_scripts.sh` harness, which verified 119 of 133 scripts match.
+Claude saved `builder/tests/count_features.sh` for mk and `editor/tests/mkenam.sh` for ed with their verified results in the plans.
+Claude committed all evidence (33d0b17, f466902) and established a rule: scripts that produce plan numbers must go in the repository.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 17:18
+
+**Yoann:**
+
+> I like the plan, but we might want to also support Mach-O at least (Plan9 a.out and Windows PE are optional, add them if it does not add too much code). With Mach-O I could also run binaries produced by tinyas and tinyld on my macbook pro

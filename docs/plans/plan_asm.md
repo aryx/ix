@@ -239,7 +239,7 @@ with it.
               0x80a0 (arm) or 0x4000f0 (arm64), as 5l and 7l; data after,
               page-aligned; literal pools after the functions that use them
    encode     per architecture: each instruction to its words
-   write      ELF32 or ELF64: a header, three program headers, the bytes
+   write      the format (decision 7): ELF32 or ELF64, Mach-O, or a.out
 ```
 
 Instructions are 4 bytes on both targets, so an instruction's size
@@ -281,11 +281,52 @@ immediate", a repeated pattern of ones; 7l tabulates them in
 constant into element size, run of ones and rotation is some 30 lines,
 the same answer as the table.
 
-### 7. ELF only, static, no debugging information
+### 7. Three executable formats: ELF, Mach-O, Plan 9 a.out
 
-`-H7` only: no Plan 9 a.out, no Mach-O, no PE, no dynamic linking;
-no Plan 9 symbol table, no pc/line table, no DWARF; an entry symbol
-(`-E`, default `_main`, libc's start-up, or `_start`).
+The author: "we might want to also support Mach-O at least (Plan9
+a.out and Windows PE are optional, add them if it does not add too
+much code). With Mach-O I could also run binaries produced by tinyas
+and tinyld on my macbook pro". So, one module per format, all behind
+the same interface (the laid-out segments in, a file out), as 5l's and
+7l's `-H`:
+
+| format | targets | goken | how it is tested | lines |
+|---|---|---|---|---:|
+| ELF (`-H7`) | arm, arm64 | 5l, 7l | run here; bytes against goken | 120 |
+| Mach-O (`-H6`) | arm64 (macOS has no 32-bit arm) | 7l | bytes here, against 7l's unsigned output; run on the author's MacBook | 180 |
+| Plan 9 a.out (`-H2`) | arm, arm64 | 5l, 7l | bytes against goken; the arm one runs here under goken's 5i (checked: `hello_plan9_arm.exe` prints `Hello, world`) | 30 |
+| PE (Windows) | -- | none for arm or arm64 (only 386 and amd64: goken's `notes_exec_pe.txt`) | -- | out: no reference to test against |
+
+**a.out** is a 32-byte big-endian header (magic `0x647` for arm, the
+text, data, bss and symbol sizes, the entry) and the segments: cheap,
+and the format principia's own kernel runs, for later.
+
+**Mach-O on arm64 is more than a header**, and goken's notes
+(`docs/claude_notes/notes_exec_macho.txt`, from bringing up 7l's
+`-H6`) say what the kernel demands, each checked by them the hard way
+(a silent SIGKILL at exec otherwise):
+
+- **Signed.** An ad-hoc signature is enough, and `codesign -s -`
+  adds it on the Mac (goken's `scripts/macos-codesign`); TinyLd leaves
+  room for it (`__LINKEDIT` last, page-aligned, space after the load
+  commands). Computing the signature in TinyLd needs SHA-256, which
+  OCaml 4.14's standard library lacks: an exercise.
+- **Dynamic in name.** The kernel runs no static executable: the file
+  names `/usr/lib/dyld` and `libSystem.B.dylib`, and its entry is
+  `LC_MAIN`. The program still calls nothing in libSystem: libc's
+  darwin files make system calls directly (the number in R16, `SVC
+  $0x80`), unsupported by Apple but working.
+- **Position independent.** The kernel slides every program, so an
+  address is never a constant: on Mach-O, `MOV $sym(SB), R` becomes
+  `ADRP` and `ADD` (7l's `asmout` case 66) instead of a pool load, and
+  the pointers in initialized data are listed for dyld to adjust (a
+  "rebase" stream, `LC_DYLD_INFO_ONLY`). That is some 30 lines in
+  `Arm64` and `Link`, besides the writer.
+- **16 KB pages**, a 4 GB `__PAGEZERO`, `__TEXT` at 0x100000000.
+
+Static in every other way: no shared libraries, no Plan 9 symbol
+table or pc/line table, no DWARF; an entry symbol (`-E`, default
+`_main`, libc's start-up, or `_start`).
 
 ### 8. Where the code goes, and the names
 
@@ -308,7 +349,7 @@ and comments, as TinyBuildSystem's 261). goken's C for the same:
 | a grammar and a typed AST per architecture (`Parser_asm5.mly` 422, `Parser_asm7.mly` 331, `Ast_asm5` 166, `Ast_asm7` 154, `Parse_asm5/7`, `Check_asm5`) | ~1,400 | one parser, one instruction type | decision 2 |
 | an ocamllex lexer (`Lexer_asm.mll`) | ~200 | a hand-written one, ~80 | the tokens are few |
 | encoders over all of 5l's and 7l's forms (`Codegen5` 945, `Codegen7` 951) | ~1,900 | the subset, ~40 forms each | the counts above |
-| `Elf.ml` (358) and `A_out.ml` | ~400 | ELF32 and ELF64 only, ~120 | decision 7 |
+| `Elf.ml` (358) and `A_out.ml` | ~400 | ELF32 and ELF64 ~120, a.out ~30 (and Mach-O, which xix doesn't have, ~180) | decision 7 |
 | `CLI.ml`s (160 + 339), `Flags`, `Profile`, `Optimize5` | ~650 | ~80 | no listing, profiling or optimizer |
 | per-architecture `Types5/7`, `Layout5/7`, `Rewrite5/7` | ~700 | one file per architecture, with the encoder | decision 1 |
 
@@ -321,10 +362,12 @@ and comments, as TinyBuildSystem's 261). goken's C for the same:
 | `assembler/CLI.ml`, `Main.ml` | 40 | |
 | `linker/Link.ml(i)` | 250 | load, libraries, symbols, layout, data, pools |
 | `linker/Elf.ml` | 120 | ELF32 and ELF64 |
+| `linker/Macho.ml` | 180 | Mach-O for arm64, with the rebase stream |
+| `linker/Aout.ml` | 30 | Plan 9 a.out |
 | `linker/Arm.ml` | 500 | arm: rewrite, classify, encode |
-| `linker/Arm64.ml` | 550 | arm64: the same, and the bitmask immediates |
+| `linker/Arm64.ml` | 580 | arm64: the same, the bitmask immediates, and position-independent addresses for Mach-O |
 | `linker/CLI.ml`, `Main.ml` | 60 | |
-| **total** | **about 1,850** | a third of xix's code, 6% of the C |
+| **total** | **about 2,090** | two fifths of xix's code (which has no Mach-O), 6% of the C |
 
 TinyEd came out 26% over its line target (and on it in code lines);
 the Status will compare.
@@ -354,6 +397,9 @@ lines; the test is the same: the same executables, running.
   the A32 encodings).
 - **Arm64**: 7l's `optab.c`, `asmout.c`, `span.c`, `noop.c`; the Arm
   Architecture Reference Manual for A-profile (A64).
+- **Macho**: goken's `linkers/lk/macho.c` and
+  `docs/claude_notes/notes_exec_macho.txt`; Apple's `mach-o/loader.h`.
+- **Aout**: 5l's and 7l's `asm.c` (`H_PLAN9`); a.out(6) of Plan 9.
 - **Elf**: goken's `linkers/lk/elf.c`; the System V ABI, and its ARM
   and AArch64 supplements.
 
@@ -380,6 +426,11 @@ lines; the test is the same: the same executables, running.
   on both targets, natively.
 - **Milestone 3: a Raspberry Pi.** The arm executables of milestone 2,
   on a Pi (by the author).
+- **Milestone 4: a Mac.** The arm64 programs of milestone 2, linked
+  for Mach-O with libc's darwin files: here, byte for byte against 7l's
+  `-H6`; on the author's MacBook, signed with `codesign -s -`, running.
+- **Plan 9 a.out**: the corpus's arm programs linked with `-H2`, run
+  under 5i, which needs no Plan 9.
 
 ## Phasing
 
@@ -390,11 +441,12 @@ lines; the test is the same: the same executables, running.
    the objects; the round-trip law over the corpus and goken's libc
    `.s`.
 2. **TinyLd, general part**: load, libraries, symbols, layout, data,
-   ELF32 and ELF64.
+   ELF32 and ELF64, and a.out.
 3. **arm**: rewrite, classify, encode; milestone 1 for 5; the fuzzer.
 4. **arm64**: the same, and a look back at what the second target
    showed in the first's design; milestone 1 for 7.
-5. **Milestone 2**, on both.
+5. **Milestone 2**, on both; then **Mach-O** for arm64 and
+   milestone 4.
 6. **The one-file variant**, in `tiny/`.
 7. **Docs**: `notes_asm.md` checked against the code, the numbers.
 
@@ -421,6 +473,18 @@ lines; the test is the same: the same executables, running.
     `MOV $12, R0` into a pool load; the exit programs are 326 bytes
     (ELF32) and 486 (ELF64).
 
+- **2026-09-23, the formats widened, before any code** (the author:
+  "we might want to also support Mach-O at least (Plan9 a.out and
+  Windows PE are optional, add them if it does not add too much code).
+  With Mach-O I could also run binaries produced by tinyas and tinyld
+  on my macbook pro"). Decision 7 is now three formats. Checked for
+  it: 7l writes Mach-O for arm64 (`-H6`) and 5l and 7l a.out (`-H2`);
+  goken's `hello_plan9_arm.exe` runs under 5i here; goken has no PE
+  for arm or arm64, so PE stays out. goken's Mach-O notes list what
+  the arm64 kernel requires (a signature, dyld named, position
+  independence, 16 KB pages); the line target grows by 240, to about
+  2,090.
+
 ## Verification
 
 `make test` runs the corpus against its recorded outputs and bytes,
@@ -429,9 +493,11 @@ against goken, which must be built.
 
 ## Out of scope
 
-Dynamic linking and shared libraries; debugging information (Plan 9's
-symbol table, DWARF); the other executable formats (Plan 9 a.out,
-Mach-O, PE); the other architectures of goken (386, amd64, mips,
+Dynamic linking and shared libraries (Mach-O's dyld and libSystem are
+named, not used); debugging information (Plan 9's symbol table,
+DWARF); PE, for which goken has no arm or arm64 reference; Mach-O for
+anything but arm64, and universal binaries; signing Mach-O in TinyLd
+(`codesign` does it); the other architectures of goken (386, amd64, mips,
 riscv...); arm floating point (FPA, and VFP until a later phase);
 kernel code (system instructions, the assemblers' preprocessor).
 

@@ -277,6 +277,34 @@ arm needs one more thing: `e_flags` must say EABI version 5
 (`0x5000200`), or the kernel refuses the file. No section headers are
 needed to run (5l writes three anyway).
 
+**Plan 9's a.out** is simpler still: 32 bytes, eight big-endian words
+-- the magic (`0x647` on arm), the sizes of the text, the data, the bss
+and the symbols, the entry, and two more sizes -- then the text and the
+data (checked on goken's `hello_plan9_arm.exe`, which goken's 5i runs
+here).
+
+**Mach-O on arm64** (for macOS) is the most demanding, and every
+demand is enforced by a silent kill at exec (goken's
+`notes_exec_macho.txt`):
+
+```
+   header          magic, CPU arm64, flags: PIE and "dyld links me"
+   load commands   __PAGEZERO (4 GB of nothing), __TEXT (at 0x100000000,
+                   the header included), __DATA, __LINKEDIT (last), the
+                   rebase stream for dyld, LC_MAIN (the entry, as a file
+                   offset), dyld's path, libSystem's name, empty symbol
+                   tables, and room for the signature
+```
+
+The program must be position independent, because the kernel loads it
+at a random slide: an address is built at run time with `ADRP` and
+`ADD`, never taken from a pool; and a pointer in initialized data is
+listed, for dyld to add the slide. Pages are 16 KB. And the file must
+be signed: `codesign -s -`, on the Mac, adds an ad-hoc signature at the
+end of `__LINKEDIT`. The program names dyld and libSystem only because
+the kernel insists; it makes its system calls itself (number in R16,
+`SVC $0x80`).
+
 ## 10. Compared with goken and xix
 
 | | goken (C) | xix (OCaml) | TinyAsm and TinyLd |
@@ -285,7 +313,7 @@ needed to run (5l writes three anyway).
 | objects | Plan 9's format | marshalled | marshalled |
 | encoding | optab and asmout per machine | pattern matching, all forms | pattern matching, the subset |
 | arm64 bitmask immediates | a table (5,382 lines) | | computed |
-| formats | ELF, Mach-O, PE, a.out | ELF, a.out | ELF |
+| formats | ELF, Mach-O, PE, a.out | ELF, a.out | ELF, Mach-O (arm64), a.out |
 | lines, 5 and 7 | about 32,000 | 11,036 (5,542 of code) | about 1,850 (target) |
 
 ## 11. How it is tested

@@ -47,6 +47,12 @@ teaching.
   assigns the final addresses and patches every relocation. The
   **a.out** format, and later **ELF** (System V Release 4, Unix System
   Laboratories), carry the code, the data and the relocations.
+- **Mach-O** (NeXTSTEP, from the Mach kernel, late 1980s; Apple's
+  since Mac OS X, 2001): load commands instead of ELF's program
+  headers, and on today's arm64 macOS a signature, dyld and position
+  independence required of every executable. **PE** (Windows NT, 1993,
+  from COFF) is the third of the big three formats; Plan 9's **a.out**,
+  a 32-byte header, is the smallest.
 - **GNU as and ld** (binutils, from the late 1980s; the BFD library of
   Cygnus, early 1990s, to read and write every object format): the same
   model, generalized to every machine and every format, with linker
@@ -147,8 +153,10 @@ teaching.
   layout (no relocations), and per machine a classifier and a table of
   rules, with arm64's bitmask immediates computed.
 
-**The ceiling, stated now**: static executables only; no dynamic
-linking, no debugging information, no other format than ELF; no
+**The ceiling, stated now**: static executables only (Mach-O names
+dyld because macOS insists); no dynamic linking, no debugging
+information; ELF, Mach-O for arm64 and Plan 9 a.out, not PE (goken has
+no arm PE to compare with); no
 floating point on arm (FPA can't run, VFP is an exercise); no kernel
 instructions.
 
