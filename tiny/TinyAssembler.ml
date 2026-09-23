@@ -432,6 +432,14 @@ let compile c op args : word list =
   | ("SXTW" | "SXTH" | "SXTB" | "UXTW" | "UXTH" | "UXTB"), [ Reg f; Reg d ] ->
       [ k (List.assoc op [ "SXTW", 0x93407C00; "SXTH", 0x93403C00; "SXTB", 0x93401C00; "UXTW", 0xD3407C00; "UXTH", 0xD3403C00; "UXTB", 0xD3401C00 ]
            lor (f lsl 5) lor d) ]
+  (* claude: 7c -O0's NOPs: no word, so a branch to one lands on the next *)
+  | "NOP", _ -> []
+  (* claude: 7c's optimizer extends constants too (SXTW $c, R), a MOV of the extended value *)
+  | ("SXTW" | "SXTH" | "SXTB" | "UXTW" | "UXTH" | "UXTB"), [ Imm v; Reg d ] ->
+      let bits = match op.[3] with 'W' -> 32 | 'H' -> 16 | _ -> 8 in
+      let v = if op.[0] = 'S' then Int64.shift_right (Int64.shift_left v (64 - bits)) (64 - bits)
+              else Int64.logand v (Int64.pred (Int64.shift_left 1L bits)) in
+      movconst true d v
   (* arithmetic: register, or an immediate made to fit *)
   | ("ADD" | "SUB" | "ADDS" | "SUBS" | "CMP" | "CMN"), _ ->
       let a, n, d = match base, args with ("CMP" | "CMN"), [ a; n ] -> a, reg n, zr | _ -> three args in

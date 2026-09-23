@@ -25,3 +25,9 @@
  (package ix)
  (modules TinyAssembler)
  (libraries caps))
+
+(executable
+ (name TinyC)
+ (public_name tinyc)
+ (package ix)
+ (modules TinyC))

@@ -393,6 +393,30 @@ after the compiler, by what it taught.
 
 4. **Milestone 2**, on both; then milestone 3.
 5. **The one-file variant**, in `tiny/`.
+   *Done (2026-09-24)*: `tiny/TinyC.ml`, 870 lines (678 of code). A C
+   subset chosen by what each feature costs (no floats, unions, enums,
+   bitfields, function pointers, structures by value or goto), through
+   a stack machine of its own (`-ir` prints it), whose stack the back
+   end keeps in R1..R15, as Wirth's compilers do; 7c's calling
+   convention, so it calls goken's libc, variadic `print` included.
+   `TinyC_test.sh` compiles each program with TinyC and with `7c -O0`,
+   assembles both with all of libc by TinyAssembler, runs them and
+   compares: the 8 of `TinyC_tests/` (arithmetic of every width, pointers
+   and arrays, structures and a list, control, globals, calls, a sort
+   and an RPN calculator), and 300 random ones of `TinyC_fuzz.py`, all
+   the same. What the fuzzer found: Plan 9's C promotes `uchar` and
+   `ushort` to `uint` (unsigned-preserving, cck's table), which TinyC
+   now does; optimized 7c's MOVW of a negative 64-bit constant
+   (`plan_bugs_goken.md`, 5b), hence `-O0` as the reference; and two
+   gaps in TinyAssembler, `NOP` and `SXTW $c`, now filled. **The IR's
+   answer** (the question of "Outside the compiler"): the front end
+   knows no register and no instruction, the back end no C (its 120
+   lines are the whole machine), and each is read and tested alone; the
+   cost is the code's quality (no Sethi-Ullman order, no addressing
+   modes, a load or a store per variable). TinyCompiler, with no IR and
+   5c's decisions, is 5,621 lines for two machines and byte-identical
+   code; TinyC, 678 lines of code for one machine and correct code.
+
 6. **Docs**: `notes_cc.md` checked against the code, the numbers.
 
 ## Status

@@ -1712,3 +1712,33 @@ Claude ported arm and arm64 backends and matched goken byte-for-byte on all 235 
 **Yoann:**
 
 > can also be bugs you found in the code of mk, rc, etc.
+
+**Claude (summary):**
+
+Claude verified findings and corrected earlier notes about memory and compiler issues.
+Created docs/plan_bugs_goken.md with 22 entries detailing linker, compiler, and cross-tool bugs.
+Created docs/plan_bugs_xix.md with 10 entries describing omk, orc, and missing toolchain features.
+Linked both files from docs/README.md and updated the compiler documentation row.
+Committed as 6881cad with each entry documenting what's wrong, how to reproduce, and ix's response.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:59
+
+**Yoann:**
+
+> let's commit those bugs documents
+
+**Claude (summary):**
+
+Claude confirmed the bug documents were already committed earlier as commit 6881cad.
+These were committed together with a new section that was added in docs/README.md.
+The working tree was completely clean with nothing remaining to commit at all.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:00
+
+**Yoann:**
+
+> ok now let's do TinyC.ml based on the experience writing compiler/ ?

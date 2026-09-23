@@ -67,6 +67,14 @@ the bug is in 7c's code generator or in libc's C that only `-O0`
 exposes. Reproduce: `TINYCC=1 linker/tests/libc.sh 7 /tmp/w
 ~/goken/tests/c/hello_libc/*.c` (exit 139 and 132).
 
+### 5b. 7c's optimizer loads a negative 64-bit constant with MOVW
+
+`long long x; x = -(2147483647);` (or `x = -2147483647;`): optimized
+7c emits `MOVW $-2147483647,R9` then `MOV R9,x+0(SB)`. A MOVW writes
+the 32-bit register and zeroes the upper half, so `x` is 2147483649.
+`7c -O0` emits `MOV $-2147483647,R1`, correct. Found by TinyC's
+fuzzer (`tiny/TinyC_fuzz.py`), whose reference is now `7c -O0`.
+
 ### 6. The code depends on the host's `qsort`
 
 cck's reassociation (`scon.c`'s `acom2`) sorts its terms with `qsort`,
@@ -211,4 +219,5 @@ by file: TinyMk's, TinyRc's and TinyEd's `differential.sh` and
 fuzzers, against 9base; `compiler/tests/front.sh` (trees),
 `compiler/tests/listing.sh` (listings), `linker/tests/libc.sh`
 (executables, and running them) and `linker/tests/fuzz.py`, against
-goken; and reading the C while porting it.
+goken; `tiny/TinyC_fuzz.py`, against 7c; and reading the C while
+porting it.
