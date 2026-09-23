@@ -1,0 +1,5 @@
+(executable
+ (name TinyEditor)
+ (public_name tinyeditor)
+ (package ix)
+ (libraries unix))

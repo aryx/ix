@@ -8,6 +8,8 @@ test: all
 	./builder/tiny/test.sh
 	./_build/default/shell/tests/Test.exe
 	./shell/tiny/test.sh
+	./_build/default/editor/tests/Test.exe
+	./editor/tiny/test.sh
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.
