@@ -1,0 +1,5 @@
+path=(/bin /usr/bin)
+ifs=' 	
+'
+. -i /dev/stdin
+exit $status

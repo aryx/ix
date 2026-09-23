@@ -1,0 +1,6 @@
+echo *.c
+echo *
+echo '*'.c nomatch* */*.c
+echo [ab].c [~a].c ?.c
+x='*'; echo $x
+y=*.c; echo $#y $y

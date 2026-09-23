@@ -1,0 +1,8 @@
+PID: signal: sys: kill
+PID: signal: sys: kill
+PID: signal: kill
+PID: signal: kill
+PID: signal: hangup
+PID: signal: hangup
+6: 44
+[exit 0]

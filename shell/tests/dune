@@ -1,0 +1,4 @@
+(executables
+ (names Parsecheck Test)
+ (modules Parsecheck Test Unit_rc)
+ (libraries ix_rc caps testo alcotest unix))

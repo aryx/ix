@@ -1,0 +1,10 @@
+echo a \
+  b
+echo one |
+  tr a-z A-Z
+true &&
+  echo continued
+x=(1
+2
+3)
+echo $#x

@@ -1,0 +1,6 @@
+A=foo bar
+
+echo $A^.c
+
+# implicit caret insertion?
+echo $A.c

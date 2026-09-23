@@ -1,0 +1,5 @@
+a=1 b=2 echo $a $b
+echo after $#a $#b
+path=(/bin /usr/bin); echo $PATH
+c=(x y); d=$c; echo $#d
+e=''; echo $#e

@@ -1,0 +1,15 @@
+f: 3 a b c
+g outer
+f: 1 inner
+h sees local
+x is global
+f: No such file or directory
+defined ./case.rc
+defined ./case.rc
+fn g {echo g $1;f inner}
+fn h {echo h sees $x}
+x=global
+builtin cd
+nonexistentcmd: not found
+status not found
+[exit 0]

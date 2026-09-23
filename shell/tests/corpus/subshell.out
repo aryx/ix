@@ -1,0 +1,8 @@
+in 2 /
+out 1
+brace 3
+same
+/dev/fd/N
+apid 1
+waited
+[exit 0]

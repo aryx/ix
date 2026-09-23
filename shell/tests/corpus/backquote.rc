@@ -1,0 +1,12 @@
+# `sep{cmd} splits on sep: principia's rc (9front's extension) has it,
+# 9base's rc does not (a syntax error): backquote.tiny.out is TinyRc's
+x=`{echo one two three}
+echo $#x $x(3)
+y=`:{echo a:b:c}
+echo $#y $y
+ifs=:
+z=`{echo p:q}
+echo $#z
+ifs=' 	
+'
+echo `{echo a; echo b}

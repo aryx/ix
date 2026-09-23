@@ -1,0 +1,7 @@
+a.c b.c
+.hidden a.c b.c case.rc d1 d2
+*.c nomatch* d1/x.c d2/y.c
+a.c b.c b.c a.c b.c
+*
+2 a.c b.c
+[exit 0]

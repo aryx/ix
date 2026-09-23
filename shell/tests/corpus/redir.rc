@@ -1,0 +1,14 @@
+echo one >f
+echo two >>f
+cat <f
+cat < f >g; cat g
+fn e { echo out; echo err >[1=2] }
+e >f1 >[2=1]; echo both: `{cat f1}
+e >[2]/dev/null
+e >[2=1] >[1=2] >[2]/dev/null
+{ echo in brace } >f2; cat f2
+echo x >[1=]
+echo closed $status
+echo data >f3; cat <>f3
+>f4 echo prefix; cat f4
+e |[2] tr a-z A-Z

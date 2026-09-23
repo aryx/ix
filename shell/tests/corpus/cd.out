@@ -1,0 +1,10 @@
+Can't cd /nonexistent: No such file or directory
+can't cd
+d1
+d2
+flag not set
+flag x
+echo ''
+
+exit ''
+[exit 0]

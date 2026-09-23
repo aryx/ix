@@ -1,0 +1,11 @@
+x=1
+@{ x=2; cd /; echo in $x `{pwd} }
+echo out $x
+{ x=3 }
+echo brace $x
+cmp <{echo a} <{echo a} && echo same
+echo <{true}
+sleep 0 &
+echo apid $#apid
+wait
+echo waited

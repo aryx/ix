@@ -1,0 +1,11 @@
+(library
+ (name ix_rc)
+ (modules Ast Lexer Parser Glob Word Env Process Eval Builtin CLI)
+ (libraries unix caps))
+
+(executable
+ (name Main)
+ (public_name tinyrc)
+ (package ix)
+ (modules Main)
+ (libraries ix_rc caps))

@@ -1,0 +1,10 @@
+false; echo 1 $status
+true; echo 2 $status
+true | false; echo 3 $status
+false | true | false; echo 4 $status
+sh -c 'exit 3'; echo 5 $status
+sh -c 'exit 300'; echo 6 $status
+nonexistentcmd; echo 7 $status
+~ a b; echo 8 $status
+! true; echo 9 $status
+echo | x=inpipe; echo 10 $x

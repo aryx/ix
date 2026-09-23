@@ -1,0 +1,15 @@
+one
+two
+one
+two
+both: out err
+out
+out
+in brace
+echo: write error: Bad file descriptor
+closed 1
+data
+prefix
+out
+ERR
+[exit 0]

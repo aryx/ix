@@ -1,0 +1,5 @@
+# a runtime error ends the script
+echo before
+z=()
+echo a^$z
+echo not reached

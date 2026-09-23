@@ -1,0 +1,19 @@
+for(i in 1 2 3) echo for $i
+for(i) echo arg $i
+i=before; for(i in x) echo $i; echo after $i
+n=()
+while(! ~ $#n 3) n=($n x)
+echo while $#n
+true && echo and1
+false && echo and2
+false || echo or1
+! false && echo not1
+! true || echo not2
+if(true) echo if1
+if not echo ifnot1
+if(false) echo if2
+if not echo ifnot2
+if(false) echo nested
+if not if(true) echo chain
+if not echo chain2
+{ echo brace1; echo brace2 }

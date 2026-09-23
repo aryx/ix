@@ -1,0 +1,3 @@
+x
+rc: ./case.rc:3: `if not' does not follow `if(...)'
+[exit 1]

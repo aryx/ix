@@ -1,0 +1,9 @@
+1: a.o b.o c.o xa xb xc
+2: p q
+3: a b c
+fn f {echo in f $*}
+x=(a b c)
+in f exported
+5: rfork ok 
+rc (ARGV0): mismatched list lengths in concatenation
+[exit 1]

@@ -1,0 +1,13 @@
+1: b c
+2: * *.c
+3: out err
+4: out
+5: $x not expanded
+6: p
+6: q
+l: No such file or directory
+7: status 1
+8: d1/x.c d2/y.c
+9: piped
+10: /dev/fd/N
+[exit 0]

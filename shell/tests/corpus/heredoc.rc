@@ -1,0 +1,10 @@
+x=(a b c)
+cat <<EOF
+here $x and $x(1) and $$ and $ and $1 and $x^y
+EOF
+cat <<'EOF'
+quoted $x
+EOF
+cat <<END; echo after
+line 1
+END

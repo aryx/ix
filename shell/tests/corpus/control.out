@@ -1,0 +1,18 @@
+for 1
+for 2
+for 3
+arg a1
+arg a2
+x
+after before
+while 3
+and1
+or1
+not1
+not2
+if1
+ifnot2
+chain
+brace1
+brace2
+[exit 0]

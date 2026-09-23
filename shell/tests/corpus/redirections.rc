@@ -1,0 +1,17 @@
+x=(a b c)
+echo 1: $x(2 3)
+y='*'; echo 2: $y '*'.c
+fn e { echo out; echo err >[1=2] }
+e >f1 >[2=1]; echo 3: `{cat f1}
+e >[2=1] >f2 >[2]/dev/null; echo 4: `{cat f2}
+cat <<'EOF'
+5: $x not expanded
+EOF
+fn l { for(i) echo 6: $i }
+l p q
+fn l
+l
+echo 7: status $status
+echo 8: */*.c
+cat <{echo 9: piped}
+echo 10: <{true}

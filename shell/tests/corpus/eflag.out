@@ -1,0 +1,4 @@
+cond ok
+status 1
+or ok
+[exit 0]

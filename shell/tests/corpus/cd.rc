@@ -1,0 +1,6 @@
+cd /nonexistent
+echo $status
+cd d1; echo `{pwd} | sed 's|.*/||'
+cd ..; cdpath=(. /tmp); cd d2; echo `{pwd} | sed 's|.*/||'
+flag x; echo $status
+flag x +; flag x; echo $status

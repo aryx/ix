@@ -1,0 +1,11 @@
+# lists, counts, joins, subscripts, carets
+x=(a b c d e)
+echo $#x $x(2) $x(2-4) $x(4-) $x(0) $x(9) $"x
+y=x; echo $$y
+echo pre^$x(1-2)^post $x(1).o x$x(1)
+echo (a b)^(c d) a^(b c)
+z=(); echo count $#z join $"z. empty $z.
+echo args $#* $1 $2 $3 $*
+echo $0
+echo if for in while not switch fn
+echo 'it''s' 'a b' "x y"

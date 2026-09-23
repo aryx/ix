@@ -1,0 +1,29 @@
+x=(a b c)
+echo 1: $#x $x(2) $"x
+echo 2: a^(b c) (a b)^(c d) $x^.o
+y=`{echo one two}
+echo 3: $#y
+if(~ $x(1) a*) echo 4: match
+if not echo 4: no
+for(i in p q) echo 5: $i
+false; echo 6: $status
+true | false; echo 7: $status
+! false && echo 8: negated
+@{ cd /; echo 9: `{pwd} }
+echo 10: `{pwd}
+switch($x(3)){
+case a
+	echo 11: A
+case c*
+	echo 11: C
+}
+fn f { echo 12: $#* $1 }
+f u v w
+echo 13: *.c nomatch*
+z=()
+echo 14: $#z '$z' $"z.
+echo 15 >[1=2]
+cat <<EOF
+16: here $x(1)
+EOF
+echo 17: `{echo a; echo b} | wc -l

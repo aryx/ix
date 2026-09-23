@@ -1,0 +1,13 @@
+x=(a b c)
+echo 1: $x.o x$x
+x=(p q) echo 2: $x
+echo 3: $x
+fn f { echo in f $* }
+whatis f x
+rc -c 'f exported'
+rfork e; echo 5: rfork ok $status
+echo 6: (a b)^(c d e)
+echo 7: after
+if(true) echo 8: yes
+if not echo 8: no
+echo 9: $#ifs $0

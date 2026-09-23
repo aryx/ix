@@ -1,0 +1,3 @@
+rc -e -c 'if(false) echo no; echo cond ok; false; echo not reached'
+echo status $status
+rc -e -c 'false || echo or ok; true'

@@ -1,0 +1,15 @@
+fn f { echo f: $#* $* }
+f a b c
+fn g { echo g $1; f inner }
+g outer
+x=global
+fn h { echo h sees $x }
+x=local h
+echo x is $x
+fn f
+f
+fn one two { echo defined $0 }
+one; two
+whatis g h x
+whatis cd nonexistentcmd
+echo status $status

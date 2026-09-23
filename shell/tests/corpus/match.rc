@@ -1,0 +1,20 @@
+if(~ abc a*) echo 1 yes
+if(~ abc '*') echo 2 yes
+if not echo 2 no
+~ x y z; echo 3 $status
+~ (a b) 'a b'; echo 4 $status
+x=hello.c
+switch($x){
+case *.h
+	echo header
+case *.c hello*
+	echo source
+	echo still
+case *
+	echo never
+}
+switch(nothing){
+case a
+	echo a
+}
+echo done

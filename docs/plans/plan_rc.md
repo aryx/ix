@@ -395,6 +395,68 @@ written):
   time, and are kept as warnings for the corpus: sh's `2>/dev/null`
   inside an rc command, and an unquoted `=` in an argument.
 
+- **2026-09-23, phases 0-4 DONE, and milestone 2 (the author: "ok I
+  like the plan, let's commit the document and let's do it!").**
+  `shell/`: `Ast` (and the printer), `Lexer`, `Parser`, `Glob`, `Word`,
+  `Env`, `Process`, `Eval`, `Builtin`, `CLI`; `shell/tests/`: the
+  corpus harness (`differential.sh`), 36 scripts recorded from 9base's
+  rc -- principia's 5 and xix's 9 test scripts, the checks of this
+  plan, and one per feature -- a Testo suite of 45 (the `.mli`
+  examples, the laws, the corpus), and `Parsecheck`. The numbers and
+  the lessons:
+  - **Decision 2 changed: recursive descent, not menhir.** Reading
+    `syn.y` before writing it: prefix redirections and assignments
+    rely on `%prec BANG`, `skipnl()` is called in the middle of rules,
+    and keywords are turned back into words by the grammar -- all
+    plain in a recursive descent, all tricks in menhir. Decided by
+    reading, not by writing both, which the plan had said it would.
+    The parser came out at 261 lines against the 130 estimated for the
+    menhir grammar; the lexer at 236 against 200.
+  - **Parsing the corpus, first try: 121 of the 133 rc scripts.**
+    The rest found three rules: an `if not if(...)` counts as an `if`
+    for the next `if not` (code.c); a backslash-newline outside quotes
+    and comments is a blank (input.c); a redirection can prefix the
+    right side of a pipe (`a | >f b`), which the printer produces. Then
+    131; the last two are scripts whose text after an `exit` is not rc,
+    which rc never reads. The printer's law (print, read back, print
+    again: the same) holds on all of them but the 5 with here
+    documents, whose bodies the printer does not write.
+  - **The corpus against 9base's rc, first run: 19 of 36.** What was
+    wrong, each now in the code and a case: a function is exported
+    with a newline at the end of its value (9base needs it to read one
+    back); `whatis` joins commands with `;`; a syntax error at a
+    newline names no token, and a token is quoted only if it must be;
+    `shift` past the end is not an error, `eval` with no argument is;
+    `.` of a missing file says `file: rc (argv0): .: can't open: why`;
+    a here document's `$$` is `$` and a lone `$` disappears; a
+    backquote sets `$status`; a pipeline's status is `1|1` for three
+    failing stages -- rc folds the left side into one -- which made a
+    law I wrote wrong, not the code; and the embedded rcmain had lost
+    the blank and tab of its `ifs` line when it was written. Then 33
+    of 36, and the other 3 are **documented differences**, each with
+    a `.tiny.out`: principia's split backquote `` `sep{cmd} ``, which
+    9base's rc lacks (two cases), and a missing program as the last
+    command of a subshell, which 9base execs without forking and so
+    leaves status 0 -- an artifact of an optimization, where TinyRc
+    keeps 1. orc, given its rcmain: 4 of 36.
+  - **Milestone 2: TinyMk and TinyRc build xix.** `MKSHELL=tinyrc`,
+    `tinymk MK=tinymk depend`, then `all`, in a nuked copy: exit 0,
+    33 s, and the same 435 files in the 17 built directories as omk
+    with 9base's rc; the orc it builds runs. (TinyMk's Status said
+    "the same 476 files": 41 of those were stale objects outside the
+    built directories, present in both copies -- equal, but not built.)
+    TinyRc starts in 5.2 ms against 9base's 3.4 (100 runs of `-c
+    true`), about half a second over the build's recipes: the build's
+    time is TinyMk's and the compilers'.
+  - **Lines: 1,595 of `.ml`** (1,248 without blanks and comments),
+    against the 1,500 planned: Eval 278, Parser 261, Lexer 236, Builtin
+    154, Ast 139 (the printer is half of it), Process 133, Glob 111,
+    CLI 108, Word 96, Env 67, Main 12. Set by module this time, the
+    target missed by modules in both directions (the parser doubled,
+    Word halved) and came out 6% over in total, where TinyMk's single
+    figure was 2.4 times too low. The C rc: 5,678 by the book, orc
+    2,876 and partial.
+
 ## Verification
 
 - `make test`: the `.mli` examples, the laws, the corpus against its

@@ -1,0 +1,4 @@
+sh -c 'kill -9 $$'; echo 1: $status
+sh -c 'kill -15 $$'; echo 2: $status
+sh -c 'kill -1 $$'; echo 4: $status
+sh -c 'exit 300'; echo 6: $status

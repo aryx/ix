@@ -1,0 +1,4 @@
+a,b,c
+1
+rc: ./case.rc:10: token ,: syntax error
+[exit 1]

@@ -1,0 +1,3 @@
+3 three
+rc: ./case.rc:6: token :: syntax error
+[exit 1]

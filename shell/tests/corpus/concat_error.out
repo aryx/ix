@@ -1,0 +1,3 @@
+before
+rc (ARGV0): null list in concatenation
+[exit 1]

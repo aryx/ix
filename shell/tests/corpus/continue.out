@@ -1,0 +1,5 @@
+a b
+ONE
+continued
+rc: ./case.rc:8: syntax error
+[exit 1]

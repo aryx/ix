@@ -1,0 +1,9 @@
+echo a1 a2: $*
+shift; echo $*
+shift 5; echo shift $status
+eval 'echo evaled; x=from-eval'
+echo $x
+echo 'echo sourced $*' >s.rc
+. ./s.rc p q
+. ./nosuchfile
+echo not reached

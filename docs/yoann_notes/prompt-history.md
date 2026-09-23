@@ -922,3 +922,31 @@ Yoann approved docs/README.md and asked to commit it first before the other docu
 **Yoann:**
 
 > I like the docs/README.md, let's commit that first
+
+**Claude (summary):**
+
+Claude committed docs/README.md with prompt history entries that the commit hook automatically added. The README's index links to three uncommitted files: plan_rc.md, notes_rc.md, and notes_rc_related_work.md. These three documents awaited Yoann's review; once committed, the README's links would work in the repository. Yoann approved this plan and expressed readiness to review and commit those three documentation files.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 13:02
+
+**Yoann:**
+
+> ok I like the plan, let's commit the document and let's do it!
+
+------------------------------------------------------------------------
+
+## 2026-09-23 13:31
+
+**Yoann:**
+
+> will we have an Evan-like API for the network too?
+
+------------------------------------------------------------------------
+
+## 2026-09-23 13:32
+
+**Yoann:**
+
+> sorry wrong window

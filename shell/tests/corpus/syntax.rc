@@ -1,0 +1,3 @@
+echo before
+echo a=b
+echo after

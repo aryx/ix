@@ -1,0 +1,8 @@
+a1 a2: a1 a2
+a2
+shift 
+evaled
+from-eval
+sourced p q
+./nosuchfile: rc (ARGV0): .: can't open: No such file or directory
+[exit 1]
