@@ -310,7 +310,13 @@ let backend = {
   arch = A.Arm; nreg = 16; nfreg = 8; regret = 0; fregret = 0; regsp = 13;
   (* the linker's temporary R11, SB R12, SP, LR, PC; R9 and R10 for extern registers *)
   reserved = [ 11; 12; 13; 14; 15; 10; 9 ]; regtmp = 11; word = 4; float_from_last = false;
+  ret = "RET"; offset32 = true; zero_reg = None;
   gmove; gmover; gopcode;
 }
 
-let hooks = { Gen.sucopy; swit; imm_range = 4096 }
+let hooks = {
+  Gen.sucopy; swit;
+  fits = (fun _ v -> v > -4096 && v < 4096);
+  neg = (fun nn -> Gen.gopcode OSUB (Some nn) (Some (nodconst 0L)) (Some nn));
+  rsb = true; by_left = false; com64 = true; shifts = false; zero_arg = false; asop_load = false; indreg_ptr = false;
+}

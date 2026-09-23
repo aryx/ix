@@ -380,6 +380,17 @@ after the compiler, by what it taught.
 3. **arm64**: the second record, and a look back at what it shows of
    decision 1 (how large the records are, what moved into Gen);
    milestone 1 for 7.
+   *Done (2026-09-24)*: `listing.sh 7`, the 235 files the same as
+   `7c -O0`; `TINYCC=1 libc.sh 7`, the 17 programs goken's executables
+   byte for byte (but the section table). Decision 1's test: Arm64 is
+   318 lines, Arm 302, against Emit 414 and Gen 1,295 shared. What
+   moved into Gen was not only instructions: 7c's generator differs
+   from 5c's in policy too, and each difference is a field of the
+   record (hooks: `fits`, `neg`, `rsb`, `by_left`, `com64`, `shifts`,
+   `zero_arg`, `asop_load`, `indreg_ptr`; backend: `ret`, `offset32`,
+   `zero_reg`, `float_from_last`). `mem` and `stat` crash at `-O0` on
+   arm64, goken's executables as ix's: a goken 7c -O0 bug, to look at.
+
 4. **Milestone 2**, on both; then milestone 3.
 5. **The one-file variant**, in `tiny/`.
 6. **Docs**: `notes_cc.md` checked against the code, the numbers.

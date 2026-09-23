@@ -23,9 +23,10 @@ let read_file (caps : < Cap.open_in; .. >) file =
  * read by Lexer, from its input stack, not a lexbuf *)
 let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs incs file =
   Tree.mach := Some mach;
-  (* claude: arm64's code generator is to come; its trees (-x) are there *)
-  let codegen = mach.thechar = '5' in
-  if codegen then (Emit.be := Some Arm.backend; Gen.hooks := Some Arm.hooks);
+  let codegen = true in
+  (match mach.thechar with
+   | '5' -> Emit.be := Some Arm.backend; Gen.hooks := Some Arm.hooks
+   | _ -> Emit.be := Some Arm64.backend; Gen.hooks := Some Arm64.hooks);
   Tree.init_types ();
   Pre.profile := true;
   Lexer.init ();

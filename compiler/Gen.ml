@@ -18,12 +18,20 @@ let fnx = 100
 (* the addressable: a name, a register, a constant... (5c's INDEXED) *)
 let indexed = 9
 
-(* the machine's hooks that need the generator (a block copy, a
- * switch's dispatch): set by the machine's module *)
+(* what differs between 5c's and 7c's generators, beyond the
+ * instructions: set by the machine's module *)
 type hooks = {
-  sucopy : node -> node -> int -> unit;
-  swit : (int64 * int) array -> int -> node -> unit;
-  imm_range : int;                    (* an offset folded into a load: |v| < this *)
+  sucopy : node -> node -> int -> unit;       (* a structure's copy *)
+  swit : (int64 * int) array -> int -> node -> unit;   (* a switch's dispatch *)
+  fits : node -> int -> bool;         (* an offset folded into n's load or store *)
+  neg : node -> unit;                 (* nn = -nn *)
+  rsb : bool;                         (* c - x as a reverse subtract (5c) *)
+  by_left : bool;                     (* x op y's registers typed as x, so shifts work (7c) *)
+  com64 : bool;                       (* vlong operators as calls (5c) *)
+  shifts : bool;                      (* shift-and-mask simplified, a constant compared on the right (7c) *)
+  zero_arg : bool;                    (* a 0 argument stored as it is (7c) *)
+  asop_load : bool;                   (* x op= y: y into the result's register, x loaded after (7c) *)
+  indreg_ptr : bool;                  (* a register's address computed as a pointer (7c) *)
 }
 
 let hooks : hooks option ref = ref None
@@ -164,6 +172,49 @@ let bool64 (n : node) =
 (* Addressability and complexity (sgen.c's xcom) *)
 (*****************************************************************************)
 
+(* (e shift c2) & c3 shift c1, with one shift or none (sub.c's
+ * simplifyshift, 7c's): c3 is an unsigned long of 64 bits *)
+let simplifyshift (n : node) =
+  let kind (x : node) = match x.op with OASHL -> Some 0 | OLSHR -> Some 1 | OASHR -> Some 2 | _ -> None in
+  let topbit v = let rec go i v = if v = 0L then i else go (i + 1) (Int64.shift_right_logical v 1) in go (-1) v in
+  let is_const (x : node option) = match x with Some { op = OCONST; _ } -> true | _ -> false in
+  if typechlp (et n) then
+    match kind n with
+    | Some s1 when is_const n.right && (Tree.l n).op = OAND && is_const (Tree.l n).right && is_const (Tree.l (Tree.l n)).right -> (
+        match kind (Tree.l (Tree.l n)) with
+        | None -> ()
+        | Some s2 ->
+            let c1 = Int64.to_int (Int64.of_int32 (Int64.to_int32 (Tree.r n).vconst))
+            and c2 = Int64.to_int (Int64.of_int32 (Int64.to_int32 (Tree.r (Tree.l (Tree.l n))).vconst))
+            and c3 = (Tree.r (Tree.l n)).vconst in
+            (* get rid of both shifts, the lower, or the upper *)
+            let rewrite0 c3 = let x = Tree.l n in copy_into n x; n.left <- (Tree.l n).left; (Tree.r n).vconst <- c3 in
+            let rewrite1 c3 c1 o = let a = Tree.l n in a.left <- (Tree.l a).left; (Tree.r a).vconst <- c3; (Tree.r n).vconst <- Int64.of_int c1; n.op <- o in
+            let rewrite2 c3 c1 o = copy_into n (Tree.l n); (Tree.r n).vconst <- c3; (Tree.r (Tree.l n)).vconst <- Int64.of_int c1; (Tree.l n).op <- o in
+            let shl v k = Int64.shift_left v k and shr v k = Int64.shift_right_logical v k in
+            let o = n.op in
+            let case001 () =
+              if c1 > c2 then rewrite1 (shl c3 c2) (c1 - c2) OASHL
+              else (let c3 = shl c3 c1 in if c1 = c2 then rewrite0 c3 else rewrite2 c3 (c2 - c1) OLSHR)
+            in
+            let s11 () = let c1 = c1 + c2 in if c1 < 32 then rewrite1 (shl c3 c2) c1 OLSHR in
+            let case010 () =
+              let c3 = shr c3 c1 in
+              if c1 = c2 then rewrite0 c3 else if c1 > c2 then rewrite2 c3 (c1 - c2) o else rewrite2 c3 (c2 - c1) OASHL
+            in
+            match (s1 lsl 3) lor s2 with
+            | 0o00 -> let c1 = c1 + c2 in if c1 < 32 then rewrite1 (shr c3 c2) c1 o
+            | 0o02 -> if topbit c3 < 32 - c2 then case001 ()
+            | 0o01 -> case001 ()
+            | 0o22 -> if c2 > 0 && topbit c3 < 32 - c2 then s11 ()
+            | 0o12 -> if topbit c3 < 32 - c2 then s11 ()
+            | 0o21 -> if not (topbit c3 >= 31 && c2 <= 0) then s11 ()
+            | 0o11 -> s11 ()
+            | 0o20 -> if topbit c3 < 31 then case010 ()
+            | 0o10 -> case010 ()
+            | _ -> ())
+    | _ -> ()
+
 (* addressable: 20 a constant, 10 a name, 11 a register, 12 an indirect
  * register; 2 $name, 3 $(reg)+offset. complex: the registers needed *)
 let rec xcom (n : node) =
@@ -193,10 +244,15 @@ let rec xcom (n : node) =
        if t >= 0 then begin
          n.op <- OASHL;
          n.left <- r; n.right <- l;
-         (Option.get l).vconst <- Int64.of_int t; (Option.get l).ntype <- Some (ty Tint)
+         (Option.get l).vconst <- Int64.of_int t; (Option.get l).ntype <- Some (ty Tint);
+         if (h ()).shifts then simplifyshift n
        end
    | OASLDIV -> both (); let t = pow2 (Option.get r) in if t >= 0 then (n.op <- OASLSHR; (Option.get r).vconst <- Int64.of_int t; (Option.get r).ntype <- Some (ty Tint))
-   | OLDIV -> both (); let t = pow2 (Option.get r) in if t >= 0 then (n.op <- OLSHR; (Option.get r).vconst <- Int64.of_int t; (Option.get r).ntype <- Some (ty Tint))
+   | OLDIV ->
+       both ();
+       let t = pow2 (Option.get r) in
+       if t >= 0 then (n.op <- OLSHR; (Option.get r).vconst <- Int64.of_int t; (Option.get r).ntype <- Some (ty Tint); if (h ()).shifts then simplifyshift n)
+   | OLSHR | OASHL | OASHR when (h ()).shifts -> both (); simplifyshift n
    | OASLMOD -> both (); if pow2 (Option.get r) >= 0 then (n.op <- OASAND; (Option.get r).vconst <- Int64.pred (Option.get r).vconst)
    | OLMOD -> both (); if pow2 (Option.get r) >= 0 then (n.op <- OAND; (Option.get r).vconst <- Int64.pred (Option.get r).vconst)
    | _ -> both ());
@@ -208,12 +264,14 @@ let rec xcom (n : node) =
      | Some r -> if r.complex = n.complex then n.complex <- r.complex + 1 else if r.complex > n.complex then n.complex <- r.complex
      | None -> ());
     if n.complex = 0 then n.complex <- 1;
-    if not (com64 n) then
+    if not ((h ()).com64 && com64 n) then
       match n.op with
       | OFUNC -> n.complex <- fnx
-      | OADD | OXOR | OAND | OOR | OEQ | ONE ->
-          (* the constant on the right, as an immediate *)
-          if (Option.get l).op = OCONST then (n.left <- r; n.right <- l)
+      (* the constant on the right, as an immediate *)
+      | OADD | OXOR | OAND | OOR -> if (Option.get l).op = OCONST then (n.left <- r; n.right <- l)
+      | OEQ | ONE when not (h ()).shifts -> if (Option.get l).op = OCONST then (n.left <- r; n.right <- l)
+      | OEQ | ONE | OLE | OLT | OGE | OGT | OHI | OHS | OLO | OLS when (h ()).shifts ->
+          if (Option.get l).op = OCONST then (n.left <- r; n.right <- l; n.op <- Check.invrel.(Check.relindex n.op))
       | _ -> ()
   end
 
@@ -230,6 +288,10 @@ exception Return
 
 let rec cgen (n : node) (nn : node option) = cgenrel n nn false
 
+(* the value of a comma list, the rest generated first *)
+and uncomma (n : node option) =
+  match n with Some ({ op = OCOMMA; _ } as n) -> cgen (Tree.l n) None; uncomma n.right | n -> n
+
 and nullwarn (l : node option) (r : node option) =
   Option.iter (fun l -> cgen l None) l;
   Option.iter (fun r -> cgen r None) r
@@ -237,7 +299,7 @@ and nullwarn (l : node option) (r : node option) =
 and cgenrel (n : node) (nn : node option) inrel =
   match n.ntype with
   | None -> ()
-  | Some nt when typesuv nt.etype -> sugen n nn nt.width
+  | Some nt when (m ()).typecmplx nt.etype -> sugen n nn nt.width
   | Some _ ->
       let o = n.op in
       if n.addable >= indexed then begin
@@ -257,7 +319,8 @@ and cgen1 (n : node) (nn : node option) inrel =
   let l () = Tree.l n and r () = Tree.r n in
   (* both sides calls: the right one first, to a temporary *)
   if n.complex >= fnx && (l ()).complex >= fnx && (match n.right with Some r -> r.complex >= fnx | None -> false)
-     && not (match o with OFUNC | OCOMMA | OANDAND | OOROR | OCOND | ODOT -> true | _ -> false) then begin
+     && not (match o with OFUNC | OCOMMA | OANDAND | OOROR | OCOND | ODOT -> true | _ -> false)
+     && not (Check.relindex_opt o <> None && typesu (et (l ()))) then begin
     let nod = regret (r ()) in
     cgen (r ()) (Some nod);
     let nod1 = regsalloc (r ()) in
@@ -276,17 +339,18 @@ and cgen1 (n : node) (nn : node option) inrel =
         if (o = OMUL || o = OLMUL) && mulcon n nn then ()
         else begin
           let l = l () and r = r () in
+          let ty_r = if (h ()).by_left then l else r in
           let nod, nod1 =
             if l.complex >= r.complex then begin
               let nod = regalloc l (Some nn) in
               cgen l (Some nod);
-              let nod1 = regalloc r None in
+              let nod1 = regalloc ty_r None in
               cgen r (Some nod1);
               gopcode o (Some nod1) None (Some nod);
               nod, nod1
             end
             else begin
-              let nod = regalloc r (Some nn) in
+              let nod = regalloc ty_r (Some nn) in
               cgen r (Some nod);
               let nod1 = regalloc l None in
               cgen l (Some nod1);
@@ -307,7 +371,35 @@ and cgen1 (n : node) (nn : node option) inrel =
     else muldiv ()
   in
   (* l op= r *)
-  let asop () =
+  (* 7c's: r into the result's register, l loaded after, converted if its type isn't the result's *)
+  let asop_load () =
+    let l = l () and r = r () in
+    let nod2, nod =
+      if l.complex >= r.complex then begin
+        let nod2 = if l.addable < indexed then reglcgen l None else l in
+        let nod = regalloc n nn in
+        cgen r (Some nod);
+        nod2, nod
+      end
+      else begin
+        let nod = regalloc n nn in
+        cgen r (Some nod);
+        let nod2 = if l.addable < indexed then reglcgen l None else l in
+        nod2, nod
+      end
+    in
+    let nod1 = regalloc n None in
+    gopcode OAS (Some nod2) None (Some nod1);
+    let nod1 =
+      if et nod1 <> et nod then (let nod3 = regalloc nod None in gmove nod1 nod3; regfree nod1; nod3) else nod1 in
+    gopcode o (Some nod) (Some nod1) (Some nod);
+    gmove nod nod2;
+    (match nn with Some nn -> gmove nod nn | None -> ());
+    regfree nod;
+    regfree nod1;
+    if l.addable < indexed then regfree nod2
+  in
+  let asop_move () =
     let l = l () and r = r () in
     let nod2, nod1 =
       if l.complex >= r.complex then begin
@@ -332,6 +424,7 @@ and cgen1 (n : node) (nn : node option) inrel =
     regfree nod1;
     if l.addable < indexed then regfree nod2
   in
+  let asop () = if (h ()).asop_load then asop_load () else asop_move () in
   match o with
   | OAS ->
       let l = l () and r = r () in
@@ -384,9 +477,9 @@ and cgen1 (n : node) (nn : node option) inrel =
           gopcode OASHR (Some (nodconst (Int64.of_int t))) None (Some nn)
         end
         else begin
-          gopcode OSUB (Some nn) (Some (nodconst 0L)) (Some nn);
+          (h ()).neg nn;
           gopcode OAND (Some mask) None (Some nn);
-          gopcode OSUB (Some nn) (Some (nodconst 0L)) (Some nn);
+          (h ()).neg nn;
           ignore (gbranch OGOTO);
           patch p1 !pc;
           let p1 = p () in
@@ -396,8 +489,18 @@ and cgen1 (n : node) (nn : node option) inrel =
       end
       else muldiv ()
   | OSUB ->
-      if nn <> None && (l ()).op = OCONST && not (typefd (et n)) then (cgen (r ()) nn; gopcode o None n.left nn)
+      if (h ()).rsb && nn <> None && (l ()).op = OCONST && not (typefd (et n)) then (cgen (r ()) nn; gopcode o None n.left nn)
       else immediate ()
+  (* only 7c's front end leaves them: 5c's makes them 0-x and -1^x *)
+  | ONEG | OCOM -> (
+      match nn with
+      | None -> nullwarn n.left None
+      | Some nn ->
+          let nod = regalloc (l ()) (Some nn) in
+          cgen (l ()) (Some nod);
+          gopcode o (Some nod) None (Some nod);
+          gmove nod nn;
+          regfree nod)
   | OADD | OAND | OOR | OXOR | OLSHR | OASHL | OASHR -> immediate ()
   | OLMUL | OLDIV | OLMOD | OMUL -> muldiv ()
   | OASLSHR | OASASHL | OASASHR | OASAND | OASADD | OASSUB | OASXOR | OASOR ->
@@ -405,7 +508,7 @@ and cgen1 (n : node) (nn : node option) inrel =
       if l.op = OBIT then diag (Some n) "bitfields are not in the subset"
       else if r.op = OCONST && not (typefd (et r)) && not (typefd (et n)) then begin
         let nod2 = if l.addable < indexed then reglcgen l None else l in
-        let nod = regalloc r nn in
+        let nod = regalloc (if (h ()).by_left then l else r) nn in
         gopcode OAS (Some nod2) None (Some nod);
         gopcode o (Some r) None (Some nod);
         gopcode OAS (Some nod) None (Some nod2);
@@ -417,7 +520,7 @@ and cgen1 (n : node) (nn : node option) inrel =
       if (l ()).op = OBIT then diag (Some n) "bitfields are not in the subset" else asop ()
   | OADDR -> (match nn with None -> nullwarn n.left None | Some nn -> lcgen (l ()) (Some nn))
   | OFUNC ->
-      let l = l () in
+      let l = Option.get (uncomma n.left) in
       if l.complex >= fnx then begin
         (* the function is itself computed by a call *)
         if l.op <> OIND then ignore (diag (Some n) "bad function call");
@@ -454,8 +557,7 @@ and cgen1 (n : node) (nn : node option) inrel =
           let nod = regialloc n (Some nn) in
           let rec right (x : node) = if x.op = OADD then right (Tree.r x) else x in
           let r = right (l ()) in
-          let lim = (h ()).imm_range in
-          if sconst r && (let v = Int64.to_int r.vconst + nod.xoffset in v > - lim && v < lim) then begin
+          if sconst r && (h ()).fits n (Int64.to_int r.vconst + nod.xoffset) then begin
             let v = r.vconst in
             r.vconst <- 0L;
             cgen (l ()) (Some nod);
@@ -556,22 +658,23 @@ and sconst (n : node) = n.op = OCONST && not (typefd (et n))
 (* the address of n, in a register, as an indirect node *)
 and reglcgen (n : node) (nn : node option) =
   let t = regialloc n nn in
-  let lim = (h ()).imm_range in
   let rec right (x : node) = if x.op = OADD then right (Tree.r x) else x in
   (match n.op with
-   | OIND when (let r = right (Tree.l n) in sconst r && (let v = Int64.to_int r.vconst + t.xoffset in v > - lim && v < lim)) ->
+   | OIND when (let r = right (Tree.l n) in sconst r && (h ()).fits n (Int64.to_int r.vconst + t.xoffset)) ->
        let r = right (Tree.l n) in
        let v = r.vconst in
        r.vconst <- 0L;
        lcgen n (Some t);
        t.xoffset <- t.xoffset + Int64.to_int v;
        r.vconst <- v
-   | OINDREG when n.xoffset > - lim && n.xoffset < lim ->
-       let v = n.xoffset in
+   | OINDREG when (h ()).fits n (t.xoffset + n.xoffset) ->
+       let v = n.xoffset and ty0 = n.ntype in
        n.op <- OREGISTER;
+       if (h ()).indreg_ptr then (n.ntype <- Some (ty Tind); n.xoffset <- 0);
        cgen n (Some t);
        t.xoffset <- t.xoffset + v;
-       n.op <- OINDREG
+       n.op <- OINDREG;
+       if (h ()).indreg_ptr then (n.ntype <- ty0; n.xoffset <- v)
    | _ -> lcgen n (Some t));
   regind t n;
   t
@@ -899,13 +1002,17 @@ and gargs (n : node option) =
     | Some ({ op = OLIST; _ } as n) -> pass2 n.left; pass2 n.right
     | Some n ->
         let src () = if n.complex >= fnx then next () else n in
-        if typesuv (et n) then begin
+        if (m ()).typecmplx (et n) then begin
           let tn2 = regaalloc n in
           sugen (src ()) (Some tn2) (t n).width
         end
-        else if !curarg = 0 && typechlp (et n) then begin
+        else if !curarg = 0 && (m ()).typeword (et n) then begin
           let tn1 = regaalloc1 n in
           cgen (src ()) (Some tn1)
+        end
+        else if (h ()).zero_arg && Check.vconst (Some n) = 0 then begin
+          let tn2 = regaalloc n in
+          gopcode OAS (Some n) None (Some tn2)
         end
         else begin
           let tn1 = regalloc n None in
@@ -959,8 +1066,6 @@ let bcomplex (n : node) (c : node option) =
   else if c <> None && n.op = OCONST && deadheads (Option.get c) then true
   else (bool64 n; boolgen n true None; false)
 
-let rec uncomma (n : node option) =
-  match n with Some ({ op = OCOMMA; _ } as n) -> cgen (Tree.l n) None; uncomma n.right | n -> n
 
 let casf () = cases := Some ({ cval = 0L; cdef = false; clabel = 0; cisv = false } :: Option.get !cases)
 let set_case c = match !cases with Some (_ :: rest) -> cases := Some (c :: rest) | _ -> ()

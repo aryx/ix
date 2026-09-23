@@ -325,6 +325,7 @@ let relcon (l : node) (r : node) =
 (* OEQ ONE OLE OLS OLT OLO OGE OHS OGT OHI (sub.c's relindex, logrel, invrel, comrel) *)
 let rels = [| OEQ; ONE; OLE; OLS; OLT; OLO; OGE; OHS; OGT; OHI |]
 let relindex o = let rec go i = if rels.(i) = o then i else go (i + 1) in go 0
+let relindex_opt o = if Array.mem o rels then Some (relindex o) else None
 let logrel = [| OEQ; ONE; OLS; OLS; OLO; OLO; OHS; OHS; OHI; OHI |]
 let invrel = [| OEQ; ONE; OGE; OHS; OGT; OHI; OLE; OLS; OLT; OLO |]
 let comrel = [| ONE; OEQ; OGT; OHI; OGE; OHS; OLT; OLO; OLE; OLS |]

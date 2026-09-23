@@ -29,6 +29,9 @@ type backend = {
   regtmp : int;                       (* regnode's: a register only for its type *)
   word : int;                         (* an argument's slot above the return address *)
   float_from_last : bool;             (* the float registers rotate as the integer ones (7c) *)
+  ret : string;                       (* RET, RETURN *)
+  offset32 : bool;                    (* an operand's offset is 32 bits (5c's Adr) *)
+  zero_reg : int option;              (* a constant 0 as a register (7c's raddr) *)
   gmove : node -> node -> unit;
   gmover : node -> node -> unit;
   gopcode : op -> bool -> node option -> node option -> node option -> unit;
@@ -69,9 +72,13 @@ let nextpc () =
 let name_of (s : sym) = { A.sym = s.name; static = s.sclass = Cstatic }
 
 let sx32 v = Int64.of_int32 (Int64.to_int32 v)
+let mask32 v = Int64.logand v 0xffffffffL
+
+(* an offset as the machine's Adr holds it *)
+let sx v = if (bk ()).offset32 then sx32 v else v
 
 let rec naddr (n : node) : A.operand =
-  let m base name off = { A.base; name; off = sx32 (Int64.of_int off); index = None } in
+  let m base name off = { A.base; name; off = sx (Int64.of_int off); index = None } in
   match n.op with
   | OREGISTER -> if n.reg >= (bk ()).nreg then A.FReg (n.reg - (bk ()).nreg) else A.Reg n.reg
   | OIND -> (
@@ -90,15 +97,15 @@ let rec naddr (n : node) : A.operand =
         | _ -> diag (Some n) "bad in naddr: %s" (opname n.op)
       in
       A.Mem (m base (Some { A.sym = s.name; static = n.nclass = Cstatic }) n.xoffset)
-  | OCONST -> if typefd (et n) then A.Fimm n.fconst else A.Imm (sx32 n.vconst)
+  | OCONST -> if typefd (et n) then A.Fimm n.fconst else A.Imm (sx n.vconst)
   | OADDR -> (match naddr (Tree.l n) with A.Mem a -> A.Addr a | _ -> diag (Some n) "bad in naddr: %s" (opname n.op))
   | OADD ->
       let c, x = if (Tree.l n).op = OCONST then Tree.l n, Tree.r n else Tree.r n, Tree.l n in
       let v = match naddr c with A.Imm v -> v | _ -> 0L in
       (match naddr x with
-       | A.Mem a -> A.Mem { a with off = sx32 (Int64.add a.off v) }
-       | A.Addr a -> A.Addr { a with off = sx32 (Int64.add a.off v) }
-       | A.Imm w -> A.Imm (sx32 (Int64.add w v))
+       | A.Mem a -> A.Mem { a with off = sx (Int64.add a.off v) }
+       | A.Addr a -> A.Addr { a with off = sx (Int64.add a.off v) }
+       | A.Imm w -> A.Imm (sx (Int64.add w v))
        | o -> o)
   | _ -> diag (Some n) "bad in naddr: %s" (opname n.op)
 
@@ -106,14 +113,15 @@ let naddr_opt = Option.map naddr
 
 let add_off (o : A.operand option) d =
   match o with
-  | Some (A.Mem a) -> Some (A.Mem { a with off = sx32 (Int64.add a.off (Int64.of_int d)) })
-  | Some (A.Addr a) -> Some (A.Addr { a with off = sx32 (Int64.add a.off (Int64.of_int d)) })
-  | Some (A.Imm v) -> Some (A.Imm (sx32 (Int64.add v (Int64.of_int d))))
+  | Some (A.Mem a) -> Some (A.Mem { a with off = sx (Int64.add a.off (Int64.of_int d)) })
+  | Some (A.Addr a) -> Some (A.Addr { a with off = sx (Int64.add a.off (Int64.of_int d)) })
+  | Some (A.Imm v) -> Some (A.Imm (sx (Int64.add v (Int64.of_int d))))
   | o -> o
 
 (* the register of a node, as a second source (txt.c's raddr) *)
 let raddr (n : node option) (q : prog) =
   match Option.map naddr n with
+  | Some (A.Imm 0L) when (bk ()).zero_reg <> None -> q.reg <- (bk ()).zero_reg
   | Some (A.Reg r) | Some (A.FReg r) -> q.reg <- Some r
   | _ -> ignore (diag n "bad in raddr")
 
@@ -126,7 +134,7 @@ let gins a (f : node option) (t : node option) =
 
 let gbranch (o : op) =
   let q = nextpc () in
-  q.as_ <- (match o with ORETURN -> "RET" | OGOTO -> "B" | _ -> diag None "bad in gbranch");
+  q.as_ <- (match o with ORETURN -> (bk ()).ret | OGOTO -> "B" | _ -> diag None "bad in gbranch");
   q
 
 let patch (q : prog) target = q.to_ <- Some (A.Target target)
@@ -283,8 +291,8 @@ let gextern (s : sym) (a : node) o w =
   in
   if a.op = OCONST && typev (et a) then begin
     (* little-endian: the low word first *)
-    data (nodconst (sx32 a.vconst)) o 4;
-    data (nodconst (sx32 (Int64.shift_right a.vconst 32))) (o + 4) 4
+    data (nodconst (mask32 a.vconst)) o 4;
+    data (nodconst (mask32 (Int64.shift_right a.vconst 32))) (o + 4) 4
   end
   else data a o w
 
