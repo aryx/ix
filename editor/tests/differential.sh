@@ -34,7 +34,8 @@ mode=${1:-check}
 cases=${*:-$CORPUS/*.ed}
 
 run_case() {
-  prog=$1 case=$2 base=${2%.ed}
+  prog=$1 case=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
+  base=${case%.ed}
   dir=$(mktemp -d)
   cp "$case" "$dir/case.ed"
   [ -f "$base.txt" ] && cp "$base.txt" "$dir/case.txt"

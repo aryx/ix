@@ -1,0 +1,4 @@
+(executable
+ (name Test)
+ (modules Test Unit_ed)
+ (libraries ix_ed caps testo alcotest unix))

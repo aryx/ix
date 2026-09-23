@@ -1,0 +1,12 @@
+a
+The quick brown fox
+jumps over the lazy dog.
+.
+p
+1p
+3p
+s/lazy/sleepy/p
+1,$n
+f story.txt
+w
+q
