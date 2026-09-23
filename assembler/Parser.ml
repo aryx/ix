@@ -215,8 +215,8 @@ let named_sym st =
   | _ -> error st "expected a name"
 
 (* the items of a file, and their lines *)
-let parse (arch : arch) (file : string) (text : string) : obj =
-  let text = try L.preprocess (Filename.dirname file) text with Sys_error m -> raise (Error (0, m)) in
+let parse caps (arch : arch) (file : string) (text : string) : obj =
+  let text = try L.preprocess caps (Filename.dirname file) text with Sys_error m -> raise (Error (0, m)) in
   let toks = try L.tokens text with L.Error (l, m) -> raise (Error (l, m)) in
   let st = { arch; toks; consts = Hashtbl.create 8; labels = Hashtbl.create 64; pc = 0; fixups = []; next_fix = 0 } in
   let items = ref [] in

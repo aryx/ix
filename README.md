@@ -17,12 +17,15 @@ emulator runs real ARM binaries, and the kernel runs real Plan 9
 programs.
 
 The project was started on 2026-09-21, and this README describes the
-plan. The first program is written: **TinyMk**, the build system, in
-[`builder/`](builder/) (`make`, then `make test`), which builds all of
-xix from its mkfiles. Its plan, tutorial and related-work note are
-[docs/plans/plan_mk.md](docs/plans/plan_mk.md),
-[docs/tutorials/notes_mk.md](docs/tutorials/notes_mk.md) and
-[docs/related-work/notes_mk_related_work.md](docs/related-work/notes_mk_related_work.md).
+plan. Written so far (`make`, then `make test`): **TinyMk**, the build
+system ([`builder/`](builder/)), which builds all of xix from its
+mkfiles; **TinyRc**, the shell ([`shell/`](shell/)); **TinyEd**, the
+editor ([`editor/`](editor/)); and **TinyAsm and TinyLd**, the
+assembler and the linker for arm and arm64
+([`assembler/`](assembler/), [`linker/`](linker/)), whose executables
+are goken's byte for byte. Each also has a free one-file variant in
+[`tiny/`](tiny/). Their plans, tutorials and related-work notes are
+indexed in [docs/README.md](docs/README.md).
 See [docs/history.md](docs/history.md) for how the project came to be
 and how it got its name.
 

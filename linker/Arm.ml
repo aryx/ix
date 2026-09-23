@@ -306,6 +306,9 @@ let rule ctx (p : prog) : rule =
  * named by its bits *)
 let prepare (t : Link.t) =
   List.iter (fun (p : prog) ->
+    (* a constant is 32 bits, sign-extended, as 5l reads it from 5a's
+     * object: $0x80000000 is $-2147483648 *)
+    p.args <- List.map (function A.Imm n -> A.Imm (Int64.of_int (sx32 n)) | a -> a) p.args;
     match p.op, p.args with
     | "TEXT", _ -> p.frame <- rnd p.frame 4
     | ("MOVF" | "MOVD"), A.Fimm x :: rest when chip_float x = None ->
@@ -430,7 +433,9 @@ let layout (t : Link.t) =
   let add_pool (p : prog) (a : A.operand option) =
     let c, v = aclass ctx p a in
     let key = match c with
-      | SROREG | LOREG | ROREG | FOREG | SOREG | FAUTO | SAUTO | LAUTO | LACON -> A.Imm (Int64.of_int v), 0
+      (* an offset made a constant: never the same record as an operand's
+       * (which carries its class), so never shared with one *)
+      | SROREG | LOREG | ROREG | FOREG | SOREG | FAUTO | SAUTO | LAUTO | LACON -> A.Imm (Int64.of_int v), -1
       (* the operand, as 5l's memcmp of it: a name<> is its object's *)
       | _ ->
           let a = Option.get a in

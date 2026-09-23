@@ -9,4 +9,4 @@
  *)
 (* tinyasm, the ix assembler: see CLI.mli *)
 
-let () = exit (Ix_asm.CLI.main Sys.argv)
+let () = Cap.main (fun caps -> CapStdlib.exit caps (Ix_asm.CLI.main caps (CapSys.argv caps)))

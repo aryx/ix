@@ -15,4 +15,5 @@
 
 exception Error of int * string   (* a line, a message *)
 
-val parse : Asm.arch -> string -> string -> Asm.obj
+(* [parse caps arch file text]; caps to read the #included files *)
+val parse : < Cap.open_in; .. > -> Asm.arch -> string -> string -> Asm.obj

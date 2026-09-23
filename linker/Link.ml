@@ -53,7 +53,8 @@ type t = {
 exception Error of string
 
 let error fmt = Printf.ksprintf (fun s -> raise (Error s)) fmt
-let rnd v r = (v + r - 1) / r * r
+(* v rounded up to a multiple of r, negatives too (5l's rnd) *)
+let rnd v r = let v = v + r - 1 in let c = v mod r in v - (if c < 0 then c + r else c)
 
 let create arch ~text_start =
   { arch; syms = Hashtbl.create 1024; ncreated = 0; progs = []; datas = [];
@@ -131,26 +132,26 @@ let defined_names (o : Asm.obj) =
 
 (* as ar: a text name defined again by a later object is not indexed
  * for it *)
-let make_library out files =
+let make_library caps out files =
   let texts = Hashtbl.create 256 in
   let lib : library = List.map (fun f ->
-    let o = Asm.load f in
+    let o = Asm.load caps f in
     let names = List.filter_map (fun (k, n) ->
       if k = `T && Hashtbl.mem texts n then None else (if k = `T then Hashtbl.replace texts n (); Some n)) (defined_names o) in
     (o, List.sort_uniq compare names)) files in
-  Out_channel.with_open_bin out (fun oc -> Marshal.to_channel oc (lib_version, lib) [])
+  Asm.write_file caps out (Marshal.to_string (lib_version, lib) [])
 
-let load t ?(needs = fun _ -> []) files =
+let load caps t ?(needs = fun _ -> []) files =
   let version = ref 0 in
   let next () = incr version; !version in
   let libs = ref [] in
   List.iter (fun f ->
-    if Filename.check_suffix f ".a" then
-      In_channel.with_open_bin f (fun ic ->
-        let v, (lib : library) = Marshal.from_channel ic in
-        if v <> lib_version then error "%s: a library of another version" f;
-        libs := !libs @ [ lib ])
-    else add_object t (next ()) (Asm.load f)) files;
+    if Filename.check_suffix f ".a" then begin
+      let v, (lib : library) = Marshal.from_string (Asm.read_file caps f) 0 in
+      if v <> lib_version then error "%s: a library of another version" f;
+      libs := !libs @ [ lib ]
+    end
+    else add_object t (next ()) (Asm.load caps f)) files;
   (* 5l's loadlib: take the members that define an undefined name, until
    * no library adds one *)
   let loaded = Hashtbl.create 64 in

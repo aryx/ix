@@ -3,4 +3,6 @@
  * (the default output: file.5 or file.7). An error names the file and
  * the line. *)
 
-val main : string array -> int
+type caps = < Cap.open_in; Cap.open_out; Cap.stderr >
+
+val main : < caps; .. > -> string array -> int

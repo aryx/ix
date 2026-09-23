@@ -1,10 +1,11 @@
 (library
  (name ix_asm)
- (modules Asm Lexer Parser CLI))
+ (modules Asm Lexer Parser CLI)
+ (libraries caps))
 
 (executable
  (name Main)
  (public_name tinyasm)
  (package ix)
  (modules Main)
- (libraries ix_asm))
+ (libraries ix_asm caps))

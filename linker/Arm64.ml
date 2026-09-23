@@ -400,14 +400,13 @@ let layout (t : Link.t) =
     let c, v = aclass ctx p a in
     let raw = match a with Some (A.Imm n) -> n | Some (A.Addr m | A.Mem m) -> m.off | _ -> 0L in
     let dword = p.op = "MOV" || (cmp VCON c && Int64.logand raw 0xffffffffL <> raw) in
-    let operand, sz =
-      if List.mem c [ PSAUTO; PPAUTO; UAUTO4K; UAUTO8K; UAUTO16K; UAUTO32K; UAUTO64K; NSAUTO; NPAUTO; LAUTO; PPOREG; PSOREG;
-                      UOREG4K; UOREG8K; UOREG16K; UOREG32K; UOREG64K; NSOREG; NPOREG; LOREG; LACON ]
-      then A.Imm v, 4
-      else Option.get a, if dword then 8 else 4
-    in
+    let built = List.mem c [ PSAUTO; PPAUTO; UAUTO4K; UAUTO8K; UAUTO16K; UAUTO32K; UAUTO64K; NSAUTO; NPAUTO; LAUTO; PPOREG; PSOREG;
+                             UOREG4K; UOREG8K; UOREG16K; UOREG32K; UOREG64K; NSOREG; NPOREG; LOREG; LACON ] in
+    let operand, sz = if built then A.Imm v, 4 else Option.get a, if dword then 8 else 4 in
     (* the operand, as 7l's memcmp of it: a name<> is its object's *)
-    let key = operand, (match operand with A.Mem { name = Some { static = true; _ }; _ } | A.Addr { name = Some { static = true; _ }; _ } -> p.version | _ -> 0) in
+    let key = operand, (match operand with
+      | _ when built -> -1   (* an offset made a constant: never the same record as an operand's *)
+      | A.Mem { name = Some { static = true; _ }; _ } | A.Addr { name = Some { static = true; _ }; _ } -> p.version | _ -> 0) in
     match List.assoc_opt key !pool with
     | Some w -> p.target <- Some w
     | None ->

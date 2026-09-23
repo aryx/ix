@@ -24,7 +24,7 @@ exception Error of int * string
  * it (goken's darwin libc: numbers_arm64.h). An included file's lines
  * take the place of the #include, so a line number counts from the top
  * of the result. *)
-let preprocess (dir : string) (text : string) : string =
+let preprocess caps (dir : string) (text : string) : string =
   let defs = Hashtbl.create 16 in
   let subst line =
     if Hashtbl.length defs = 0 then line
@@ -52,7 +52,7 @@ let preprocess (dir : string) (text : string) : string =
       let f = String.trim (String.sub t 8 (String.length t - 8)) in
       let f = String.sub f 1 (String.length f - 2) in
       let path = Filename.concat dir f in
-      let inc = In_channel.with_open_bin path In_channel.input_all in
+      let inc = Asm.read_file caps path in
       (* its #defines, kept for the lines after *)
       String.split_on_char '\n' inc |> List.iter (fun l ->
         match String.split_on_char ' ' (String.trim (String.map (fun c -> if c = '\t' then ' ' else c) l)) |> List.filter (( <> ) "") with

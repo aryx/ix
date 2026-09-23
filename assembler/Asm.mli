@@ -88,8 +88,14 @@ type obj = { arch : arch; file : string; items : (item * int) array (* and its l
 (* the register names: R0-R15, SP, PC on arm; R0-R30, ZR, RSP on arm64 *)
 val register : arch -> string -> operand option
 
-val save : string -> obj -> unit
-val load : string -> obj
+(* the objects, marshalled with a version; the files through the
+ * capabilities *)
+val save : < Cap.open_out; .. > -> string -> obj -> unit
+val load : < Cap.open_in; .. > -> string -> obj
+
+(* a whole file, read or written (the executables are 0o755) *)
+val read_file : < Cap.open_in; .. > -> string -> string
+val write_file : < Cap.open_out; .. > -> ?perm:int -> string -> string -> unit
 
 (* an instruction, as the assembler would read it back (for errors,
  * listings, and the round-trip law) *)

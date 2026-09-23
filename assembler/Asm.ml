@@ -61,14 +61,19 @@ let register arch s =
 (* the objects: marshalled, with a version, as xix's *)
 let version = 1
 
-let save file (o : obj) =
-  Out_channel.with_open_bin file (fun oc -> Marshal.to_channel oc (version, o) [])
+let read_file (caps : < Cap.open_in; .. >) file =
+  let ic = CapStdlib.open_in caps file in
+  Fun.protect ~finally:(fun () -> close_in ic) (fun () -> really_input_string ic (in_channel_length ic))
 
-let load file : obj =
-  In_channel.with_open_bin file (fun ic ->
-    let v, (o : obj) = Marshal.from_channel ic in
-    if v <> version then failwith (file ^ ": an object of another version");
-    o)
+let write_file (_ : < Cap.open_out; .. >) ?(perm = 0o644) file s =
+  Out_channel.with_open_gen [ Open_wronly; Open_creat; Open_trunc; Open_binary ] perm file (fun oc -> Out_channel.output_string oc s)
+
+let save caps file (o : obj) = write_file caps file (Marshal.to_string (version, o) [])
+
+let load caps file : obj =
+  let v, (o : obj) = Marshal.from_string (read_file caps file) 0 in
+  if v <> version then failwith (file ^ ": an object of another version");
+  o
 
 let show_name (n : name) = if n.static then n.sym ^ "<>" else n.sym
 

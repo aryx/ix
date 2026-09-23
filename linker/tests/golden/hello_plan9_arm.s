@@ -1,0 +1,37 @@
+// same than principia/ROOT/tests/s/hello_arm.s
+// but with goken we need to use 5l -H2 to force plan9 output
+// can be assembled/linked by 5a/5l and run via 5i or on raspberry pi 1 or 2
+
+TEXT _main(SB), $20
+	//TODO: port xdefine("setR12",...) from layout.c in principia to goken
+	//MOVW	$setR12(SB), R12
+        /* prepare the system call PWRITE(1,&hello,13, 00) */
+        MOVW $1, R1
+        MOVW R1, 4(R13)
+        MOVW $hello(SB), R1
+        MOVW R1, 8(R13)
+        MOVW $13, R1
+        MOVW R1, 12(R13)
+        MOVW $0, R1
+        MOVW R1, 16(R13)
+        MOVW R1, 20(R13)
+        MOVW $11 /*PWRITE*/, R0
+        /* system call */
+        SWI $0
+        BL exit(SB)
+        RET /* not reached */
+loop:
+        B loop
+
+TEXT exit(SB), $4
+        /* prepare the system call EXITS(0) */
+        MOVW $0, R1
+        MOVW R1, 4(R13)
+        MOVW $3 /*EXITS*/, R0
+        /* system call */
+        SWI $0
+        RET /* not reached */
+
+GLOBL   hello(SB), $13
+DATA    hello+0(SB)/8, $"Hello, w"
+DATA    hello+8(SB)/5, $"orld\n"

@@ -17,7 +17,12 @@ let machine = function
   | Asm.Arm -> { prepare = Arm.prepare; needs = Arm.needs; follow = Arm.follow; rewrite = Arm.rewrite; layout = Arm.layout; encode = Arm.encode }
   | Asm.Arm64 -> { prepare = Arm64.prepare; needs = (fun _ -> []); follow = Arm64.follow; rewrite = Arm64.rewrite; layout = Arm64.layout; encode = Arm64.encode }
 
-let link ~verbose arch format entry out files =
+type caps = < Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
+
+let print (_ : < Cap.stdout; .. >) s = print_string s
+let eprint (_ : < Cap.stderr; .. >) s = prerr_string s; flush stderr
+
+let link caps ~verbose arch format entry out files =
   let m = machine arch in
   let t = Link.create arch ~text_start:0 in
   let headr = Exe.headr (format, arch) in
@@ -30,7 +35,7 @@ let link ~verbose arch format entry out files =
   t.pie <- format = Exe.Macho;
   (* the entry is the first name needed, before any object (5l's main) *)
   ignore (Link.lookup t entry 0);
-  Link.load t ~needs:m.needs files;
+  Link.load caps t ~needs:m.needs files;
   m.prepare t;
   Link.resolve t;
   Link.layout_data t;
@@ -42,13 +47,13 @@ let link ~verbose arch format entry out files =
   if verbose then
     List.iter (fun (p : Link.prog) ->
       let w = if p.pc >= t.text_start && p.pc + 4 <= t.text_start + t.text_size then Bytes.get_int32_le text (p.pc - t.text_start) else 0l in
-      Printf.printf "%08x: %08lx\t%s\n" p.pc w (Asm.show_item (Ins { op = p.op; suffixes = p.suffixes; args = p.args }))) t.progs;
+      print caps @@ Printf.sprintf "%08x: %08lx\t%s\n" p.pc w (Asm.show_item (Ins { op = p.op; suffixes = p.suffixes; args = p.args }))) t.progs;
   let data = Link.data_bytes t in
-  Exe.write format arch out
+  Exe.write caps format arch out
     { text; data; bss = t.bss_size; text_start = t.text_start; data_start = t.data_start; entry = Link.entry t entry;
       pointers = Link.pointers t; round = t.data_round }
 
-let main (argv : string array) : int =
+let main (caps : < caps; .. >) (argv : string array) : int =
   let arch = ref Asm.Arm and format = ref Exe.Elf and entry = ref "_main" and out = ref "a.out"
   and lib = ref "" and files = ref [] and verbose = ref false in
   let rec args = function
@@ -68,10 +73,10 @@ let main (argv : string array) : int =
   args (List.tl (Array.to_list argv));
   let files = List.rev !files in
   match files with
-  | [] -> prerr_endline "usage: tinyld -m 5|7 [-H2|-H6|-H7] [-E entry] [-o out] files... | -a lib.a objects..."; 1
+  | [] -> eprint caps "usage: tinyld -m 5|7 [-H2|-H6|-H7] [-E entry] [-o out] files... | -a lib.a objects...\n"; 1
   | _ -> (
       try
-        if !lib <> "" then Link.make_library !lib files
-        else link ~verbose:!verbose !arch !format !entry !out files;
+        if !lib <> "" then Link.make_library caps !lib files
+        else link caps ~verbose:!verbose !arch !format !entry !out files;
         0
-      with Link.Error m -> prerr_endline ("tinyld: " ^ m); 1)
+      with Link.Error m | Sys_error m | Failure m -> eprint caps ("tinyld: " ^ m ^ "\n"); 1)

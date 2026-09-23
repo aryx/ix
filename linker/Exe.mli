@@ -11,4 +11,4 @@ type image = { text : Bytes.t; data : Bytes.t; bss : int; text_start : int; data
 (* the header's size, before the text (5l's HEADR) *)
 val headr : format * Asm.arch -> int
 
-val write : format -> Asm.arch -> string -> image -> unit
+val write : < Cap.open_out; .. > -> format -> Asm.arch -> string -> image -> unit

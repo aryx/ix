@@ -7,12 +7,13 @@ instruction, and writes the ELF file. It is written for **a reader of
 TinyAsm's and TinyLd's code, not a user of an assembler**, and explains
 the ideas in the order the code needs them.
 
-It is the specification of the programs planned in
-[`plan_asm.md`](../plans/plan_asm.md), written before the code, to be
-checked against it, as the other tutorials were. The examples marked
-"checked" were run with goken's 5a/5l and 7a/7l on 2026-09-23 (the
-listings are `5l -a` and `7l -a`); the rest is to check in phases 3
-and 4. Companions:
+It was the specification of the programs planned in
+[`plan_asm.md`](../plans/plan_asm.md), written before the code, and it
+is now checked against the code (2026-09-23): what the code does
+differently from what was planned is said where it happens, and the
+plan's Status tells why. The examples marked "checked" were run with
+goken's 5a/5l and 7a/7l (the listings are `5l -a` and `7l -a`).
+Companions:
 [`notes_asm_related_work.md`](../related-work/notes_asm_related_work.md)
 and the twins: the Principia books `assemblers/` and `linkers/`,
 goken's 5a/5l and 7a/7l, and xix's `assembler/` and `linker/`.
@@ -23,10 +24,12 @@ goken's 5a/5l and 7a/7l, and xix's `assembler/` and `linker/`.
 |---|---|---|
 | `assembler/Asm` | instructions and operands, the object file | §2, §4 |
 | `assembler/Lexer`, `Parser` | Plan 9's assembly language, both targets | §2 |
-| `linker/Link` | load, libraries, symbols, layout, data, pools | §4, §5 |
-| `linker/Arm` | arm: prologues, choosing and encoding | §6, §8 |
+| `linker/Link` | load, libraries, symbols, branches, `follow`, the data | §4, §5 |
+| `linker/Arm` | arm: frames, classes and rules, pools, encoding | §6, §8 |
 | `linker/Arm64` | arm64: the same | §7, §8 |
-| `linker/Elf` | the file the kernel runs | §9 |
+| `linker/Exe` | the file the kernel runs: ELF, a.out, Mach-O | §9 |
+| `linker/CLI` | `tinyld`: the passes in order, per machine | §5 |
+| `tiny/TinyAssembler` | the one-file variant, without separate compilation | §13 |
 
 Read §1 for the whole trip, §2 for the language, §3 for the design,
 §4-§5 for the linker, §6-§8 for the machines, §9 for the file, and
@@ -155,15 +158,45 @@ and arm has no divide instruction, so the linker turns them into calls
 to libc's `_div`, `_divu`, `_mod` and `_modu`, and adds those symbols
 to what is needed.
 
+**Which objects, in which order**, decides the addresses, and so the
+bytes (checked, by making ix's executables goken's):
+
+- the entry is the first name needed, before any object is read;
+- a library's index lists its objects last first (ar builds it by
+  prepending), and a pass takes, in that order, each object defining a
+  name still undefined, until a pass adds nothing;
+- a text name defined by two objects is indexed for the first only
+  (libc has two `strtod`: fmt's is the one);
+- `_div` and the others are asked for only once all the loading is
+  done, so they come last;
+- `n+4(FP)` and `x-8(SP)` name no symbol: the name is a comment.
+
 ## 5. The linker's passes
 
 ```
-   load       objects and libraries, as in §4
-   rewrite    per machine: prologues and epilogues, RET, DIV and MOD, CASE
-   layout     an address for every instruction and datum
-   encode     per machine: instructions to words
-   write      the ELF file
+   load       objects and libraries, as in §4                     Link
+   prepare    per machine: B.NE is BNE, frames rounded, float     Arm, Arm64
+              constants into the data, ADD of a negative is SUB
+   resolve    branches to their targets, chains of B followed     Link
+   data       an offset for every datum: small ones first, in     Link
+              the linker's hash order, then the rest, then bss
+   follow     the code in the order its flow goes (below)         Link
+   rewrite    per machine: prologues, RET, DIV and MOD            Arm, Arm64
+   layout     an address for every instruction, literal pools     Arm, Arm64
+   encode     per machine: instructions to words                  Arm, Arm64
+   write      the file                                            Exe
 ```
+
+**follow** (5l's and 7l's `xfol`, which the plan had left out, and
+which every program with a loop needs to match goken) walks the code
+from the first function in the order it runs: a branch to code already
+placed becomes a copy of it, when that code is short and ends the flow
+(a `B` or a `RET` within four instructions), else a `B` to it; a
+conditional branch whose target comes next is inverted; and what the
+flow never reaches, code after a `RET`, is dropped. It builds the new
+order in the instructions' own links, so once an instruction is placed
+its next is what was placed after it, not what followed it in the
+source.
 
 **The frame.** `TEXT f(SB), $20` says that `f`'s locals take 20 bytes.
 The linker makes the frame, on arm with one instruction: the prologue
@@ -172,8 +205,12 @@ pushes the return address (R14) and makes room for the locals at once
 pop into the PC (`MOVW.P 24(R13), R15`) -- both checked in §1, where the
 function calls nothing and still gets them, because it has locals. Only
 a leaf function (no `BL`) with no locals (`$0`, or `$-4`) keeps R14
-where it is, and returns with `B (R14)` (5l's `noops`). `FP` and `SP`
-are then offsets from R13.
+where it is, and returns with `B (R14)` (5l's `noops`); so does any
+function that says `$-4`, even one that calls. `FP` and `SP` are then
+offsets from R13. On arm64 (7l's `noops`) the frame is rounded to 16
+bytes, with R30 at its bottom, pushed by a pre-indexed store of at most
+240 bytes (`MOV R30, -x(RSP)!`, after a `SUB` for the rest), and
+`RETURN` undoes it.
 
 **Layout.** Code starts at 0x80a0 on arm and 0x4000f0 on arm64 (5l's
 and 7l's choice: an address, plus the ELF header's size). Every
@@ -214,12 +251,27 @@ out of reach. Data in reach is loaded relative to R12, which the
 start-up code sets to the data segment plus 4,092 (5l's `setR12` and
 `BIG`): a load or store with a 12-bit offset reaches 4 KB either side.
 
+**Choosing the encoding** is 5l's `oplook`: each operand gets a class
+(a register; a constant that rotates, whose complement does, or
+neither; an offset of 12 bits, or 8 for halves, or more...), and the
+first of the rules for the opcode whose classes take the operands' is
+the one. The rules are sorted as 5l sorts its optab, so the first is
+5l's first. goken computes `immrot` in a 64-bit `ulong`, where the
+rotation never wraps: only 0 to 255 rotate there, and `$0x400` goes to
+a pool. TinyLd does the same (checked), with a flag for the real rule.
+
+**Literal pools** go after an unconditional branch or a return, when
+the pool's first use is getting far (5l's `checkpool`), or at the end,
+behind a `B` to itself; one word serves every use of the same operand.
+
 **What the subset keeps**, and 5l's optab has 204 rows for: the data
 processing instructions with a register, a shifted register or an
 immediate; loads and stores of words, bytes and halves, with an offset
 or an index, pre- or post-indexed; load and store multiple (`MOVM`);
-branches; `SWI`; multiply. Not floating point: 5c's is for FPA, which
-no machine at hand runs.
+branches; `SWI`; multiply; and FPA's floating point. That last one was
+planned out, since no machine at hand runs FPA; but libc's `print`
+links `fltfmt` and `strtod`, so every program with a `print` has float
+code, even where it never runs, and the encoding is needed to link it.
 
 ## 7. Encoding arm64
 
@@ -241,9 +293,13 @@ Also one 32-bit word, and there the resemblance ends:
   program became a pool load, `58000060`).
 - **Bitmask immediates**: `AND`, `ORR`, `EOR` take a constant that is
   a repeated element (2, 4, ..., 64 bits) made of a rotated run of
-  ones. 7l keeps a table of them, 5,382 lines in `bits.c`. Deciding
-  whether a constant is one, and finding its fields, is a loop over the
-  six element sizes: some 30 lines.
+  ones. 7l keeps a table of them, 5,334 entries in `bits.c`; TinyLd
+  makes the same table by enumerating the element sizes, the runs and
+  the rotations, in 15 lines. 7l's encoding leaves out the element's
+  size below 64 bits (a known 7l bug), and so, to match it, does TinyLd.
+- **The literal pool** is one, at the end of the program, with 8-byte
+  words for `MOV`; and there are no float immediates in 7l: every
+  `FMOVD $c` loads from a symbol in the data.
 - **Addresses**: PC-relative, `ADR` (±1 MB) or `ADRP` and `ADD` (a
   page, then the offset in it), or a pool.
 
@@ -251,13 +307,15 @@ The subset is what 7c emits (69 opcodes), floating point included.
 
 ## 8. The two machines, and what is general
 
-What the two encoders share is small, and that is the point of having
-two: a classifier from operands to a shape (register, constant that
-fits, constant that doesn't, near address, far address...), a table
-from (opcode, shapes) to an encoding rule, and the rules. What they
-don't share is everything in the words. The general part, `Link`, never
-looks inside an instruction but to ask the machine its size and its
-words.
+What the two encoders share is their shape, not their code: a
+classifier from operands to classes, a table from (opcode, classes) to
+a rule, sorted, the first match, and the encoding by rule. Each is one
+module, of about 590 lines. What the second machine moved into `Link`
+is what turned out to be the same in 5l and 7l: `follow`, given what
+ends the flow and how to invert a branch; the float constants made
+data; and the data's layout and the hash that orders it, with a case
+per machine where 5l and 7l differ (7l hashes in 32 bits and aligns
+to 8 and 16). The general part never looks inside an instruction.
 
 ## 9. The ELF file
 
@@ -275,7 +333,10 @@ exit programs: 326 bytes for ELF32, 486 for ELF64):
 
 arm needs one more thing: `e_flags` must say EABI version 5
 (`0x5000200`), or the kernel refuses the file. No section headers are
-needed to run (5l writes three anyway).
+needed to run. 5l writes three anyway, at HEADR+text+data, which is
+inside the data's page: when the data is large the table overwrites its
+end, a goken bug that breaks its own `dirread` (checked: patched with
+ix's bytes, it passes). TinyLd puts the table after the data.
 
 **Plan 9's a.out** is simpler still: 32 bytes, eight big-endian words
 -- the magic (`0x647` on arm), the sizes of the text, the data, the bss
@@ -312,18 +373,25 @@ the kernel insists; it makes its system calls itself (number in R16,
 | assembler | a grammar per machine (yacc) | a grammar and a typed AST per machine | one parser, one instruction type |
 | objects | Plan 9's format | marshalled | marshalled |
 | encoding | optab and asmout per machine | pattern matching, all forms | pattern matching, the subset |
-| arm64 bitmask immediates | a table (5,382 lines) | | computed |
+| arm64 bitmask immediates | a table (5,334 entries) | 64-bit patterns only | generated |
+| `follow` | yes | no | yes (in `Link`, for both) |
 | formats | ELF, Mach-O, PE, a.out | ELF, a.out | ELF, Mach-O (arm64), a.out |
-| lines, 5 and 7 | about 32,000 | 11,036 (5,542 of code) | about 1,850 (target) |
+| lines of code, 5 and 7 | about 32,000 | 5,542 | 2,301 (the plan's target was 2,090) |
 
 ## 11. How it is tested
 
-- **The corpus**: small `.s` programs, each with what it prints when run
-  and the code bytes goken made for it.
-- **A fuzzer**: random instructions of the subset through goken and
-  through ix; the bytes must be the same.
-- **Real programs**: goken's `tests/s`, then C programs compiled by 5c
-  and 7c to assembly, with libc, through ix, running on both machines.
+- **The recorded bytes** (`linker/tests/golden.sh`, in `make test`):
+  62 small `.s` programs, goken's and xix's, for arm, arm64, Mach-O and
+  a.out, each with the digest of the executable goken made.
+- **A fuzzer** (`linker/tests/fuzz.py`): random programs of the
+  subset through goken and through ix; the executables must be the
+  same. It found two bugs the corpus hadn't: the rounding of a
+  negative frame, and which literal pool words are shared.
+- **Real programs** (`linker/tests/libc.sh 5|7`): goken's libc through
+  `5c -S` or `7c -S` and TinyAsm, and goken's 17 `hello_libc` programs
+  linked with it, byte for byte against goken's, and run.
+  `fixtures.sh` compares any `.s` against goken, and `elfcmp.py`
+  compares two executables but for goken's misplaced section table.
 
 ## 12. Exercises
 
@@ -331,16 +399,30 @@ the kernel insists; it makes its system calls itself (number in R16,
   doesn't emit it.
 - **Another machine**: riscv64, or mips, as a third module next to
   `Arm` and `Arm64`, and what that shows in the general part.
-- **follow()**: 5l's reordering of the code, which removes jumps to
-  jumps.
-- **A listing** (`-a`): each instruction with its address and words.
+- **The rest of arm64**: CSEL, TBZ, the atomics and the barriers, which
+  7c doesn't emit; and 7l's correct bitmask encoding, as an option.
+- **The real immrot**, `Arm.rotate`, made the default once goken is
+  fixed, and the section table's place fixed in goken.
 
 ## 13. In ix
 
 TinyAsm and TinyLd are the first half of ix's toolchain; the C compiler
-comes next, and writes their objects directly. The one-file variant in
-`tiny/` asks what is left without separate compilation: an assembler
-that writes the executable.
+comes next, and writes their objects directly.
+
+The one-file variant, `tiny/TinyAssembler.ml`, asks what is left
+without separate compilation: an assembler for arm64 that reads all of
+a program's assembly, its own and libc's, and writes the executable.
+Dropping the byte identity with 7l lets it choose forms whose sizes
+never depend on an address: a constant built by `MOVZ` and `MOVK`, an
+address by `ADRP` and `ADD`, a logical immediate in a register. So
+there is no literal pool and no bitmask encoder, and it takes three
+plain passes: expand, lay out, encode. The expansion makes each
+instruction a list of closures from their own pc to a word, run once
+the addresses are known. A library becomes the functions reachable from
+the entry. It is 410 lines of code, against about 1,580 for the same
+arm64 path through TinyAsm and TinyLd, and it runs goken's 17
+`hello_libc` programs with all of libc, including the two that goken's
+own executables get wrong.
 
 ## Glossary
 

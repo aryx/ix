@@ -583,11 +583,73 @@ lines; the test is the same: the same executables, running.
   MacBook (milestone 4's second half). Code lines: Exe 129 (ELF, a.out
   and Mach-O; the target was 330), Arm64 599.
 
+- **2026-09-23, the one-file variant, the fuzzer, and the
+  finalization** (the author: "yes let's make the tiny/ one and
+  finalize the assember and linker part").
+  - `tiny/TinyAssembler.ml`, 410 lines of code (the arm64 path through
+    TinyAsm and TinyLd is about 1,580). It is arm64 only: it runs here
+    and on the Mac, and it has no FPA and no division calls. It takes
+    all of a program's assembly and writes a one-segment ELF. It drops
+    the byte identity with 7l, so every size is known before any
+    address:
+    - constants by MOVZ, MOVK and MOVN;
+    - addresses by ADRP and ADD;
+    - logical immediates through a register;
+    - no pool, no bitmask encoder.
+
+    Each instruction becomes closures from pc to word. A library
+    becomes the functions reachable from the entry, with the first
+    definition of a name winning. 7l's frames are kept, since 7c's code
+    counts on them.
+  - Its test, `TinyAssembler_test.sh`: goken's exit and hello, then
+    libc (all of it, through `7c -S`) with the 17 hello_libc programs,
+    against goken's `*_expected.txt`. All 19 pass, including `dirread`
+    and `mem`, which goken's own executables fail.
+  - The fuzzer, `linker/tests/fuzz.py`: random programs of the subset,
+    through goken and ix. It found two bugs the corpus hadn't:
+    - `Link.rnd` of a negative frame (`$-4`, 5l's leaf marker, rounded
+      to 0 in a function that calls);
+    - which pool words are shared. 5l compares whole operand records:
+      a word built from an offset is never shared with an operand's,
+      and a constant is 32 bits sign-extended once read, so a `SUB` of
+      `$0x80000000` becomes an `ADD` of +2³¹, not `$-2³¹`.
+
+    After the fixes, the last runs are clean on both machines (the
+    counts are in the commit).
+  - `make test` now has `golden.sh` (62 recorded executables);
+    `make test-goken` has the rest. The tutorial is checked against
+    the code: modules, passes (`follow`), the loading order, FPA,
+    immrot, 7l's pool and bitmasks, the section-table bug, the tests,
+    the exercises, and the variant.
+  - **Capabilities** (the author: "please use capabilities in new code,
+    so the Assembler and linker should take Cap.open_in and
+    Cap.open_out if they want to read or write files"). Every function
+    that reads or writes a file now takes `< Cap.open_in; .. >` or
+    `< Cap.open_out; .. >`, in builder/'s way:
+    - `Asm.read_file`, `write_file`, `save` and `load`, and
+      `Lexer.preprocess` for `#include`;
+    - `Link.load` and `make_library`, and `Exe.write`;
+    - TinyAssembler's parse and link.
+
+    The mains start from `Cap.main`, and the CLIs print through
+    `Cap.stdout` and `Cap.stderr`. The bytes are unchanged (golden,
+    libc, TinyAssembler's test).
+  - Final code lines, interfaces included: assembler 516; linker
+    1,785 (in the .ml files: Link 342, Arm 583, Arm64 598, Exe 129,
+    CLI 59). That is 2,301 in all, against the plan's 2,090, 10% over.
+    The excess is arm's `follow` and FPA, which the target left out,
+    less what Exe saved. For xix's 5 and 7 path the figure is 5,542, and
+    goken's C is about 32,000. The variant is 410.
+
 ## Verification
 
-`make test` runs the corpus against its recorded outputs and bytes,
-and the laws; `linker/tests/differential.sh live` and the fuzzer run
-against goken, which must be built.
+`make test` runs `linker/tests/golden.sh`: 62 fixtures, each assembled
+and linked by ix, against the digest of goken's executable (`golden.sh
+record` re-records them, with goken). `make test-goken`, with goken
+built, runs `libc.sh 5` and `libc.sh 7` (goken's libc and its 17
+hello_libc programs, byte for byte and run) and TinyAssembler's test.
+`linker/tests/fuzz.py 5|7 N seed` is the fuzzer, and `fixtures.sh` and
+`elfcmp.py` are the tools for a single file.
 
 ## Out of scope
 

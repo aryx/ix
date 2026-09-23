@@ -15,6 +15,6 @@ exception Error of int * string
 
 (* [preprocess dir text]: #include "file" (from dir) and #define NAME
  * text, the only directives the inputs use *)
-val preprocess : string -> string -> string
+val preprocess : < Cap.open_in; .. > -> string -> string -> string
 
 val tokens : string -> (token * int) list
