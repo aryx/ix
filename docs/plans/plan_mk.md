@@ -721,13 +721,6 @@ planned, 2,879 for omk and 5,980 for mk's C.
   `make test-differential` now runs the live comparison it described
   (it ran the recorded one).
 
-- **2026-09-23, open questions, for the author's review:** whether this
-  plan now moves to `plans/done/` (the Playground's convention for a
-  finished plan); whether the Principles section moves to
-  `docs/README.md` now, or when a second program's plan starts, as
-  written above; and the command's two-letter name (the binary is
-  still `tinymk`, see "The interface").
-
 ## Verification
 
 - `make test`: the `.mli` examples, the laws (on generated DAGs, from
