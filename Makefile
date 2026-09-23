@@ -20,7 +20,9 @@ test-differential: all
 # The toolchain against goken (~/goken, built, with its libcs): C
 # programs with its libc, byte for byte and run; see linker/tests/
 # (golden.sh record re-records the fixtures' bytes from goken). The
-# compiler's trees against cck's; see compiler/tests/.
+# compiler's trees against cck's, and its listings against 5c -O0's and
+# 7c -O0's; see compiler/tests/ (and TINYCC=1 linker/tests/libc.sh for
+# the executables tinycc and tinyld make).
 GOKEN_W = /tmp/ix-goken
 test-goken: all
 	./linker/tests/libc.sh 5 $(GOKEN_W)/libc5 $(HOME)/goken/tests/c/hello_libc/*.c
@@ -28,6 +30,8 @@ test-goken: all
 	./tiny/TinyAssembler_test.sh
 	./compiler/tests/front.sh 5 $(GOKEN_W)/front5 $(HOME)/goken/tests/c/hello_libc/*.c
 	./compiler/tests/front.sh 7 $(GOKEN_W)/front7 $(HOME)/goken/tests/c/hello_libc/*.c
+	./compiler/tests/listing.sh 5 $(GOKEN_W)/listing5 $(HOME)/goken/tests/c/hello_libc/*.c
+	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c
 
 clean:
 	dune clean
