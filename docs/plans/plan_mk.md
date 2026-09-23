@@ -651,6 +651,15 @@ planned, 2,879 for omk and 5,980 for mk's C.
     (`{cmd $X}` prints without the brace), and plan9port warns
     "doesn't exist: assuming it will be an archive" only for a name not
     ending in `.a`.
+- **2026-09-23, later: the feature table recounted**, by
+  `builder/tests/count_features.sh`, written after the fact because the
+  first count was typed at a shell and its patterns weren't kept. 474
+  mkfiles now (two more than then). Within a few files of the table on
+  most rows (`<file` 420, `:V:` 173, `$target` 108, `${v:...}` 92,
+  `:D:` 25, `:Q:` 29, `<|` 4, `&` 3, `:N:` 2); lower on `%` metarules
+  (132 against 154) and backquotes (33 against 38), where the first
+  patterns were looser; 1 archive against 2 (`$LIB(...)`); and 0 `:R:`
+  against 1: the only `:R:` left is in a comment. The decisions stand: none depended on the difference.
 - **2026-09-23, phase 6 DONE, but for pretending.** `:R:` (with `re`'s
   POSIX parser; principia's refactored `graph.c` loses the arcs of a
   regexp rule, 9base's does not, and TinyMk follows 9base), archives

@@ -494,6 +494,17 @@ written):
   SIGTERM of `timeout`, so it is now `timeout -s KILL`.
   1,634 lines of `.ml` now; the corpus 43 cases.
 
+- **2026-09-23, later: the evidence kept in the repository.** The
+  feature counts are `shell/tests/count_features.py` (`scripts` and
+  `recipes`; rerun, the same numbers as the table), and milestone 1 is
+  `shell/tests/principia_scripts.sh`, with its stubs. Rerun after
+  TinyEd's work: 119 of 133 the same. `dopermind` is now the same (the
+  here document read raw); two more differ, `kernel/conf/mkrootc` and
+  `rc/bin/kmem`, by a line "signal: sys: write on closed pipe": their
+  first stage writes into a pipe whose reader is gone (`acid` is not
+  installed here), and whether the writer is killed by SIGPIPE depends
+  on which runs first -- 9base's rc prints the same line in 4 of 5
+  runs of kmem. Two more of the "changes run to run" kind.
 - **2026-09-23, phase 7: `tiny/TinyShell.ml`.** One file, 598
   lines (423 of code, counted as for TinyBuildSystem's 261): a third of
   TinyRc. The subset was chosen by its real test, the recipes of xix's

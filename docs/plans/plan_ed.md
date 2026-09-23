@@ -411,8 +411,10 @@ written):
 
 `make test` runs the corpus, the laws and the unit tests;
 `editor/tests/history.sh` replays xix's history (milestone 2), which
-takes a while and is not in `make test`; nor is `editor/tests/fuzz.py
-[seed] [count]`, the fuzzer against 9base's ed.
+takes a while and is not in `make test`; nor are `editor/tests/fuzz.py
+[seed] [count]`, the fuzzer against 9base's ed, and
+`editor/tests/mkenam.sh`, milestone 1 (principia's mkenams, on the
+headers where they are now).
 
 ## Out of scope
 

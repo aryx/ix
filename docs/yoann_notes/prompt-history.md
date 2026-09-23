@@ -1226,3 +1226,35 @@ Claude implemented flat `tiny/` with colocated files and scripts, fixing a sed b
 **Yoann:**
 
 > yes! and I'll review, especially the subset of ARM (and ARM64) to handle, and how to reach low number of LOC, how to be ven smaller than xix
+
+**Claude (summary):**
+
+Claude measured arm instruction frequencies from goken's libc compilation (51 opcodes, 16 covering 90%, 29 covering 95% of instructions emitted).
+Claude measured arm64 frequencies (69 opcodes, 16 covering 90%, 39 covering 99%) with 226 arm and 256 arm64 distinct operand shapes.
+Claude designed to 1,850 lines through unified parsing, hand-written lexer, limited encoders, and ELF only, setting module budgets in plan_asm.md.
+Claude explained why the linker encodes and Go's counter-argument about performance costs of repeated encoding at scale.
+Claude proposed command names (tinyasm/tinyld vs. 5a/7a/5l/7l), goken changes, architecture order, and the one-file variant.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 17:05
+
+**Yoann:**
+
+> is this reasoning and the opcode statistics (great work) results saved in the plan file?
+
+------------------------------------------------------------------------
+
+## 2026-09-23 17:05
+
+**Yoann:**
+
+> as context
+
+------------------------------------------------------------------------
+
+## 2026-09-23 17:05
+
+**Yoann:**
+
+> great. maybe we could do the same for the past plans (rc, ed, and mk)
