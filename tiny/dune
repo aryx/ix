@@ -18,3 +18,10 @@
  (package ix)
  (modules TinyEditor)
  (libraries unix))
+
+(executable
+ (name TinyAssembler)
+ (public_name tinyassembler)
+ (package ix)
+ (modules TinyAssembler)
+ (libraries caps))
