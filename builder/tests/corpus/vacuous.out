@@ -1,0 +1,11 @@
+$ mk -n hello.5
+echo 5c hello.c
+[exit 0]
+$ mk -n both.5
+mk: don't know how to make 'both.5' in DIR
+[exit 1]
+$ mk -n both.5
+mk: ambiguous recipes for both.5:
+	both.5 <-(mkfile:8)- both.c
+	both.5 <-(mkfile:10)- both.s
+[exit 1]

@@ -1,0 +1,10 @@
+$ mk -n q
+echo made x y p q a b
+echo q prereq=x y p q a b '$X' "$target" a b a b $HOME
+[exit 0]
+$ mk q
+echo made x y p q a b
+made x y p q a b
+echo q prereq=x y p q a b '$X' "$target" a b a b $HOME
+q prereq=x y p q a b $X q a b a b /nonexistent
+[exit 0]

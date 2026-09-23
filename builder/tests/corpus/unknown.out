@@ -1,0 +1,11 @@
+$ mk -n nothere
+mk: don't know how to make 'nothere' in DIR
+[exit 1]
+$ mk -n norecipe
+mk: no recipe to make 'norecipe'
+echo dep
+[exit 1]
+$ mk -n -k all
+mk: don't know how to make 'nothere' in DIR
+echo other
+[exit 0]

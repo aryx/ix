@@ -1,0 +1,17 @@
+$ mk -n a b
+echo c
+echo a
+echo b
+[exit 0]
+$ mk -n -s a b
+echo c
+echo a
+echo c
+echo b
+[exit 0]
+$ mk -n c
+echo c
+[exit 0]
+$ mk -n X=1 flags
+echo MKFLAGS=$MKFLAGS MKARGS=$MKARGS
+[exit 0]

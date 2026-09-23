@@ -1,0 +1,33 @@
+$ mk -n all
+echo making a
+echo making b.o
+echo making prea
+echo making b
+echo making ba
+echo all from a b.o prea b ba
+[exit 0]
+$ mk -n late
+echo making early
+echo making late
+[exit 0]
+$ mk -n subst
+echo making Ast.cmo
+echo making Main.cmo
+echo making lexer.mll
+echo making Ast.ml
+echo making Main.ml
+echo making gen/lexer.ml
+echo making M.ml
+echo subst Ast.cmo Main.cmo lexer.mll Ast.ml Main.ml gen/lexer.ml M.ml
+[exit 0]
+$ mk -n undef
+echo making UNDEF
+echo making xy
+echo undef UNDEF xy
+[exit 0]
+$ mk -n CC=z x y
+echo making z
+echo making x
+echo making y
+echo making command line arguments
+[exit 0]

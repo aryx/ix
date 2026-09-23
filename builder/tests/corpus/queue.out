@@ -1,0 +1,8 @@
+$ mk top list
+echo inc
+inc
+echo list
+list
+echo top
+top
+[exit 0]

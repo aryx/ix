@@ -1,0 +1,8 @@
+$ mk -n a
+mk: ambiguous recipes for a:
+	a <-(mkfile:5)- x <-(mkfile:13)- 
+	a <-(mkfile:7)- y <-(mkfile:13)- 
+[exit 1]
+$ mk -n b
+mk: don't know how to make 'b' in DIR
+[exit 1]

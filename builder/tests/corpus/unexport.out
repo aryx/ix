@@ -1,0 +1,4 @@
+$ mk 
+echo A=exported B=$B
+A=exported B=
+[exit 0]

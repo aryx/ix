@@ -1,0 +1,18 @@
+$ mk 
+mk: 'prog' is up to date
+[exit 0]
+$ mk -a -n
+echo cc a
+echo cc b
+echo link
+[exit 0]
+$ mk -n -w a.c
+echo cc a
+echo link
+[exit 0]
+$ mk -t
+mk: 'prog' is up to date
+[exit 0]
+$ mk 
+mk: 'prog' is up to date
+[exit 0]

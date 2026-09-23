@@ -1,0 +1,8 @@
+$ mk -n a
+echo meta x
+echo meta a
+[exit 0]
+$ mk -n b
+echo virtual y
+echo meta b
+[exit 0]

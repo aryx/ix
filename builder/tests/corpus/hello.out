@@ -1,0 +1,19 @@
+$ mk -n
+echo 5c -c hello.c; touch hello.5
+echo 5c -c world.c; touch world.5
+echo 5l -o hello hello.5 world.5; touch hello
+[exit 0]
+$ mk 
+echo 5c -c hello.c; touch hello.5
+5c -c hello.c
+echo 5c -c world.c; touch world.5
+5c -c world.c
+echo 5l -o hello hello.5 world.5; touch hello
+5l -o hello hello.5 world.5
+[exit 0]
+$ mk 
+mk: 'hello' is up to date
+[exit 0]
+$ mk -n clean
+rm -f *.5 hello
+[exit 0]

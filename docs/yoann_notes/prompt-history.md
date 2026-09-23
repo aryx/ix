@@ -729,3 +729,66 @@ Claude analyzed the playground project's structure and chose mk as the first ix 
 **Yoann:**
 
 > I like it! let's commit this
+
+**Claude (summary):**
+
+Claude found that caps 0.1.0 already exists in the public opam repository.
+Claude located the source at aryx/ocaml-caps as a standard opam package.
+Claude recommended using caps directly as a plain opam dependency without special configuration.
+Claude recorded the decision to use this dependency in the project plan.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 08:47
+
+**Yoann:**
+
+> <task-notification>
+> <task-id>b3794xyuu</task-id>
+> <tool-use-id>toolu_01Q1Bk4TqUMELdyMvoMFvj1h</tool-use-id>
+> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/b3794xyuu.output</output-file>
+> <status>completed</status>
+> <summary>Background command "Look for plan9port mk sources" completed (exit code 0)</summary>
+> </task-notification>
+
+------------------------------------------------------------------------
+
+## 2026-09-23 09:10
+
+**Yoann:**
+
+> <task-notification>
+> <task-id>b30uaevil</task-id>
+> <tool-use-id>toolu_01HywyfjTryWCgBRfogN9SeP</tool-use-id>
+> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/b30uaevil.output</output-file>
+> <status>failed</status>
+> <summary>Background command "Add documented-difference outputs and run live three-way" failed with exit code 1</summary>
+> </task-notification>
+
+------------------------------------------------------------------------
+
+## 2026-09-23 09:12
+
+**Yoann:**
+
+> <task-notification>
+> <task-id>b0d9tnu0b</task-id>
+> <tool-use-id>toolu_01BtV5Qp3YaxcSzdnyJxR8GP</tool-use-id>
+> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/b0d9tnu0b.output</output-file>
+> <status>failed</status>
+> <summary>Background command "Run the live three-way differential (with omk)" failed with exit code 1</summary>
+> </task-notification>
+
+------------------------------------------------------------------------
+
+## 2026-09-23 09:15
+
+**Yoann:**
+
+> <task-notification>
+> <task-id>ber3m8bqv</task-id>
+> <tool-use-id>toolu_01D8SjuL9P6hVCKzKJJvEtyn</tool-use-id>
+> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/ber3m8bqv.output</output-file>
+> <status>completed</status>
+> <summary>Background command "Normalize omk output and rerun the live comparison" completed (exit code 0)</summary>
+> </task-notification>

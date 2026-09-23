@@ -1,0 +1,4 @@
+$ mk 
+echo prereq=a b newprereq=b
+prereq=a b newprereq=b
+[exit 0]

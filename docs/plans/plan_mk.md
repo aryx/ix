@@ -345,12 +345,14 @@ program to run inside TinyMk's recipes on real work.
 
 ### 9. Where `Cap` comes from
 
-This question belongs to all of ix, and it is answered here because
-this is the first program to need it: either a dependency on xix's
-`caps` library (through opam, if it is published separately) or a copy
-under `lib_core/`. The recommendation is the dependency, because
-diverging capability types between the twins would make every
-comparison noisier. To settle with the author before phase 1.
+**Decided (2026-09-23): a dependency, the opam package `caps`.** It
+is xix's capability library, published separately as `aryx/ocaml-caps`
+(0.1.0 is in the public opam repository, and xix uses it as a git
+submodule). ix gets it through opam, with no copy and no submodule.
+The decision covers all of ix, not only TinyMk, and the reason is the
+twins: if the capability types diverged, every comparison with xix
+would be noisier. When ix needs a capability `caps` lacks, it is
+added upstream in `ocaml-caps`, not worked around here.
 
 ## Outside mk: other ways to be a tiny build system
 
@@ -465,7 +467,7 @@ programs the equivalent is real inputs:
 
 ## Phasing
 
-0. **Groundwork**: the dune layout, `Cap` (decision 9), Testo, the
+0. **Groundwork**: the dune layout, `caps` from opam (decision 9), Testo, the
    corpus recorded from plan9port mk, and `make test-differential`
    running the references alone (as a check that the harness works).
 1. **Word and Mkfile**: reading, evaluated as read; `-d p` dumps the
@@ -523,10 +525,65 @@ programs the equivalent is real inputs:
   to `CC`, not only "the first (but not any subsequent)" one. omk
   agrees with the program. The rule for TinyMk: **the program is the
   specification, and the man page is a hint**.
+- **2026-09-23, `Cap` from the opam package `caps`** (the author:
+  "use it as a dependency", choosing the recommendation of decision 9
+  over a copy under `lib_core/`).
 - **The twins, for the LOC comparison to come**: mk (C) 5,980 lines in
   `principia/SRC/cmd/mk/*.[ch]`, 4,280 by the book's own table
   (Make.nw); omk 2,761 lines in `xix/builder/*.ml*`, including 468 of
   `Lexer.mll` and `Parser.mly`.
+
+- **2026-09-23, phases 0-4 DONE (the author: "follow the plan until
+  the end and I'll review once the whole tiny mk project is done").**
+  `builder/`: `Word`, `Pattern`, `Mkfile`, `Graph`, `Outofdate`,
+  `Recipe`, `Build`, `CLI`, `Main`; `builder/tests/`: `Unit_mk` (the
+  `.mli` examples), `Laws` (correct, minimal, idempotent, parallel =
+  sequential, on 50 random DAGs each, in a fake world where recipes run
+  instantly and jobs end in a seeded random order), and a corpus of 32
+  mkfiles with their outputs recorded from 9base's mk. 56 tests, all
+  passing. The numbers and the lessons:
+  - **The reference is 9base's mk** (`/usr/lib/plan9/bin/mk`, Debian's
+    package of plan9port's), not principia's C, where the two differ.
+    Reading principia's source first, then checking each quirk on 9base
+    before coding it, found a dozen behaviours no man page states: the
+    order of several rules' prerequisites (b d c), `${UNDEF:...}` giving
+    "UNDEF", a comment in column 0 after a header being its recipe, one
+    job for `b c d` when they share a rule, `attribute()` putting a
+    virtual node's time back to 0 on every target (so `mk -s a b` runs
+    their common virtual prerequisite twice), `-k` exiting 0, the fake
+    target being `command line arguments` without the angle brackets,
+    line numbers being those of the line after a header, and stdout
+    buffered while stderr is not -- so under `-n` an error comes out
+    before the recipes printed first. Each is now in the code, and in a
+    corpus case.
+  - **First run of the corpus: 16 of 30 cases matched**; after the
+    fixes, 30 of 30, plus two cases of their own, `pretend` and
+    `subsecond`, recording the two differences on purpose (decisions 5
+    and 6) with a `.tiny.out` beside 9base's `.out`.
+  - **9base pretends by default** (missing intermediates, decision 5):
+    it showed up on a virtual prerequisite, which the tutorial's §7 did
+    not anticipate -- `out: gen`, `gen:V: src`, with `out` newer than
+    `src`: 9base runs nothing, TinyMk (like principia's mk) runs `gen`.
+    Kept as decided; the cases that would be affected run with `-i`.
+  - **omk agrees with 9base on 2 of the 32 cases**, after stripping its
+    `|recipe|` markers and colours (`differential.sh live`); TinyMk on
+    30, and the other two are the documented differences. Most of omk's
+    disagreements are messages and its parallel default, some are
+    semantics (it rejects `$X.o` on a list, has no `:P:` -- `prog.mk`
+    hung it until a timeout was added).
+  - **The harness's first version ran every `#!setup` before every
+    `#!args`**, so a case could not age its files between two runs, and
+    three cases "failed" only because 9base, with whole seconds, rebuilt
+    what had been built in the same second. Directives now run in order.
+  - **Lines: 1,592 of `.ml`** (1,249 without blanks and comments),
+    against a target of about 750: over by a factor of two. By module:
+    `Mkfile` 375, `Build` 294, `Recipe` 203, `Word` 199, `Graph` 194,
+    `CLI` 185, `Pattern` 77, `Outofdate` 52, `Main` 13. omk is 2,879
+    lines of `.ml`, `.mll` and `.mly` (2,411 + 468; the 2,761 given
+    above was `.ml` and `.mli`, a mistake); mk's C 5,980. So far a
+    little over half of omk, with more of mk's features (`:R:`, `&`,
+    `:P:`, `<|`, `-w`, `-u`, UTF-8) and 9base's messages. A compaction
+    pass is due before the milestone's count.
 
 ## Verification
 

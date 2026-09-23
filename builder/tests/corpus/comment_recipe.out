@@ -1,0 +1,4 @@
+$ mk -n
+echo foo
+# a comment
+[exit 0]

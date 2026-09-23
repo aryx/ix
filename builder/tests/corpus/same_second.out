@@ -1,0 +1,4 @@
+$ mk 
+echo compile
+compile
+[exit 0]

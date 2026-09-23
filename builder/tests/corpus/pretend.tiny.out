@@ -1,0 +1,4 @@
+$ mk 
+echo gen
+gen
+[exit 0]

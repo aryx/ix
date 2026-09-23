@@ -1,0 +1,4 @@
+$ mk -n
+echo making first
+echo making second
+[exit 0]

@@ -1,0 +1,12 @@
+$ mk -i
+echo gen
+gen
+echo all done
+all done
+[exit 0]
+$ mk -i all
+echo gen
+gen
+echo all done
+all done
+[exit 0]

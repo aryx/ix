@@ -1,0 +1,9 @@
+$ mk top list
+echo inc shell=$0
+inc shell=sh
+echo $#X
+2
+echo top shell $0; x=(a b); echo $#x
+top shell /dev/stdin
+2
+[exit 0]

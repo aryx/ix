@@ -1,0 +1,8 @@
+$ mk ab
+echo ab out of date
+ab out of date
+[exit 0]
+$ mk ac
+echo ac out of date
+ac out of date
+[exit 0]

@@ -1,0 +1,7 @@
+$ mk -n foo
+mk: don't know how to make 'foo' in DIR
+[exit 1]
+$ mk -n NREP=2 foo
+echo gunzip foo.gz.gz
+echo gunzip foo.gz
+[exit 0]

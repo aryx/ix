@@ -1,0 +1,5 @@
+$ mk foo.o
+cp config.in config.h.new
+cmp -s config.h.new config.h || mv config.h.new config.h
+rm -f config.h.new
+[exit 0]

@@ -1,0 +1,9 @@
+$ mk 
+echo compile world; touch world.5
+compile world
+echo link; touch hello
+link
+[exit 0]
+$ mk 
+mk: 'hello' is up to date
+[exit 0]

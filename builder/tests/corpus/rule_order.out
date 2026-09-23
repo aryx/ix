@@ -1,0 +1,4 @@
+$ mk -n a
+echo making b c d
+echo a from b d c
+[exit 0]

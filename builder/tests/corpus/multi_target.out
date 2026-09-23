@@ -1,0 +1,13 @@
+$ mk -n
+echo yacc y.tab.c y.tab.h all=y.tab.c y.tab.h; touch y.tab.c y.tab.h
+echo cc y.tab.c y.tab.h; touch prog
+[exit 0]
+$ mk 
+echo yacc y.tab.c y.tab.h all=y.tab.c y.tab.h; touch y.tab.c y.tab.h
+yacc y.tab.c y.tab.h all=y.tab.c y.tab.h
+echo cc y.tab.c y.tab.h; touch prog
+cc y.tab.c y.tab.h
+[exit 0]
+$ mk 
+mk: 'prog' is up to date
+[exit 0]

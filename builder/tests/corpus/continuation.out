@@ -1,0 +1,5 @@
+$ mk -n
+echo a b # a comment
+echo one \
+  two
+[exit 0]

@@ -1,0 +1,185 @@
+(* Claude Code
+ *
+ * Copyright (C) 2026 Yoann Padioleau
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public License
+ * (LGPL) as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
+ *)
+(* See CLI.mli *)
+
+type caps = < Recipe.caps; Cap.env; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
+
+let usage = "Usage: mk [-f file] [-(n|a|e|t|k|i)] [-d[egp]] [targets ...]"
+
+(*****************************************************************************)
+(* The outside world *)
+(*****************************************************************************)
+
+(* mk's standard output is buffered, and flushed only before a job or a
+ * :P: command runs and at the end; its errors are not. So under -n an
+ * error is printed before the recipes that came first, as in 9base. *)
+let out = Buffer.create 4096
+let print (_ : < Cap.stdout; .. >) s = Buffer.add_string out s
+let flush_out (_ : < Cap.stdout; .. >) = print_string (Buffer.contents out); Buffer.clear out; flush stdout
+let eprint (_ : < Cap.stderr; .. >) s = prerr_string s; flush stderr
+
+let read_file (caps : < Cap.open_in; .. >) (file : string) : string option =
+  if not (Sys.file_exists file) then None
+  else
+    let ic = CapStdlib.open_in caps file in
+    let s = really_input_string ic (in_channel_length ic) in
+    close_in ic;
+    Some s
+
+(* modification times are read through the capability to read files *)
+let stat (_ : < Cap.open_in; .. >) (name : string) : float =
+  match Unix.stat name with st -> st.Unix.st_mtime | exception Unix.Unix_error _ -> 0.
+
+(* file.c's touch(): update the time, or create the file *)
+let touch (_ : < Cap.open_out; .. >) (name : string) : unit =
+  if Sys.file_exists name then Unix.utimes name 0. 0.
+  else Unix.close (Unix.openfile name [ Unix.O_WRONLY; Unix.O_CREAT ] 0o666)
+
+let delete (caps : < Cap.open_out; Cap.stderr; .. >) (name : string) : unit =
+  try Sys.remove name with Sys_error msg -> eprint caps (msg ^ "\n")
+
+let first_int mk name =
+  match Mkfile.lookup mk name with
+  | Some (v :: _) -> Option.value (int_of_string_opt v) ~default:1
+  | _ -> 1
+
+(*****************************************************************************)
+(* Entry point *)
+(*****************************************************************************)
+
+let main (caps : < caps; .. >) (argv : string array) : int =
+  Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
+  let args = List.tl (Array.to_list argv) in
+  let file = ref None and whatif = ref [] and debug = ref "" in
+  let dry = ref false and touch_ = ref false and always = ref false in
+  let keep = ref false and explain = ref false and seq = ref false and uflag = ref false in
+  let mkflags = ref [] in
+  (* main.c: only the first letter of an option counts *)
+  let rec options = function
+    | a :: rest when String.length a > 0 && a.[0] = '-' ->
+        mkflags := a :: !mkflags;
+        let letter = if String.length a > 1 then a.[1] else ' ' in
+        (match letter, rest with
+         | 'f', f :: rest -> mkflags := f :: !mkflags; file := Some f; options rest
+         | 'w', rest when String.length a > 2 ->
+             whatif := String.sub a 2 (String.length a - 2) :: !whatif; options rest
+         | 'w', f :: rest -> whatif := f :: !whatif; options rest
+         | ('s' | 'e' | 'n' | 'u' | 'i' | 't' | 'a' | 'k' | 'd'), rest ->
+             (match letter with
+              | 's' -> seq := true | 'e' -> explain := true | 'n' -> dry := true
+              | 'u' -> uflag := true | 't' -> touch_ := true | 'a' -> always := true
+              | 'k' -> keep := true
+              | 'd' -> debug := (if String.length a > 2 then String.sub a 2 (String.length a - 2) else "egp")
+              | _ -> ());
+             options rest
+         | _ -> failwith usage)
+    | rest -> rest
+  in
+  try
+    let rest = options args in
+    let assigns, targets = List.partition (fun a -> String.contains a '=') rest in
+    let env =
+      CapUnix.environment caps () |> Array.to_list |> List.filter_map (fun kv ->
+        match String.index_opt kv '=' with
+        | Some i -> Some (String.sub kv 0 i, String.sub kv (i + 1) (String.length kv - i - 1))
+        | None -> None)
+    in
+    let pid = Unix.getpid () in
+    let mk = Mkfile.create ~env ~default_shell:[ "sh" ] in
+    let io : Mkfile.io = {
+      read_file = read_file caps;
+      output = (fun mk ~shell ~stdin cmd ->
+        let env = Recipe.environment ~shell (Recipe.env mk ~slot:0 ~pid ()) in
+        Recipe.output caps ~shell ~env ~stdin cmd);
+      warn = (fun msg -> eprint caps (msg ^ "\n"));
+    } in
+    if assigns <> [] then
+      Mkfile.read ~override:true io mk ~file:"<command line args>"
+        (String.concat "" (List.map (fun a -> a ^ "\n") assigns));
+    Mkfile.set mk "MKFLAGS" (List.rev !mkflags @ assigns);
+    Mkfile.set mk "MKARGS" targets;
+    (* principia's mk: MKSHELL from the environment or the command line *)
+    (match Mkfile.lookup mk "MKSHELL" with
+     | Some (_ :: _ as shell) -> Mkfile.set_default_shell mk shell
+     | _ -> ());
+    (match !file with
+     | Some f -> (
+         match read_file caps f with
+         | Some text -> Mkfile.read io mk ~file:f text
+         | None -> failwith (f ^ ": No such file or directory"))
+     | None -> Option.iter (Mkfile.read io mk ~file:"mkfile") (read_file caps "mkfile"));
+    if String.contains !debug 'p' then print caps (Mkfile.dump mk);
+    let now = Unix.gettimeofday () in
+    let whatif =
+      List.concat_map (fun s ->
+        String.split_on_char ',' s |> List.concat_map (String.split_on_char ' ')
+        |> List.concat_map (String.split_on_char '\n') |> List.filter (( <> ) "")) !whatif
+    in
+    let g =
+      Graph.create mk ~stat:(fun name -> if List.mem name whatif then now else stat caps name)
+    in
+    let shell_env () =
+      Recipe.environment ~shell:(Mkfile.default_shell mk) (Recipe.env mk ~slot:0 ~pid ())
+    in
+    let bio : Build.io = {
+      run = (fun (j : Recipe.job) ~slot:_ ~env ->
+        flush_out caps;
+        Recipe.start caps ~shell:j.rule.shell ~env:(Recipe.environment ~shell:j.rule.shell env)
+          ~args:(if j.rule.attrs.noerror then [] else [ "-e" ]) j.rule.recipe);
+      wait = (fun () ->
+        match Recipe.wait caps with
+        | r -> Some r
+        | exception Unix.Unix_error (Unix.ECHILD, _, _) -> None);
+      stat = stat caps;
+      exists = Sys.file_exists;
+      touch = touch caps;
+      delete = delete caps;
+      prog = (fun cmd target prereq ->
+        flush_out caps;
+        snd (Recipe.output caps ~shell:(Mkfile.default_shell mk) ~env:(shell_env ())
+               ~stdin:false (Printf.sprintf "%s '%s' '%s'" cmd target prereq)));
+      now = Unix.gettimeofday;
+      print = print caps;
+      eprint = eprint caps;
+      cwd = Sys.getcwd ();
+      pid;
+    } in
+    let b = Build.create mk g bio
+        { dry = !dry; touch = !touch_; always = !always; keep_going = !keep; explain = !explain } in
+    let make target =
+      let nrep = first_int mk "NREP" in
+      if String.contains !debug 'g' then print caps (Graph.dump (Graph.node g ~nrep target));
+      Build.make b ~nproc:(first_int mk "NPROC") ~nrep target
+    in
+    (try
+       match targets with
+       | [] -> (
+           match Mkfile.default_targets mk with
+           | [] -> failwith "nothing to mk"
+           | ts -> List.iter make ts)
+       | [ t ] -> make t
+       | ts when !seq -> List.iter make ts
+       | ts ->
+           let fake = "command line arguments" in
+           Mkfile.add_rule mk ~targets:[ fake ] ~prereqs:ts ~recipe:""
+             { Mkfile.no_attrs with virtual_ = true };
+           make fake
+     with Build.Failed -> (try Build.wait_all b with Build.Failed -> ()); raise Build.Failed);
+    if !uflag then print caps (Build.usage b);
+    (* under -k, failed recipes do not change the exit status (9base) *)
+    flush_out caps;
+    0
+  with
+  | Build.Failed -> flush_out caps; 1
+  | Mkfile.Error msg | Graph.Error msg | Word.Error msg | Failure msg ->
+      let nl = if msg <> "" && msg.[String.length msg - 1] = '\n' then "" else "\n" in
+      eprint caps ("mk: " ^ msg ^ nl);
+      flush_out caps;
+      1

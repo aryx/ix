@@ -1,0 +1,26 @@
+$ mk ok
+quiet recipe
+[exit 0]
+$ mk bad
+echo bad; false
+echo not reached
+bad
+mk: echo bad; false ...  : exit status=exit(1)
+[exit 1]
+$ mk -k all
+echo bad; false
+echo not reached
+bad
+mk: echo bad; false ...  : exit status=exit(1)
+echo good
+good
+[exit 0]
+$ mk deleted
+echo half > deleted; false
+mk: echo half > ...  : exit status=exit(1), deleting 'deleted'
+[exit 1]
+$ mk noerr
+false
+echo went on
+went on
+[exit 0]

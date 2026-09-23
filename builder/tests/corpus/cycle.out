@@ -1,0 +1,3 @@
+$ mk -n a
+mk: cycle in graph detected at target a
+[exit 1]

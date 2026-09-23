@@ -1,0 +1,11 @@
+(library
+ (name ix_mk)
+ (modules Word Pattern Mkfile Graph Outofdate Recipe Build CLI)
+ (libraries unix re caps))
+
+(executable
+ (name Main)
+ (public_name tinymk)
+ (package ix)
+ (modules Main)
+ (libraries ix_mk caps))

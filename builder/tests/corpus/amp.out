@@ -1,0 +1,8 @@
+$ mk -n foo.o
+mk: ambiguous recipes for foo.o:
+	foo.o <-(mkfile:6)- foo.c
+	foo.o <-(mkfile:8)- foo.c
+[exit 1]
+$ mk -n dir/bar.o
+echo pct dir/bar
+[exit 0]

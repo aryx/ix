@@ -1,0 +1,12 @@
+$ mk -n all
+warning: skipping missing include file missing.mk: No such file or directory
+echo inc shell=$0 INC=from include
+echo INC=from include PIPED=yes B=back quoted C=rc style
+[exit 0]
+$ mk all
+warning: skipping missing include file missing.mk: No such file or directory
+echo inc shell=$0 INC=from include
+inc shell=sh INC=from include
+echo INC=from include PIPED=yes B=back quoted C=rc style
+INC=from include PIPED=yes B=back quoted C=rc style
+[exit 0]

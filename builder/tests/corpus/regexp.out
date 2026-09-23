@@ -1,0 +1,3 @@
+$ mk -n foo.5
+mk: don't know how to make 'foo.5' in DIR
+[exit 1]
