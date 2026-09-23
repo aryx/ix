@@ -362,6 +362,21 @@ after the compiler, by what it taught.
 
 2. **Gen and arm**: the listings of the corpus against `5c -O0`,
    function by function; milestone 1 for 5; the fuzzer.
+   *Done for arm (2026-09-24)*: `compiler/tests/listing.sh 5` compares
+   `tinycc -S` with `5c -O0 -S` over the 235 files of the corpus 5c
+   compiles: all the same, line for line. And `TINYCC=1
+   linker/tests/libc.sh 5` builds libc and the 17 hello_libc programs
+   with tinycc and TinyLd: the executables are goken's, byte for byte
+   (but goken's section-table bug, which also breaks goken's `pipe`),
+   and run the same. What it took beyond the port: 5c is linked with
+   glibc's qsort (a merge sort), whose ties on addresses reverse equal
+   terms in acom; with Plan 9's fmt, whose `%.17e` prints the fewest
+   digits that read back; `#pragma profile`; and TinyLd dropping the
+   NOPs that `-O0` leaves, as 5l's noops. 5c -O0 and 5ck -O0 generate
+   the same code (all of libc; only their listings' formats differ).
+   The compiler is 5,223 lines with arm (Emit 407, Gen 1,192,
+   Multiply 150, Arm 296).
+
 3. **arm64**: the second record, and a look back at what it shows of
    decision 1 (how large the records are, what moved into Gen);
    milestone 1 for 7.

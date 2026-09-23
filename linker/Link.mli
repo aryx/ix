@@ -141,3 +141,7 @@ val put32 : Bytes.t -> int -> int -> unit
 val put64 : Bytes.t -> int -> int -> unit
 
 val rnd : int -> int -> int
+
+(* the NOPs out, as 5c -O0 leaves them, a branch to one to the next
+ * instruction (5l's and 7l's noops) *)
+val drop_nops : t -> unit

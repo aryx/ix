@@ -1,25 +1,23 @@
 #!/bin/bash
-# Phase 1: the front end's trees (-x) against goken's cck, file by file,
-# over goken's libraries and utilities (and the programs given), with each file's flags
-# from mk -n, through strip_x.py.
-# usage: front.sh 5|7 workdir [prog.c...]
+# Phase 2: tinycc's listings (-S) against 5c -O0's, file by file, over
+# goken's libraries and utilities (and the programs given), with each
+# file's flags from mk -n.
+# usage: listing.sh 5 workdir [prog.c...]
 set -u
 export PATH=$HOME/goken/bin:$HOME/goken/ROOT/arch/boot-gcc/bin:$PATH
 IX=$(cd $(dirname $0)/../.. && pwd)/_build/default
-TESTS=$(cd $(dirname $0) && pwd)
 O=$1; W=$2; shift 2
-case $O in 5) OBJ=arm; CC=5ck;; 7) OBJ=arm64; CC=7c;; esac
+case $O in 5) OBJ=arm;; 7) OBJ=arm64;; esac
 rm -rf $W; mkdir -p $W
-strip() { python3 $TESTS/strip_x.py "$1" > "$1.n"; }
 same=0; diff=0; fail=0
 one() {  # dir flags src
   local b=$(echo $1/${3%.c} | sed "s|$HOME/goken/||" | tr / _)
-  (cd $1 && $CC $2 -x -o /dev/null $3 > $W/$b.g 2>&1) || { echo "$CC-FAIL $b"; return; }
-  (cd $1 && $IX/compiler/Main.exe -m $O $2 -x -o /dev/null $3 > $W/$b.t 2>&1) || { echo "FAIL $b: $(tail -1 $W/$b.t)"; fail=$((fail+1)); return; }
-  strip $W/$b.g; strip $W/$b.t
-  if cmp -s $W/$b.g.n $W/$b.t.n; then same=$((same+1)); else echo "DIFF $b"; diff=$((diff+1)); fi
+  # the listing is the lines with a tab; 5c may print it and still fail
+  (cd $1 && ${O}c -O0 $2 -S -o /dev/null $3 > $W/$b.out 2>/dev/null) || { echo "${O}c-FAIL $b"; return; }
+  grep '^	' $W/$b.out > $W/$b.g
+  (cd $1 && $IX/compiler/Main.exe -m $O $2 -S -o $W/$b.$O $3 > $W/$b.t 2>&1) || { echo "FAIL $b: $(tail -1 $W/$b.t)"; fail=$((fail+1)); return; }
+  if cmp -s $W/$b.g $W/$b.t; then same=$((same+1)); else echo "DIFF $b $(diff $W/$b.g $W/$b.t | grep -c '^[<>]')"; diff=$((diff+1)); fi
 }
-# each directory of the corpus with a mkfile, with its flags from mk -n
 for d in lib_core/libc lib_core/libbio lib_strings/libregexp lib_strings/libstring \
          $(cd $HOME/goken && find utilities -name mkfile -printf '%h\n' | sort); do
   cd $HOME/goken/$d

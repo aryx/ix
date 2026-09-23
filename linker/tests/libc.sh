@@ -6,6 +6,8 @@
 # usage: libc.sh 5|7 workdir prog.c...   (needs goken, and dune build in ix)
 # The libc is built once per workdir: remove it to rebuild.
 # GOOS=darwin H=-H6: macOS's libc and Mach-O (compared, not run).
+# TINYCC=1: ix's C is compiled by tinycc into objects, not 5c -S and
+# tinyasm (5c -O0 for goken's then, the same code).
 set -u
 export PATH=$HOME/goken/bin:$HOME/goken/ROOT/arch/boot-gcc/bin:$PATH
 IX=$(cd $(dirname $0)/../.. && pwd)/_build/default
@@ -26,8 +28,13 @@ while read -r line; do
     # 5c's flags, but the -o and the file; the listing is the lines
     # with a tab, its warnings go to stdout too
     flags=$(echo "$line" | sed -e "s/^${O}c //" -e 's/ -o [^ ]* [^ ]*$//' -e 's/\$CFLAGS_EXTRA//')
+    if [ -n "${TINYCC:-}" ]; then
+      ${O}c -O0 $flags -o $W/g/$b.$O $src > /dev/null 2>&1 || echo "${O}c-FAIL $b"
+      $IX/compiler/Main.exe -m $O $flags -o $W/t/$b.$O $src 2> $W/t/$b.err || echo "TINYCC-FAIL $b"
+    else
     ${O}c $flags -S -o $W/g/$b.$O $src 2>$W/t/$b.err | grep '^	' > $W/t/$b.s || echo "${O}c-FAIL $b"
     $IX/assembler/Main.exe -m $O -o $W/t/$b.$O $W/t/$b.s || echo "TINYASM-FAIL $b"
+    fi
     ;;
   ${O}a)
     src=${@: -1}; b=$(echo ${src%.s} | tr / _)
@@ -45,8 +52,14 @@ $IX/linker/Main.exe -m $O -a $W/t/libc.a "${t[@]}"
 fi
 for c in "${progs[@]}"; do
   b=$(basename $c .c)
-  (cd $(dirname $c) && ${O}c -I$HOME/goken/include -I$HOME/goken/include/ALL -I$HOME/goken/include/arch/$OBJ -S -o $W/g/$b.$O $b.c 2>/dev/null | grep '^	' > $W/t/$b.s) || { echo "${O}c-FAIL $b"; continue; }
+  incs="-I$HOME/goken/include -I$HOME/goken/include/ALL -I$HOME/goken/include/arch/$OBJ"
+  if [ -n "${TINYCC:-}" ]; then
+    (cd $(dirname $c) && ${O}c -O0 $incs -o $W/g/$b.$O $b.c > /dev/null 2>&1) || { echo "${O}c-FAIL $b"; continue; }
+    (cd $(dirname $c) && $IX/compiler/Main.exe -m $O $incs -o $W/t/$b.$O $b.c) || { echo "TINYCC-FAIL $b"; continue; }
+  else
+  (cd $(dirname $c) && ${O}c $incs -S -o $W/g/$b.$O $b.c 2>/dev/null | grep '^	' > $W/t/$b.s) || { echo "${O}c-FAIL $b"; continue; }
   $IX/assembler/Main.exe -m $O -o $W/t/$b.$O $W/t/$b.s || { echo "TINYASM-FAIL $b"; continue; }
+  fi
   # 5l from libc's directory: 5c's objects name libc.a (#pragma lib)
   (cd $LIBC && ${O}l ${H:--H7} -s -o $W/g/$b.exe $W/g/$b.$O $W/g/libc.a) > $W/g/$b.log 2>&1 || { echo "${O}l-FAIL $b: $(head -1 $W/g/$b.log)"; continue; }
   $IX/linker/Main.exe -m $O ${H:--H7} -o $W/t/$b.exe $W/t/$b.$O $W/t/libc.a 2> $W/t/$b.log || { echo "TINYLD-FAIL $b: $(head -1 $W/t/$b.log)"; continue; }

@@ -1608,3 +1608,87 @@ Claude agreed the current design mirrors cck too closely: Emit, Gen, Mul, Tree, 
 >   - The Presser–White "allocation, linking, relocation, loading" split and the sam paper's "changes applied together at the end" are from memory, though strong. They are the two entries to look at if you want everything confirmed against the text.
 >   - I added nothing for the TinyEditor memoized backtracker; I couldn't pin down a precise reference for it.
 > </agent-message>
+
+**Claude (summary):**
+
+Claude added References paragraphs to 26 files (.mli files and tiny/ programs) with citations from original papers. Examples include Szymanski on link allocation, Cox on the Pike regex engine, Graham on list scheduling bounds, and Thompson on regular expressions. Claude added a "References in the code" section to docs/README.md documenting the convention and verified the build passed tests. Some references were dropped when sources couldn't be fully verified, including Barron's Assemblers and McKeeman's peephole paper. Claude also presented three compiler redesign options but deferred pending Yoann's choice.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:08
+
+**Yoann:**
+
+> yes commit
+
+**Claude (summary):**
+
+Claude committed references as `65afa03` with an auto-added `docs/yoann_notes/prompt-history.md` file.
+Claude recommended option 1 for the compiler: maintain byte-identical output while redesigning in OCaml's terms.
+Option 1 uses a typed AST, functions for rewrites, one code generator with per-machine record patterns.
+Modules would be organized by role and tested against `5c -O0` and `7c -O0` assembly listings.
+The compiler's overall approach choice remained pending between the different recommended options.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:09
+
+**Yoann:**
+
+> what is the issue?
+
+**Claude (summary):**
+
+Claude confirmed the session log staging was expected behavior requiring no action.
+Claude then recommended option 1 for the compiler: maintain byte-identical output, redesign in OCaml.
+Option 1 preserves external behavior compatibility while completely reimplementing in OCaml's natural idioms.
+This balances the goal of compatibility with the goal of idiomatic design quality.
+The strategy lets the compiler keep its behavior while adopting OCaml design practices.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:09
+
+**Yoann:**
+
+> I mean for your option 1
+
+**Claude (summary):**
+
+Claude identified five problems with option 1: algorithm unchanged except shape, no line savings, timing constraints preserve the current pipeline, massive rewrite with extended feedback loss, and quirks become explicit code but persist.
+Option 1 gains readability and OCaml idiom but requires major rewrite for probably minimal line reduction.
+Option 2 cuts line count through a behavior contract and simpler code generator, but abandons the per-instruction oracle.
+Option 3 is the cheapest path, a faithful port whose tree-by-tree oracle already passes 235 files.
+Claude posed the choice as: readability (option 1), line reduction (option 2), or minimal cost (option 3).
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:11
+
+**Yoann:**
+
+> I still don't fully understand the differences between option 1 and 2
+
+**Claude (summary):**
+
+Claude outlined Option 1 (byte-identical matching to 5c) versus Option 2 (freer code generation).
+Yoann chose Option 1 for the twin because instruction-level diffs would immediately catch compilation bugs.
+Claude had suggested tiny/TinyC.ml could stay free under Option 1, which Yoann embraced as his hybrid approach.
+In this arrangement, the twin enforces byte-level matching to 5c while tiny/TinyC.ml retains full design freedom.
+The hybrid gives the twin verification as a Plan 9 model while tiny/TinyC.ml explores alternatives freely.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:13
+
+**Yoann:**
+
+> let's try to follow at the byte level here and indeed be more free in tiny/TinyC.ml
+
+------------------------------------------------------------------------
+
+## 2026-09-23 22:13
+
+**Yoann:**
+
+> so that we can compare more easily with the goken and xix models

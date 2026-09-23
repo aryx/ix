@@ -296,6 +296,9 @@ let macif f =
         if getcom () <> 10 then error_at !lineno "syntax in #if(n)def";
         if (s.macro <> None) <> (f = 1) then () else skip ()
 
+(* #pragma profile: off makes TEXT's flag NOPROF *)
+let profile = ref true
+
 let domacro () =
   let s = match getsym () with Some s -> s | None -> lookup "endif" in
   match s.name with
@@ -305,5 +308,16 @@ let domacro () =
   | "define" -> macdef ()
   | "include" -> macinc ()
   | "undef" -> (match getsym () with Some s -> macend (); s.macro <- None | None -> error_at !lineno "syntax in #undef")
-  | "line" | "pragma" | "endif" -> macend ()
+  | "pragma" -> (
+      (* profile's the one that reaches the code: TEXT's flag *)
+      match getsym () with
+      | Some { name = "profile"; _ } ->
+          let on = match getsym () with
+            | Some { name = "on" | "yes"; _ } -> true
+            | Some { name; _ } -> (match int_of_string_opt (String.sub name 1 (String.length name - 1)) with Some n -> n <> 0 | None -> false)
+            | None -> false in
+          profile := on;
+          macend ()
+      | _ -> macend ())
+  | "line" | "endif" -> macend ()
   | n -> error_at !lineno "unknown #: %s" n

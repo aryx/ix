@@ -40,6 +40,7 @@ let link caps ~verbose arch format entry out files =
   Link.resolve t;
   Link.layout_data t;
   m.follow t;
+  Link.drop_nops t;
   m.rewrite t;
   m.layout t;
   let text = m.encode t in

@@ -215,6 +215,16 @@ let resolve t =
  * new order in the progs' own links: once placed, an instruction's
  * next is what was placed after it. Here the links and the marks are
  * tables, by an id in pc (unused yet) *)
+(* the NOPs out (5c -O0 leaves them), what branched to one to the next
+ * instruction (5l's and 7l's noops) *)
+let drop_nops t =
+  let real = ref None and nops = ref [] in
+  List.iter (fun (p : prog) -> if p.op = "NOP" then nops := (p, !real) :: !nops else real := Some p) (List.rev t.progs);
+  if !nops <> [] then begin
+    List.iter (fun (p : prog) -> match p.target with Some q when q.op = "NOP" -> p.target <- List.assq q !nops | _ -> ()) t.progs;
+    t.progs <- List.filter (fun (p : prog) -> p.op <> "NOP") t.progs
+  end
+
 let follow t ~ends ~invert =
   let link = Hashtbl.create 4096 and marked = Hashtbl.create 4096 in
   let ids = ref 0 in
@@ -250,6 +260,8 @@ let follow t ~ends ~invert =
           (* up to 4 instructions from p, if they end the flow *)
           let rec find (q : prog) i =
             if i >= 4 || (match last () with Some l -> l == q | None -> false) then None
+            (* claude: a NOP (5c -O0's) doesn't count *)
+            else if q.op = "NOP" then (match next q with Some r -> find r i | None -> None)
             else if ends q then Some q
             else if (q.op = "BEQ" || q.op = "BNE") && (match q.target with Some c -> not (is_marked c) | None -> false) then Some q
             else match next q with Some r -> find r (i + 1) | None -> None

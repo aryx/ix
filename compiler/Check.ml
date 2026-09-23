@@ -479,7 +479,7 @@ and tcomo1 (n : node) f =
        let zero = konst 0L (ty Tint) in
        n.op <- OADD; n.right <- l; n.left <- Some zero;
        chk (tcom zero);
-       chk (tcompat n zero.ntype (rr ()).ntype tsub);
+       chk (tcompat n zero.ntype (Tree.r n).ntype tsub);
        arith n true
    | ONEG | OCOM ->
        chk (tcom (ll ()));
@@ -877,15 +877,23 @@ and acom2 (n : node) (tt : typ) (trm : term array) =
        with Exit -> ());
       trm.(0).tnode <- Some !l
     end;
-    (* the terms sorted as goken's qsort does, the ties on their places
-     * (acomcmp1, acomcmp2) *)
+    (* the terms sorted as 5c's qsort (glibc's merge sort): acomcmp1 and
+     * acomcmp2 break ties on the terms' addresses, and a merge that
+     * takes the right on ties puts equal terms in reverse order, each
+     * time *)
     let abs x = if Int64.compare x 0L < 0 then Int64.neg x else x in
-    let sort cmp = let rest = Array.sub trm 1 (nt - 1) in Array.stable_sort cmp rest; Array.blit rest 0 trm 1 (nt - 1) in
+    let sort cmp =
+      let rest = Array.sub trm 1 (nt - 1) in
+      let n = Array.length rest in
+      let rest = Array.init n (fun i -> rest.(n - 1 - i)) in
+      Array.stable_sort cmp rest;
+      Array.blit rest 0 trm 1 (nt - 1)
+    in
     sort (fun a b ->
       let c = Int64.compare (abs a.mult) (abs b.mult) in
       if c <> 0 then c
       else let sa = if Int64.compare a.mult 0L < 0 then 0 else 1 and sb = if Int64.compare b.mult 0L < 0 then 0 else 1 in
-        if sb - sa <> 0 then sb - sa else compare b.id a.id);
+        sb - sa);
     for i = nt - 1 downto 0 do
       let c1 = abs trm.(i).mult in
       if Int64.compare c1 1L > 0 then
@@ -910,7 +918,7 @@ and acom2 (n : node) (tt : typ) (trm : term array) =
           end
         done
     done;
-    sort (fun a b -> let c = Int64.compare a.mult b.mult in if c <> 0 then c else compare b.id a.id);
+    sort (fun a b -> Int64.compare a.mult b.mult);
     let l = ref None and c2 = ref 0L in
     for i = nt - 1 downto 0 do
       let c1 = trm.(i).mult in
