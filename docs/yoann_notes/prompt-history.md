@@ -886,3 +886,23 @@ Claude saved the tradeoff approach as guidance: keep features only if real use n
 **Yoann:**
 
 > in any case, this also requires judgments, not just statistics
+
+**Claude (summary):**
+
+Claude found three bugs: git reverts erased entries, summaries timed out after sixty seconds, and task notifications logged as prompts. Claude fixed the hook to return immediately, ignore notifications, and summarize long turns from the final message only. Claude regenerated ten lost history entries from eight forty-one to eleven fifty-seven using the hook's own functions. Claude left the hook fix and repaired log uncommitted pending Yoann's decision. Claude noted shell feature usage would guide later implementation choices.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 12:12
+
+**Yoann:**
+
+> ok now let's do what we did for the build system to the shell, first generate the documents that I'll review. Once reviewed we can do a tiny rc under shell/ (or shells/), and later on from the experience writing a tiny rc we can do a TinyShell.ml under shell/tiny/. Let's go!
+
+------------------------------------------------------------------------
+
+## 2026-09-23 12:18
+
+**Yoann:**
+
+> ok I'll review this README document too
