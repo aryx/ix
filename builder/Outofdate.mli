@@ -34,6 +34,30 @@
  * the shell, and a non-zero exit status means out of date. Its answer
  * is remembered, and asked again only after the target's recipe.
  *
+ * {b -H, content hashes} (not in mk; the plan's phase 7). A target's
+ * {e trace} is a digest of its recipe and of its prerequisites'
+ * contents (a virtual or missing prerequisite standing for its own
+ * trace); it is recorded in .mkhash when the target is made or found
+ * up to date, and the target is out of date when it is missing,
+ * virtual, or its trace changed -- times play no part, but for a target
+ * with no trace yet, which the times decide. (That rule came from the
+ * first measurement: xix's directories each have their own .mkhash,
+ * and lib_core/commons, which depends on ../../caps/src/caps/Cap.cmi,
+ * had no trace for it and so rebuilt it with its own flags --
+ * "Recursive Make Considered Harmful" in miniature. Deciding by times
+ * until there is a trace also lets an existing tree switch to -H
+ * without a rebuild.)
+ *
+ *     edit config.in, regenerate config.h identically:
+ *         mtimes (no cmp -s trick)   config.h, then foo.o
+ *         -H                         config.h only: foo.o's trace is
+ *                                    the same digest of config.h
+ *     git checkout: every mtime changes, no content does:
+ *         mtimes                     everything; -H: nothing
+ *
+ * These are the "verifying traces" of the paper below: what Shake and
+ * Bazel do, in about 30 lines, at the price of reading every input.
+ *
  * This is the rebuilder of Mokhov, Mitchell and Peyton Jones's "Build
  * Systems a la Carte" (2018): a modification-time rebuilder; Graph
  * gives it the dependencies and Build is the scheduler around it.
@@ -43,14 +67,26 @@
 
 type ctx
 
-(* [create ~time ~prog]: [time name] is the current date stamp of a
+(* -H, content hashes instead of times: [digest file] is a file's
+ * digest (None: missing), [traces] each target's trace when it was last
+ * made, loaded from and saved to .mkhash by CLI *)
+type hashes = {
+  digest : string -> string option;
+  traces : (string, string) Hashtbl.t;
+}
+
+(* [create ~time ~prog ()]: [time name] is the current date stamp of a
  * node, [prog cmd target prereq] runs a :P: command and says whether
- * it succeeded *)
-val create : time:(string -> float) -> prog:(string -> string -> string -> bool) -> ctx
+ * it succeeded; with [hashes], -H *)
+val create :
+  ?hashes:hashes -> time:(string -> float) -> prog:(string -> string -> string -> bool) -> unit -> ctx
 
 (* Is [node] out of date with respect to the prerequisite of [arc]?
  * [~eval:true] asks a :P: command again instead of remembering. *)
 val arc : ?eval:bool -> ctx -> Graph.node -> Graph.arc -> Graph.node -> bool
+
+(* -H: record the trace of a node found up to date *)
+val up_to_date : ctx -> Graph.node -> unit
 
 (* [after_recipe ctx ~exists ~stat node]: the node's date stamp once its
  * recipe has run (the table above) *)

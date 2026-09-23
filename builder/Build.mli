@@ -73,7 +73,8 @@ type t
 (* mk's Exit(): a recipe failed, or nothing knows how to make a target *)
 exception Failed
 
-val create : Mkfile.t -> Graph.t -> io -> flags -> t
+(* with [hashes], out of date is decided by -H's traces (Outofdate) *)
+val create : ?hashes:Outofdate.hashes -> Mkfile.t -> Graph.t -> io -> flags -> t
 
 (* [make t ~nproc ~nrep target]: bring [target] up to date, printing
  * "mk: 'target' is up to date" if nothing had to be done. Raises

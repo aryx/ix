@@ -634,6 +634,37 @@ programs the equivalent is real inputs:
   9base runs with `-i`. Its cost stays an estimate (about 40 lines);
   `pretend.mk` records what 9base does instead.
 
+- **2026-09-23, phase 7 DONE: `-H`, content hashes.** About 30 lines in
+  `Outofdate` (a trace: a digest of a target's recipe and of its
+  prerequisites' contents, a virtual or missing prerequisite standing
+  for its own trace) and 30 in `CLI` (`.mkhash`, and a digest cache
+  keyed by mtime). The laws hold under it (50 seeds, NPROC=4), and so
+  do its two reasons to exist, as tests: a regenerated identical
+  header stops the rebuild without the `cmp -s` trick, and new times
+  on unchanged files rebuild nothing. On xix, from a nuked tree:
+  | | recipes | seconds |
+  |---|---:|---:|
+  | from scratch, times or -H | 346 | 32 |
+  | every `.ml*` touched, times | 363 | 32 |
+  | every `.ml*` touched, -H | 0 | 1.1 |
+  | a comment added to `lib_core/commons/Common.ml`, times | 9 | 2.6 |
+  | the same, -H | 4 | 2.1 |
+  The 17 extra recipes of the touched rebuild are files built twice:
+  a directory's `.depend` names another directory's objects, and mk,
+  recursive, rebuilds them from both. **The first measurement failed,
+  and the failure is kept here**: `lib_core/commons` depends on
+  `../../caps/src/caps/Cap.cmi`, which had no trace in commons' own
+  `.mkhash`, so `-H` judged it out of date and rebuilt it with
+  commons' flags, and `builder/` then found `Cap.cmi` and `CapUnix.cmi`
+  inconsistent. Recursive make considered harmful, in one line. The
+  fix is a rule worth having anyway: a target with no trace yet is
+  decided by its times, and gets its trace when found up to date or
+  made -- so a tree also switches to `-H` without a rebuild. (A
+  second failed run was the author of these lines truncating
+  `Common.ml` with a `git show` of a submodule's file; restored.)
+- **`-n` over xix's 73 directories**, three runs averaged: 1.94 s for
+  TinyMk, 1.56 s for 9base's mk, 11.35 s for omk.
+
 ## Verification
 
 - `make test`: the `.mli` examples, the laws (on generated DAGs, from

@@ -11,7 +11,8 @@
 
 type caps = < Recipe.caps; Cap.env; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
 
-let usage = "Usage: mk [-f file] [-(n|a|e|t|k|i)] [-d[egp]] [targets ...]"
+let usage = "Usage: mk [-f file] [-(n|a|e|t|k|i|H)] [-d[egp]] [targets ...]"
+let hashfile = ".mkhash"
 
 (*****************************************************************************)
 (* The outside world *)
@@ -73,6 +74,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
   let file = ref None and whatif = ref [] and debug = ref "" in
   let dry = ref false and touch_ = ref false and always = ref false in
   let keep = ref false and explain = ref false and seq = ref false and uflag = ref false in
+  let hash = ref false in
   let mkflags = ref [] in
   (* main.c: only the first letter of an option counts *)
   let rec options = function
@@ -84,9 +86,10 @@ let main (caps : < caps; .. >) (argv : string array) : int =
          | 'w', rest when String.length a > 2 ->
              whatif := String.sub a 2 (String.length a - 2) :: !whatif; options rest
          | 'w', f :: rest -> whatif := f :: !whatif; options rest
-         | ('s' | 'e' | 'n' | 'u' | 'i' | 't' | 'a' | 'k' | 'd'), rest ->
+         | ('s' | 'e' | 'n' | 'u' | 'i' | 't' | 'a' | 'k' | 'd' | 'H'), rest ->
              (match letter with
               | 's' -> seq := true | 'e' -> explain := true | 'n' -> dry := true
+              | 'H' -> hash := true
               | 'u' -> uflag := true | 't' -> touch_ := true | 'a' -> always := true
               | 'k' -> keep := true
               | 'd' -> debug := (if String.length a > 2 then String.sub a 2 (String.length a - 2) else "egp")
@@ -179,7 +182,39 @@ let main (caps : < caps; .. >) (argv : string array) : int =
       cwd = Sys.getcwd ();
       pid;
     } in
-    let b = Build.create mk g bio
+    (* -H: the traces of the last build, in .mkhash (Outofdate) *)
+    let hashes =
+      if not !hash then None
+      else begin
+        let traces = Hashtbl.create 101 in
+        Option.iter (fun s ->
+          String.split_on_char '\n' s |> List.iter (fun l ->
+            match String.index_opt l '\t' with
+            | Some i -> Hashtbl.replace traces (String.sub l 0 i) (String.sub l (i + 1) (String.length l - i - 1))
+            | None -> ())) (read_file caps hashfile);
+        let digests = Hashtbl.create 101 in
+        let digest name =
+          match stat caps name with
+          | 0. -> None
+          | t -> (
+              match Hashtbl.find_opt digests name with
+              | Some (t', d) when t' = t -> Some d
+              | _ ->
+                  let d = Digest.to_hex (Digest.file name) in
+                  Hashtbl.replace digests name (t, d);
+                  Some d)
+        in
+        Some { Outofdate.digest; traces }
+      end
+    in
+    let save_hashes () =
+      match hashes with
+      | Some h when not !dry ->
+          Hashtbl.fold (fun k v acc -> (k ^ "\t" ^ v ^ "\n") :: acc) h.traces []
+          |> List.sort compare |> String.concat "" |> write_file caps hashfile
+      | _ -> ()
+    in
+    let b = Build.create ?hashes mk g bio
         { dry = !dry; touch = !touch_; always = !always; keep_going = !keep; explain = !explain } in
     let make target =
       let nrep = first_int mk "NREP" in
@@ -199,7 +234,11 @@ let main (caps : < caps; .. >) (argv : string array) : int =
            Mkfile.add_rule mk ~targets:[ fake ] ~prereqs:ts ~recipe:""
              { Mkfile.no_attrs with virtual_ = true };
            make fake
-     with Build.Failed -> (try Build.wait_all b with Build.Failed -> ()); raise Build.Failed);
+     with Build.Failed ->
+       (try Build.wait_all b with Build.Failed -> ());
+       save_hashes ();
+       raise Build.Failed);
+    save_hashes ();
     if !uflag then print caps (Build.usage b);
     (* under -k, failed recipes do not change the exit status (9base) *)
     flush_out caps;

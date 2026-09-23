@@ -164,7 +164,7 @@ let outofdate_tests = [
       let time = function "foo.c" -> c | "foo.o" -> o | _ -> 0. in
       let g = Graph.create mk ~stat:time in
       let n = Graph.node g ~nrep:1 "foo.o" in
-      let ctx = Outofdate.create ~time ~prog:(fun _ _ _ -> true) in
+      let ctx = Outofdate.create ~time ~prog:(fun _ _ _ -> true) () in
       let a = List.hd n.arcs in
       Outofdate.arc ctx n a (Option.get a.prereq)
     in

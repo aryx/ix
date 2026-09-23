@@ -1,4 +1,4 @@
-(* The command line: mk [-f file] [-aeiknstu] [-d[egp]] [-w file] [var=value ...] [target ...]
+(* The command line: mk [-f file] [-aeiknstuH] [-d[egp]] [-w file] [var=value ...] [target ...]
  *
  *     -f file   read file instead of mkfile
  *     -n        print the recipes, run nothing (targets count as made now)
@@ -7,12 +7,15 @@
  *     -e        explain why each recipe runs
  *     -k        keep going after a failure, with what doesn't depend on it
  *     -s        make the targets one after the other, not as one virtual
- *               rule "<command line arguments>"
+ *               rule "command line arguments"
  *     -w file   pretend file was just modified (several: -w a,b or -w 'a b')
  *     -i        make missing intermediates: always the case here (see
  *               Build, and the plan's decision 5)
  *     -u        print how long 0, 1, 2 ... jobs ran at once
  *     -d[egp]   dump: e the jobs, g the graph, p the variables and rules
+ *     -H        out of date by content, not time: each target's trace
+ *               (a digest of its recipe and its prerequisites' contents)
+ *               is kept in .mkhash (not in mk; see Outofdate)
  *     var=value an assignment that blocks every assignment to var in the
  *               mkfile (see Mkfile)
  *

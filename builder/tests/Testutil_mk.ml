@@ -41,8 +41,10 @@ let prereqs (n : Graph.node) : string list =
 (*****************************************************************************)
 
 (* A recipe here makes each target's content "target(contents of its
- * prerequisites)"; one listed in [cutoff] leaves its file alone when
- * that content would not change (the cmp -s trick). *)
+ * prerequisites)", or, for one listed in [constant], "target" whatever
+ * its inputs (a generated header that came out the same); one listed
+ * in [cutoff] leaves its file alone when its content would not change
+ * (the cmp -s trick). *)
 type world = {
   files : (string, float * string) Hashtbl.t;   (* time, content *)
   mutable clock : float;
@@ -53,12 +55,13 @@ type world = {
   mutable out : string;
   order : Random.State.t option;                 (* None: jobs end in the order they started *)
   cutoff : string list;
+  constant : string list;
 }
 
-let world ?order ?(cutoff = []) (leaves : string list) : world =
+let world ?order ?(cutoff = []) ?(constant = []) (leaves : string list) : world =
   let w = {
     files = Hashtbl.create 17; clock = 1.; ran = []; running = []; next_pid = 100;
-    violations = []; out = ""; order; cutoff;
+    violations = []; out = ""; order; cutoff; constant;
   } in
   leaves |> List.iter (fun l -> Hashtbl.replace w.files l (1., l));
   w
@@ -77,7 +80,7 @@ let finish w (j : Recipe.job) =
       match List.find_opt (fun (n : Graph.node) -> n.name = t) j.nodes with
       | Some n -> n.virtual_ | None -> false
     in
-    let c = t ^ "(" ^ input ^ ")" in
+    let c = if List.mem t w.constant then t else t ^ "(" ^ input ^ ")" in
     if not virtual_ && not (List.mem t w.cutoff && content w t = Some c) then
       Hashtbl.replace w.files t (tick w, c))
 
@@ -118,14 +121,18 @@ let io (w : world) : Build.io = {
 
 let flags = { Build.dry = false; touch = false; always = false; keep_going = false; explain = false }
 
+(* -H in the fake world: a file's digest is its content *)
+let hashes (w : world) : Outofdate.hashes =
+  { digest = (fun name -> content w name); traces = Hashtbl.create 17 }
+
 (* [build w mk target]: a whole mk run in the fake world; the jobs run,
  * in order, by their first target *)
-let build ?(nproc = 1) ?(flags = flags) (w : world) (mk : Mkfile.t) (target : string) : string list =
+let build ?(nproc = 1) ?(flags = flags) ?hashes (w : world) (mk : Mkfile.t) (target : string) : string list =
   w.ran <- [];
   w.out <- "";
   let stat name = match Hashtbl.find_opt w.files name with Some (t, _) -> t | None -> 0. in
   let g = Graph.create mk ~stat in
-  let b = Build.create mk g (io w) flags in
+  let b = Build.create ?hashes mk g (io w) flags in
   Build.make b ~nproc ~nrep:1 target;
   List.rev w.ran
 

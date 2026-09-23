@@ -180,11 +180,9 @@ let copy_quoted q inp buf (open_ : char) =
 
 (* lex.c's assline: the next non-empty line, comments removed,
  * backquotes run *)
-let assline io t inp : (int * string) option =
+let assline io t inp : string option =
   let buf = Buffer.create 80 in
-  let first = ref inp.line in
-  let nonempty () = if Buffer.length buf > 0 then Some (!first, Buffer.contents buf) else None in
-  let start () = if Buffer.length buf = 0 then first := inp.line in
+  let nonempty () = if Buffer.length buf > 0 then Some (Buffer.contents buf) else None in
   let q () = Word.quoting_of_shell inp.shell in
   let rec loop () =
     match nextc inp ~elide:true with
@@ -199,9 +197,9 @@ let assline io t inp : (int * string) option =
          | Some '\\' -> loop ()   (* an escaped newline in a comment continues *)
          | Some _ -> if Buffer.length buf > 0 then nonempty () else loop ())
     | Some c when Word.opens_quote (q ()) c ->
-        start (); Buffer.add_char buf c; copy_quoted (q ()) inp buf c; loop ()
-    | Some '`' -> start (); backquote (); loop ()
-    | Some c -> start (); Buffer.add_char buf c; loop ()
+        Buffer.add_char buf c; copy_quoted (q ()) inp buf c; loop ()
+    | Some '`' -> backquote (); loop ()
+    | Some c -> Buffer.add_char buf c; loop ()
   and backquote () =
     let line = inp.line in
     let rec skip_blanks () =
@@ -278,7 +276,7 @@ let rule_attrs inp line (s : string) : attrs * int =
 let rec read_input ~override io t inp : unit =
   match assline io t inp with
   | None -> ()
-  | Some (_first, text) ->
+  | Some text ->
       (* mk numbers a line after reading it: the line after the header *)
       let line = inp.line in
       let q = Word.quoting_of_shell inp.shell in
@@ -346,15 +344,13 @@ let rec read_input ~override io t inp : unit =
 (* an included file has its own MKSHELL, starting from the default *)
 and include_text ~override io t ~file text =
   let saved = lookup t "MKSHELL" in
-  let inp = { file; text; pos = 0; line = 1; shell = t.default_shell } in
-  read_input ~override io t inp;
+  read_input ~override io t { file; text; pos = 0; line = 1; shell = t.default_shell };
   match saved with
   | Some v -> Hashtbl.replace t.vars "MKSHELL" v
   | None -> Hashtbl.remove t.vars "MKSHELL"
 
 let read ?(override = false) io t ~file text =
-  let inp = { file; text; pos = 0; line = 1; shell = t.default_shell } in
-  read_input ~override io t inp
+  read_input ~override io t { file; text; pos = 0; line = 1; shell = t.default_shell }
 
 (*****************************************************************************)
 (* Debug *)

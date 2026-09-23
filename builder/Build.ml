@@ -57,10 +57,10 @@ let time_of (g : Graph.t) times name =
   | Some x -> x
   | None -> (match Graph.find g name with Some n -> n.time | None -> 0.)
 
-let create mk g io flags =
+let create ?hashes mk g io flags =
   let times = Hashtbl.create 101 in
   { mk; g; io; flags; times;
-    ood = Outofdate.create ~time:(time_of g times) ~prog:io.prog;
+    ood = Outofdate.create ?hashes ~time:(time_of g times) ~prog:io.prog ();
     status = Hashtbl.create 101; queue = Queue.create (); slots = [| None |];
     running = 0; errors = 0; busy = [| 0.; 0. |]; tick = 0. }
 
@@ -247,7 +247,8 @@ let rec work t did (node : Graph.node) =
             if out_of_date t node a p then outofdate := true
         | None -> if time t node.name = 0. then outofdate := true);
       if !ready then
-        if !outofdate then dorecipe t did node else set_status t node Made
+        if !outofdate then dorecipe t did node
+        else (Outofdate.up_to_date t.ood node; set_status t node Made)
     end
 
 let make t ~nproc ~nrep target =
