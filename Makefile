@@ -19,12 +19,15 @@ test-differential: all
 
 # The toolchain against goken (~/goken, built, with its libcs): C
 # programs with its libc, byte for byte and run; see linker/tests/
-# (golden.sh record re-records the fixtures' bytes from goken).
+# (golden.sh record re-records the fixtures' bytes from goken). The
+# compiler's trees against cck's; see compiler/tests/.
 GOKEN_W = /tmp/ix-goken
 test-goken: all
 	./linker/tests/libc.sh 5 $(GOKEN_W)/libc5 $(HOME)/goken/tests/c/hello_libc/*.c
 	./linker/tests/libc.sh 7 $(GOKEN_W)/libc7 $(HOME)/goken/tests/c/hello_libc/*.c
 	./tiny/TinyAssembler_test.sh
+	./compiler/tests/front.sh 5 $(GOKEN_W)/front5 $(HOME)/goken/tests/c/hello_libc/*.c
+	./compiler/tests/front.sh 7 $(GOKEN_W)/front7 $(HOME)/goken/tests/c/hello_libc/*.c
 
 clean:
 	dune clean

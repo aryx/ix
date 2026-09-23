@@ -1387,3 +1387,99 @@ Claude recommended using a parameterized code generator like xix's, with Plan 9 
 **Yoann:**
 
 > let's do it
+
+**Claude (summary):**
+
+Claude finished Phase 0 analysis showing 5c/7c differ only in float formatting, then documented the TinyCC design plan.
+Claude proposed TinyCC architecture: single front end, one code generator, direct TinyAsm, 3,500-line target with -O0 byte identity.
+Claude outlined Phase 1: build the front end (preprocessor, lexer, parser, types, type checking) against the full 399-file corpus.
+Front end design must handle Plan 9 C89 constraints: no bitfields, heavy vlong/goto usage, 152 macros with arguments.
+Claude committed Phase 0 work under commit 4495554 and received green light to start Phase 1.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 20:49
+
+**Yoann:**
+
+> go for it!
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:09
+
+**Yoann:**
+
+> note that you don't have to mirrow how things are organized in goken or xix
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:09
+
+**Yoann:**
+
+> do it only if you think it's actually the cleanest design and code decomposition
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:10
+
+**Yoann:**
+
+> I'm also suprise a bit you never reuse yacc or lex and prefer handwritten one. It's because in the end it uses less LOC? It's a bit counterintuitive given lex and yacc were designed to save LOC and make the parser more readable
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:11
+
+**Yoann:**
+
+> I understand that if the yacc grammar is relying on lots of tricks, globals, %prec, globals, etc. in the end a recursive descent parsr might be cleaner; but othwewise?
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:11
+
+**Yoann:**
+
+> what about the other program before? You're still convinced yacc was not helping?
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:23
+
+**Yoann:**
+
+> feel free also to choose better filename than in the original; again the code in goken/ and xix/ can be used as inspiration, but the tiny do not have to follow strictly their structure and decisions
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:24
+
+**Yoann:**
+
+> I see in Tree.ml you follow a lot the goken way with typei set; maybe it's not the besy way. maybe an ADT would be better
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:25
+
+**Yoann:**
+
+> just saying; naybe this is a bad example and imitating goken here is the good decision, but it does not have to be the case for everything. it's important to end up with a Tiny version, with less LOC than goken and xix ideally
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:25
+
+**Yoann:**
+
+> for the builder/ and the shell/, the filename may be similar to what goken and xix did, but they were good names, so worth imitating
+
+------------------------------------------------------------------------
+
+## 2026-09-23 21:26
+
+**Yoann:**
+
+> dunno if that's the case for 5c/7c

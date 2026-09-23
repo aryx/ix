@@ -245,13 +245,20 @@ return (checked: `return a + b` on vlongs is `BL _addv(SB)`). The
 record says which operators are calls; `Check` rewrites them before
 `Gen`, as `com64.c` does.
 
-### 6. The parser: by hand, the typedef names known to the lexer
+### 6. The parser: ocamlyacc, the typedef names known to the lexer
 
-Like TinyAsm's and TinyRc's: recursive descent, with C's declarators
-(`int (*f[4])(char*)`), and the lexer told when a name is a typedef
-(C's grammar needs it: `T * x;` is a declaration or a product). goken
-uses yacc (`cc.y`, 660 lines); xix, ocamlyacc. By hand keeps the
-errors precise and needs no generator.
+Revised while building (2026-09-23), on the author's question: C's
+grammar is what yacc was made for, and cc.y needs no tricks beyond
+the lexer being told when a name is a typedef (`T * x;` is a
+declaration or a product) and `%prec` for the dangling `else`. Its
+mid-rule actions are small rules in `Parser.mly` (ocamlyacc has none).
+Being LALR(1) like cc.y, it runs the declaring actions at the same
+points of the input, which is what makes the typedef names and the
+line numbers come out as cck's. The grammar and its actions: 517
+lines. The lexer stays by hand: C's is one with the preprocessor's
+input stack (a macro's expansion is pushed as input), which ocamllex's
+one buffer does not fit. By hand stays right for TinyAsm (lines of
+operands); for TinyRc's `syn.y`, yacc would have been as short.
 
 ### 7. Where the code goes, and the names
 
@@ -283,8 +290,8 @@ with `reg.c` and `peep.c`. Where TinyCompiler saves:
 |---|---:|---|
 | `compiler/Pre.ml` | 200 | the preprocessor |
 | `compiler/Lexer.ml` | 250 | tokens, the typedef names |
-| `compiler/Parser.ml` | 650 | declarations, statements, expressions |
-| `compiler/Type.ml`, `Check.ml` | 700 | types, typechecking, conversions, constants, 64-bit calls |
+| `compiler/Parser.mly` | 650 | declarations, statements, expressions |
+| `compiler/Tree.ml`, `Declare.ml`, `Check.ml` | 700 | types, declarations, typechecking, conversions, constants, 64-bit calls |
 | `compiler/Gen.ml` | 900 | expressions, conditions, structures, statements, switches |
 | `compiler/Arm64.ml` | 300 | the record for arm64 |
 | `compiler/Arm.ml` | 350 | the record for arm, 64-bit arithmetic's calls |
@@ -340,9 +347,19 @@ after the compiler, by what it taught.
    `compiler/tests/`); the listing normalizer; `5c -O0` against `5ck
    -O0` over all of libc, to settle the front end's reference; the
    calling convention and `char`'s signedness per machine, checked.
-1. **Front end**: Pre, Lexer, Parser, Type, Check, for the whole
+1. **Front end**: Pre, Lexer, Parser, Tree, Declare, Check, for the whole
    corpus: every file parsed and typechecked (a `-dump` against a
    sample by hand; 5c's errors are not compared).
+   *Done (2026-09-23)*: `compiler/tests/front.sh` compares `tinycc
+   -x` with cck's `-x` (5ck, 7c) over the corpus's 235 files that cck
+   compiles here: the same trees on both machines. The front end is
+   3,023 lines (non-blank), where 1,800 were planned: the
+   faithful type checker and declarations (Check 914, Declare 676,
+   Tree 395) are three times the target. The total is now expected
+   near 5,000, against goken's 16,700 and xix's 7,065 (its code
+   generator unfinished); Check and Declare get a second, smaller pass
+   once Gen shows what of them the code needs.
+
 2. **Gen and arm**: the listings of the corpus against `5c -O0`,
    function by function; milestone 1 for 5; the fuzzer.
 3. **arm64**: the second record, and a look back at what it shows of

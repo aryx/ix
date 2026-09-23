@@ -1,0 +1,13 @@
+(library
+ (name ix_cc)
+ (modules Tree Pre Lexer Parser Declare Check Arm Arm64 CLI)
+ (libraries ix_asm caps))
+
+(ocamlyacc Parser)
+
+(executable
+ (name Main)
+ (public_name tinycc)
+ (package ix)
+ (modules Main)
+ (libraries ix_cc caps))
