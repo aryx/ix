@@ -94,8 +94,8 @@ possible (decision 2):
 
 ## The subset, counted
 
-Counted with a script (in the scratchpad; kept in `assembler/tests/`
-in phase 0) that compiles goken's C libraries -- libc's `port`, `fmt`,
+Counted with a script (`assembler/tests/count_opcodes.py`; the full
+counts are in the appendix at the end) that compiles goken's C libraries -- libc's `port`, `fmt`,
 `utf` and `math`, libbio, libregexp, libstring: 170 of 173 files
 compile -- with `5c -S` and `7c -S`, and tallies each opcode and each
 opcode's operand shapes, registers and constants normalized.
@@ -438,3 +438,265 @@ kernel code (system instructions, the assemblers' preprocessor).
 ## Related work
 
 [`notes_asm_related_work.md`](../related-work/notes_asm_related_work.md).
+
+## Appendix: the full counts
+
+Every opcode, and every (opcode, operand shapes) pair that makes the
+first 97% of the instructions, from `assembler/tests/count_opcodes.py`
+over goken's libraries (2026-09-23). Shapes: `R` a register, `F` a
+floating-point one, `$c` a constant, `o(R)` an offset from a register,
+`sym(SB)` a global, `o(FP)` an argument, `o(SP)` a local, `o(PC)` a
+branch target, `$...` an address or a constant as a value.
+
+### arm: arm: 170/173 files compiled, 18755 instructions
+
+Opcodes (with arm's condition suffixes), count, cumulative %:
+
+```
+   MOVW 8155 43.48%               B 1863 53.42%                  CMP 1599 61.94%
+   ADD 965 67.09%                 RET 899 71.88%                 BL 889 76.62%
+   BEQ 572 79.67%                 MOVD 386 81.73%                MOVB 375 83.73%
+   BNE 351 85.60%                 MOVW.NE 188 86.60%             MOVW.EQ 185 87.59%
+   SUB 148 88.38%                 MOVM.U 129 89.06%              BLT 114 89.67%
+   AND.S 109 90.25%               BGE 97 90.77%                  BLE 92 91.26%
+   BCASE 81 91.69%                BGT 75 92.09%                  RET.EQ 72 92.48%
+   AND 69 92.84%                  MOVBU 68 93.21%                BLS 68 93.57%
+   MULD 67 93.93%                 BHS 65 94.27%                  CMPD 60 94.59%
+   ORR 58 94.90%                  MOVW.S 57 95.21%               ADDD 51 95.48%
+   BHI 43 95.71%                  SLL 39 95.92%                  RSB 38 96.12%
+   SRA 38 96.32%                  MOVW.LT 37 96.52%              SRL 36 96.71%
+   SUBD 29 96.86%                 BLO 27 97.01%                  BPL 23 97.13%
+   ADD.EQ 23 97.25%               RET.LT 20 97.36%               ADD.NE 19 97.46%
+   MOVB.P 18 97.56%               RET.NE 18 97.65%               MOVWD 18 97.75%
+   EOR 18 97.85%                  DIVD 17 97.94%                 CASE.LS 17 98.03%
+   MOD 15 98.11%                  MOVD.NE 14 98.18%              MOVH 14 98.26%
+   RET.GE 13 98.33%               MUL 13 98.40%                  DIV 12 98.46%
+   MOVW.CC 11 98.52%              MOVW.GT 10 98.57%              MOVW.GE 9 98.62%
+   RSB.NE 8 98.66%                CMN 8 98.70%                   RET.MI 8 98.75%
+   MOVDW 8 98.79%                 MOVW.MI 8 98.83%               MOVW.HI 8 98.87%
+   ADD.LT 8 98.92%                MOVB.NE 7 98.95%               MOVW.LE 7 98.99%
+   RSB.LT 7 99.03%                BL.NE 6 99.06%                 ADD.MI 6 99.09%
+   SUB.EQ 6 99.13%                ADDD.NE 6 99.16%               SUBD.NE 5 99.18%
+   MODU 5 99.21%                  DIVU 5 99.24%                  RET.LE 5 99.26%
+   MULU 5 99.29%                  ADD.CC 5 99.32%                BL.EQ 4 99.34%
+   MOVB.EQ 4 99.36%               RSB.MI 4 99.38%                MOVD.EQ 4 99.40%
+   MOVD.MI 4 99.42%               ADD.GT 4 99.45%                MVN 4 99.47%
+   SUB.S 4 99.49%                 MOVW.P 4 99.51%                MOVM.W.U 4 99.53%
+   RET.LS 3 99.55%                MOVBU.EQ 3 99.56%              MOVBU.P 3 99.58%
+   SUB.NE 3 99.59%                SUBD.MI 3 99.61%               RET.HI 3 99.63%
+   DIVD.NE 3 99.64%               MOVHU 3 99.66%                 ORR.NE 3 99.67%
+   ADD.LE 3 99.69%                MOVD.GE 2 99.70%               AND.MI 2 99.71%
+   AND.PL 2 99.72%                SUB.GT 2 99.73%                RSB.S 2 99.74%
+   RET.CS 2 99.75%                ADD.HI 2 99.77%                RSB.EQ 2 99.78%
+   AND.LT 2 99.79%                AND.GE 2 99.80%                MOVD.LT 2 99.81%
+   ORR.EQ 2 99.82%                RET.GT 2 99.83%                MOVB.W 2 99.84%
+   MOVW.LS 2 99.85%               MOVW.CS 2 99.86%               SUB.CS 2 99.87%
+   MOVD.LS 1 99.88%               ADDD.LS 1 99.88%               MOVW.PL 1 99.89%
+   MULD.NE 1 99.89%               RET.CC 1 99.90%                MOVD.GT 1 99.90%
+   SUBD.GT 1 99.91%               SRL.LT 1 99.91%                MVN.NE 1 99.92%
+   MOVF 1 99.93%                  MOVFD 1 99.93%                 MOVDF 1 99.94%
+   SRA.GE 1 99.94%                MULD.EQ 1 99.95%               AND.EQ 1 99.95%
+   MOVH.NE 1 99.96%               MOVB.LE 1 99.96%               MOVW.NE.P 1 99.97%
+   MOVB.EQ.P 1 99.97%             RSB.CC 1 99.98%                MOVB.LS 1 99.98%
+   ADD.S 1 99.99%                 MOVW.W 1 99.99%                MOVBU.NE 1 100.00%
+```
+
+The (opcode, operand shapes) pairs up to 97% (69 of them):
+
+```
+   B        o(PC)                               1863  9.9%
+   MOVW     R,o(R)                              1664  18.8%
+   CMP      $c,R                                1257  25.5%
+   MOVW     o(SP),R                             1245  32.1%
+   MOVW     o(FP),R                             1183  38.5%
+   MOVW     $c,R                                1125  44.5%
+   RET                                          1046  50.0%
+   MOVW     o(R),R                               878  54.7%
+   BL       sym(SB)                              862  59.3%
+   MOVW     R,o(SP)                              812  63.6%
+   MOVW     R,R                                  666  67.2%
+   BEQ      o(PC)                                572  70.2%
+   ADD      $c,R,R                               535  73.1%
+   BNE      o(PC)                                351  75.0%
+   CMP      R,R                                  342  76.8%
+   MOVW     $o(SP),R                             320  78.5%
+   MOVW     $sym(SB),R                           255  79.9%
+   MOVW     R,o(FP)                              241  81.1%
+   MOVB     o(R),R                               239  82.4%
+   ADD      $c,R                                 203  83.5%
+   ADD      R,R,R                                122  84.1%
+   AND      $c,R                                 122  84.8%
+   BLT      o(PC)                                114  85.4%
+   MOVM     o(R),[R,R]                           112  86.0%
+   MOVB     R,o(R)                               107  86.6%
+   BGE      o(PC)                                 97  87.1%
+   MOVD     $c.00000000000000000e+00,F            94  87.6%
+   BLE      o(PC)                                 92  88.1%
+   ADD      R,R                                   90  88.6%
+   BCASE    o(PC)                                 81  89.0%
+   BGT      o(PC)                                 75  89.4%
+   MOVW     sym(SB),R                             73  89.8%
+   SUB      R,R                                   69  90.1%
+   BLS      o(PC)                                 68  90.5%
+   MOVD     F,o(R)                                67  90.9%
+   SUB      R,R,R                                 66  91.2%
+   BHS      o(PC)                                 65  91.6%
+   CMPD     F,F                                   60  91.9%
+   AND      $c,R,R                                60  92.2%
+   MOVD     o(FP),F                               56  92.5%
+   MOVW     R,sym(SB)                             53  92.8%
+   MOVBU    o(R),R                                46  93.0%
+   RSB      $c,R,R                                44  93.3%
+   BHI      o(PC)                                 43  93.5%
+   MOVW     $o(FP),R                              42  93.7%
+   ADDD     F,F                                   38  93.9%
+   ADD      R<<2,R,R                              38  94.1%
+   BL       o(R)                                  37  94.3%
+   MULD     F,F,F                                 35  94.5%
+   MOVW     R<<o(R),R                             35  94.7%
+   MULD     F,F                                   34  94.9%
+   SUBD     F,F,F                                 29  95.0%
+   ORR      $c,R                                  29  95.2%
+   MOVD     F,F                                   27  95.3%
+   BLO      o(PC)                                 27  95.5%
+   SLL      $c,R,R                                26  95.6%
+   MOVD     o(SP),F                               26  95.8%
+   BPL      o(PC)                                 23  95.9%
+   MOVW     R,R<<o(R)                             23  96.0%
+   MOVD     F,o(SP)                               22  96.1%
+   ADD      R<<3,R,R                              21  96.2%
+   ADDD     F,F,F                                 20  96.3%
+   SRA      $c,R,R                                19  96.4%
+   MOVWD    R,F                                   18  96.5%
+   SRL      $c,R                                  18  96.6%
+   RSB      $c,R                                  17  96.7%
+   CASE     R                                     17  96.8%
+   MOVM     [R,R],o(R)                            17  96.9%
+   DIVD     F,F,F                                 15  97.0%
+```
+
+### arm64: arm64: 170/173 files compiled, 19223 instructions
+
+Opcodes (with arm's condition suffixes), count, cumulative %:
+
+```
+   MOV 3870 20.13%                MOVW 3100 36.26%               B 2115 47.26%
+   CMPW 1421 54.65%               MOVWU 1152 60.65%              RETURN 1048 66.10%
+   BL 837 70.45%                  ADD 736 74.28%                 BEQ 700 77.92%
+   ADDW 427 80.14%                BNE 419 82.32%                 MOVB 410 84.46%
+   FMOVD 404 86.56%               CMP 347 88.36%                 SXTW 209 89.45%
+   ANDW 179 90.38%                BGE 151 91.17%                 BLT 131 91.85%
+   LSL 112 92.43%                 SUBW 110 93.00%                BLE 95 93.50%
+   BGT 91 93.97%                  LSLW 85 94.41%                 BCASE 81 94.83%
+   MOVBU 76 95.23%                BLS 76 95.63%                  BHS 76 96.02%
+   FMULD 69 96.38%                SUB 67 96.73%                  ORRW 62 97.05%
+   FCMPD 60 97.36%                FADDD 52 97.63%                NEGW 51 97.90%
+   BHI 47 98.14%                  ASRW 47 98.39%                 LSRW 41 98.60%
+   FSUBD 38 98.80%                BLO 26 98.93%                  BPL 23 99.05%
+   FDIVD 20 99.16%                CASE 17 99.25%                 REMW 15 99.32%
+   MOVH 15 99.40%                 MULW 13 99.47%                 SDIVW 12 99.53%
+   SCVTFWD 12 99.59%              EORW 12 99.66%                 CMNW 8 99.70%
+   FCVTZSDW 6 99.73%              UCVTFWD 6 99.76%               UREMW 5 99.79%
+   UDIVW 5 99.81%                 MVNW 5 99.84%                  UMULL 5 99.86%
+   AND 4 99.89%                   NEG 4 99.91%                   MOVHU 3 99.92%
+   SDIV 2 99.93%                  MUL 2 99.94%                   FCVTZUDW 2 99.95%
+   BMI 1 99.96%                   SCVTFD 1 99.96%                ORR 1 99.97%
+   FMOVS 1 99.97%                 FCVTSD 1 99.98%                FCVTDS 1 99.98%
+   UREM 1 99.99%                  UDIV 1 99.99%                  MVN 1 100.00%
+```
+
+The (opcode, operand shapes) pairs up to 97% (91 of them):
+
+```
+   B        o(PC)                               2115  11.0%
+   CMPW     $c,R                                1220  17.3%
+   RETURN                                       1048  22.8%
+   BL       sym(SB)                              800  27.0%
+   MOVW     $c,R                                 752  30.9%
+   BEQ      o(PC)                                700  34.5%
+   MOVW     R,o(R)                               635  37.8%
+   MOV      o(FP),R                              629  41.1%
+   MOV      R,R                                  613  44.3%
+   MOV      R,o(R)                               609  47.4%
+   MOV      o(R),R                               465  49.9%
+   MOVWU    R,R                                  456  52.2%
+   MOVW     o(SP),R                              441  54.5%
+   ADD      $c,R,R                               427  56.8%
+   BNE      o(PC)                                419  58.9%
+   MOV      o(SP),R                              328  60.6%
+   MOVW     o(R),R                               305  62.2%
+   MOVW     R,o(SP)                              298  63.8%
+   MOV      R,o(SP)                              261  65.1%
+   MOVB     o(R),R                               251  66.4%
+   MOV      $sym(SB),R                           242  67.7%
+   MOV      $o(SP),R                             222  68.9%
+   MOVWU    o(R),R                               216  70.0%
+   SXTW     R,R                                  209  71.1%
+   MOVW     o(FP),R                              209  72.2%
+   CMPW     R,R                                  201  73.2%
+   MOVW     R,R                                  196  74.2%
+   CMP      $c,R                                 195  75.2%
+   ADDW     $c,R,R                               189  76.2%
+   ADD      R,R                                  179  77.1%
+   MOV      R,o(FP)                              166  78.0%
+   MOVWU    o(FP),R                              161  78.8%
+   CMP      R,R                                  152  79.6%
+   BGE      o(PC)                                151  80.4%
+   MOVWU    o(SP),R                              145  81.2%
+   BLT      o(PC)                                131  81.9%
+   MOV      $c,R                                 129  82.5%
+   ANDW     $c,R                                 115  83.1%
+   ADDW     R,R,R                                103  83.7%
+   ADDW     $c,R                                 102  84.2%
+   LSL      $c,R                                 101  84.7%
+   BLE      o(PC)                                 95  85.2%
+   MOVW     $c,o(R)                               95  85.7%
+   FMOVD    $c.00000000000000000e+00,F            94  86.2%
+   BGT      o(PC)                                 91  86.7%
+   MOVB     R,o(R)                                91  87.1%
+   BCASE    o(PC)                                 81  87.6%
+   ADD      R,R,R                                 78  88.0%
+   BLS      o(PC)                                 76  88.4%
+   BHS      o(PC)                                 76  88.8%
+   MOVWU    R,o(R)                                73  89.1%
+   FMOVD    F,o(R)                                67  89.5%
+   SUBW     R,R,R                                 63  89.8%
+   FCMPD    F,F                                   60  90.1%
+   ANDW     $c,R,R                                59  90.4%
+   MOV      $c,o(R)                               58  90.7%
+   FMOVD    o(FP),F                               56  91.0%
+   LSLW     $c,R,R                                56  91.3%
+   ADD      $c,R                                  52  91.6%
+   NEGW     R,R                                   51  91.9%
+   MOV      sym(SB),R                             51  92.1%
+   MOVBU    o(R),R                                50  92.4%
+   MOVW     $c,o(SP)                              49  92.6%
+   BHI      o(PC)                                 47  92.9%
+   MOVWU    R,o(SP)                               44  93.1%
+   MOVW     R,o(FP)                               43  93.3%
+   MOVWU    $c,R                                  42  93.6%
+   SUB      R,R,R                                 40  93.8%
+   MOV      $o(FP),R                              38  94.0%
+   FMULD    F,F,F                                 37  94.2%
+   BL       o(R)                                  37  94.3%
+   ADDW     R,R                                   33  94.5%
+   FMULD    F,F                                   32  94.7%
+   FADDD    F,F                                   30  94.8%
+   FSUBD    F,F,F                                 29  95.0%
+   MOVB     $c,o(R)                               28  95.1%
+   LSRW     $c,R                                  28  95.3%
+   ORRW     $c,R                                  28  95.4%
+   MOV      R,sym(SB)                             27  95.6%
+   MOVW     sym(SB),R                             27  95.7%
+   BLO      o(PC)                                 26  95.8%
+   FMOVD    o(SP),F                               26  96.0%
+   SUB      R,R                                   26  96.1%
+   BPL      o(PC)                                 23  96.2%
+   FMOVD    F,F                                   23  96.4%
+   FADDD    F,F,F                                 22  96.5%
+   FMOVD    F,o(SP)                               22  96.6%
+   SUBW     R,R                                   21  96.7%
+   ASRW     $c,R                                  21  96.8%
+   ASRW     $c,R,R                                18  96.9%
+   CASE     R,R                                   17  97.0%
+```
