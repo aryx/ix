@@ -204,4 +204,26 @@ let build_tests = [
     boolean "nothing made" false (Hashtbl.mem w.files "hello"));
 ]
 
-let tests = word_tests @ pattern_tests @ mkfile_tests @ graph_tests @ outofdate_tests @ build_tests
+(*****************************************************************************)
+(* Archive.mli *)
+(*****************************************************************************)
+
+(* an archive with members a.o, dated 1000, and b.o/ (System V's
+ * trailing slash), dated 3000, both of 1 byte *)
+let archive =
+  let member name date = Printf.sprintf "%-16s%-12d%-6d%-6d%-8d%-10d`\n" name date 0 0 644 1 ^ "x\n" in
+  "!<arch>\n" ^ member "a.o" 1000 ^ member "b.o/" 3000
+
+let archive_tests = [
+  t "archive: member dates" (fun () ->
+    let a = Archive.create ~read:(fun _ -> Some archive) ~mtime:(fun _ -> 2000.) in
+    Alcotest.(check (float 0.)) "a.o" 1000. (Archive.time a "lib.a(a.o)");
+    Alcotest.(check (float 0.)) "b.o, after its archive: at - 1" 1999. (Archive.time a "lib.a(b.o)");
+    Alcotest.(check (float 0.)) "missing" 0. (Archive.time a "lib.a(c.o)"));
+  t "archive: touch" (fun () ->
+    let s = Archive.touch_date ~now:1500. archive "a.o" in
+    let a = Archive.create ~read:(fun _ -> Some s) ~mtime:(fun _ -> 2000.) in
+    Alcotest.(check (float 0.)) "a.o touched" 1500. (Archive.time a "lib.a(a.o)"));
+]
+
+let tests = archive_tests @ word_tests @ pattern_tests @ mkfile_tests @ graph_tests @ outofdate_tests @ build_tests

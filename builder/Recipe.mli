@@ -14,7 +14,11 @@
  * plus every variable of the mkfile and of mk's environment, except
  * those assigned with X=U=... A list is exported with its words
  * separated by a space for sh, and by \001 for rc, which splits it
- * back into a list (9base: $#X is 2 for X=a b under rc).
+ * back into a list (9base: $#X is 2 for X=a b under rc). An empty list
+ * is not exported to rc at all: on Plan 9 it is an empty /env file,
+ * which rc reads as (), but a Unix rc reads X= as ('') -- one empty
+ * word, and ocamlc $SYSLIBS then fails on an empty argument. omk does
+ * the same; 9base's mk does not, and xix's build needs it.
  *
  * {b The whole recipe goes to one shell}, on its standard input, with
  * -e (unless :E:), so the first failing command stops it and a cd

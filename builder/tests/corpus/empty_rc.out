@@ -1,0 +1,4 @@
+$ mk 
+echo count $#E $#F
+count 1 2
+[exit 0]

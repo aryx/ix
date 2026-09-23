@@ -585,6 +585,55 @@ programs the equivalent is real inputs:
     `:P:`, `<|`, `-w`, `-u`, UTF-8) and 9base's messages. A compaction
     pass is due before the milestone's count.
 
+- **2026-09-23, phase 5 DONE: TinyMk builds its twin, and all of xix.**
+  In a copy of xix, `tinymk MK=tinymk depend` then `tinymk MK=tinymk
+  all`, with `MKSHELL=rc` as xix's `env.sh` sets it: the 17 directories
+  of xix's `DIRS`, from `caps/` to `utilities/files/`, in 18 s (153
+  compilations shown for the first 7 directories; exit 0), and "is up
+  to date" for every directory already built when run again. Then the
+  omk and orc that TinyMk built rebuilt a fresh copy of xix from
+  scratch (22 s, exit 0), and the two builds left the same 476 files
+  (`.cm[oixa]`, and omk, orc, o5c, o5a, o5l, olex, oyacc). The numbers
+  and the one bug the milestone found:
+  - **An empty variable under rc.** The first `all` failed in
+    `generators/lex/`: `SYSLIBS=` exported as `SYSLIBS=`, which
+    Debian's rc (plan9port's) reads as one empty word, so `ocamlc
+    $SYSLIBS` got an empty argument. 9base's mk does the same (checked:
+    `$#E` is 1), so TinyMk was "equivalent" and still wrong; omk skips
+    empty variables, with a comment saying the author met this with
+    plan9port's mk too. Now an empty list is not exported to rc -- which
+    is also what an empty `/env` file means on Plan 9 -- and `empty_rc`
+    is the third documented difference in the corpus.
+  - **`-n` over every directory with a mkfile**, 9base (`-i`) against
+    TinyMk, stdout and exit status compared exactly: **xix, 68 of 73
+    identical** in a nuked tree, the other 5 because 9base rejects
+    `:I:` (omk's interactive attribute, which principia's mk and TinyMk
+    accept); **principia, 277 of 306 identical**, 21 more because of
+    `:I:` (in `docs/latex/mkcommon`), and 8 because of whole seconds:
+    `-e` shows 9base finding `a(t) < b(t)` with equal `t` in each, and
+    what follows from rebuilding them. None unexplained. omk against
+    9base on xix's 73: 21 identical.
+  - **A correction to the feature table's counts**: `~/xix` is a
+    symlink, and `xix/principia` links to principia-softwarica, so the
+    "472 mkfiles of xix" were 82 of xix's own (73 mkfiles and 9
+    prototypes) and 390 of principia's. The proportions stand; the
+    words were wrong.
+  - Found on the way by the directory runs, each now in the code:
+    `shprint.c`'s vexpand() swallows a `}` after an unbraced name
+    (`{cmd $X}` prints without the brace), and plan9port warns
+    "doesn't exist: assuming it will be an archive" only for a name not
+    ending in `.a`.
+- **2026-09-23, phase 6 DONE, but for pretending.** `:R:` (with `re`'s
+  POSIX parser; principia's refactored `graph.c` loses the arcs of a
+  regexp rule, 9base's does not, and TinyMk follows 9base), archives
+  (`Archive`, 70 lines: member dates from the `ar` headers, archive.c's
+  two corrections, `-t` rewriting a date in place, `$newmember`),
+  `-u` (identical to 9base's on the case tried). **Pretending is left
+  out**, as decision 5 said, now with data: xix builds without it, and
+  of the 379 directories compared, no difference comes from it once
+  9base runs with `-i`. Its cost stays an estimate (about 40 lines);
+  `pretend.mk` records what 9base does instead.
+
 ## Verification
 
 - `make test`: the `.mli` examples, the laws (on generated DAGs, from

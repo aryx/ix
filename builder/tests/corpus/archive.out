@@ -1,0 +1,27 @@
+$ mk 
+cp a.c a.o; touch -r a.c a.o; echo cc a
+cc a
+cp b.c b.o; touch -r b.c b.o; echo cc b
+cc b
+ar rcU lib.a a.o b.o 2>/dev/null; echo members a.o b.o
+members a.o b.o
+[exit 0]
+$ mk 
+cp a.c a.o; touch -r a.c a.o; echo cc a
+cc a
+cp b.c b.o; touch -r b.c b.o; echo cc b
+cc b
+[exit 0]
+$ mk 
+cp a.c a.o; touch -r a.c a.o; echo cc a
+cc a
+cp b.c b.o; touch -r b.c b.o; echo cc b
+cc b
+ar rcU lib.a b.o 2>/dev/null; echo members b.o
+members b.o
+[exit 0]
+$ mk -n
+cp a.c a.o; touch -r a.c a.o; echo cc a
+cp b.c b.o; touch -r b.c b.o; echo cc b
+ar rcU lib.a a.o b.o 2>/dev/null; echo members a.o b.o
+[exit 0]

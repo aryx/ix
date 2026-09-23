@@ -37,13 +37,26 @@ let read_file (caps : < Cap.open_in; .. >) (file : string) : string option =
 let stat (_ : < Cap.open_in; .. >) (name : string) : float =
   match Unix.stat name with st -> st.Unix.st_mtime | exception Unix.Unix_error _ -> 0.
 
-(* file.c's touch(): update the time, or create the file *)
-let touch (_ : < Cap.open_out; .. >) (name : string) : unit =
-  if Sys.file_exists name then Unix.utimes name 0. 0.
-  else Unix.close (Unix.openfile name [ Unix.O_WRONLY; Unix.O_CREAT ] 0o666)
+let write_file (_ : < Cap.open_out; .. >) (file : string) (s : string) : unit =
+  let oc = open_out_bin file in
+  output_string oc s;
+  close_out oc
+
+(* file.c's touch(): update the time, or create the file; for an
+ * archive member, its date in the archive's header *)
+let touch (caps : < Cap.open_in; Cap.open_out; .. >) (name : string) : unit =
+  match Archive.split name with
+  | Some (ar, member) -> (
+      match read_file caps ar with
+      | Some s -> write_file caps ar (Archive.touch_date ~now:(Unix.gettimeofday ()) s member)
+      | None -> write_file caps ar "!<arch>\n")
+  | None ->
+      if Sys.file_exists name then Unix.utimes name 0. 0.
+      else Unix.close (Unix.openfile name [ Unix.O_WRONLY; Unix.O_CREAT ] 0o666)
 
 let delete (caps : < Cap.open_out; Cap.stderr; .. >) (name : string) : unit =
-  try Sys.remove name with Sys_error msg -> eprint caps (msg ^ "\n")
+  if Archive.split name <> None then eprint caps "hoon off; mk can't delete archive members\n"
+  else try Sys.remove name with Sys_error msg -> eprint caps (msg ^ "\n")
 
 let first_int mk name =
   match Mkfile.lookup mk name with
@@ -122,9 +135,24 @@ let main (caps : < caps; .. >) (argv : string array) : int =
         String.split_on_char ',' s |> List.concat_map (String.split_on_char ' ')
         |> List.concat_map (String.split_on_char '\n') |> List.filter (( <> ) "")) !whatif
     in
-    let g =
-      Graph.create mk ~stat:(fun name -> if List.mem name whatif then now else stat caps name)
+    (* a name with a ( is an archive member (archive.c's split) *)
+    let archives = Archive.create ~read:(read_file caps) ~mtime:(stat caps) in
+    let warned = Hashtbl.create 3 in
+    let time ?force name =
+      match Archive.split name with
+      | None -> stat caps name
+      | Some (ar, _) ->
+          (match read_file caps ar with
+           | None ->
+               (* plan9port warns only about a name not ending in .a *)
+               if not (Hashtbl.mem warned ar || Filename.check_suffix ar ".a") then begin
+                 Hashtbl.replace warned ar ();
+                 print caps (Printf.sprintf "%s doesn't exist: assuming it will be an archive\n" ar)
+               end
+           | Some s -> if not (Archive.is_archive s) then failwith (Printf.sprintf "'%s' is not an archive" name));
+          Archive.time ?force archives name
     in
+    let g = Graph.create mk ~stat:(fun name -> if List.mem name whatif then now else time name) in
     let shell_env () =
       Recipe.environment ~shell:(Mkfile.default_shell mk) (Recipe.env mk ~slot:0 ~pid ())
     in
@@ -137,7 +165,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
         match Recipe.wait caps with
         | r -> Some r
         | exception Unix.Unix_error (Unix.ECHILD, _, _) -> None);
-      stat = stat caps;
+      stat = time ~force:true;
       exists = Sys.file_exists;
       touch = touch caps;
       delete = delete caps;

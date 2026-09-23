@@ -1,6 +1,6 @@
 (library
  (name ix_mk)
- (modules Word Pattern Mkfile Graph Outofdate Recipe Build CLI)
+ (modules Word Pattern Mkfile Graph Outofdate Recipe Build Archive CLI)
  (libraries unix re caps))
 
 (executable

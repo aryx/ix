@@ -56,8 +56,15 @@ let env mk ?job ~slot ~pid () : (string * string list) list =
   own @ List.filter (fun (k, _) -> not (List.mem k specials)) (Mkfile.exported mk)
 
 let environment ~shell (vars : (string * string list) list) : string array =
-  let sep = match Word.quoting_of_shell shell with Word.Rc -> "\001" | Word.Sh -> " " in
-  vars |> List.map (fun (k, vs) -> k ^ "=" ^ String.concat sep vs) |> Array.of_list
+  let rc = Word.quoting_of_shell shell = Word.Rc in
+  vars
+  (* an empty list is not exported to rc: on Plan 9 it is an empty /env
+   * file, which rc reads as (); a Unix rc reads "X=" as ('') instead,
+   * and ocamlc $X then gets an empty argument (omk's Shell.ml has the
+   * same fix; 9base's mk does not) *)
+  |> List.filter (fun (_, vs) -> not (rc && vs = []))
+  |> List.map (fun (k, vs) -> k ^ "=" ^ String.concat (if rc then "\001" else " ") vs)
+  |> Array.of_list
 
 (*****************************************************************************)
 (* Printing *)
@@ -91,7 +98,10 @@ let shprint mk (env : (string * string list) list) ~(quoting : Word.quoting)
           !j
       in
       let name = String.sub recipe start (stop - start) in
-      let after = if braced && stop < n then stop + 1 else stop in
+      (* shprint.c's vexpand() skips a '}' after the name even when it
+       * is not braced: `{cmd $X} prints without its '}' once $X is
+       * expanded (checked on 9base) *)
+      let after = if stop < n && recipe.[stop] = '}' then stop + 1 else stop in
       (match List.assoc_opt name env with
        | Some vs when Mkfile.set_here mk name || List.mem name specials ->
            Buffer.add_string b (String.concat " " vs)
