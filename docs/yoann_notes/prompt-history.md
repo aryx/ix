@@ -906,3 +906,19 @@ Claude found three bugs: git reverts erased entries, summaries timed out after s
 **Yoann:**
 
 > ok I'll review this README document too
+
+**Claude (summary):**
+
+Claude wrote docs/README.md, a 65-line index documenting the rc project's design principles.
+It consolidated principles from plan_mk.md and added five lessons learned from building TinyMk.
+These principles cover differential tests, program-as-specification, deliberate differences, usage-count guidance, and per-module size targets.
+Claude also drafted plan_rc.md, notes_rc.md, and notes_rc_related_work.md based on principia and xix analysis.
+Yoann approved docs/README.md and asked to commit it first before the other documents.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 12:55
+
+**Yoann:**
+
+> I like the docs/README.md, let's commit that first
