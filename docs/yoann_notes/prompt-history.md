@@ -1274,3 +1274,27 @@ Claude committed all evidence (33d0b17, f466902) and established a rule: scripts
 **Yoann:**
 
 > I like the plan, but we might want to also support Mach-O at least (Plan9 a.out and Windows PE are optional, add them if it does not add too much code). With Mach-O I could also run binaries produced by tinyas and tinyld on my macbook pro
+
+**Claude (summary):**
+
+Claude added Mach-O support for arm64 and Plan 9 a.out after checking goken, rejecting PE due to lack of arm64 support.
+Mach-O will be byte-compared against goken's 7l output and tested by running code-signed binaries on the user's MacBook Pro.
+Identified four macOS kernel requirements: ad-hoc code signing via codesign, dyld/libSystem declarations, position-independent code using ADRP/ADD pairs, and 16 KB pages.
+Initialized data pointers require dyld relocation entries and __TEXT section loads at 0x100000000 with Mach-O adding approximately 180 lines.
+Created milestone 4 "a Mac" for arm64 Mach-O linking and updated total code estimate from 1,850 to 2,090 lines.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 17:28
+
+**Yoann:**
+
+> excellent, let's go then!
+
+------------------------------------------------------------------------
+
+## 2026-09-23 17:42
+
+**Yoann:**
+
+> feel free to choose better function names than datblk; you don't have to follow exactly what xix and principia did (also it's nice in comment to give the conversion so one can find the corresponding code in principia/goken and xix)

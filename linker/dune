@@ -1,0 +1,12 @@
+(library
+ (name ix_ld)
+ (modules Link Arm Exe CLI)
+ (libraries ix_asm)
+ (flags (:standard -open Ix_asm)))
+
+(executable
+ (name Main)
+ (public_name tinyld)
+ (package ix)
+ (modules Main)
+ (libraries ix_ld))

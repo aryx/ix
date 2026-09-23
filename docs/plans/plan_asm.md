@@ -68,9 +68,11 @@ Those of [`../README.md`](../README.md), and four of its own:
 - **Integer arm, all of arm64.** 5c emits floating point for FPA, a
   coprocessor retired long ago: checked, a float program built by
   goken for arm dies with SIGILL on this machine and under qemu-arm,
-  and a Raspberry Pi has no FPA either (it has VFP). So TinyLd has no
-  floating point on arm, until the compiler or goken emits VFP (an
-  exercise, later a phase); arm64's floating point is kept.
+  and a Raspberry Pi has no FPA either (it has VFP). So arm floating
+  point is not run, until the compiler or goken emits VFP (an
+  exercise, later a phase); arm64's floating point is kept. It is
+  *encoded*, though (Status, the arm milestones): libc's `print`
+  links float code even where it never runs.
 
 ## The input: Plan 9's assembly language
 
@@ -116,7 +118,7 @@ opcode's operand shapes, registers and constants normalized.
 | `SLL` `SRL` `SRA` | 115 | yes |
 | `MUL` `MULU`, and `DIV` `DIVU` `MOD` `MODU` (calls to `_div`...) | 55 | yes |
 | from libc's `.s`: `SWI` (the system call), `MULLU` | 2 | yes |
-| floating point, FPA: `MOVD` `ADDD` `SUBD` `MULD` `DIVD` `CMPD` `MOVWD` `MOVDW` `MOVF` `MOVFD` `MOVDF` | 688 | **no** (can't run) |
+| floating point, FPA: `MOVD` `ADDD` `SUBD` `MULD` `DIVD` `CMPD` `MOVWD` `MOVDW` `MOVF` `MOVFD` `MOVDF` | 688 | encoded, not run (was **no**: see the Status) |
 
 Every opcode may carry any of the 14 conditions (`.EQ` ... `.LE`; 5c
 uses 12), and `.S` (set flags), `.P` and `.W` (post- and pre-index):
@@ -485,6 +487,54 @@ lines; the test is the same: the same executables, running.
   independence, 16 KB pages); the line target grows by 240, to about
   2,090.
 
+- **2026-09-23, TinyAsm, and TinyLd for arm: milestones 1 and 2 on
+  arm, byte for byte.** `assembler/` (Asm, Lexer, Parser, CLI) and
+  `linker/` (Link, Arm, Exe for ELF and a.out, CLI).
+  - Milestone 1: `linker/tests/fixtures5.sh` over xix's `arm_diff`
+    and goken's `tests/s` arm files: 41 executables the same as 5l's
+    `-H7 -s`, and `hello_plan9_arm` the same as `-H2`. Out: 3 fixtures
+    in xix-only syntax (goken's 5a rejects them), and 4 outside the
+    subset (PSR and FPSR moves, SWP, coprocessor registers).
+  - Milestone 2: `linker/tests/libc5.sh` builds goken's libc twice,
+    with 5c and 5a into goken's objects, and with `5c -S`, TinyAsm and
+    `tinyld -a` into ix's (149 files, all through). It then links the
+    17 programs of goken's `tests/c/hello_libc` both ways. All 17 are
+    the same, byte for byte (`linker/tests/elfcmp.py`), except for
+    the one goken bug below, and they print the same.
+  - **Two decisions changed, forced by the libc.** First, **5l's
+    `follow`** (the plan left it out): without it no program with a
+    loop matches. Second, **FPA encoding** (the plan had no arm
+    floating point): libc's `fmt` has `fltfmt` and `strtod`, so any
+    `print` links float code, even code that never runs. Both are in
+    Arm.ml: `follow` ~75 lines, FPA ~55.
+  - **Byte identity also needed** these details:
+    - ar's index lists the members last first, and drops a text name
+      that an earlier member defines (fmt's `strtod` over port's);
+    - the entry is the first undefined name;
+    - `_div` and the rest are asked for only after all the loading;
+    - `n+4(FP)` names no symbol;
+    - a literal pool shares one constant across objects;
+    - `\z` in strings is NUL;
+    - `5c -S` prints static locals as `x$7<>`, and its warnings on
+      stdout.
+  - **goken's bugs, found on the way** (not fixed in goken, for the
+    author to decide):
+    - 5l's ELF section table goes at HEADR+text+data, which is inside
+      the data's page, so it overwrites the end of a large data
+      segment. 9 of the 17 programs have it, and goken's `dirread`
+      fails because of it (patched with ix's bytes, it passes). TinyLd
+      puts the table after the data, and `elfcmp.py` skips it.
+    - 5l's `immrot` runs in a 64-bit `ulong`, so only 0..255 are
+      immediates; `$0x400` goes to a literal pool. The code is correct
+      but longer. TinyLd does the same, with a `rotate` flag for the
+      real rule.
+  - Code lines (no blanks or comments): assembler 516, linker 1,075
+    (Link 275, Arm 680, Exe 71, CLI 49), so 1,591 against the
+    target's 1,030 for this part (assembler 380, Link 250, Elf and
+    a.out 150, Arm 500, CLI 60). Arm is 180 over, `follow` and FPA.
+  - Next: arm64 (Arm64.ml, milestone 1 for 7), then milestone 2 on
+    arm64 and Mach-O.
+
 ## Verification
 
 `make test` runs the corpus against its recorded outputs and bytes,
@@ -498,7 +548,8 @@ named, not used); debugging information (Plan 9's symbol table,
 DWARF); PE, for which goken has no arm or arm64 reference; Mach-O for
 anything but arm64, and universal binaries; signing Mach-O in TinyLd
 (`codesign` does it); the other architectures of goken (386, amd64, mips,
-riscv...); arm floating point (FPA, and VFP until a later phase);
+riscv...); running arm floating point (FPA is encoded, as libc has it,
+but no machine runs it; VFP until a later phase);
 kernel code (system instructions, the assemblers' preprocessor).
 
 ## Related work
