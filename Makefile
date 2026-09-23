@@ -5,11 +5,11 @@ all:
 
 test: all
 	./_build/default/builder/tests/Test.exe
-	./tiny/builder/test.sh
+	./tiny/TinyBuildSystem_test.sh
 	./_build/default/shell/tests/Test.exe
-	./tiny/shell/test.sh
+	./tiny/TinyShell_test.sh
 	./_build/default/editor/tests/Test.exe
-	./tiny/editor/test.sh
+	./tiny/TinyEditor_test.sh
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.

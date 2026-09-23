@@ -1,5 +1,0 @@
-(executable
- (name TinyBuildSystem)
- (public_name tinybuild)
- (package ix)
- (libraries unix caps))

@@ -12,8 +12,8 @@
 # through tinyshell and through 9base's rc in a fresh directory; what
 # they print (stdout, stderr, and the exit status) must be the same.
 
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TS=${TS:-$ROOT/_build/default/tiny/shell/TinyShell.exe}
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+TS=${TS:-$ROOT/_build/default/tiny/TinyShell.exe}
 RC=${RC:-/usr/lib/plan9/bin/rc}
 failures=0
 

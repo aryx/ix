@@ -14,8 +14,8 @@
 # status, and the file after) must be the same. 9base's sam prints its
 # numbers with a stray "d" (#4d for #4: plan9port's %lud), taken out.
 
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TE=${TE:-$ROOT/_build/default/tiny/editor/TinyEditor.exe}
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+TE=${TE:-$ROOT/_build/default/tiny/TinyEditor.exe}
 SAM=${SAM:-/usr/lib/plan9/bin/sam}
 failures=0
 

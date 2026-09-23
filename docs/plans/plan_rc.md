@@ -151,7 +151,7 @@ shell/                   library ix_rc + the tinyrc executable
 shell/tests/             Testo: the .mli examples, the laws, the corpus
 shell/tests/corpus/      scripts, each with its output recorded from
                          9base's rc
-tiny/shell/              TinyShell.ml, later (see "Outside rc")
+tiny/              TinyShell.ml, later (see "Outside rc")
 ```
 
 Eleven modules; orc has 24. **The size target**: about 1,500 lines of
@@ -254,11 +254,11 @@ and `mount` are not the shell's business -- they are commands.
 ### 8. Where the code goes
 
 `shell/`, xix's name (principia's is `shells/`), as `builder/` was
-xix's. The binary is `tinyrc`; the free variant goes in `tiny/shell/`.
+xix's. The binary is `tinyrc`; the free variant goes in `tiny/`.
 
 ## Outside rc: TinyShell.ml
 
-As TinyBuildSystem.ml followed TinyMk, `tiny/shell/TinyShell.ml`
+As TinyBuildSystem.ml followed TinyMk, `tiny/TinyShell.ml`
 follows TinyRc: one file, no compatibility, only what a shell is --
 "the power of pipes, redirections, variables, and basic control flow
 constructs" (the Principia book's introduction). It is written
@@ -336,7 +336,7 @@ written):
    rcmain and the command-line flags, the prompt.
 6. **The milestones**: principia's scripts; TinyMk and TinyRc build
    xix; the interactive session; the LOC count against the twins.
-7. **`tiny/shell/TinyShell.ml`**, from what phases 1-6 taught.
+7. **`tiny/TinyShell.ml`**, from what phases 1-6 taught.
 8. **Docs**: `notes_rc.md` checked against the code, the numbers
    filled in.
 
@@ -494,7 +494,7 @@ written):
   SIGTERM of `timeout`, so it is now `timeout -s KILL`.
   1,634 lines of `.ml` now; the corpus 43 cases.
 
-- **2026-09-23, phase 7: `tiny/shell/TinyShell.ml`.** One file, 598
+- **2026-09-23, phase 7: `tiny/TinyShell.ml`.** One file, 598
   lines (423 of code, counted as for TinyBuildSystem's 261): a third of
   TinyRc. The subset was chosen by its real test, the recipes of xix's
   mkfiles, which need very little: the only rc construct in them past

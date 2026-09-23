@@ -1,5 +1,0 @@
-(executable
- (name TinyShell)
- (public_name tinyshell)
- (package ix)
- (libraries unix caps))

@@ -24,7 +24,7 @@ note follows its families.
 | PowerShell (2006), nushell (2019), elvish (2016) | Structured data in pipes | Objects or tables through `\|`, not bytes |
 | Oils (2017) | Running bash scripts, then replacing them | bash (osh), and a new language (ysh) |
 | `shell/` (TinyRc) | Seeing what a shell does, on real rc scripts | rc, run by 1,634 lines of OCaml |
-| `tiny/shell/TinyShell.ml` | What a shell is, at its smallest | rc's core, in one file of 598 lines |
+| `tiny/TinyShell.ml` | What a shell is, at its smallest | rc's core, in one file of 598 lines |
 
 ## Part 1: where it came from
 
