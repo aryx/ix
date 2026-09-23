@@ -24,7 +24,10 @@ let link ~verbose arch format entry out files =
   (* 5l's and 7l's INITTEXT: after the header *)
   t.text_start <- (match format, arch with
     | Exe.Elf, Asm.Arm -> 0x8000 + headr | Exe.Elf, Asm.Arm64 -> 0x400000 + headr
-    | Exe.Plan9, Asm.Arm -> 4096 + headr | Exe.Plan9, Asm.Arm64 -> 0x10000 + headr);
+    | Exe.Plan9, Asm.Arm -> 4096 + headr | Exe.Plan9, Asm.Arm64 -> 0x10000 + headr
+    | Exe.Macho, _ -> (1 lsl 32) + headr);
+  t.data_round <- (match format, arch with Exe.Macho, _ -> 0x4000 | Exe.Plan9, Asm.Arm64 -> 0x10000 | _ -> 4096);
+  t.pie <- format = Exe.Macho;
   (* the entry is the first name needed, before any object (5l's main) *)
   ignore (Link.lookup t entry 0);
   Link.load t ~needs:m.needs files;
@@ -42,7 +45,8 @@ let link ~verbose arch format entry out files =
       Printf.printf "%08x: %08lx\t%s\n" p.pc w (Asm.show_item (Ins { op = p.op; suffixes = p.suffixes; args = p.args }))) t.progs;
   let data = Link.data_bytes t in
   Exe.write format arch out
-    { text; data; bss = t.bss_size; text_start = t.text_start; data_start = t.data_start; entry = Link.entry t entry }
+    { text; data; bss = t.bss_size; text_start = t.text_start; data_start = t.data_start; entry = Link.entry t entry;
+      pointers = Link.pointers t; round = t.data_round }
 
 let main (argv : string array) : int =
   let arch = ref Asm.Arm and format = ref Exe.Elf and entry = ref "_main" and out = ref "a.out"
@@ -52,6 +56,7 @@ let main (argv : string array) : int =
     | "-m" :: "7" :: rest -> arch := Asm.Arm64; args rest
     | "-H7" :: rest -> format := Exe.Elf; args rest
     | "-H2" :: rest -> format := Exe.Plan9; args rest
+    | "-H6" :: rest -> format := Exe.Macho; args rest
     | "-E" :: e :: rest -> entry := e; args rest
     | "-o" :: o :: rest -> out := o; args rest
     | "-a" :: l :: rest -> lib := l; args rest
@@ -63,7 +68,7 @@ let main (argv : string array) : int =
   args (List.tl (Array.to_list argv));
   let files = List.rev !files in
   match files with
-  | [] -> prerr_endline "usage: tinyld -m 5|7 [-H2|-H7] [-E entry] [-o out] files... | -a lib.a objects..."; 1
+  | [] -> prerr_endline "usage: tinyld -m 5|7 [-H2|-H6|-H7] [-E entry] [-o out] files... | -a lib.a objects..."; 1
   | _ -> (
       try
         if !lib <> "" then Link.make_library !lib files

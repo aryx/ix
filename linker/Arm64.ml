@@ -169,9 +169,10 @@ let aclass ctx (p : prog) (a : A.operand option) : cls * int64 =
   | Some (A.Addr { base = SB; name = Some n; off; _ }) ->
       let s = sym ctx p n in
       let v = s.value + Int64.to_int off in
-      if s.kind = Text then LCON, i v
+      (* PIE: the address is pc-relative, by ADRP and ADD (goken's -H6) *)
+      if s.kind = Text then (if ctx.t.pie then ADDR else LCON), i v
       else if v <> 0 && isaddcon (i v) then AECON, i v
-      else LCON, i (v + ctx.t.data_start)
+      else (if ctx.t.pie then ADDR else LCON), i (v + ctx.t.data_start)
   | Some (A.Addr { base; off; _ }) ->
       let v = Int64.to_int off + (match base with SP -> ctx.autosize | FP -> ctx.autosize + pcsz | _ -> 0) in
       (if isaddcon (i v) then AACON else LACON), i v
@@ -231,7 +232,7 @@ let rules =
     r "MOVW" LCON NONE REG 12 4 ~flag:lfrom (); r "MOV" LCON NONE REG 12 4 ~flag:lfrom ();
     r "MUL" REG REG REG 15 4 (); r "MUL" REG NONE REG 15 4 ();
     r "REM" REG REG REG 16 8 (); r "REM" REG NONE REG 16 8 ();
-    r "MOV" LACON NONE REG 34 8 ~param:sp ~flag:lfrom ();
+    r "MOV" LACON NONE REG 34 8 ~param:sp ~flag:lfrom (); r "MOV" ADDR NONE REG 66 8 ();
     r "FMOVS" FREG NONE FREG 54 4 (); r "FMOVD" FREG NONE FREG 54 4 ();
     r "FADDS" FREG NONE FREG 54 4 (); r "FADDS" FREG REG FREG 54 4 ();
     r "FCVTZSD" FREG NONE REG 29 4 (); r "SCVTFD" REG NONE FREG 29 4 ();
@@ -443,7 +444,7 @@ let layout (t : Link.t) =
   let c = rnd !pc 8 in
   t.text_size <- c - t.text_start;
   (lookup t "etext" 0).value <- c;
-  t.data_start <- rnd c 4096
+  t.data_start <- rnd c t.data_round
 
 (*****************************************************************************)
 (* Encoding (7l's asmout.c; xix's Codegen7) *)
@@ -695,6 +696,13 @@ let encode_prog ctx (p : prog) lastcase : int list =
       let o1 = oprrr v.as_ in
       let o1, rf = match v.from with Some (A.Fimm _) -> o1 lor 8, 0 | _ -> o1, rf in
       [ o1 lor (rf lsl 16) lor (Option.get v.reg lsl 5) ]
+  | 66 ->
+      (* the page's distance, then the offset in it *)
+      let d = off v.from in
+      let x = (d asr 12) - (p.pc asr 12) in
+      if x < - (1 lsl 20) || x >= 1 lsl 20 then error "adrp page displacement out of range";
+      [ (1 lsl 31) lor (0x10 lsl 24) lor ((x land 3) lsl 29) lor (((x asr 2) land 0x7ffff) lsl 5) lor rt;
+        opirr "ADD" lor ((d land 0xfff) lsl 10) lor (rt lsl 5) lor rt ]
   | 62 ->
       lastcase := p.pc;
       [ adr 0 16 rt;

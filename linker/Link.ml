@@ -46,6 +46,8 @@ type t = {
   mutable text_size : int;
   mutable data_size : int;
   mutable bss_size : int;
+  mutable data_round : int;
+  mutable pie : bool;
 }
 
 exception Error of string
@@ -55,7 +57,7 @@ let rnd v r = (v + r - 1) / r * r
 
 let create arch ~text_start =
   { arch; syms = Hashtbl.create 1024; ncreated = 0; progs = []; datas = [];
-    text_start; data_start = 0; text_size = 0; data_size = 0; bss_size = 0 }
+    text_start; data_start = 0; text_size = 0; data_size = 0; bss_size = 0; data_round = 4096; pie = false }
 
 let lookup t name version =
   match Hashtbl.find_opt t.syms (name, version) with
@@ -420,6 +422,17 @@ let data_bytes t =
           for i = 0 to d.width - 1 do Bytes.set b (a + i) (Char.chr (Int64.to_int (Int64.logand (Int64.shift_right_logical bits (8 * i)) 255L))) done
       | _ -> error "DATA %s: a value of an unknown kind" d.dsym.name) t.datas;
   b
+
+(* the offsets in the data of its addresses, which a PIE loader slides
+ * (goken's liblk/macho.c machorebase) *)
+let pointers t =
+  List.filter_map (fun d ->
+    match d.value with
+    | Asm.Addr { name = Some n; _ } when d.dsym.kind = Data ->
+        let s = sym_of t d.dversion n in
+        if s.kind = Undefined then None else Some (d.dsym.value + d.off)
+    | _ -> None) t.datas
+  |> List.sort compare
 
 let entry t name =
   match Hashtbl.find_opt t.syms (name, 0) with

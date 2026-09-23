@@ -5,6 +5,7 @@
 #   ix:    5c -S x.c > x.s (the same run), tinyasm, tinyld -a, tinyld -H7
 # usage: libc.sh 5|7 workdir prog.c...   (needs goken, and dune build in ix)
 # The libc is built once per workdir: remove it to rebuild.
+# GOOS=darwin H=-H6: macOS's libc and Mach-O (compared, not run).
 set -u
 export PATH=$HOME/goken/bin:$HOME/goken/ROOT/arch/boot-gcc/bin:$PATH
 IX=$(cd $(dirname $0)/../.. && pwd)/_build/default
@@ -25,12 +26,12 @@ while read -r line; do
     # 5c's flags, but the -o and the file; the listing is the lines
     # with a tab, its warnings go to stdout too
     flags=$(echo "$line" | sed -e "s/^${O}c //" -e 's/ -o [^ ]* [^ ]*$//' -e 's/\$CFLAGS_EXTRA//')
-    ${O}c $flags -S -o $W/g/$b.$O $src 2>$W/t/$b.err | grep '^	' > $W/t/$b.s || echo "5c-FAIL $b"
+    ${O}c $flags -S -o $W/g/$b.$O $src 2>$W/t/$b.err | grep '^	' > $W/t/$b.s || echo "${O}c-FAIL $b"
     $IX/assembler/Main.exe -m $O -o $W/t/$b.$O $W/t/$b.s || echo "TINYASM-FAIL $b"
     ;;
   ${O}a)
     src=${@: -1}; b=$(echo ${src%.s} | tr / _)
-    ${O}a -o $W/g/$b.$O $src >/dev/null || echo "5a-FAIL $b"
+    ${O}a -o $W/g/$b.$O $src >/dev/null || echo "${O}a-FAIL $b"
     $IX/assembler/Main.exe -m $O -o $W/t/$b.$O $src || echo "TINYASM-FAIL $b"
     ;;
   iar)
@@ -38,18 +39,22 @@ while read -r line; do
     for o in "$@"; do b=$(echo $o | tr / _); g+=($W/g/$b); t+=($W/t/$b); done
     ;;
   esac
-done < <(mk -a -n objtype=$OBJ cputype=$OBJ 2>/dev/null)
+done < <(mk -a -n objtype=$OBJ cputype=$OBJ GOOS=${GOOS:-linux} 2>/dev/null)
 iar rc $W/g/libc.a "${g[@]}"
 $IX/linker/Main.exe -m $O -a $W/t/libc.a "${t[@]}"
 fi
 for c in "${progs[@]}"; do
   b=$(basename $c .c)
-  (cd $(dirname $c) && ${O}c -I$HOME/goken/include -I$HOME/goken/include/ALL -I$HOME/goken/include/arch/$OBJ -S -o $W/g/$b.$O $b.c 2>/dev/null | grep '^	' > $W/t/$b.s) || { echo "5c-FAIL $b"; continue; }
+  (cd $(dirname $c) && ${O}c -I$HOME/goken/include -I$HOME/goken/include/ALL -I$HOME/goken/include/arch/$OBJ -S -o $W/g/$b.$O $b.c 2>/dev/null | grep '^	' > $W/t/$b.s) || { echo "${O}c-FAIL $b"; continue; }
   $IX/assembler/Main.exe -m $O -o $W/t/$b.$O $W/t/$b.s || { echo "TINYASM-FAIL $b"; continue; }
   # 5l from libc's directory: 5c's objects name libc.a (#pragma lib)
-  (cd $LIBC && ${O}l -H7 -s -o $W/g/$b.exe $W/g/$b.$O $W/g/libc.a) > $W/g/$b.log 2>&1 || { echo "5l-FAIL $b: $(head -1 $W/g/$b.log)"; continue; }
-  $IX/linker/Main.exe -m $O -H7 -o $W/t/$b.exe $W/t/$b.$O $W/t/libc.a 2> $W/t/$b.log || { echo "TINYLD-FAIL $b: $(head -1 $W/t/$b.log)"; continue; }
+  (cd $LIBC && ${O}l ${H:--H7} -s -o $W/g/$b.exe $W/g/$b.$O $W/g/libc.a) > $W/g/$b.log 2>&1 || { echo "${O}l-FAIL $b: $(head -1 $W/g/$b.log)"; continue; }
+  $IX/linker/Main.exe -m $O ${H:--H7} -o $W/t/$b.exe $W/t/$b.$O $W/t/libc.a 2> $W/t/$b.log || { echo "TINYLD-FAIL $b: $(head -1 $W/t/$b.log)"; continue; }
   # the same bytes, and the same output
+  if [ "${H:--H7}" = -H6 ]; then
+    if cmp -s $W/g/$b.exe $W/t/$b.exe; then echo "$b: SAME"; else echo "$b: DIFF $(cmp $W/g/$b.exe $W/t/$b.exe | head -1)"; fi
+    continue
+  fi
   same=$(python3 $TESTS/elfcmp.py $W/g/$b.exe $W/t/$b.exe)
   (mkdir -p $W/run && cd $W/run && timeout 10 $W/g/$b.exe one two > $W/g/$b.out 2>&1; echo "exit $?" >> $W/g/$b.out)
   (mkdir -p $W/run && cd $W/run && timeout 10 $W/t/$b.exe one two > $W/t/$b.out 2>&1; echo "exit $?" >> $W/t/$b.out)

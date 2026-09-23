@@ -60,6 +60,8 @@ type t = {
   mutable text_size : int;
   mutable data_size : int;
   mutable bss_size : int;
+  mutable data_round : int;       (* INITRND: the data's start is rounded to it *)
+  mutable pie : bool;             (* position independent (Mach-O): no absolute address in the code *)
 }
 
 exception Error of string
@@ -110,6 +112,10 @@ val single_bits : float -> int
 (* a float constant as a memory operand, its symbol and DATA made
  * once; [single] for 4 bytes (5l's and 7l's ldobj) *)
 val float_constant : t -> float -> single:bool -> Asm.operand
+
+(* the data's pointers, as offsets in the data, sorted (for Mach-O's
+ * rebase stream) *)
+val pointers : t -> int list
 
 (* the entry's address *)
 val entry : t -> string -> int

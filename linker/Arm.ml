@@ -478,7 +478,7 @@ let layout (t : Link.t) =
   let c = rnd !pc 8 in
   t.text_size <- c - t.text_start;
   (lookup t "etext" 0).value <- c;
-  t.data_start <- rnd c 4096
+  t.data_start <- rnd c t.data_round
 
 (*****************************************************************************)
 (* Encoding (5l's asmout and its helpers, codegen.c; xix's Codegen5) *)

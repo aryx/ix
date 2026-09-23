@@ -562,6 +562,27 @@ lines; the test is the same: the same executables, running.
     position independence), Link 332, Arm 582 (smaller, since `follow`
     moved out).
 
+- **2026-09-23, Mach-O and arm64's a.out: milestone 4 here, byte for
+  byte.** For `-H6` (Exe.macho):
+  - 3 KB of header and load commands, the segments __PAGEZERO, __TEXT,
+    __DATA and __LINKEDIT, dyld and libSystem named, LC_MAIN, and the
+    rebase stream of the data's pointers (`Link.pointers`);
+  - in the code, PIE addresses by ADRP and ADD (7l's case 66, the one
+    rule added to Arm64).
+
+  Results:
+  - all 17 in-subset arm64 fixtures and goken's `hello_macos_arm64`
+    are the same as 7l `-H6`;
+  - `GOOS=darwin H=-H6 libc.sh 7` builds macOS's libc, and 15
+    hello_libc programs are the same (goken's 7l itself fails on alarm
+    and notify, with redefinitions in the darwin libc);
+  - arm64's a.out (`-H2`, 40-byte header) is the same on the fixtures
+    tried.
+
+  Left for the author: signing with `codesign -s -` and running on the
+  MacBook (milestone 4's second half). Code lines: Exe 129 (ELF, a.out
+  and Mach-O; the target was 330), Arm64 599.
+
 ## Verification
 
 `make test` runs the corpus against its recorded outputs and bytes,
