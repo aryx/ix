@@ -7,10 +7,12 @@ for **a reader of TinyRc's code, not a user of rc**, and explains the
 ideas in the order the code needs them.
 
 It is the specification of the program planned in
-[`plan_rc.md`](../plans/plan_rc.md), written before the code, to be
-checked against it and have its numbers measured, as
-[`notes_mk.md`](notes_mk.md) was for TinyMk (which got six things
-wrong, all corrected and listed in its plan). Every example below was
+[`plan_rc.md`](../plans/plan_rc.md). It was written before the code and
+then checked against it, as [`notes_mk.md`](notes_mk.md) was for
+TinyMk. This one got three things wrong, all corrected and listed in
+the plan's Status: the grammar in menhir (it is a recursive descent),
+a pipeline's n statuses (rc folds them into two), and the line count
+(1,634, not about 1,500). Every example below was
 run on 9base's rc (`/usr/lib/plan9/bin/rc`) on 2026-09-23, unless it
 says "to check". Companions:
 [`notes_rc_related_work.md`](../related-work/notes_rc_related_work.md)
@@ -22,7 +24,7 @@ xix's `shell/` (orc).
 | module (`shell/`) | what | section |
 |---|---|---|
 | `Lexer` | characters to tokens: words, quotes, free carets, keywords | §2 |
-| `Parser`, `Ast` | tokens to a tree of commands (menhir, rc's `syn.y`) | §2 |
+| `Parser`, `Ast` | tokens to a tree of commands (recursive descent, after rc's `syn.y`) | §2 |
 | `Word` | a word to a list of strings: `$x`, `$#x`, `$"x`, `$x(n)`, `^` | §3 |
 | `Glob` | `*`, `?`, `[...]` against the file system | §4 |
 | `Process` | fork, exec, wait, `$path`; file descriptors, pipes | §5, §6 |
@@ -86,9 +88,14 @@ A command is words, and rc's grammar has one idea per construct:
 
 `if`, `for`, `while` and `switch` take a list in parentheses, so a
 condition is a command whose status is tested, with no `then`, `fi`,
-`do` or `done`. That is why the grammar (`syn.y`) is 116 lines, and
-why TinyRc can have it in menhir: it nests, and it has precedences
-(`|` binds tighter than `&&`, which binds tighter than `;`).
+`do` or `done`. That is why the grammar (`syn.y`) is 116 lines: it
+nests, and it has precedences (`|` binds tighter than `&&`, which
+binds tighter than `;`). TinyRc parses it by recursive descent, one
+function per level of precedence. The plan first chose menhir, and
+reading `syn.y` changed that: prefix redirections and assignments
+lean on `%prec`, `skipnl()` is called in the middle of rules, and
+keywords turn back into words when the grammar says so. All three
+are plain in a recursive descent and tricks in a generator.
 
 The lexer has four jobs the grammar can't do, and they are why it is
 written by hand (the plan's decision 2):
@@ -178,7 +185,11 @@ code otherwise (`false` leaves `1`; a killed process leaves a name
 for its signal, the exact form to check). `if`, `while`, `&&`, `||`
 and `!` test "empty or not". A pipeline's status is its commands',
 joined by `|`: `true | false` leaves `|1`, which is not empty, so
-the pipeline failed.
+the pipeline failed. With more than two, the left side is folded into
+one: `a | b | c` is `(a | b) | c`, and the left side runs in a child rc,
+whose exit code is its status's leading number (rc's `atoi`, or 1 if
+that is 0). Four commands exiting 3, 4, 5 and 6 leave `3|6`, and a left
+side of `0|4` becomes 1.
 
 `return` and `break` are not rc: 9base runs them as commands ("No
 such file or directory"). A function ends at its closing brace, and a
@@ -294,15 +305,15 @@ why a syntax error late in a script is found only when rc gets there.
 
 ## 11. Compared with rc and orc
 
-| | rc (C, principia) | orc (OCaml, xix) | TinyRc |
-|---|---|---|---|
-| lexing | hand-written | ocamllex | hand-written |
-| parsing | yacc, 116 lines | ocamlyacc | menhir |
-| running | compiled to code for a machine, a queue of threads | the same design | the tree, walked |
-| globbing | a marker byte before unquoted metacharacters | | quoted and unquoted pieces |
-| functions in the environment | yes | no | yes |
-| the most common rc (the plan's 17-line check) | yes | stops at `$"x` | the goal |
-| lines | 5,678 by the book's count | 2,876 | about 1,500 (target) |
+| | rc (C, principia) | orc (OCaml, xix) | TinyRc | TinyShell.ml |
+|---|---|---|---|---|
+| lexing | hand-written | ocamllex | hand-written | hand-written |
+| parsing | yacc, 116 lines | ocamlyacc | recursive descent, 261 lines | recursive descent, in the same file |
+| running | compiled to code for a machine, a queue of threads | the same design | the tree, walked | the tree, walked |
+| globbing | a marker byte before unquoted metacharacters | | quoted and unquoted pieces | a marker byte, as rc |
+| functions in the environment | yes | no | yes | no |
+| the most common rc (the plan's 17-line check) | yes | stops at `$"x` | yes | its subset |
+| lines | 5,678 by the book's count | 2,876 | 1,634 (1,271 of code) | 598 (423 of code) |
 
 The design difference is the third row (the plan's decision 1). rc
 compiles a command to instructions and runs them on a queue of
@@ -319,7 +330,8 @@ and the queue, a third of the C, go.
   quirk, whose stdout, stderr and exit status are recorded from
   9base's rc; TinyRc must print the same (TinyMk's method).
 - **Laws**: `whatis`'s output re-reads as the same definition; a
-  pipeline of n commands leaves n statuses; `{cmd}` and `@{cmd}`
+  pipeline is true exactly when all its commands are (not "leaves n
+  statuses", as this note first said: see §5); `{cmd}` and `@{cmd}`
   print the same when `cmd` changes no variable or directory.
 - **Real scripts**: principia's, run by both shells; and the recipes
   of xix's mkfiles, run by TinyRc for TinyMk, building xix.
@@ -346,9 +358,10 @@ Beyond the plan's phases (in rough order of difficulty):
 TinyRc is TinyMk's shell first: `MKSHELL=tinyrc`, and the two build
 xix together (the plan's milestone). Later it is the shell of
 TinyKernel, where `rfork`, `/env` and notes stop being no-ops, and the
-first program to read `/dev/cons`. And TinyShell.ml, in `shell/tiny/`,
-comes after it: one file, only what a shell is, from what TinyRc
-taught.
+first program to read `/dev/cons`. TinyShell.ml, in `shell/tiny/`,
+came after it: one file, only what a shell is, written from what TinyRc
+taught. Its test is the same build: with it as TinyMk's shell, xix
+builds to the same files.
 
 ## Glossary
 

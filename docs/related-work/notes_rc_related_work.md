@@ -23,7 +23,8 @@ note follows its families.
 | fish (2005) | Friendliness at the terminal | A new, sh-like syntax; suggestions as you type |
 | PowerShell (2006), nushell (2019), elvish (2016) | Structured data in pipes | Objects or tables through `\|`, not bytes |
 | Oils (2017) | Running bash scripts, then replacing them | bash (osh), and a new language (ysh) |
-| `shell/` (TinyRc) | Seeing what a shell does, on real rc scripts | rc, run by about 1,500 lines of OCaml (target) |
+| `shell/` (TinyRc) | Seeing what a shell does, on real rc scripts | rc, run by 1,634 lines of OCaml |
+| `shell/tiny/TinyShell.ml` | What a shell is, at its smallest | rc's core, in one file of 598 lines |
 
 ## Part 1: where it came from
 
@@ -131,8 +132,8 @@ As for TinyMk, two levels:
 - **The language, at the real end**: rc as it is, checked against
   9base's rc on a corpus, on principia's scripts, and by running the
   recipes of xix's mkfiles for TinyMk.
-- **The implementation, at the legible end**: a lexer and a menhir
-  grammar, and an evaluator that walks the tree -- no bytecode, no
+- **The implementation, at the legible end**: a lexer and a
+  recursive-descent parser, and an evaluator that walks the tree -- no bytecode, no
   thread queue -- with `fork`, `exec`, `dup2` and `pipe` in plain
   view.
 
@@ -141,14 +142,30 @@ As for TinyMk, two levels:
 mode; Plan 9's namespaces (`rfork n`, `bind`, `mount`) only on
 TinyKernel, later; signals as far as the plan's phase 5 decides.
 
-## Postscript: the numbers (to come)
+## Postscript: the numbers
 
-Once built: TinyRc's lines per module against the plan's per-module
-targets, orc's 2,876 and the C rc's 5,678; how many corpus scripts
-print the same as 9base's rc, and how many of principia's 133 scripts
-can be compared at all on a Unix host; the time of the xix build with
-TinyRc as TinyMk's shell against 9base's rc; and the startup time of
-one `tinyrc -c true`, which a build pays for every recipe.
+- **Lines.** TinyRc has 1,634 lines of `.ml`, 1,271 of them code,
+  against the 1,500 planned: 6% over in total, with the parser at
+  double its target and `Word` at half of its. That is 29% of the C
+  rc's 5,678 and 57% of orc's 2,876, and orc is partial. TinyShell.ml
+  has 598 lines, 423 of them code: a third of TinyRc.
+- **The corpus.** 43 scripts. 39 print what 9base's rc prints, and 4
+  are documented differences, each with a `.tiny.out`: the split
+  backquote twice, a missing program at the end of a subshell, and
+  an `exec` that fails, after which 9base's rc spins forever. orc
+  passes 4 of the first 36.
+- **Principia's 133 scripts**, run with no arguments in a sandbox:
+  120 print the same. Of the other 13, 4 are 9base's `exec` hang, 3
+  use `` `sep{} ``, 1 is the subshell case, 3 print what changes
+  from run to run, and 1 is a 9base quirk: a missing program in a
+  pipe stage exits with the `$status` it inherited.
+- **The xix build**: 33 s with TinyRc as TinyMk's shell, and 32.7 s
+  with TinyShell. Both produce the same 435 files as omk with 9base's
+  rc.
+- **Startup**, 100 runs of `-c true`: 9base's rc 3.0 ms, TinyRc 4.9,
+  TinyShell 5.0. The cost is OCaml's runtime and not rcmain, which
+  TinyShell doesn't have. A build pays it once per recipe, about half
+  a second over xix's.
 
 Sources: from memory unless a file is named, and to be checked before
 relying on them for teaching -- particularly the PWB and Bourne dates,

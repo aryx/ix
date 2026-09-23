@@ -494,6 +494,53 @@ written):
   SIGTERM of `timeout`, so it is now `timeout -s KILL`.
   1,634 lines of `.ml` now; the corpus 43 cases.
 
+- **2026-09-23, phase 7: `shell/tiny/TinyShell.ml`.** One file, 598
+  lines (423 of code, counted as for TinyBuildSystem's 261): a third of
+  TinyRc. The subset was chosen by its real test, the recipes of xix's
+  mkfiles, which need very little: the only rc construct in them past
+  words, `$x` and `&&` is `~` (8 times). So it keeps what makes rc rc
+  and not sh, which is lists as the only value, words joined by
+  adjacency, globbing of the literal text only, redirections done
+  around the command, and the status as a string. It also keeps what
+  every script needs: `|`, `&&` `||` `!`, `if` `while` `for`, `{}`
+  `@{}`, `fn`, `` `{} ``, `&` and `wait`, `cd` `exit` `shift` and `~`,
+  and `-e` and `-c`. The table in its header lists what it drops.
+  What writing TinyRc taught, and TinyShell does differently:
+  - **A word is its pieces.** Free carets need a lexer that remembers
+    the last token. Here the lexer reads a word as everything with no
+    blank in it, and `^` is just a piece that joins nothing.
+  - **The marker byte.** TinyRc keeps quoted and unquoted pieces as
+    far as globbing. TinyShell escapes a character not to glob with a
+    `\000` as the word is built, as the C rc does. That is less
+    structure, and less code, once lists and concatenation are
+    strings.
+  - **The whole input is read first**, then run one command at a
+    time. That is enough for `-c`, scripts and a piped stdin, but not
+    for a terminal or for commands that read the script's stdin.
+  - **A missing program says what exec said, and there is no search
+    of `$path` for names with a `/`.** That keeps one message and
+    drops a rule.
+
+  Bugs on the way, all caught by `test.sh`: reading the rest of the
+  words where one was meant (every command lost its arguments), and
+  OCaml's right-to-left evaluation of `Lit (from start) :: more lx`,
+  which read the next piece first (`pre$x` became one literal). Also
+  9base's `*` matches dotfiles, since Plan 9 has none, and rc's `~`
+  takes the first word of its arguments as the subject, even when a
+  list gave several. **The test**: `test.sh`, 26 scripts of the
+  subset through both shells, the same output (the `rc (argv0)`
+  prefix normalized), plus `-e`. **The milestone**: TinyMk with
+  `MKSHELL` a link named `rc` to TinyShell (checked: `readlink
+  /proc/$pid/exe` in a recipe names it) builds xix from nuked in 32.7
+  s, to the same 435 files as omk with 9base's rc. Startup: 5.0 ms,
+  as TinyRc's 4.9, so the cost is OCaml's runtime, not rcmain.
+
+- **2026-09-23, phase 8: the docs checked.** `notes_rc.md` had three
+  things wrong, now corrected: the menhir grammar, "a pipeline of n
+  commands leaves n statuses", and the line count. Its comparison
+  table has a TinyShell column. `notes_rc_related_work.md`'s Postscript
+  has its numbers.
+
 ## Verification
 
 - `make test`: the `.mli` examples, the laws, the corpus against its
