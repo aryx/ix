@@ -87,8 +87,8 @@ engine is the first thing an ix of text tools needs.
   `s` with loops over matches: `x/re/cmd` runs `cmd` on each match in
   dot, `y/re/cmd` on the text between them, `g/re/cmd` and `v/re/cmd`
   keep or drop dot, and `{ }` groups. Lines are one structure among
-  others. Its matcher is the one libregexp has: the Thompson NFA with
-  captures, the "Pike VM".
+  others. Its matcher (sam's `regexp.c`, like libregexp's) is the
+  Thompson NFA with captures, the "Pike VM".
 - **acme** (Pike, 1992-94): sam's command language in a window system
   of text, where any text can be clicked to run it. The editor as the
   user interface.
@@ -130,8 +130,8 @@ without the screen, as `sam -d` has it.
 - **The 30-line matcher**: Rob Pike's `match`, `matchhere` and
   `matchstar` (`c`, `.`, `^`, `$`, `*`), in Kernighan and Pike's *The
   Practice of Programming* (1999) and Kernighan's chapter of
-  *Beautiful Code* (2007): the teaching version, which TinyEd's
-  matcher grows from with classes, groups and alternation.
+  *Beautiful Code* (2007): the teaching version, which TinyEditor's
+  matcher grows from with classes, groups, alternation and a memo.
 
 ## Part 6: the teaching editors
 
@@ -154,8 +154,9 @@ As for TinyMk and TinyRc, two levels:
   against 9base's ed, on principia's `mkenam` scripts, and on the
   `diff -e` scripts of xix's history.
 - **The implementation, at the legible end**: lines in memory with an
-  identity, a command loop that reads as it goes, and a matcher that
-  is a backtracker with a memo.
+  identity, a command loop that reads as it goes, and libregexp's
+  matcher in OCaml, because its corner cases are the specification;
+  the backtracker with a memo is TinyEditor's.
 
 **The ceiling, stated now**: no screen, no multiple buffers (QED's
 and sam's), no undo but `u`'s, no POSIX notation.
