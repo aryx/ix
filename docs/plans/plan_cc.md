@@ -416,6 +416,11 @@ after the compiler, by what it taught.
    modes, a load or a store per variable). TinyCompiler, with no IR and
    5c's decisions, is 5,621 lines for two machines and byte-identical
    code; TinyC, 678 lines of code for one machine and correct code.
+   Floats are the first to revisit (the author: "float are pretty
+   fundamental"): a second register class on the same stack (a depth
+   in Rd or Fd by its type), 7c's convention for them (a double
+   argument in its slot, the result in F0), the conversions and
+   compares TinyAssembler already has; started, then left for later.
 
 6. **Docs**: `notes_cc.md` checked against the code, the numbers.
 

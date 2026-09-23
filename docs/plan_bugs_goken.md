@@ -75,6 +75,16 @@ the 32-bit register and zeroes the upper half, so `x` is 2147483649.
 `7c -O0` emits `MOV $-2147483647,R1`, correct. Found by TinyC's
 fuzzer (`tiny/TinyC_fuzz.py`), whose reference is now `7c -O0`.
 
+### 5c. `double op float` is computed in float
+
+cck's table of the usual arithmetic conversions (`sub.c`'s `tab`, the
+row of TDOUBLE) gives TFLOAT for a double and a float, while a float
+and a double give TDOUBLE. So `d * f` loses the double's precision:
+7c -O0 on `r1 = d * f; r2 = f * d;` emits `FCVTDS F0,F0` and `FMULS`
+for the first, `FCVTSD` and `FMULD` for the second. Probably a typo
+in the table. TinyCompiler reproduces it (`compiler/Tree.ml`'s
+`arith_tab`, which says so).
+
 ### 6. The code depends on the host's `qsort`
 
 cck's reassociation (`scon.c`'s `acom2`) sorts its terms with `qsort`,

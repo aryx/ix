@@ -1742,3 +1742,55 @@ The working tree was completely clean with nothing remaining to commit at all.
 **Yoann:**
 
 > ok now let's do TinyC.ml based on the experience writing compiler/ ?
+
+**Claude (summary):**
+
+Claude committed TinyC as `4571d12`, a 870-line ARM64 C compiler in one file, with comprehensive test coverage. TinyC omits floats to keep the compiler single-file and manageable; Claude notes this as a major acknowledged trade-off. Also omitted: unions, enums, bitfields, function pointers; each would add complexity beyond what a single-file compiler can absorb. The design uses a stack-machine IR where R1..R15 hold the stack, reducing codegen to just 120 lines. All tests passed: eight hand-written programs, 300 random programs from fuzzing, versus Plan 9's 7c -O0.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:20
+
+**Yoann:**
+
+> skipping float seems like a big one ....
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:20
+
+**Yoann:**
+
+> no way we can add that back? arm64 has good float instruction anyway
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:20
+
+**Yoann:**
+
+> float are pretty fundamental
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:21
+
+**Yoann:**
+
+> yes you can emulate them in software, but still
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:21
+
+**Yoann:**
+
+> ok let's keep it that way and commit tinyC.ml as is
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:22
+
+**Yoann:**
+
+> we can always revisit later
