@@ -63,7 +63,14 @@
  * gives it the dependencies and Build is the scheduler around it.
  *
  * References: mk(1), "Execution"; principia's mk.c (outofdate, update)
- * and file.c (timeof). *)
+ * and file.c (timeof); Stuart Feldman, "Make -- A Program for
+ * Maintaining Computer Programs" (Software: Practice and Experience,
+ * 1979), for the rule itself: a target is created "if it has not been
+ * modified since its generators were" (mk adds the <= of equal times);
+ * Peter Miller, "Recursive Make Considered Harmful" (AUUGN, 1998), on
+ * what one make per directory gets wrong; Mokhov, Mitchell and Peyton
+ * Jones, "Build Systems a la Carte" (ICFP 2018), for the rebuilders
+ * and the traces. *)
 
 type ctx
 

@@ -43,7 +43,19 @@
  * checked (as in graph.c, where vacuous() runs before ambiguous()).
  *
  * References: principia's graph.c (applyrules, vacuous, ambiguous,
- * cyclechk, attribute); mk(1) for NREP. *)
+ * cyclechk, attribute); mk(1) for NREP; Stuart Feldman, "Make -- A
+ * Program for Maintaining Computer Programs" (Software: Practice and
+ * Experience, 1979), the first build tool, whose abstract already
+ * says all of this module: "The description file really defines the
+ * graph of dependencies; Make does a depth-first search of this
+ * graph"; Andrew Hume, "Mk: a Successor to Make" (USENIX, 1987), for
+ * rule 4, "Any non-metarule takes precedence over a metarule"; R. E.
+ * Tarjan, "Depth-first search and linear graph algorithms" (SIAM
+ * Journal on Computing, 1972): a cycle is an edge back to a node still
+ * on the current path, and a node finished once is never walked again
+ * -- here the path and the table of built nodes, where graph.c's
+ * cyclechk clears its mark on the way out and so walks a shared
+ * subgraph once per path to it. *)
 
 type node = {
   name : string;

@@ -22,7 +22,14 @@
  *
  * Why cd must be a builtin, the Principia book's question: chdir
  * changes the directory of the process that calls it, and a cd program
- * would change only its own, and then exit. *)
+ * would change only its own, and then exit.
+ *
+ * References: Dennis Ritchie, "The Evolution of the Unix Time-sharing
+ * System" (AT&T Bell Laboratories Technical Journal, 1984), which
+ * tells how Unix learned it: on the PDP-7, before fork, chdir was an
+ * ordinary command; once the shell forked a process for each command,
+ * it changed only the child's directory, and had to move into the
+ * shell. *)
 
 (* register them in Eval.builtins *)
 val init : unit -> unit

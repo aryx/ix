@@ -73,7 +73,19 @@
  * compares what they print with goken's expected outputs (two of them,
  * dirread and mem, pass here and fail with goken's own 7l).
  *
- * Usage: tinyassembler [-e entry] [-o out] file.s... *)
+ * Usage: tinyassembler [-e entry] [-o out] file.s...
+ *
+ * References: M. V. Wilkes, D. J. Wheeler and S. Gill, The Preparation
+ * of Programs for an Electronic Digital Computer (1951), the EDSAC
+ * book: its initial orders read orders punched as a letter and a
+ * decimal address from paper tape and put them into memory as binary,
+ * assembling and loading in one step, as this does; Ken Thompson,
+ * "Plan 9 C Compilers" (Summer 1990 UKUUG Conference), for the
+ * encoding done where every address is known; T. G. Szymanski,
+ * "Assembling Code for Machines with Span-dependent Instructions"
+ * (CACM, 1978), the problem avoided by choosing each expansion from
+ * its operands alone: no size waits for an address, so no pass is
+ * redone; the Tool Interface Standard's ELF specification (1995). *)
 
 exception Error of string
 

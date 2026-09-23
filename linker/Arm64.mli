@@ -1,6 +1,13 @@
 (* The arm64 machine (7l): frames and returns, the layout of the code
  * with its literal pool, and the encoding of each instruction by the
- * first of 7l's rules that takes its operands. *)
+ * first of 7l's rules that takes its operands.
+ *
+ * References: as Arm.mli for the one-pass layout (Szymanski's problem
+ * does not arise: every instruction is 4 bytes) and for the frames;
+ * the Arm Architecture Reference Manual for A-profile, whose
+ * DecodeBitMasks pseudocode defines the logical immediates -- a run of
+ * ones, rotated, in an element of 2 to 64 bits, repeated -- the 5,334
+ * values the encoder tabulates, as 7l's bits.c does. *)
 
 (* frames rounded, negative ADD and SUB, float constants into the data
  * (7l's ldobj) *)

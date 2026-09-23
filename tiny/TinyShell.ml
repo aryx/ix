@@ -58,7 +58,14 @@
  * so that TinyMk exports lists the way rc wants them, joined by \001).
  *
  * Usage: tinyshell [-e] [-c cmd | file] [arg ...]   (-e: a command that
- * fails, not in a condition, ends the shell; -I and -i are accepted) *)
+ * fails, not in a condition, ends the shell; -I and -i are accepted)
+ *
+ * References: Tom Duff, "Rc -- The Plan 9 Shell" (1990), for the
+ * language, and for the principle the lists are there to keep: input
+ * "is never scanned more than once"; D. M. Ritchie and K. Thompson,
+ * "The UNIX Time-Sharing System" (CACM, 1974), for fork and exec as
+ * two calls, between which a child sets up its own file descriptors,
+ * and the shell as an ordinary program. *)
 
 (*****************************************************************************)
 (* Types *)

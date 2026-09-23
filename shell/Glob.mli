@@ -17,7 +17,14 @@
  * The matches of one word are sorted. In ~ and switch, the same
  * patterns match strings, where * matches / too.
  *
- * References: principia's glob.c (glob, match); rc(1), "Patterns". *)
+ * References: principia's glob.c (glob, match); rc(1), "Patterns";
+ * Tom Duff, "Rc -- The Plan 9 Shell" (1990), "Patterns": only / and
+ * the components . and .. must be written explicitly, where Bourne's
+ * "An Introduction to the UNIX Shell" makes any "." at the start of a
+ * name one; Russ Cox, "Glob Matching Can Be Simple And Fast Too"
+ * (2017), the road not taken: a * that tries every suffix by
+ * recursion, as here and in rc, is exponential on a*a*a*b against
+ * many a's, and going back only to the last * is enough. *)
 
 type piece = { text : string; literal : bool }
 

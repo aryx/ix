@@ -11,7 +11,12 @@
  *       = items [ Ins SUB [$1; R0]; Ins BNE [Target 0] ]
  *
  * No preprocessor: a # line is an error (goken's libc .s files have
- * none; principia's kernel .s files wait for the compiler's). *)
+ * none; principia's kernel .s files wait for the compiler's).
+ *
+ * References: Rob Pike, "A Manual for the Plan 9 assembler", written
+ * for the 68020's 2a, "the prototype" of the others: BRA 2(PC) "to
+ * skip one instruction", and a label written with no (PC) -- the two
+ * spellings of a Target. *)
 
 exception Error of int * string   (* a line, a message *)
 

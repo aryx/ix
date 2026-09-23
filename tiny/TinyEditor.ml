@@ -49,7 +49,14 @@
  *
  * The test: test.sh runs scripts through it and through 9base's sam -d.
  *
- * Usage: tinyeditor [file] -- the commands on standard input *)
+ * Usage: tinyeditor [file] -- the commands on standard input
+ *
+ * References: Rob Pike, "The Text Editor sam" (Software -- Practice and
+ * Experience, 1987), for the command language, the addresses as
+ * character ranges, and a command's changes applied together at its
+ * end; Rob Pike, "Structural Regular Expressions" (EUUG, 1987), for x
+ * and y, loops over the matches rather than over lines -- ed's g
+ * turned into one loop among others. *)
 
 (*****************************************************************************)
 (* Regular expressions *)

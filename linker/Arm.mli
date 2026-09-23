@@ -1,7 +1,24 @@
 (* The arm machine (5l): the rewriting of frames, returns and
  * divisions, the layout of the code with its literal pools, and the
  * encoding of each instruction by the first of 5l's rules that takes
- * its operands. *)
+ * its operands.
+ *
+ * References: T. G. Szymanski, "Assembling Code for Machines with
+ * Span-dependent Instructions" (CACM, 1978), the road not taken: when
+ * an instruction's size depends on the distance it spans, sizes and
+ * addresses depend on each other, and the layout is redone until no
+ * branch grows. Thompson's "Plan 9 C Compilers" cites it for the
+ * 68020's loader, and says of the MIPS that "all instructions are one
+ * size. A single pass over the instructions will determine the
+ * locations" -- arm's case too, so [layout] is one pass, a literal
+ * pool being put out before its first load would be out of reach.
+ * David Wheeler, "The use of sub-routines in programmes" (ACM National
+ * Meeting, 1952), EDSAC's call: the return address arrives in a
+ * register, as BL leaves it in R14, which a leaf keeps there; but the
+ * subroutine planted it in its own last order, so it could not call
+ * itself. Edsger Dijkstra, "Recursive programming" (Numerische
+ * Mathematik, 1960), the stack instead of fixed cells: where
+ * [rewrite]'s prologue pushes R14, below the frame, for a non-leaf. *)
 
 (* immediates as a real ARM rotation, not goken's 64-bit one *)
 val rotate : bool ref

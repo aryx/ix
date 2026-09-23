@@ -15,7 +15,11 @@
  * which it needs to read one back), and read back when rc starts.
  * $path is a list kept in step with $PATH, joined by :.
  *
- * References: principia's var.c, env.c; plan9port's rc (unix.c). *)
+ * References: principia's var.c, env.c; plan9port's rc (unix.c); Tom
+ * Duff, "Rc -- The Plan 9 Shell" (1990), "Environment": on Plan 9 each
+ * variable is a file in /env, its "components terminated by zero
+ * bytes", and a function is /env/fn#name -- the zero byte a Unix
+ * environment string cannot hold, hence \001 here, as plan9port. *)
 
 type t
 

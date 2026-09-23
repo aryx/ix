@@ -42,7 +42,18 @@
  * its rebuilder.
  *
  * References: principia's mk.c (mk, work), recipe.c (dorecipe) and
- * run.c (run, sched, waitup, usage). *)
+ * run.c (run, sched, waitup, usage); Andrew Hume, "Mk: a Successor to
+ * Make" (USENIX, 1987), section "Parallel processing", for this loop:
+ * "When mk finds a recipe it can execute, it puts the recipe on a
+ * queue. When the recipe terminates, mk updates the dependency graph";
+ * R. L. Graham, "Bounds for certain multiprocessing anomalies" (Bell
+ * System Technical Journal, 1966), list scheduling -- whenever a
+ * processor is free, start the next ready task on the list -- is
+ * never worse than twice the best order, yet more processors can make
+ * it slower: the policy of the $NPROC slots, with the queue as the
+ * list, in the walk's order and not the slowest first; Andrey Mokhov,
+ * Neil Mitchell and Simon Peyton Jones, "Build Systems a la Carte"
+ * (ICFP 2018). *)
 
 type flags = {
   dry : bool;          (* -n *)

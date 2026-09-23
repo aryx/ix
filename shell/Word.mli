@@ -28,7 +28,14 @@
  *
  * References: rc(1), "Variables", "Concatenation"; principia's
  * exec.c (Xdol, Xcount, Xqdol, Xsub, subwords, Xconc) and processes.c
- * (Xbackq). *)
+ * (Xbackq); Tom Duff, "Rc -- The Plan 9 Shell" (1990), whose first
+ * design principle is that rc is "not a macro processor. Input is
+ * never scanned more than once": so a variable must hold a list, not
+ * a string to split again, and `{cmd} is parsed with the command
+ * around it, where Bourne's `cmd` needs backslashes "exponential in
+ * the nesting depth"; S. R. Bourne, "The UNIX Shell" (Bell System
+ * Technical Journal, 1978), the shell of strings re-split on IFS that
+ * this replaces. *)
 
 exception Error of string
 

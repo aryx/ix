@@ -28,7 +28,16 @@
  * character decodes UTF-8, so . takes an é whole. As in libregexp, .
  * and [^...] never match a newline, ^ matches after one and $ before
  * one: a line holds none, except while s is making several lines of
- * one (Command). *)
+ * one (Command).
+ *
+ * References: Ken Thompson, "Regular Expression Search Algorithm"
+ * (CACM, 1968), written for QED on the IBM 7094: the expression was
+ * compiled to 7094 code that follows every state of the NFA at once,
+ * so a search is linear in the text -- the list of threads here, run
+ * by an interpreter instead of as machine code; Russ Cox, "Regular
+ * Expression Matching: the Virtual Machine Approach" (2009), which
+ * tells how Rob Pike's sam gave each thread its own captures, the
+ * "Pike VM" of libregexp and of this module. *)
 
 type t
 

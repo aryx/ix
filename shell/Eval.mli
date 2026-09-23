@@ -25,7 +25,15 @@
  * code.c, which compiles those without the check.
  *
  * References: principia's code.c (outcode: what each construct
- * means), exec.c, simple.c, processes.c. *)
+ * means), exec.c, simple.c, processes.c; Tom Duff, "Rc -- The Plan 9
+ * Shell" (1990), for if not, his "admittedly feeble solution": after
+ * if(c) cmd and a newline, an interactive rc must run it at once, so
+ * it cannot wait to see an else; James R. Bell, "Threaded Code" (CACM,
+ * 1973), the road not taken here: a program compiled to a list of
+ * routine addresses, each run in turn -- which is what code.c makes
+ * of a command, run by main.c's loop calling one Code cell's function
+ * after the other, rather than by Bell's jump from routine to
+ * routine. *)
 
 type caps = < Process.caps; Cap.chdir; Cap.env >
 

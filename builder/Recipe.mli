@@ -36,7 +36,10 @@
  * it is what 9base prints, and what the differential tests compare.
  *
  * References: mk(1), "Execution" and "Environment"; principia's run.c,
- * env.c (buildenv), shprint.c and Posix.c (execsh, exportenv). *)
+ * env.c (buildenv), shprint.c and Posix.c (execsh, exportenv); Andrew
+ * Hume and Bob Flandrena, "Maintaining Files on Plan 9 with Mk", for
+ * the one shell: "Make evaluates recipes one line at a time ... Mk
+ * passes the entire recipe to the shell without interpretation". *)
 
 type job = {
   rule : Mkfile.rule;         (* the master rule, whose recipe runs *)

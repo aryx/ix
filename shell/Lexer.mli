@@ -27,7 +27,14 @@
  * Input is read a line at a time, through [refill], which is told
  * whether the command is continued: that is how the terminal prompts
  * with the first or the second string of $prompt. A here document's
- * body is read, raw, right after the line that asked for it. *)
+ * body is read, raw, right after the line that asked for it.
+ *
+ * References: principia's lex.c; Tom Duff, "Rc -- The Plan 9 Shell"
+ * (1990), "Free carets": "User demand has dictated that rc insert
+ * carets in certain places, to make the syntax look more like the
+ * Bourne shell", with the exact rule; S. R. Bourne, "An Introduction
+ * to the UNIX Shell", for here documents, the lines between <<! and !
+ * given as a command's standard input. *)
 
 type token =
   | WORD of string * bool     (* text, quoted *)

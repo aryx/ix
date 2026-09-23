@@ -85,7 +85,19 @@
  * it again; replace the scan by pending counts per node and measure
  * the difference; let a recipe declare the dependencies it discovered
  * (redo's redo-ifchange), which the one-pass scheduler can take if a
- * node is decided again after its new prerequisites are done. *)
+ * node is decided again after its new prerequisites are done.
+ *
+ * References: Stuart Feldman, "Make -- A Program for Maintaining
+ * Computer Programs" (Software: Practice and Experience, 1979), the
+ * idea: "The description file really defines the graph of
+ * dependencies"; Andrew Hume, "Mk: a Successor to Make" (USENIX,
+ * 1987), for % rules and recipes run in parallel; A. B. Kahn,
+ * "Topological sorting of large networks" (CACM, 1962): take a node
+ * whose predecessors are all done, repeat, and what is left at the end
+ * is a cycle -- the scheduler's loop, with the cycles reported
+ * earlier, by the walk that builds the graph; Andrey Mokhov, Neil
+ * Mitchell and Simon Peyton Jones, "Build Systems a la Carte" (ICFP
+ * 2018), for the verifying traces. *)
 
 (*****************************************************************************)
 (* Types *)

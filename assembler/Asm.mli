@@ -40,7 +40,18 @@
  *
  * {b One instruction type for both machines} (xix has a typed tree per
  * machine): an opcode, its dot suffixes, and operands from one set.
- * The linker's classifier rejects what a machine can't encode. *)
+ * The linker's classifier rejects what a machine can't encode.
+ *
+ * References: Ken Thompson, "Plan 9 C Compilers" (Summer 1990 UKUUG
+ * Conference, London), the design paper of this split: its loader
+ * "combines the roles of second half of the assembler, global
+ * optimizer, and loader", with the MIPS and the 68020 as examples;
+ * Rob Pike, "A Manual for the Plan 9 assembler", for the syntax, the
+ * pseudo-registers FP and SB, and the remark that the assemblers "are
+ * really just variations of a single program" -- which one instruction
+ * type makes literal; Russ Cox, "Go 1.3 Linker Overhaul" (2013), for
+ * the move back, the encoding done once per package by the compiler
+ * and the assembler because linking large programs redid it. *)
 
 type arch = Arm | Arm64
 

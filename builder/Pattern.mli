@@ -26,7 +26,12 @@
  * character.
  *
  * References: mk(1), "Meta-rules"; Stuart Feldman, "Make -- A Program
- * for Maintaining Computer Programs", 1979 (suffix rules); principia's
+ * for Maintaining Computer Programs", 1979 (suffix rules); Andrew
+ * Hume, "Mk: a Successor to Make" (USENIX, 1987), whose abstract
+ * counts "pattern-matching metarules rather than suffix
+ * transformation rules" among mk's advantages over make, and which
+ * warns that the :R: kind is "significantly slower than %
+ * metarules" -- here a regexp match per candidate name; principia's
  * match.c; regexp(6) for the syntax. *)
 
 type t =

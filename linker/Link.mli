@@ -17,7 +17,23 @@
  *
  * Names: each function says which of 5l's (goken's linkers/5l, as the
  * Principia book documents it) and of xix's (linker/) it corresponds
- * to, so either can be found from here. *)
+ * to, so either can be found from here.
+ *
+ * References: Ken Thompson, "Plan 9 C Compilers" (Summer 1990 UKUUG
+ * Conference), its section "The loader": code "reordered to remove
+ * unconditional branch instructions", conditional branches inverted
+ * and a few instructions copied instead of a branch ([follow]); and
+ * external data allocated "with the smallest variables allocated
+ * first", written for the MIPS, whose loads reach +-32K from R30
+ * ([layout_data], for arm's R12); Leon Presser and John R. White,
+ * "Linkers and Loaders" (ACM Computing Surveys, 1972), the classic
+ * survey, which splits the job into allocation, linking, relocation
+ * and loading -- here [layout_data] allocates, [load] and [resolve]
+ * link, relocation has no pass of its own (the encoder writes final
+ * addresses), and loading is the kernel's exec; John R. Levine,
+ * Linkers and Loaders (2000), for archives and their symbol index, and
+ * the one scan of Unix's ld that makes the order of libraries matter,
+ * where [load] scans them all again until nothing new is defined. *)
 
 type kind = Undefined | Text | Data | Bss
 

@@ -19,7 +19,15 @@
  * replaced, for u.
  *
  * Errors are Input.Error, caught by [run], which prints ? (or ?file)
- * and starts the loop again, after Input.recover. *)
+ * and starts the loop again, after Input.recover.
+ *
+ * References: principia's ed.c (commands); L. Peter Deutsch and Butler
+ * Lampson, "An Online Editor" (CACM, 1967), QED, for the SDS 940
+ * time-sharing system at Berkeley and used from teletypes, hence a
+ * line at a time: line addresses, then a one-letter command, the
+ * shape ed inherited; Dennis Ritchie, "An incomplete history of the
+ * QED text editor", from that QED to Thompson's, which added regular
+ * expressions, and from it to ed. *)
 
 type t
 

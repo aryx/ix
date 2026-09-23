@@ -67,3 +67,23 @@ plan restates only where it differs.
     dates and names from memory marked as such.
 11. **Comments describe the code as it is**; new comments in existing
     code are tagged `claude:`.
+
+## References in the code
+
+The classic papers and books behind an idea are cited next to the
+code that implements it, as in the Playground's `.mli` files
+(`~/playground/physics/3d/Collide3d.mli`): a `References:` paragraph
+at the end of the module's header comment, in the `.mli` when there
+is one (the `.ml` otherwise, as for the one-file programs of
+`tiny/`). Each reference says what the paper did (its problem, its
+machine), which function or idea of the module uses it, and where
+this code differs or took the other road: Feldman's "Make" (1979) in
+`builder/Graph.mli`, Thompson's regular expression search (1968) in
+`editor/Regex.mli`, Szymanski's span-dependent instructions (1978)
+in `linker/Arm.mli`, as the road not taken. They are checked, not
+quoted from memory: a quote is from the paper itself (principia has
+the Plan 9 ones, under `builders/docs/`, `shells/docs/`,
+`assemblers/docs/` and `compilers/docs/`), and a detail that could
+not be checked -- a page, an issue, a chapter -- is left out. The
+related-work notes (`related-work/`) have the longer story, and the
+works that are not tied to one module.

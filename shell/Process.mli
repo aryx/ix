@@ -22,7 +22,15 @@
  * {b Redirections are done in the shell}, around the command, and
  * undone after: the fds a command changes are first copied away and
  * then put back. So a builtin or a function sees them as a program
- * does (rc only applies them before an exec). *)
+ * does (rc only applies them before an exec).
+ *
+ * References: D. M. Ritchie and K. Thompson, "The UNIX Time-Sharing
+ * System" (CACM, 1974): process creation as two calls, fork and exec,
+ * and the shell as an ordinary program; between the two, the child
+ * sets up its own file descriptors, which is how the diagram above
+ * works. Dennis Ritchie, "The Evolution of the Unix Time-sharing
+ * System" (AT&T Bell Laboratories Technical Journal, 1984), for how
+ * pipes came into Unix, at Doug McIlroy's urging. *)
 
 type caps = < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.open_out >
 
