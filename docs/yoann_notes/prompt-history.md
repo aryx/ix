@@ -1315,3 +1315,47 @@ Now starting Arm64.ml. The arm64 subset uses bitmask immediates (not rotate), no
 **Yoann:**
 
 > let's do it
+
+**Claude (summary):**
+
+Claude completed arm64 and Mach-O support in three commits, achieving byte-identical output to goken's 7l.
+Arm64 fixtures (20 programs) and hello_libc variants (17 programs) all matched 7l's bytes perfectly.
+Reproduced 7l's design differences from 5l: symbol hash, data alignment, literal pool, 16-aligned frame.
+Discovered two bugs in goken itself (ELF section-table and mem crash on arm64), not in ix's code.
+Arm64 and Mach-O work complete; moving to build the one-file tiny/ variant and finalize the linker.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 19:00
+
+**Yoann:**
+
+> excellent, yes let's make the tiny/ one and finalize the assember and linker part
+
+------------------------------------------------------------------------
+
+## 2026-09-23 19:32
+
+**Yoann:**
+
+> please use capabilities in new code, so the Assembler and linker should take Cap.open_in and Cap.open_out if they want to read or write files
+
+**Claude (summary):**
+
+Claude created a 410-line TinyAssembler that reads arm64 assembly and writes static ELF with no object files or libraries. It uses three passes (expand, lay out, encode) with no literal pool and keeps 7l's stack frames for compatibility with 7c-generated code. TinyAssembler_test.sh runs 19 programs; fuzzer found and fixed two arm bugs; all tests pass cleanly now at 1,500+ identical bytes. Every file-reading function now takes Cap.open_in/open_out capabilities throughout assembler and linker, matching builder's pattern. Two commits delivered the variant and finalization (e6e1300, ec372fc); tutorial and plan's Status sections updated.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 20:02
+
+**Yoann:**
+
+> let's commit
+
+------------------------------------------------------------------------
+
+## 2026-09-23 20:03
+
+**Yoann:**
+
+> what's next?
