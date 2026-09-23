@@ -7,9 +7,11 @@ by a shell, several at a time. It is written for **a reader of
 TinyMk's code, not a user of mk**, and it explains the ideas in the
 order the code needs them.
 
-It is the specification of the program planned in
-[`plan_mk.md`](../plans/plan_mk.md), written before the code, to be
-checked against it and have its numbers measured. Companions:
+It was the specification of the program planned in
+[`plan_mk.md`](../plans/plan_mk.md), written before the code, and it
+has since been checked against it (2026-09-23): where the code turned
+out otherwise, the text now says what the code does, and the numbers
+are measured. Companions:
 [`notes_mk_related_work.md`](../related-work/notes_mk_related_work.md)
 (Make, mk, redo, Ninja, Shake, Bazel, and where TinyMk stops). Its
 full-size twins are the Principia book `builders/Make.nw` (the C
@@ -27,6 +29,7 @@ tutorial names both where TinyMk does something differently.
 | `Outofdate` | date stamps, and the decision "must this be remade?" | §6, §7 |
 | `Build` | the loop: ready jobs, `$NPROC` slots, re-stat after each | §9 |
 | `Recipe` | a process per job: the shell, the environment, `:Q:`, `:D:` | §8 |
+| `Archive` | `lib.a(foo.o)`: a member's date in the archive's header | §6 |
 | `CLI` | flags, `var=value`, which mkfile, exit status | §11 |
 
 Read §1 for the problem, §2-§4 for the language, §5-§7 for the
@@ -124,7 +127,8 @@ two words, and `$OBJS` in a rule header gives two prerequisites.
 - **`$name` and `${name}`**, the braces being needed when a letter
   follows (`${name}s`);
 - **`${name:A%B=C%D}`** rewrites each word that matches `A%B`. It is
-  the most used trick in real mkfiles (94 of xix's 472), and
+  the most used trick in real mkfiles (in 94 of the 472 reachable
+  from `~/xix`, principia's included), and
   `mkfiles/mkprog` is the example:
 
   ```
@@ -204,9 +208,10 @@ simple rules and metarules are treated differently:
 4. **NREP**: a metarule may be used at most `$NREP` times (default 1)
    on any path from the root. Without that limit, `%: %.gz` would look
    for `foo.gz`, then `foo.gz.gz`, forever.
-5. **A cycle** (`a: b`, `b: a`) is an error, and TinyMk prints the
-   whole path (`a -> b -> a`), as omk does. mk prints only the node
-   where it noticed.
+5. **A cycle** (`a: b`, `b: a`) is an error: "cycle in graph detected
+   at target a", mk's message. (This tutorial first promised the whole
+   path, `a -> b -> a`, as omk prints it; the differential tests
+   wanted mk's words, and got them.)
 
 The result is an immutable value: nodes, arcs to prerequisite nodes,
 shared when two targets need the same file (`mkfiles/mkcommon`'s
@@ -279,6 +284,22 @@ out of date depends on what the recipes actually did. That is why
 TinyMk's `Build` asks the question again after every job (§9; the
 plan's decision 4 records the design this ruled out).
 
+**Archive members** have a date stamp of their own: `lib.a(foo.o)`
+is `foo.o`'s date in the archive's header (`Archive`), so a library
+is rebuilt one changed member at a time, and `$newmember` names them.
+
+**`-H`, content hashes instead of times**, is TinyMk's one feature
+from outside mk. A target's *trace* is a digest of its recipe and of
+its prerequisites' contents, kept in `.mkhash`; the target is out of
+date if it is missing, virtual, or its trace changed. Early cutoff
+then needs no `cmp -s`: a header regenerated identically leaves its
+dependents' traces alike. On xix, touching every source (a `git
+checkout`) makes the times rebuild 363 recipes in 32 s, and `-H` none
+in 1.1 s. A target with no trace yet is decided by its times: the first
+measurement without that rule rebuilt another directory's `Cap.cmi`
+from `lib_core/commons`, which had no trace for it -- recursive make
+considered harmful, in one line (plan, phase 7).
+
 ## 7. Missing intermediates: what mk does, and TinyMk doesn't
 
 Plan 9's mk has one more rule, on by default. Suppose `foo.o` is
@@ -294,9 +315,14 @@ reason, and be "unpretended" and built after all). It also misfires
 in practice: principia's mk turned it off by default, after compiling
 `libc/` skipped directories because another directory had already
 made `libc.a` (`globals.c`, the comment on `iflag`). TinyMk always
-builds a missing intermediate, which is what `mk -i` does. The plan's
-phase 6 decides whether to add pretending back, with its lines
-counted.
+builds a missing intermediate, which is what `mk -i` does.
+
+The differential tests found one thing this section did not say:
+9base pretends for a *virtual* prerequisite too. With `out: gen`,
+`gen:V: src` and `out` newer than `src`, 9base runs nothing and TinyMk
+runs `gen` (the corpus case `pretend.mk`). Every other comparison runs
+9base with `-i`, and none of the 379 directories compared differs
+because of it; xix builds without it. So it stays out.
 
 ## 8. Running a recipe
 
@@ -329,16 +355,24 @@ with it. `Recipe` runs it:
      nproc=0..NPROC-1  which slot runs it     pid=...
   ```
 
-  A list is exported with its words separated by spaces for `sh`. rc
-  wants real lists, which Plan 9 passes through `/env` (the exact
-  convention is plan9port's `Posix.c` against principia's `Plan9.c`,
-  to be checked when `Recipe` is written).
+  A list is exported with its words separated by a space for `sh`,
+  and by `\001` for rc, which splits it back into a list. An empty
+  list is not exported to rc at all: on Plan 9 it is an empty `/env`
+  file, which rc reads as `()`, but a Unix rc reads `X=` as `('')`,
+  one empty word, and `ocamlc $SYSLIBS` then fails on an empty
+  argument. 9base exports it anyway; omk does not, and neither does
+  TinyMk, because building xix needs it (the plan's phase 5 found it).
 - **Printing**: the recipe is printed before it runs, unless the rule
   is `:Q:`. mk(1)'s bugs section warns that the printed version
   expands variables "sometimes erroneously" ("Don't trust what's
-  printed"). TinyMk prints the recipe unexpanded, which is at least
-  never wrong. That output differs from mk's, so the differential
-  tests compare the commands run rather than the lines printed.
+  printed"). TinyMk prints it exactly as 9base does, errors included,
+  because that is what the differential tests compare: the variables
+  mk set are expanded, `$HOME` and anything quoted are left for the
+  shell, and a `}` right after an unbraced `$name` is swallowed, as
+  `shprint.c` does (`{cmd $X}` prints without its brace). Standard
+  output is buffered and standard error is not, so under `-n` an error
+  comes out before the recipes printed first; TinyMk buffers the same
+  way.
 - **Failure**: mk stops (or, with `-k`, goes on with whatever doesn't
   depend on the failed target). With `:D:` the target is deleted, so
   a half-written file doesn't look up to date next time. `:E:` makes
@@ -358,7 +392,8 @@ with it. `Recipe` runs it:
 ```
 
 The only mutable state is two tables: the date stamps seen so far,
-and each node's progress (`Running`, `Made`, `Failed`). The walk that
+and each node's progress (not made, being made, made; the targets of
+a job that failed stay "being made", so nothing above them runs). The walk that
 computes `ready` is a pure function of the graph and those tables.
 Only the loop does I/O, through `Recipe`. The modes are what "start a
 job" means: `-n` prints the recipe and marks its targets made as of
@@ -374,14 +409,18 @@ With `NPROC=2`, hello.mk from scratch:
                             ^ both .5 made: hello becomes ready
 ```
 
-`NPROC=1` must print exactly what `mk -n` prints, in the same order.
-That order is a depth-first walk from the target, prerequisites in
-mkfile order, and it is the first differential test.
+`NPROC=1` prints exactly what `mk -n` prints, in the same order: a
+depth-first walk from the target, prerequisites in the graph's order,
+jobs queued as found. Measured on every directory with a mkfile: 68 of
+xix's 73 give the same output and exit status as 9base, and 277 of
+principia's 306; the others are 9base rejecting omk's `:I:`
+attribute, which TinyMk accepts, and 9base's whole seconds.
 
 **The simple version, and the faster one.** Re-walking the whole
 graph after every job costs O(nodes) per job, O(n²) in all. mk does
-the same, and for xix's biggest directories (hundreds of files, not
-millions) it is to be measured before it is changed. The faster
+the same, and on xix it doesn't matter: `-n` over all 73 directories
+takes 1.94 s with TinyMk, 1.56 s with 9base's mk (and 11.35 s with
+omk), most of it starting processes and running backquotes. The faster
 version keeps, for each node, the count of prerequisites not yet
 made, and puts a node in the ready queue when its count reaches zero
 (Kahn's topological sort, 1962). If it is ever needed, it is written
@@ -392,8 +431,10 @@ sequential" law of §10 checks that the two agree (plan, principle 8).
 
 A build system can be wrong in only a few ways, and Mokhov, Mitchell
 and Peyton Jones named them (*Build Systems à la Carte*, 2018). Each
-is a test here, run on the corpus and on random DAGs generated from a
-seed:
+is a test here (`builder/tests/Laws.ml`), on 50 random DAGs generated
+from seeds, in a fake world where recipes run instantly and, for the
+parallel law, jobs end in a seeded random order -- with times, and
+again with `-H`:
 
 ```
    correct      after a build, every target is what a clean build
@@ -411,9 +452,13 @@ directly or through other targets, and nothing else. §6's early
 cutoff is the allowed exception. Its test checks that the cutoff
 happens when the recipe leaves the file alone, and only then.
 
-And the differential tests (plan, "Tests"): the same mkfiles under
-`-n`, through TinyMk, plan9port mk and omk, where every disagreement
-is either a bug or an entry in §6's or §3's tables.
+And the differential tests (plan, "Tests"): 34 mkfiles in
+`builder/tests/corpus/`, one per feature or quirk, whose outputs were
+recorded from 9base's mk. TinyMk gives the same output on 31; the
+other three are the differences on purpose, each with its own expected
+output: sub-second times (§6), pretending (§7), and the empty list
+under rc (§8). omk, its markers stripped, agreed with 9base on 2 of
+the 32 cases of the first live run.
 
 ## 11. Compared with mk and omk
 
@@ -426,17 +471,22 @@ different route:
 | rules | two lists: rules and metarules | two lists | one list, the target a `Pattern.t` |
 | graph | nodes with flag bits | nodes with mutable fields | an immutable value; progress in two tables |
 | `-n`, `-t`, `-k` | tests inside `work`, `dorecipe`, `run` | the same | what "start a job" means |
-| times | seconds, `<=` | sub-second, `<` | sub-second, `<=` |
-| `:R:`, `&`, `:P:`, archives | yes | no | yes (`:R:` and archives late) |
-| missing intermediates | pretend by default (Plan 9); off in principia | no | no (phase 6 decides) |
-| lines | 5,980 (4,280 by the book's count) | 2,761 | about 750 (target) |
+| times | seconds, `<=` | sub-second, `<` | sub-second, `<=`, or content hashes with `-H` |
+| `:R:`, `&`, `:P:`, archives | yes | no | yes |
+| missing intermediates | pretend by default (Plan 9, 9base); off in principia | no | no |
+| messages | mk's | its own (`\|recipe\|`, colours) | 9base's, byte for byte on the corpus |
+| lines of code | 5,980 (4,280 by the book's count) | 2,879 (`.ml`, `.mll`, `.mly`) | 1,782 (1,398 without blanks and comments) |
 
-The last row is the claim this program exists to test.
+The last row is the claim this program existed to test, and it came
+out half-true: TinyMk is 62% of omk's size with more of mk in it, but
+the plan's target was 750 lines, and the faithful details -- 9base's
+messages and quirks, archives, `:P:`, `-H` -- cost more than that
+estimate allowed.
 
 ## 12. What's missing, and exercises
 
-Beyond the plan's later phases (`:R:`, archives, pretending,
-content hashes), in rough order of difficulty:
+Beyond the plan (whose one feature left out is pretending, §7), in
+rough order of difficulty:
 
 - **`-d g`, the graph as dot**, with out-of-date nodes in red: the
   best way to see §5 on a real directory (`Graph`);
@@ -455,9 +505,10 @@ content hashes), in rough order of difficulty:
   graph can't be built first, and `Build`'s loop has to change shape.
   That is the most instructive exercise here, because it shows which
   of TinyMk's decisions came from mk's static graph;
-- **content hashes** (`-H`): a `.mkhash` file, and early cutoff for
-  every recipe instead of the careful ones (§6) (`Outofdate`, the
-  plan's phase 7);
+- **pretending** (§7): add it back behind a flag, and count its lines
+  against the estimate of 40 (`Build`, `Outofdate`);
+- **one `.mkhash` for a whole tree** under `-H`, so that a recursive
+  build's directories share their traces (`CLI`, §6);
 - **tup's direction**: given the changed files, walk *up* to what
   depends on them, instead of down from the target. It needs the
   reverse graph, which is one `Hashtbl` away (`Graph`).
@@ -465,8 +516,9 @@ content hashes), in rough order of difficulty:
 ## 13. In ix
 
 TinyMk is a terminal program and depends on nothing graphical. It runs
-on the host first, building xix's mkfiles. Its milestone is building
-omk, its own full-size twin (the plan's phase 5). Later it builds
+on the host, and builds all of xix from its mkfiles: its milestone was
+building omk, its own full-size twin, and the omk it builds rebuilds
+xix to the same 476 files (the plan's phase 5). Later it builds
 ix's own programs, with TinyShell as its `MKSHELL`. When ix runs OCaml
 programs on TinyKernel (not settled yet), it is also the first test of
 `fork`, `exec` and `wait` in the ix kernel: the kernel book's syscalls,

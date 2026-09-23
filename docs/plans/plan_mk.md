@@ -9,7 +9,7 @@ must obey. And
 Make, mk, redo, Ninja, tup, Shake, Bazel, dune, and the theory that
 classifies them. The twins are the Principia book `builders/Make.nw`
 (mk in C, 4,280 lines by the book's own count) and xix's `builder/`
-(omk, mk in OCaml, 2,761 lines).
+(omk, mk in OCaml, 2,879 lines of `.ml`, `.mll` and `.mly`).
 
 ## Context
 
@@ -51,7 +51,8 @@ plans list only their differences.
    dropped only when that saves a lot of code or a lot of complexity.
    Each dropped feature is named in this plan, with how often real
    inputs use it and what dropping it saves in lines. For mk, the real
-   inputs are the 472 mkfiles of xix, counted below.
+   inputs are the 472 mkfiles reachable from `~/xix`, counted below
+   (390 of them principia's, through xix's `principia` link).
 2. **A different design, not a shorter copy.** principia's C and xix's
    OCaml are the specification and the inspiration, not the template.
    Each plan says where its design departs from both, and why that
@@ -102,7 +103,9 @@ language and `mk`'s command line, and it is kept. A mkfile that mk
 builds, TinyMk builds the same way.
 
 The decisions follow data rather than taste. Here is how many of
-xix's 472 mkfiles use each feature (`grep -l`, 2026-09-23; principia's
+the 472 mkfiles reachable from `~/xix` use each feature -- 82 of
+xix's own and 390 of principia's, through the `xix/principia` link, a
+count first taken for xix's alone (`grep -l`, 2026-09-23; principia's
 389 give the same proportions):
 
 | feature | mkfiles | TinyMk |
@@ -161,7 +164,7 @@ builder/                 library ix_mk + the tinymk executable
                          -n, -t, -k; re-stat after each job
   Recipe.ml(i)           processes: the environment exported, MKSHELL,
                          sh or rc quoting, printing (and :Q:), :D:
-  Archive.ml(i)          (phase 6) member times of lib.a(foo.o)
+  Archive.ml(i)          member times of lib.a(foo.o) (phase 6)
   CLI.ml(i), Main.ml     flags, var=value, MKFLAGS, MKARGS, exit status
 builder/tests/           Testo: the .mli examples, the laws, and the
                          differential corpus
@@ -169,7 +172,7 @@ builder/tests/corpus/    small mkfiles, each with the expected `mk -n`
                          output recorded from plan9port mk
 ```
 
-Nine modules, where omk has nineteen (`Globals`, `Flags`, `Ast`,
+Ten modules with `Archive`, where omk has nineteen (`Globals`, `Flags`, `Ast`,
 `Lexer`, `Parser`, `Parse`, `Env`, `Eval`, `Rules`, `Percent`,
 `Shellenv`, `Shell`, `File`, `Graph`, `Job`, `Scheduler`, `Outofdate`,
 `CLI`, `Main`). Where each of theirs went:
@@ -185,7 +188,8 @@ Nine modules, where omk has nineteen (`Globals`, `Flags`, `Ast`,
 | `Recipe` | `Shell`, `Shellenv`, `Scheduler` (part) | `run.c`, `env.c`, `shprint.c`, `rc.c`, `Posix.c`/`Plan9.c` |
 | `CLI`, `Main` | `CLI`, `Main`, `Flags`, `Globals` | `main.c`, `globals.c` |
 
-**The size target**: about 750 lines of `.ml`. That would be a quarter
+**The size target**: about 750 lines of `.ml`. (Measured at the end:
+1,782, a factor of 2.4 over; see Status.) That would be a quarter
 of omk and a sixth of mk, with more of mk's features than omk has. It
 is a target, not a promise, and the Status section will record the
 real number module by module. By module: `Word` 110, `Pattern` 60,
@@ -212,7 +216,10 @@ only structure inside a line is a word: quotes, `$v`, `${v:...}`,
 rule headers and raw recipe lines. A hand-written reader gets the same
 split for free, because recipe lines are never tokenized at all.
 
-**The alternative, kept open until phase 1 is measured**: ocamllex for
+**The alternative, kept open until phase 1 was measured** (it was:
+`Word.ml` came out at 199 lines, substitution included, its lexing
+proper -- quotes, blanks, `$` references -- about 90, and plain to
+read; no ocamllex): ocamllex for
 `Word` alone, if the hand-written word lexer comes out longer than
 about 80 lines or harder to read than the `.mll` would be. This choice
 is taken by readability, not dogma (principle 9).
@@ -451,8 +458,10 @@ programs the equivalent is real inputs:
   output recorded from plan9port mk and checked into git, so the tests
   don't need plan9port installed.
 - **Live differential runs**, when the references are present
-  (`make test-differential`): the same corpus, plus xix's 472
-  mkfiles under `-n`, through TinyMk, plan9port mk and omk. The
+  (`make test-differential`): the same corpus, through TinyMk,
+  plan9port mk and omk; and `builder/tests/tree_differential.sh DIR`,
+  `-n` in every directory of a tree that has a mkfile (xix's 73,
+  principia's 306). The
   number that matters is how many agree, and every disagreement is
   explained.
 - **The milestone: TinyMk builds its own twin.** `cd ~/xix/builder &&
@@ -496,6 +505,25 @@ programs the equivalent is real inputs:
    measured, and the related-work note's postscript filled in.
 
 ## Status
+
+**Summary (2026-09-23).** Every phase is done, but for pretending
+(decision 5, left out with its reasons); the log that follows has the
+numbers and the wrong turns, phase by phase.
+
+| phase | done | left |
+|---|---|---|
+| 0 | dune layout, `caps` from opam, Testo, the corpus recorded from 9base's mk, `differential.sh` | |
+| 1-2 | `Word`, `Pattern`, `Mkfile` (no AST, no yacc), `Graph` | |
+| 3-4 | `Outofdate`, `Recipe`, `Build`: sequential and `$NPROC` | |
+| 5 | TinyMk builds all of xix, and its omk rebuilds xix to the same 476 files; `-n` identical to 9base's in 68 of xix's 73 directories and 277 of principia's 306, the rest explained | |
+| 6 | `:R:`, archives, `-u` | pretending (decision 5) |
+| 7 | `-H`: after touching every source of xix, 0 recipes instead of 363 | one `.mkhash` per tree rather than per directory |
+| 8 | the tutorial checked against the code; this plan's and the related-work note's numbers filled in | |
+
+Tests: 63 (the `.mli` examples, the laws with times and with `-H` on
+50 random DAGs each, and a corpus of 34 mkfiles: 31 identical to 9base,
+3 different on purpose). Size: 1,782 lines of `.ml`, against 750
+planned, 2,879 for omk and 5,980 for mk's C.
 
 - **2026-09-23, mk chosen as the first ix program** (proposed by
   Claude among mk, rc and 5l, for the reasons in Context). The author's
@@ -665,12 +693,42 @@ programs the equivalent is real inputs:
 - **`-n` over xix's 73 directories**, three runs averaged: 1.94 s for
   TinyMk, 1.56 s for 9base's mk, 11.35 s for omk.
 
+- **2026-09-23, phase 8 DONE: the documents checked against the code.**
+  The tutorial was written ahead of the code, as its specification;
+  what it got wrong is the useful part, so here it is:
+  - it promised a cycle's whole path, `a -> b -> a`; the code prints
+    mk's "cycle in graph detected at target a", because the
+    differential tests wanted mk's words;
+  - it said TinyMk would print recipes unexpanded, "at least never
+    wrong", and that the tests would compare the commands run; in fact
+    TinyMk prints them exactly as 9base does, `}`-swallowing included,
+    and the tests compare the printed lines, which is simpler and
+    stricter;
+  - it left the export of lists to rc "to be checked"; checking found
+    the empty-list bug (phase 5);
+  - it named the build states `Running, Made, Failed`; they are not
+    made, being made, made, a failed job's targets staying "being
+    made";
+  - its missing-intermediates section did not know that 9base pretends
+    for virtual prerequisites too;
+  - and its size claim, "about 750 (target)", became 1,782 measured.
+  Each is corrected in place, and the note now says it was checked.
+  Two small promises of this plan are not kept, and are said here
+  rather than hidden: `-d g` prints an indented tree, not dot (dot is
+  an exercise in the tutorial's §12), and `-d e` is accepted and prints
+  nothing. `builder/tests/tree_differential.sh` joins the repository,
+  so that the per-directory numbers of phase 5 can be reproduced, and
+  `make test-differential` now runs the live comparison it described
+  (it ran the recorded one).
+
 ## Verification
 
 - `make test`: the `.mli` examples, the laws (on generated DAGs, from
   a seed), the corpus against its recorded `mk -n` outputs.
 - `make test-differential`, when plan9port mk and omk are installed:
-  the agreement count over xix's 472 mkfiles.
+  the corpus, live, against both; `builder/tests/tree_differential.sh`
+  on a copy of xix or principia: the agreement count, directory by
+  directory.
 - By hand, and then scripted: omk built by TinyMk, passing xix's
   tests.
 - Numbers, in this document: lines per module against the twins;

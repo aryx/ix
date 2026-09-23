@@ -16,9 +16,15 @@ is small enough to read in one sitting, but none of them is a toy. The
 emulator runs real ARM binaries, and the kernel runs real Plan 9
 programs.
 
-Nothing is here yet: the project was started on 2026-09-21, and this
-README describes the plan. See [docs/history.md](docs/history.md) for
-how the project came to be and how it got its name.
+The project was started on 2026-09-21, and this README describes the
+plan. The first program is written: **TinyMk**, the build system, in
+[`builder/`](builder/) (`make`, then `make test`), which builds all of
+xix from its mkfiles. Its plan, tutorial and related-work note are
+[docs/plans/plan_mk.md](docs/plans/plan_mk.md),
+[docs/tutorials/notes_mk.md](docs/tutorials/notes_mk.md) and
+[docs/related-work/notes_mk_related_work.md](docs/related-work/notes_mk_related_work.md).
+See [docs/history.md](docs/history.md) for how the project came to be
+and how it got its name.
 
 ## Tiny, not Toy
 

@@ -9,7 +9,7 @@ test: all
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.
 test-differential: all
-	./builder/tests/differential.sh
+	./builder/tests/differential.sh live
 
 clean:
 	dune clean

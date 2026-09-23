@@ -25,7 +25,7 @@ The author's own genealogy of the field, with dates, is
 | Blaze/Bazel (2006/2015), Buck, Pants, Please | Monorepos, remote caches, reproducibility | Declarative targets in Starlark, hermetic actions, content hashes |
 | Nix (2004) | Reproducible *deployment*, not just builds | Pure functions from inputs to store paths |
 | Language tools: Cargo, go, dune | Zero configuration for one language | Almost nothing: the tool knows the language |
-| `builder/` (TinyMk) | Seeing *why* a build system decides what it decides, on real mkfiles | A plain mkfile, run by about 750 lines of OCaml with the algorithm in view |
+| `builder/` (TinyMk) | Seeing *why* a build system decides what it decides, on real mkfiles | A plain mkfile, run by 1,782 lines of OCaml with the algorithm in view |
 
 ## Part 1: where it came from
 
@@ -46,8 +46,9 @@ The author's own genealogy of the field, with dates, is
 - **mk** (Andrew Hume, Bell Labs, "Mk: a Successor to Make", USENIX
   1987) went the other way. **No built-in rules at all**: Plan 9's
   mkfiles include prototype files (`mkone`, `mkmany`, `mklib`: Bob
-  Flandrena's "Plan 9 Mkfiles", 1995), which is why 425 of xix's 472
-  mkfiles start with a `<`. Rules got **attributes** (`:V:` years
+  Flandrena's "Plan 9 Mkfiles", 1995), which is why 425 of the 472
+  mkfiles reachable from `~/xix` (principia's included) start with a
+  `<`. Rules got **attributes** (`:V:` years
   before GNU make's `.PHONY` became idiomatic; `:Q:`, `:D:`, `:P:`),
   **regular-expression rules** (`:R:`), `&` beside `%`, parallelism
   through one variable (`$NPROC`), and the whole recipe given to one
@@ -198,25 +199,40 @@ As in the Playground, there are two levels:
   scheduler with `$NPROC` slots). That is one à la carte cell,
   implemented plainly, with the laws that define it as tests.
 - **The interface, at the real end**: mk's language, read unchanged,
-  checked by building xix's 472 mkfiles and omk itself against
-  plan9port mk and omk.
+  checked by building all of xix, omk included, and by comparing `-n`
+  with 9base's mk in every directory of xix and principia that has a
+  mkfile.
 
 **The ceiling, stated now**: modification times (content hashes only
-as an option), static dependencies (`.depend` must come from a tool,
+as an option, `-H`, with one `.mkhash` per directory), static dependencies (`.depend` must come from a tool,
 as with mk), no sandbox and no check that a recipe reads only what it
 declares, no remote cache, no distributed builds, recursive mkfiles
 with the problems Miller described, and none of dune's knowledge of
 OCaml. The goal is that a reader can predict exactly which recipes
 `mk` will run, and why, and can check that against the program.
 
-## Postscript: the numbers (to come)
+## Postscript: the numbers (measured 2026-09-23)
 
-Once built: TinyMk's lines per module against omk's 2,761 and mk's
-5,980; how many of xix's 472 mkfiles give the same `-n` output in
-TinyMk, plan9port mk and omk, with every difference explained; the
-time of `tinymk -n` on all of xix against the other two; the time to
-build omk from its mkfile; and, with phase 7, how many recipes
-content hashing saves on a typical xix rebuild after `git checkout`.
+- **Size**: TinyMk is 1,782 lines of `.ml` (1,398 without blanks and
+  comments): `Mkfile` 371, `Build` 295, `CLI` 252, `Recipe` 213,
+  `Word` 199, `Graph` 194, `Outofdate` 87, `Archive` 81, `Pattern` 77,
+  `Main` 13. omk is 2,879 lines of `.ml`, `.mll` and `.mly`; the C mk
+  5,980 (4,280 by the Principia book's count). The plan's target was
+  750, and it was wrong by a factor of 2.4.
+- **Agreement with 9base's mk**, `-n`, stdout and exit status compared
+  exactly: 68 of xix's 73 directories, 277 of principia's 306. The
+  others are all explained: 9base rejects omk's `:I:` attribute (26
+  directories), or sees equal whole seconds where TinyMk sees
+  sub-second times (8). On the corpus of 34 mkfiles, 31 identical, and
+  3 differences on purpose. omk: 21 of xix's 73 directories.
+- **Speed**: `-n` over xix's 73 directories in 1.94 s (9base's mk
+  1.56 s, omk 11.35 s). Building all of xix from scratch: 346 recipes,
+  32 s, nearly all of it `ocamlc`.
+- **The milestone**: TinyMk builds all of xix, and the omk it builds
+  rebuilds xix to the same 476 files.
+- **Content hashes** (`-H`), after touching every source: 0 recipes
+  in 1.1 s, against 363 in 32 s with times. After a comment added to
+  `Common.ml`: 4 recipes against 9.
 
 Sources: from memory unless a file is named, and to be checked before
 relying on them for teaching. That applies particularly to the pmake,
