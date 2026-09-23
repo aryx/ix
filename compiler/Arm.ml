@@ -39,76 +39,72 @@ let machine = {
 module A = Ix_asm.Asm
 open Emit
 
-let is_mem (n : node) = match n.op with ONAME | OINDREG | OIND -> true | _ -> false
-
 let load_op = function
   | Tfloat -> "MOVF" | Tdouble -> "MOVD" | Tchar -> "MOVB" | Tuchar -> "MOVBU" | Tshort -> "MOVH" | Tushort -> "MOVHU"
   | _ -> "MOVW"
 
 let store_op = function Tvlong -> "MOVD" | t -> load_op t
 
-let samaddr (f : node) (t : node) = f.op = OREGISTER && t.op = OREGISTER && f.reg = t.reg
-
 (* f to t: a load or a store through a register, or a conversion *)
 let rec gmove (f : node) (t : node) =
   let ft = et f and tt = et t in
   if is_mem f then begin
     let nod = if typechlp ft && typeilp tt then regalloc t (Some t) else regalloc f (Some t) in
-    ignore (gins (load_op ft) (Some f) (Some nod));
+    ins (load_op ft) f nod;
     gmove nod t;
     regfree nod
   end
   else if is_mem t then begin
     let nod = if ft = tt then regalloc t (Some f) else regalloc t None in
     gmove f nod;
-    ignore (gins (store_op tt) (Some nod) (Some t));
+    ins (store_op tt) nod t;
     regfree nod
   end
   else begin
     (* through a register, extended as the source says *)
-    let via ld cvt = let nod = regalloc f None in ignore (gins ld (Some f) (Some nod)); ignore (gins cvt (Some nod) (Some t)); regfree nod in
+    let via ld cvt = let nod = regalloc f None in ins ld f nod; ins cvt nod t; regfree nod in
     let to_float () = if tt = Tfloat then "MOVWF" else "MOVWD" in
     let bad () = ignore (diag None "bad opcode in gmove %s -> %s" (show_type f.ntype) (show_type t.ntype)) in
-    let ins a = if (a = "MOVW" || a = "MOVF" || a = "MOVD") && samaddr f t then () else ignore (gins a (Some f) (Some t)) in
+    let mv a = if (a = "MOVW" || a = "MOVF" || a = "MOVD") && samaddr f t then () else ins a f t in
     match ft with
     | Tdouble | Tvlong | Tfloat -> (
         match tt with
-        | Tdouble | Tvlong -> ins (if ft = Tfloat then "MOVFD" else "MOVD")
-        | Tfloat -> ins (if ft = Tfloat then "MOVF" else "MOVDF")
-        | Tint | Tuint | Tlong | Tulong | Tind | Tshort | Tushort | Tchar | Tuchar -> ins (if ft = Tfloat then "MOVFW" else "MOVDW")
+        | Tdouble | Tvlong -> mv (if ft = Tfloat then "MOVFD" else "MOVD")
+        | Tfloat -> mv (if ft = Tfloat then "MOVF" else "MOVDF")
+        | Tint | Tuint | Tlong | Tulong | Tind | Tshort | Tushort | Tchar | Tuchar -> mv (if ft = Tfloat then "MOVFW" else "MOVDW")
         | _ -> bad ())
     | Tuint | Tulong when tt = Tfloat || tt = Tdouble ->
         (* the top bit apart: vfp's conversion is signed *)
         let nod = regalloc f None in
         let nod1 = regalloc f None in
-        ignore (gins "MOVW" (Some f) (Some nod));
-        ignore (gins "MOVW" (Some nod) (Some nod1));
-        ignore (gins "AND" (Some (nodconst 0x80000000L)) (Some nod1));
-        ignore (gins "EOR" (Some nod1) (Some nod));
-        ignore (gins (to_float ()) (Some nod) (Some t));
+        ins "MOVW" f nod;
+        ins "MOVW" nod nod1;
+        ins "AND" (nodconst 0x80000000L) nod1;
+        ins "EOR" nod1 nod;
+        ins (to_float ()) nod t;
         let q = gins "CMP" (Some (nodconst 0L)) None in
         raddr (Some nod1) q;
         let p1 = gins "BEQ" None None in
         regfree nod;
         regfree nod1;
         let nod = regalloc t None in
-        if tt = Tfloat then (ignore (gins "MOVF" (Some (nodfconst 2147483648.)) (Some nod)); ignore (gins "ADDF" (Some nod) (Some t)))
-        else (ignore (gins "MOVD" (Some (nodfconst 2147483648.)) (Some nod)); ignore (gins "ADDD" (Some nod) (Some t)));
+        if tt = Tfloat then (ins "MOVF" (nodfconst 2147483648.) nod; ins "ADDF" nod t)
+        else (ins "MOVD" (nodfconst 2147483648.) nod; ins "ADDD" nod t);
         regfree nod;
         patch p1 !pc
     | Tint | Tlong | Tind | Tuint | Tulong -> (
         match tt with
-        | Tdouble -> ignore (gins "MOVWD" (Some f) (Some t))
-        | Tfloat -> ignore (gins "MOVWF" (Some f) (Some t))
-        | Tint | Tuint | Tlong | Tulong | Tind | Tshort | Tushort | Tchar | Tuchar -> ins "MOVW"
+        | Tdouble -> ins "MOVWD" f t
+        | Tfloat -> ins "MOVWF" f t
+        | Tint | Tuint | Tlong | Tulong | Tind | Tshort | Tushort | Tchar | Tuchar -> mv "MOVW"
         | _ -> bad ())
     | Tshort | Tushort | Tchar | Tuchar -> (
         let ld = load_op ft in
         match tt with
         | Tdouble | Tfloat -> via ld (to_float ())
-        | Tint | Tuint | Tlong | Tulong | Tind -> ins ld
-        | Tshort | Tushort when ft = Tchar || ft = Tuchar -> ins ld
-        | Tshort | Tushort | Tchar | Tuchar -> ins "MOVW"
+        | Tint | Tuint | Tlong | Tulong | Tind -> mv ld
+        | Tshort | Tushort when ft = Tchar || ft = Tuchar -> mv ld
+        | Tshort | Tushort | Tchar | Tuchar -> mv "MOVW"
         | _ -> bad ())
     | _ -> bad ()
   end
@@ -117,7 +113,7 @@ let rec gmove (f : node) (t : node) =
 let gmover (f : node) (t : node) =
   let ft = et f and tt = et t in
   if typechlp ft && typechlp tt && ewidth ft >= ewidth tt && List.mem tt [ Tshort; Tushort; Tchar; Tuchar ] then
-    ignore (gins (load_op tt) (Some f) (Some t))
+    ins (load_op tt) f t
   else gmove f t
 
 (*****************************************************************************)
@@ -226,13 +222,13 @@ let sucopy (n : node) (nn : node) w =
       while !w > c do gmovm nod1 nod4 true; gmovm nod4 nod2 true; w := !w - c done
     else begin
       let nod3 = regalloc (regnode ()) None in
-      Gen.gopcode OAS (Some (nodconst (Int64.of_int (!w / c)))) None (Some nod3);
+      gmove (Gen.iconst (!w / c)) nod3;
       w := !w mod c;
       let pc1 = !pc in
       gmovm nod1 nod4 true;
       gmovm nod4 nod2 true;
-      Gen.gopcode OSUB (Some (nodconst 1L)) None (Some nod3);
-      Gen.gopcode OEQ (Some (nodconst 0L)) (Some nod3) None;
+      Gen.op2 OSUB (nodconst 1L) nod3;
+      Gen.compare OEQ (nodconst 0L) nod3;
       (p ()).as_ <- "BGT";
       patch (p ()) pc1;
       regfree nod3
@@ -263,48 +259,8 @@ let sucopy (n : node) (nn : node) w =
     regfree nod2
   end
 
-(* a switch: a table (CASE, then BCASEs) when dense, compares when few,
- * a binary search otherwise *)
-let swit (q : (int64 * int) array) def (n : node) =
-  let tn = regalloc (regnode ()) None in
-  let rec swit2 lo nc =
-    let value i = fst q.(lo + i) and label i = snd q.(lo + i) in
-    let span = if nc >= 3 then Int64.to_int (sx32 (Int64.sub (value (nc - 1)) (value 0))) else 0 in
-    if nc >= 3 && span > 0 && span < nc * 2 then begin
-      let v = ref (value 0) in
-      if !v <> 0L then Gen.gopcode OSUB (Some (nodconst !v)) None (Some n);
-      Gen.gopcode OCASE (Some (nodconst (Int64.sub (value (nc - 1)) !v))) (Some n) None;
-      patch (p ()) def;
-      for i = 0 to nc - 1 do
-        while value i <> !v do
-          let q = nextpc () in q.as_ <- "BCASE"; patch q def;
-          v := Int64.succ !v
-        done;
-        let q = nextpc () in q.as_ <- "BCASE"; patch q (label i);
-        v := Int64.succ !v
-      done;
-      patch (gbranch OGOTO) def
-    end
-    else if nc < 5 then begin
-      for i = 0 to nc - 1 do
-        Gen.gopcode OEQ (Some (nodconst (value i))) (Some n) None;
-        patch (p ()) (label i)
-      done;
-      patch (gbranch OGOTO) def
-    end
-    else begin
-      let i = nc / 2 in
-      Gen.gopcode OGT (Some (nodconst (value i))) (Some n) None;
-      let sp = p () in
-      Gen.gopcode OEQ (Some (nodconst (value i))) (Some n) None;
-      patch (p ()) (label i);
-      swit2 lo i;
-      patch sp !pc;
-      swit2 (lo + i + 1) (nc - i - 1)
-    end
-  in
-  swit2 0 (Array.length q);
-  regfree tn
+(* a switch's table: CMP, then CASE.LS and BHI to the default *)
+let table (n : node) _ range def = Gen.compare OCASE range n; patch (p ()) def
 
 let backend = {
   arch = A.Arm; nreg = 16; nfreg = 8; regret = 0; fregret = 0; regsp = 13;
@@ -315,8 +271,8 @@ let backend = {
 }
 
 let hooks = {
-  Gen.sucopy; swit;
+  Gen.sucopy; table;
   fits = (fun _ v -> v > -4096 && v < 4096);
-  neg = (fun f t -> Gen.gopcode OSUB (Some f) (Some (nodconst 0L)) (Some t)); mul32 = false;
+  neg = (fun f t -> Gen.op3 OSUB f (nodconst 0L) t); mul32 = false;
   rsb = true; by_left = false; com64 = true; shifts = false; zero_arg = false; asop_load = false; indreg_ptr = false;
 }

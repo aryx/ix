@@ -22,7 +22,7 @@ let indexed = 9
  * instructions: set by the machine's module *)
 type hooks = {
   sucopy : node -> node -> int -> unit;       (* a structure's copy *)
-  swit : (int64 * int) array -> int -> node -> unit;   (* a switch's dispatch *)
+  table : node -> node -> node -> int -> unit;  (* a switch's table: the value, a register, its range, the default *)
   fits : node -> int -> bool;         (* an offset folded into n's load or store *)
   neg : node -> node -> unit;         (* to = -from *)
   mul32 : bool;                       (* a multiplier held in 32 bits (7c's mulcon) *)
@@ -813,6 +813,53 @@ let bcomplex (n : node) (c : node option) =
 
 let add_case c = cases := Some (c :: Option.get !cases)
 
+(* a vlong's constant, or a long's (7c's nodgconst) *)
+let nodgconst v (t : typ option) =
+  match t with
+  | Some t when typev t.etype -> let n = nodconst v in n.ntype <- Some (ty Tvlong); n
+  | _ -> nodconst (sx32 v)
+
+(* the sorted cases' dispatch: a table when dense, compares when few,
+ * else a binary search (swt.c's swit1 and swit2) *)
+let swit (q : (int64 * int) array) def (n : node) =
+  let tn = regalloc (regnode ()) None in
+  let c v = nodgconst v n.ntype in
+  let rec swit2 lo nc =
+    let value i = fst q.(lo + i) and label i = snd q.(lo + i) in
+    let span = if nc >= 3 then sx (Int64.sub (value (nc - 1)) (value 0)) else 0L in
+    if nc >= 3 && Int64.compare span 0L > 0 && Int64.compare span (Int64.of_int (nc * 2)) < 0 then begin
+      let v = ref (value 0) in
+      if !v <> 0L then op2 OSUB (c !v) n;
+      (h ()).table n tn (c (Int64.sub (value (nc - 1)) !v)) def;
+      (* a BCASE per value, the missing ones to the default *)
+      for i = 0 to nc - 1 do
+        while value i <> !v do
+          let q = nextpc () in q.as_ <- "BCASE"; patch q def;
+          v := Int64.succ !v
+        done;
+        let q = nextpc () in q.as_ <- "BCASE"; patch q (label i);
+        v := Int64.succ !v
+      done;
+      patch (gbranch OGOTO) def
+    end
+    else if nc < 5 then begin
+      for i = 0 to nc - 1 do compare OEQ (c (value i)) n; patch (p ()) (label i) done;
+      patch (gbranch OGOTO) def
+    end
+    else begin
+      let i = nc / 2 in
+      compare OGT (c (value i)) n;
+      let sp = p () in
+      compare OEQ (c (value i)) n;
+      patch (p ()) (label i);
+      swit2 lo i;
+      here sp;
+      swit2 (lo + i + 1) (nc - i - 1)
+    end
+  in
+  swit2 0 (Array.length q);
+  regfree tn
+
 (* the cases, sorted, to the machine's dispatch (pswt.c's doswit) *)
 let doswit (n : node) =
   let all = Option.get !cases in
@@ -826,7 +873,7 @@ let doswit (n : node) =
   done;
   let def = if def = 0 then (incr nbreak; !breakpc) else def in
   if isv && ewidth Tind <= ewidth Tlong then ignore (diag (Some n) "64-bit switches on 32-bit machines are not in the subset");
-  (h ()).swit q def n
+  swit q def n
 
 (* a label's last forward goto (5c's n->label) *)
 let labels : (node * prog) list ref = ref []

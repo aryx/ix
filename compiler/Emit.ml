@@ -132,6 +132,12 @@ let gins a (f : node option) (t : node option) =
   q.to_ <- naddr_opt t;
   q
 
+let ins a (f : node) (t : node) = ignore (gins a (Some f) (Some t))
+
+(* a load's or a store's operand, and a move to itself *)
+let is_mem (n : node) = match n.op with ONAME | OINDREG | OIND -> true | _ -> false
+let samaddr (f : node) (t : node) = f.op = OREGISTER && t.op = OREGISTER && f.reg = t.reg
+
 let gbranch (o : op) =
   let q = nextpc () in
   q.as_ <- (match o with ORETURN -> (bk ()).ret | OGOTO -> "B" | _ -> diag None "bad in gbranch");
