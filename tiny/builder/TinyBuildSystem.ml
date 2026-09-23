@@ -10,7 +10,7 @@
 (* A tiny build system: the idea of make (Stuart Feldman, 1976) and mk
  * (Andrew Hume, 1987) -- describe the dependencies between files
  * concisely, and maintain them efficiently -- without their language.
- * TinyMk (../) is mk, faithfully; this is what is left when
+ * TinyMk (builder/) is mk, faithfully; this is what is left when
  * compatibility is dropped and only the idea is kept.
  *
  * A Buildfile has five kinds of lines:

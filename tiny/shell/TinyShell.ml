@@ -8,7 +8,7 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny shell, in one file: pipes, redirections, variables and basic
- * control flow. TinyRc (../) is rc, faithfully; this is what is left
+ * control flow. TinyRc (shell/) is rc, faithfully; this is what is left
  * when compatibility is dropped, written after it, from what it taught.
  * The language is rc's, cut down:
  *

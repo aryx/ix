@@ -112,7 +112,7 @@ editor/                  library ix_ed + the tinyed executable
 editor/tests/            Testo: the .mli examples, the laws, the corpus
 editor/tests/corpus/     scripts, each with its output and files
                          recorded from 9base's ed
-editor/tiny/             TinyEditor.ml (see "Outside ed")
+tiny/editor/             TinyEditor.ml (see "Outside ed")
 ```
 
 **The size target**, set by module as TinyRc's was: Regex 220, Text
@@ -231,7 +231,7 @@ A deliberate difference, with one case and a `.tiny.out`: a line of
 ## Outside ed: TinyEditor.ml
 
 TinyBuildSystem.ml dropped mk's syntax, and TinyShell.ml kept rc's
-core. `editor/tiny/TinyEditor.ml` goes further from its twin, because
+core. `tiny/editor/TinyEditor.ml` goes further from its twin, because
 there is a better core to keep: **sam's command language**, Rob
 Pike's rethinking of ed ("The Text Editor sam", 1987, and "Structural
 Regular Expressions", 1987). There, the buffer is one string, not
@@ -305,7 +305,7 @@ written):
    `b`, `!`, errors and their clean-up, `-` and `-o`, signals.
 4. **The milestones**: `mkenam`, xix's history, the session; the line
    count.
-5. **`editor/tiny/TinyEditor.ml`**, sam's language, against `sam -d`.
+5. **`tiny/editor/TinyEditor.ml`**, sam's language, against `sam -d`.
 6. **Docs**: `notes_ed.md` checked against the code, the numbers
    filled in.
 
@@ -390,7 +390,7 @@ written):
     Input 108, Text 97, Out 69, CLI 26, Main 12. The C: 2,121 for ed.c
     and 1,316 of libregexp's files for the part it uses; oed 1,794 and
     partial.
-- **2026-09-23, phase 5: `editor/tiny/TinyEditor.ml`**, sam's command
+- **2026-09-23, phase 5: `tiny/editor/TinyEditor.ml`**, sam's command
   language: the buffer a string, dot a range, addresses as ranges,
   `x y g v` loops over matches, `{ }`, changes recorded against the
   text as it was and applied at the end of the command ("changes not

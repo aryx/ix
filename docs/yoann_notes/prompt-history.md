@@ -978,3 +978,110 @@ Claude listed yacc as a second choice and deferred compiler chain work to later 
 **Yoann:**
 
 > go for ed, but don't want for my review, do also the implementation the TinyEditor.ml final step too. I'll review when I'm back
+
+**Claude (summary):**
+
+Claude completed TinyEd and TinyEditor.ml implementations following the plan specifications exactly.
+It tested TinyEd against 9base using 44 corpus cases, 10,000 fuzzed scripts, and xix's historical rebuild diffs.
+Fuzzing revealed the plan's backtracking regex was wrong; Claude rewrote Regex.ml to match Plan 9's actual algorithm.
+TinyEd totaled 1,264 lines (1,007 code) and TinyEditor.ml 666 lines (531 code), with all tests passing.
+Both are committed and ready for review, starting with plan decision 2 and tutorial section 4.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 15:56
+
+**Yoann:**
+
+> ok perfect, what's next?
+
+**Claude (summary):**
+
+Claude recommended yacc next, citing its checkable outputs and connection to earlier TinyRc work decisions.
+Yoann addressed the toolchain alternative by proposing ~/goken/, which provides principia's cross-platform runnable toolchain.
+Goken targets Linux and runs on macOS, Windows, and Linux, simplifying local testing of compilation tools.
+This directly solves Claude's concern about needing a reference implementation for testing the assembler and linker.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 15:58
+
+**Yoann:**
+
+> regarding the toolchain, the idea would be to use ~/goken/ which contains principia's toolchain but runnable on Linux, macos, and Windows, and targeting Linux so it's also easier to test locally.
+
+**Claude (summary):**
+
+Claude analyzed goken's testing strengths and recommended architecture 8 for native ELF compatibility on an x86 machine.
+Yoann corrected him: it's an ARM64 machine, and he chose ARM 5 instead for Raspberry Pi and teaching.
+Yoann added a requirement: two architectures (32-bit and 64-bit) to force general code over single-target specificity.
+Second architecture candidates: MIPS (simple, 32-bit), RISC-V 64 (complex), or ARM64 (native but similar to ARM 5).
+Yoann asked Claude which pair best balances simplicity, architectural diversity, and sufficient generality to stress the toolchain.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 16:02
+
+**Yoann:**
+
+> actually this is an arm64 machine, but I would pick 5 as it can run also locally on an arm64. I actually would like to support 2 architectures, so that would force to write the code in more general way to support more architectures. Also would be nice to have 1 32 bits and 1 64 bits against to make sure the code we wrote is not too specific. I want 5 (arm) because I want to run on a raspberry Pi, the perfect machine for our teaching (hobby) context. The question then is which other one? Mips is nice because even simpler, but still 32 bits. Riscv64 could be nice but maybe too complex? arm64 could also be a nice option, so we can even run the binaries on this machine and at some point on macbooks. However maybe arm64 is too close to arm and so would not stress enough the "generality" of the tiny toolchain. What do you think?
+
+**Claude (summary):**
+
+Claude recommended arm64 (7) as the second architecture, detailing how it differs from 32-bit ARM in registers, immediates, and output formats. Yoann accepted the 5 and 7 pairing to support both 32-bit and 64-bit architectures with generality. He rejected goken and principia object-level references, preferring xix's simpler marshalling for objects and libraries, emphasizing that executable compatibility matters. Yoann also questioned whether to follow Plan 9's design of shifting code generation from assembler to linker, despite potentially reducing code size. He acknowledged the linker approach might reduce code but wanted Claude's perspective on whether it's the right architectural direction.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 16:07
+
+**Yoann:**
+
+> (I think though there is some issue with arm32float instutrctions on this arm64). Ok I think 5 and 7 are a good idea, and again trying to focus on the most important instructions, not necessariliy getting 100% coverage in order to keep the code small. Another thing is that I'm not sure we want to test compatiblity with the goken and principia toolchain at the object level; we might want to use simpler marshalling (like in xix toolchain) for objects and libraries; what is important is the final exe. Last thing is I dunno if we want to follow the plan9 design of moving the code generation to the linker rather than assembler. In the end I think it makes sense because it leads to lesser code I think, but you might have another opinion.
+
+**Claude (summary):**
+
+Claude recommended moving code generation to the linker to eliminate relocations and avoid duplicating instruction encoders, following Plan 9's design.
+The linker gets a clean split between general ELF handling and per-architecture instruction selection, with all decisions made at final-address time.
+This eliminates relocations and fixup machinery since the linker encodes instructions with final addresses known rather than expecting later relocation patches.
+Claude agreed on xix-style object marshalling with executable behavior as the test contract, and noted goken can be modified for byte-comparison validation.
+Claude proposed building goken first to test floating point support, then documenting the instruction subset before implementing the assembler and linker.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 16:10
+
+**Yoann:**
+
+> ok please add in comments in the code the 3rd point and why you also think the plan9 design is ultimately the best. Regarding exe compatbility, we can even imagine slightly modifying goken, moving some code behind flags to ease the comparison. we own goken so we can easily modify it.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 16:10
+
+**Yoann:**
+
+> I'll compile goken
+
+**Claude (summary):**
+
+Claude saved two decisions in memory: encoding with no relocations and a shared encoder between compiler and assembler, plus modifying goken flags for executable comparison. The Plan 9 design rationale will be documented in linker and assembler `.mli` headers when implementation begins. Claude deferred actual coding until toolchain code exists and asked where goken's architecture-specific tools end up after building. Claude planned to check those binaries then write three documents for assembler, linker, and comparison. Yoann confirmed goken is already compiled and installed, requiring sourcing env.sh for environment setup.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 16:10
+
+**Yoann:**
+
+> goken is already compiled and installed (you need to source its env.sh)
+
+**Claude (summary):**
+
+Claude traced ARM failures to the libc being built for Plan 9 system calls and offered to rebuild it for Linux immediately. Yoann declined by noting he'd already run mk nuke and asked Claude to study goken's configure, docs, and README first. Yoann proposed reorganizing tiny/ programs into a separate toplevel directory with subdirectories for editor/, builder/, and related components instead. Claude had also identified architecture 5 compiler targets FPA instructions, which won't run on modern ARM hardware. The plan remained to start with integer programs first on both architectures.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 16:28
+
+**Yoann:**
+
+> I've run mk nuke in ~/goken. in any case, read the configure script and docs/claude_notes/ and README.md to learn how to use goken; it can now even be bootstrapped. in the mean time, maybe we should move the tiny/ programs in a separate toplevel tiny/ with under it the editor/ builder/ etc ?

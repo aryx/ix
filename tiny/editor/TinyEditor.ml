@@ -8,7 +8,7 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny editor, in one file, in sam's command language rather than
- * ed's. TinyEd (../) is ed, faithfully: a buffer of lines, commands on
+ * ed's. TinyEd (editor/) is ed, faithfully: a buffer of lines, commands on
  * line ranges, g to loop over lines. This is what Rob Pike made of ed
  * in sam ("The Text Editor sam", "Structural Regular Expressions",
  * 1987), without the screen:

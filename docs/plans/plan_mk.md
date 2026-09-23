@@ -721,7 +721,7 @@ planned, 2,879 for omk and 5,980 for mk's C.
   `make test-differential` now runs the live comparison it described
   (it ran the recorded one).
 
-- **2026-09-23, a variant without mk: `builder/tiny/TinyBuildSystem.ml`**
+- **2026-09-23, a variant without mk: `tiny/builder/TinyBuildSystem.ml`**
   (the author: "removing the constraint of being compatible with mk ...
   express concisely dependencies and maintain them efficiently", as
   principia's `builders/Intro.nw` puts it, in a single file, shorter
@@ -735,7 +735,7 @@ planned, 2,879 for omk and 5,980 for mk's C.
   decision 4 rejected for mk, right once the stamp replaces mk's
   re-stat. Checks before running: cycles (with their path), ambiguous
   patterns, unknown targets, a pattern at most once per path. 18
-  scenarios in `builder/tiny/test.sh`, in `make test`; and a 13-line
+  scenarios in `tiny/builder/test.sh`, in `make test`; and a 13-line
   Buildfile builds TinyMk itself from `ocamldep`'s output, with `-j 4`
   in 1.1 s, where a comment added to `Recipe.ml` recompiles it and
   relinks nothing, its object being identical.

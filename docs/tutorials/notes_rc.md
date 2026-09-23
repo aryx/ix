@@ -358,7 +358,7 @@ Beyond the plan's phases (in rough order of difficulty):
 TinyRc is TinyMk's shell first: `MKSHELL=tinyrc`, and the two build
 xix together (the plan's milestone). Later it is the shell of
 TinyKernel, where `rfork`, `/env` and notes stop being no-ops, and the
-first program to read `/dev/cons`. TinyShell.ml, in `shell/tiny/`,
+first program to read `/dev/cons`. TinyShell.ml, in `tiny/shell/`,
 came after it: one file, only what a shell is, written from what TinyRc
 taught. Its test is the same build: with it as TinyMk's shell, xix
 builds to the same files.

@@ -8,9 +8,9 @@ where it sits among the real systems). `yoann_notes/` is the author's.
 
 | program | plan | tutorial | related work | code |
 |---|---|---|---|---|
-| TinyMk, the build system | [plan_mk.md](plans/plan_mk.md) | [notes_mk.md](tutorials/notes_mk.md) | [notes_mk_related_work.md](related-work/notes_mk_related_work.md) | `builder/`, `builder/tiny/TinyBuildSystem.ml` |
-| TinyRc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/`, `shell/tiny/TinyShell.ml` |
-| TinyEd, the editor | [plan_ed.md](plans/plan_ed.md) | [notes_ed.md](tutorials/notes_ed.md) | [notes_ed_related_work.md](related-work/notes_ed_related_work.md) | `editor/`, `editor/tiny/TinyEditor.ml` |
+| TinyMk, the build system | [plan_mk.md](plans/plan_mk.md) | [notes_mk.md](tutorials/notes_mk.md) | [notes_mk_related_work.md](related-work/notes_mk_related_work.md) | `builder/`, `tiny/builder/TinyBuildSystem.ml` |
+| TinyRc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/`, `tiny/shell/TinyShell.ml` |
+| TinyEd, the editor | [plan_ed.md](plans/plan_ed.md) | [notes_ed.md](tutorials/notes_ed.md) | [notes_ed_related_work.md](related-work/notes_ed_related_work.md) | `editor/`, `tiny/editor/TinyEditor.ml` |
 
 ## The principles
 
@@ -54,8 +54,9 @@ plan restates only where it differs.
 9. **Several files for the faithful program, lex/yacc where the grammar
    nests; then a free variant in one file.** Once the faithful program
    is done, a second one drops compatibility and keeps only the idea,
-   in a single `TinyXxx.ml` (TinyBuildSystem.ml: 261 lines of code
-   against TinyMk's 1,398). Choosing its features is the hard part:
+   in a single `TinyXxx.ml` under the top-level `tiny/`, beside its
+   siblings (`tiny/builder/TinyBuildSystem.ml`: 261 lines of code
+   against TinyMk's 1,398), so the one-file programs read as a set. Choosing its features is the hard part:
    fundamental enough to do real work, checked on a real input, and
    not too big.
 10. **Honest, and counted**: lines per module against the twins in the

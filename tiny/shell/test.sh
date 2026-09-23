@@ -13,7 +13,7 @@
 # they print (stdout, stderr, and the exit status) must be the same.
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TS=${TS:-$ROOT/_build/default/shell/tiny/TinyShell.exe}
+TS=${TS:-$ROOT/_build/default/tiny/shell/TinyShell.exe}
 RC=${RC:-/usr/lib/plan9/bin/rc}
 failures=0
 

@@ -12,7 +12,7 @@
 # fresh directory and compares what it printed with what it should.
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TB=${TB:-$ROOT/_build/default/builder/tiny/TinyBuildSystem.exe}
+TB=${TB:-$ROOT/_build/default/tiny/builder/TinyBuildSystem.exe}
 failures=0
 
 # check NAME EXPECTED CMD...: run CMD, compare its output (stdout and

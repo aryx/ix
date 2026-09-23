@@ -23,7 +23,7 @@ them for teaching.
 | sam (1987), acme (1992) | Structure, not lines; the mouse for the rest | `,x/re/c/new/`, and clicks |
 | vis (2014), kakoune (2011) | sam's structural regexps with vi's keys; selections first | `x/re/`, multiple selections |
 | `editor/` (TinyEd) | Seeing what an editor does, as ed, checked against Plan 9's | ed, run by 1,264 lines of OCaml |
-| `editor/tiny/TinyEditor.ml` | What an editor is, in sam's terms | sam's language, in one file of 666 lines |
+| `tiny/editor/TinyEditor.ml` | What an editor is, in sam's terms | sam's language, in one file of 666 lines |
 
 ## Part 1: the line editors
 
@@ -96,7 +96,7 @@ engine is the first thing an ix of text tools needs.
   2011): sam's structural regular expressions and multiple
   selections, with vi's modal keys.
 
-`editor/tiny/TinyEditor.ml` is on this branch: sam's command language,
+`tiny/editor/TinyEditor.ml` is on this branch: sam's command language,
 without the screen, as `sam -d` has it.
 
 ## Part 5: the regular expression engines

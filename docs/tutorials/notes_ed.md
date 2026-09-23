@@ -219,7 +219,7 @@ So TinyEd compiles to regcomp's program and runs regexec's lists,
 sizes and overflow included. One more thing the fuzzer found is in the
 parser: regcomp applies postfix operators through its operator stack,
 where `*` < `+` < `?`, so `x*+` is `(x+)*`. The backtracker lives on
-in `editor/tiny/TinyEditor.ml`, where there is no reference to match
+in `tiny/editor/TinyEditor.ml`, where there is no reference to match
 in the corners.
 
 **Unicode.** A line is UTF-8 bytes, and positions are byte offsets;
@@ -384,7 +384,7 @@ design (§4).
 TinyEd is the editor of the ix user who has a terminal and no screen,
 and its regular expressions are the first piece of text processing
 the other programs can share (a grep, a sed, sam's language in
-`editor/tiny/`). TinyEditor.ml, in `editor/tiny/`, came after it:
+`tiny/editor/`). TinyEditor.ml, in `tiny/editor/`, came after it:
 one file, sam's structural regular expressions instead of ed's lines,
 tested against 9base's `sam -d`.
 
