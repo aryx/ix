@@ -1214,3 +1214,15 @@ Claude had an agent analyze goken docs, finding arm failures stem from Plan 9 li
 **Yoann:**
 
 > at  this point since each is a single file, maybe they can be in the same toplevel tiny/ ?
+
+**Claude (summary):**
+
+Claude implemented flat `tiny/` with colocated files and scripts, fixing a sed bug in `ROOT=` parsing. All tests passed: TinyBuildSystem 63, TinyShell 53, TinyEditor 57, variant scripts also verified. Claude offered to start writing assembler and linker documents, which Yoann accepted. Yoann emphasized the review should focus on ARM and ARM64 subset selection and LOC minimization. The goal is to make ix smaller than xix, the existing project serving as baseline.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 16:36
+
+**Yoann:**
+
+> yes! and I'll review, especially the subset of ARM (and ARM64) to handle, and how to reach low number of LOC, how to be ven smaller than xix
