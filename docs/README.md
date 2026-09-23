@@ -9,7 +9,8 @@ where it sits among the real systems). `yoann_notes/` is the author's.
 | program | plan | tutorial | related work | code |
 |---|---|---|---|---|
 | TinyMk, the build system | [plan_mk.md](plans/plan_mk.md) | [notes_mk.md](tutorials/notes_mk.md) | [notes_mk_related_work.md](related-work/notes_mk_related_work.md) | `builder/`, `builder/tiny/TinyBuildSystem.ml` |
-| TinyRc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/` (to come) |
+| TinyRc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/`, `shell/tiny/TinyShell.ml` |
+| TinyEd, the editor | [plan_ed.md](plans/plan_ed.md) | [notes_ed.md](tutorials/notes_ed.md) | [notes_ed_related_work.md](related-work/notes_ed_related_work.md) | `editor/`, `editor/tiny/TinyEditor.ml` |
 
 ## The principles
 

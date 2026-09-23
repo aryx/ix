@@ -950,3 +950,31 @@ Claude committed docs/README.md with prompt history entries that the commit hook
 **Yoann:**
 
 > sorry wrong window
+
+**Claude (summary):**
+
+I'll check what phases remain in plan_rc.md and see which program to tackle next.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 14:36
+
+**Yoann:**
+
+> excellent job. What's next?
+
+**Claude (summary):**
+
+Claude recommended ed as the next ix project, citing references, novel algorithms like text buffers and regexes, and concrete test cases.
+Claude emphasized ed teaches new concepts, offers real test inputs, and raises interesting design questions about tiny editor variants.
+Claude proposed starting with documentation: planning, tutorial, and related-work files under docs/ for Yoann's review before implementing.
+Claude said this followed the pattern of previous projects, with review before coding.
+Claude listed yacc as a second choice and deferred compiler chain work to later foundation phases.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 14:43
+
+**Yoann:**
+
+> go for ed, but don't want for my review, do also the implementation the TinyEditor.ml final step too. I'll review when I'm back
