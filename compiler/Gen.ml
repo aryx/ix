@@ -42,124 +42,94 @@ let h () = Option.get !hooks
 (* 64-bit arithmetic as calls, where the machine can't (com64.c) *)
 (*****************************************************************************)
 
-let fvns : (string, node) Hashtbl.t = Hashtbl.create 64
-let fntypes : (etype, typ) Hashtbl.t = Hashtbl.create 16
+let fvns : (string * etype, node) Hashtbl.t = Hashtbl.create 64
 
+(* libc's function name, as a node of a function returning et *)
 let fvn name et =
-  match Hashtbl.find_opt fvns name with
+  match Hashtbl.find_opt fvns (name, et) with
   | Some n -> n
   | None ->
       let n = node ONAME None None in
       n.nsym <- Some (lookup name);
-      let ft = match Hashtbl.find_opt fntypes et with Some t -> t | None -> let t = typ Tfunc (Some (ty et)) in Hashtbl.replace fntypes et t; t in
-      n.ntype <- Some ft; n.netype <- et; n.nclass <- Cglobl; n.addable <- 10; n.complex <- 0;
-      Hashtbl.replace fvns name n;
+      n.ntype <- Some (typ Tfunc (Some (ty et))); n.netype <- et; n.nclass <- Cglobl; n.addable <- 10;
+      Hashtbl.replace fvns (name, et) n;
       n
 
+let vbinops = [ OADD, "_addv"; OSUB, "_subv"; OMUL, "_mulv"; OLMUL, "_mulv"; ODIV, "_divv"; OLDIV, "_divvu"; OMOD, "_modv";
+                OLMOD, "_modvu"; OASHL, "_lshv"; OASHR, "_rshav"; OLSHR, "_rshlv"; OAND, "_andv"; OOR, "_orv"; OXOR, "_xorv" ]
+let asops = [ OASADD, OADD; OASSUB, OSUB; OASMUL, OMUL; OASLMUL, OLMUL; OASDIV, ODIV; OASLDIV, OLDIV; OASMOD, OMOD;
+              OASLMOD, OLMOD; OASASHL, OASHL; OASASHR, OASHR; OASLSHR, OLSHR; OASAND, OAND; OASOR, OOR; OASXOR, OXOR ]
+let is_rel o = Check.relindex_opt o <> None
+
+(* a type's letters in the conversions' names: _sc2v, _v2sc *)
+let vcodes = [ Tchar, "sc"; Tuchar, "uc"; Tshort, "sh"; Tushort, "uh"; Tint, "si"; Tuint, "ui"; Tlong, "sl"; Tulong, "ul";
+               Tfloat, "f"; Tdouble, "d"; Tind, "p" ]
+
 (* _vasop's code for the type of the left side *)
-let etconv = function
-  | Tchar -> 1 | Tuchar -> 2 | Tshort -> 3 | Tushort -> 4 | Tlong -> 5 | Tulong -> 6 | Tvlong -> 7 | Tuvlong -> 8
-  | Tint -> 9 | Tuint -> 10 | _ -> 0
-
-let binop_fn = function
-  | OADD | OASADD -> Some "_addv" | OSUB | OASSUB -> Some "_subv" | OMUL | OLMUL | OASMUL | OASLMUL -> Some "_mulv"
-  | ODIV | OASDIV -> Some "_divv" | OLDIV | OASLDIV -> Some "_divvu" | OMOD | OASMOD -> Some "_modv"
-  | OLMOD | OASLMOD -> Some "_modvu" | OASHL | OASASHL -> Some "_lshv" | OASHR | OASASHR -> Some "_rshav"
-  | OLSHR | OASLSHR -> Some "_rshlv" | OAND | OASAND -> Some "_andv" | OOR | OASOR -> Some "_orv"
-  | OXOR | OASXOR -> Some "_xorv" | _ -> None
-
-let rel_fn = function
-  | OEQ -> Some "_eqv" | ONE -> Some "_nev" | OLE -> Some "_lev" | OLT -> Some "_ltv" | OGE -> Some "_gev"
-  | OGT -> Some "_gtv" | OHI -> Some "_hiv" | OHS -> Some "_hsv" | OLO -> Some "_lov" | OLS -> Some "_lsv" | _ -> None
-
-let to_v = function
-  | Tchar -> Some ("_sc2v", true) | Tuchar -> Some ("_uc2v", true) | Tshort -> Some ("_sh2v", true) | Tushort -> Some ("_uh2v", true)
-  | Tint -> Some ("_si2v", false) | Tuint -> Some ("_ui2v", false) | Tlong -> Some ("_sl2v", false) | Tulong -> Some ("_ul2v", false)
-  | Tfloat -> Some ("_f2v", false) | Tdouble -> Some ("_d2v", false) | Tind -> Some ("_p2v", false) | _ -> None
-
-(* _v2uh is _v2ul, as com64.c has it *)
-let of_v = function
-  | Tdouble -> Some ("_v2d", Tdouble) | Tfloat -> Some ("_v2f", Tfloat) | Tlong -> Some ("_v2sl", Tlong) | Tulong -> Some ("_v2ul", Tulong)
-  | Tint -> Some ("_v2si", Tint) | Tuint -> Some ("_v2ui", Tuint) | Tshort -> Some ("_v2sh", Tshort) | Tushort -> Some ("_v2ul", Tushort)
-  | Tchar -> Some ("_v2sc", Tchar) | Tuchar -> Some ("_v2uc", Tuchar) | Tind -> Some ("_v2ul", Tulong) | _ -> None
+let etconv t = match List.assoc_opt t [ Tchar, 1; Tuchar, 2; Tshort, 3; Tushort, 4; Tlong, 5; Tulong, 6; Tvlong, 7; Tuvlong, 8; Tint, 9; Tuint, 10 ] with Some c -> c | None -> 0
 
 let testv () = fvn "_testv" Tlong
 
-(* true if n is done (a call now, or the machine's) *)
+let addr_of (x : node) = let a = node OADDR (Some x) None in a.ntype <- Some (typ Tind x.ntype); a.complex <- x.complex; a
+
+(* n as a call to libc, where vlongs are the machine's (true if done) *)
 let com64 (n : node) =
-  let mc = (m ()).machcap in
+  let mc = (m ()).machcap (Some n) in
   let call a args = n.left <- Some a; n.right <- args; n.complex <- fnx; n.op <- OFUNC; true in
   let test (x : node) = let f = node OFUNC (Some (testv ())) (Some x) in f.complex <- fnx; f.ntype <- Some (ty Tlong); f in
+  let isv (x : node option) = match x with Some { ntype = Some t; _ } -> typev t.etype | _ -> false in
+  let l = n.left and r = n.right in
+  let lv = isv l and rv = isv r in
+  let logical = n.op = OANDAND || n.op = OOROR in
   match n.ntype with
   | None -> false
   | Some nt ->
-      let l = n.left and r = n.right in
-      let isv = function Some (x : node) -> (match x.ntype with Some t -> typev t.etype | None -> false) | None -> false in
-      let lv = isv l and rv = isv r in
-      let bop name = call (fvn name Tvlong) (Some (node OLIST l r)) in
-      if lv && rel_fn n.op <> None then begin
-        if mc (Some n) then true
-        else (ignore (call (fvn (Option.get (rel_fn n.op)) Tlong) (Some (node OLIST l r))); n.ntype <- Some (ty Tlong); true)
-      end
-      else if lv && (match n.op with OANDAND | OOROR | OCOND | ONOT -> true | _ -> false) then begin
-        if mc (Some n) then true
-        else begin
-          if rv && (n.op = OANDAND || n.op = OOROR) then n.right <- Some (test (Option.get r));
-          if mc (Some n) then true
-          else (n.left <- Some (test (Option.get l)); n.complex <- fnx; true)
+      if lv && is_rel n.op then
+        mc || (ignore (call (fvn ("_" ^ String.lowercase_ascii (opname n.op) ^ "v") Tlong) (Some (node OLIST l r))); n.ntype <- Some (ty Tlong); true)
+      else if lv && (logical || n.op = OCOND || n.op = ONOT) then begin
+        mc || begin
+          if rv && logical then n.right <- Some (test (Option.get r));
+          mc || (n.left <- Some (test (Option.get l)); n.complex <- fnx; true)
         end
       end
-      else if rv && mc (Some n) then true
-      else if rv && (n.op = OANDAND || n.op = OOROR) then (n.right <- Some (test (Option.get r)); true)
-      else if rv && n.op = OCOND then true
-      else if typev nt.etype then begin
-        if mc (Some n) then true
-        else
-          match n.op with
-          | OFUNC -> n.complex <- fnx; true
-          | ORETURN | OAS | OIND | OLIST | OCOMMA -> true
-          | OPOSTINC | OPOSTDEC | OPREINC | OPREDEC ->
-              let name = match n.op with OPOSTINC -> "_vpp" | OPOSTDEC -> "_vmm" | OPREINC -> "_ppv" | _ -> "_mmv" in
-              let ll = Option.get l in
-              let a = node OADDR l None in
-              a.ntype <- Some (typ Tind ll.ntype); a.complex <- ll.complex;
-              call (fvn name Tvlong) (Some (node OLIST (Some a) r))
-          | ONEG -> call (fvn "_negv" Tvlong) l
-          | OCOM -> call (fvn "_comv" Tvlong) l
-          | OCAST -> (
-              match to_v (et (Option.get l)) with
-              | Some (name, true) ->
-                  let ll = Option.get l in
-                  let c = node OCAST l None in
-                  c.ntype <- Some (ty Tlong); c.complex <- ll.complex;
-                  call (fvn name Tvlong) (Some c)
-              | Some (name, false) -> call (fvn name Tvlong) l
-              | None -> diag (Some n) "unknown %s->vlong cast" (show_type (Option.get l).ntype))
-          | o when binop_fn o <> None && (match o with OADD | OSUB | OMUL | OLMUL | ODIV | OLDIV | OMOD | OLMOD | OASHL | OASHR | OLSHR | OAND | OOR | OXOR -> true | _ -> false) ->
-              bop (Option.get (binop_fn o))
-          | o when binop_fn o <> None ->
-              (* x op= y: _vasop(&x, fn, type, y) *)
-              let a = fvn (Option.get (binop_fn o)) Tvlong in
-              let rec lhs (x : node) = if x.op = OFUNC then lhs (Tree.r x) else x in
-              let ll = lhs (Option.get l) in
-              let c = node OCONST None None in
-              c.vconst <- Int64.of_int (etconv (et ll)); c.ntype <- Some (ty Tlong); c.addable <- 20;
-              let rr = node OLIST (Some c) r in
-              let fa = node OADDR (Some a) None in
-              fa.ntype <- Some (typ Tind a.ntype);
-              let rr = node OLIST (Some fa) (Some rr) in
-              let la = node OADDR (Some ll) None in
-              la.ntype <- Some (typ Tind ll.ntype); la.complex <- ll.complex;
-              call (fvn "_vasop" Tvlong) (Some (node OLIST (Some la) (Some rr)))
-          | o -> diag (Some n) "unknown vlong %s" (opname o)
-      end
-      else if n.op = OCAST && lv then begin
-        if mc (Some n) then true
-        else
-          match of_v nt.etype with
-          | Some (name, ret) -> call (fvn name ret) l
-          | None -> diag (Some n) "unknown vlong->%s cast" (show_type n.ntype)
-      end
+      else if rv && (mc || logical || n.op = OCOND) then ((if not mc && logical then n.right <- Some (test (Option.get r))); true)
+      else if typev nt.etype then
+        mc ||
+        match n.op with
+        | OFUNC -> n.complex <- fnx; true
+        | ORETURN | OAS | OIND | OLIST | OCOMMA -> true
+        | OPOSTINC | OPOSTDEC | OPREINC | OPREDEC ->
+            let name = List.assoc n.op [ OPOSTINC, "_vpp"; OPOSTDEC, "_vmm"; OPREINC, "_ppv"; OPREDEC, "_mmv" ] in
+            call (fvn name Tvlong) (Some (node OLIST (Some (addr_of (Option.get l))) r))
+        | ONEG -> call (fvn "_negv" Tvlong) l
+        | OCOM -> call (fvn "_comv" Tvlong) l
+        | OCAST -> (
+            let lt = et (Option.get l) in
+            match List.assoc_opt lt vcodes with
+            | Some code when List.mem lt [ Tchar; Tuchar; Tshort; Tushort ] ->
+                (* a small one as a long first *)
+                let c = node OCAST l None in
+                c.ntype <- Some (ty Tlong); c.complex <- (Option.get l).complex;
+                call (fvn ("_" ^ code ^ "2v") Tvlong) (Some c)
+            | Some code -> call (fvn ("_" ^ code ^ "2v") Tvlong) l
+            | None -> diag (Some n) "unknown %s->vlong cast" (show_type (Option.get l).ntype))
+        | o when List.mem_assoc o vbinops -> call (fvn (List.assoc o vbinops) Tvlong) (Some (node OLIST l r))
+        | o when List.mem_assoc o asops ->
+            (* x op= y: _vasop(&x, fn, type, y) *)
+            let a = fvn (List.assoc (List.assoc o asops) vbinops) Tvlong in
+            let rec lhs (x : node) = if x.op = OFUNC then lhs (Tree.r x) else x in
+            let x = lhs (Option.get l) in
+            let c = node OCONST None None in
+            c.vconst <- Int64.of_int (etconv (et x)); c.ntype <- Some (ty Tlong); c.addable <- 20;
+            let args = node OLIST (Some (addr_of x)) (Some (node OLIST (Some { (addr_of a) with complex = 0 }) (Some (node OLIST (Some c) r)))) in
+            call (fvn "_vasop" Tvlong) (Some args)
+        | o -> diag (Some n) "unknown vlong %s" (opname o)
+      else if n.op = OCAST && lv then
+        mc ||
+        (* _v2uh is _v2ul, as com64.c has it; a pointer is an unsigned long *)
+        match nt.etype with
+        | Tushort | Tind -> call (fvn "_v2ul" (if nt.etype = Tind then Tulong else Tushort)) l
+        | t -> (match List.assoc_opt t vcodes with Some code -> call (fvn ("_v2" ^ code) t) l | None -> diag (Some n) "unknown vlong->%s cast" (show_type n.ntype))
       else false
 
 (* a vlong tested as a condition *)
@@ -179,100 +149,96 @@ let simplifyshift (n : node) =
   let kind (x : node) = match x.op with OASHL -> Some 0 | OLSHR -> Some 1 | OASHR -> Some 2 | _ -> None in
   let topbit v = let rec go i v = if v = 0L then i else go (i + 1) (Int64.shift_right_logical v 1) in go (-1) v in
   let is_const (x : node option) = match x with Some { op = OCONST; _ } -> true | _ -> false in
-  if typechlp (et n) then
-    match kind n with
-    | Some s1 when is_const n.right && (Tree.l n).op = OAND && is_const (Tree.l n).right && is_const (Tree.l (Tree.l n)).right -> (
-        match kind (Tree.l (Tree.l n)) with
-        | None -> ()
-        | Some s2 ->
-            let c1 = Int64.to_int (Int64.of_int32 (Int64.to_int32 (Tree.r n).vconst))
-            and c2 = Int64.to_int (Int64.of_int32 (Int64.to_int32 (Tree.r (Tree.l (Tree.l n))).vconst))
-            and c3 = (Tree.r (Tree.l n)).vconst in
-            (* get rid of both shifts, the lower, or the upper *)
-            let rewrite0 c3 = let x = Tree.l n in copy_into n x; n.left <- (Tree.l n).left; (Tree.r n).vconst <- c3 in
-            let rewrite1 c3 c1 o = let a = Tree.l n in a.left <- (Tree.l a).left; (Tree.r a).vconst <- c3; (Tree.r n).vconst <- Int64.of_int c1; n.op <- o in
-            let rewrite2 c3 c1 o = copy_into n (Tree.l n); (Tree.r n).vconst <- c3; (Tree.r (Tree.l n)).vconst <- Int64.of_int c1; (Tree.l n).op <- o in
-            let shl v k = Int64.shift_left v k and shr v k = Int64.shift_right_logical v k in
-            let o = n.op in
-            let case001 () =
-              if c1 > c2 then rewrite1 (shl c3 c2) (c1 - c2) OASHL
-              else (let c3 = shl c3 c1 in if c1 = c2 then rewrite0 c3 else rewrite2 c3 (c2 - c1) OLSHR)
-            in
-            let s11 () = let c1 = c1 + c2 in if c1 < 32 then rewrite1 (shl c3 c2) c1 OLSHR in
-            let case010 () =
-              let c3 = shr c3 c1 in
-              if c1 = c2 then rewrite0 c3 else if c1 > c2 then rewrite2 c3 (c1 - c2) o else rewrite2 c3 (c2 - c1) OASHL
-            in
-            match (s1 lsl 3) lor s2 with
-            | 0o00 -> let c1 = c1 + c2 in if c1 < 32 then rewrite1 (shr c3 c2) c1 o
-            | 0o02 -> if topbit c3 < 32 - c2 then case001 ()
-            | 0o01 -> case001 ()
-            | 0o22 -> if c2 > 0 && topbit c3 < 32 - c2 then s11 ()
-            | 0o12 -> if topbit c3 < 32 - c2 then s11 ()
-            | 0o21 -> if not (topbit c3 >= 31 && c2 <= 0) then s11 ()
-            | 0o11 -> s11 ()
-            | 0o20 -> if topbit c3 < 31 then case010 ()
-            | 0o10 -> case010 ()
-            | _ -> ())
-    | _ -> ()
+  match kind n with
+  | Some s1 when typechlp (et n) && is_const n.right && (Tree.l n).op = OAND && is_const (Tree.l n).right
+                 && is_const (Tree.l (Tree.l n)).right && kind (Tree.l (Tree.l n)) <> None ->
+      let s2 = Option.get (kind (Tree.l (Tree.l n))) in
+      let i32 v = Int64.to_int (sx32 v) in
+      let c1 = i32 (Tree.r n).vconst and c2 = i32 (Tree.r (Tree.l (Tree.l n))).vconst and c3 = (Tree.r (Tree.l n)).vconst in
+      (* get rid of both shifts, the lower, or the upper *)
+      let rewrite0 c3 = copy_into n (Tree.l n); n.left <- (Tree.l n).left; (Tree.r n).vconst <- c3 in
+      let rewrite1 c3 c1 o = let a = Tree.l n in a.left <- (Tree.l a).left; (Tree.r a).vconst <- c3; (Tree.r n).vconst <- Int64.of_int c1; n.op <- o in
+      let rewrite2 c3 c1 o = copy_into n (Tree.l n); (Tree.r n).vconst <- c3; (Tree.r (Tree.l n)).vconst <- Int64.of_int c1; (Tree.l n).op <- o in
+      let shl v k = Int64.shift_left v k and shr v k = Int64.shift_right_logical v k in
+      let o = n.op in
+      let case001 () =
+        if c1 > c2 then rewrite1 (shl c3 c2) (c1 - c2) OASHL
+        else (let c3 = shl c3 c1 in if c1 = c2 then rewrite0 c3 else rewrite2 c3 (c2 - c1) OLSHR)
+      in
+      let s11 () = if c1 + c2 < 32 then rewrite1 (shl c3 c2) (c1 + c2) OLSHR in
+      let case010 () =
+        let c3 = shr c3 c1 in
+        if c1 = c2 then rewrite0 c3 else if c1 > c2 then rewrite2 c3 (c1 - c2) o else rewrite2 c3 (c2 - c1) OASHL
+      in
+      (match (s1 lsl 3) lor s2 with
+       | 0o00 -> if c1 + c2 < 32 then rewrite1 (shr c3 c2) (c1 + c2) o
+       | 0o02 -> if topbit c3 < 32 - c2 then case001 ()
+       | 0o01 -> case001 ()
+       | 0o22 -> if c2 > 0 && topbit c3 < 32 - c2 then s11 ()
+       | 0o12 -> if topbit c3 < 32 - c2 then s11 ()
+       | 0o21 -> if not (topbit c3 >= 31 && c2 <= 0) then s11 ()
+       | 0o11 -> s11 ()
+       | 0o20 -> if topbit c3 < 31 then case010 ()
+       | 0o10 -> case010 ()
+       | _ -> ())
+  | _ -> ()
 
 (* addressable: 20 a constant, 10 a name, 11 a register, 12 an indirect
- * register; 2 $name, 3 $(reg)+offset. complex: the registers needed *)
+ * register; 2 $name, 3 $(reg)+offset. complex: the registers needed.
+ * And by a power of 2, a multiplication is a shift, an unsigned
+ * division too, an unsigned remainder a mask *)
 let rec xcom (n : node) =
   let l = n.left and r = n.right in
   n.addable <- 0;
   n.complex <- 0;
-  let both () = Option.iter xcom l; Option.iter xcom r in
-  let pow2 (x : node) = Check.vlog x in
+  Option.iter xcom l;
+  Option.iter xcom r;
   let a (x : node option) = match x with Some x -> x.addable | None -> 0 in
+  let pow2 (x : node option) o' ~mask =
+    let x = Option.get x in
+    let t = Check.vlog x in
+    if t >= 0 then begin
+      n.op <- o';
+      if mask then x.vconst <- Int64.pred x.vconst else (x.vconst <- Int64.of_int t; x.ntype <- Some (ty Tint))
+    end;
+    t >= 0
+  in
+  let shifts () = if (h ()).shifts then simplifyshift n in
   (match n.op with
    | OCONST -> n.addable <- 20
    | OREGISTER -> n.addable <- 11
    | OINDREG -> n.addable <- 12
    | ONAME -> n.addable <- 10
-   | OADDR -> both (); if a l = 10 then n.addable <- 2; if a l = 12 then n.addable <- 3
-   | OIND -> both (); if a l = 11 || a l = 3 then n.addable <- 12; if a l = 2 then n.addable <- 10
+   | OADDR -> if a l = 10 then n.addable <- 2 else if a l = 12 then n.addable <- 3
+   | OIND -> if a l = 11 || a l = 3 then n.addable <- 12 else if a l = 2 then n.addable <- 10
    | OADD ->
-       both ();
        if a l = 20 && (a r = 2 || a r = 3) then n.addable <- a r;
        if a r = 20 && (a l = 2 || a l = 3) then n.addable <- a l
-   | OASLMUL | OASMUL -> both (); let t = pow2 (Option.get r) in if t >= 0 then (n.op <- OASASHL; (Option.get r).vconst <- Int64.of_int t; (Option.get r).ntype <- Some (ty Tint))
+   | OASLMUL | OASMUL -> ignore (pow2 r OASASHL ~mask:false)
    | OMUL | OLMUL ->
-       both ();
-       let t = pow2 (Option.get r) in
-       if t >= 0 then (n.op <- OASHL; (Option.get r).vconst <- Int64.of_int t; (Option.get r).ntype <- Some (ty Tint));
-       let t = pow2 (Option.get l) in
-       if t >= 0 then begin
-         n.op <- OASHL;
-         n.left <- r; n.right <- l;
-         (Option.get l).vconst <- Int64.of_int t; (Option.get l).ntype <- Some (ty Tint);
-         if (h ()).shifts then simplifyshift n
-       end
-   | OASLDIV -> both (); let t = pow2 (Option.get r) in if t >= 0 then (n.op <- OASLSHR; (Option.get r).vconst <- Int64.of_int t; (Option.get r).ntype <- Some (ty Tint))
-   | OLDIV ->
-       both ();
-       let t = pow2 (Option.get r) in
-       if t >= 0 then (n.op <- OLSHR; (Option.get r).vconst <- Int64.of_int t; (Option.get r).ntype <- Some (ty Tint); if (h ()).shifts then simplifyshift n)
-   | OLSHR | OASHL | OASHR when (h ()).shifts -> both (); simplifyshift n
-   | OASLMOD -> both (); if pow2 (Option.get r) >= 0 then (n.op <- OASAND; (Option.get r).vconst <- Int64.pred (Option.get r).vconst)
-   | OLMOD -> both (); if pow2 (Option.get r) >= 0 then (n.op <- OAND; (Option.get r).vconst <- Int64.pred (Option.get r).vconst)
-   | _ -> both ());
+       ignore (pow2 r OASHL ~mask:false);
+       (* the constant on the left: swapped *)
+       if pow2 l OASHL ~mask:false then (n.left <- r; n.right <- l; shifts ())
+   | OASLDIV -> ignore (pow2 r OASLSHR ~mask:false)
+   | OLDIV -> if pow2 r OLSHR ~mask:false then shifts ()
+   | OLSHR | OASHL | OASHR -> shifts ()
+   | OASLMOD -> ignore (pow2 r OASAND ~mask:true)
+   | OLMOD -> ignore (pow2 r OAND ~mask:true)
+   | _ -> ());
   if n.addable < 10 then begin
     (* claude: l and r as they are now: OMUL's swap changes them *)
     let l = n.left and r = n.right in
     (match l with Some l -> n.complex <- l.complex | None -> ());
-    (match r with
-     | Some r -> if r.complex = n.complex then n.complex <- r.complex + 1 else if r.complex > n.complex then n.complex <- r.complex
-     | None -> ());
+    (match r with Some r -> n.complex <- (if r.complex = n.complex then r.complex + 1 else max r.complex n.complex) | None -> ());
     if n.complex = 0 then n.complex <- 1;
+    let lconst () = (Option.get l).op = OCONST in
     if not ((h ()).com64 && com64 n) then
       match n.op with
       | OFUNC -> n.complex <- fnx
-      (* the constant on the right, as an immediate *)
-      | OADD | OXOR | OAND | OOR -> if (Option.get l).op = OCONST then (n.left <- r; n.right <- l)
-      | OEQ | ONE when not (h ()).shifts -> if (Option.get l).op = OCONST then (n.left <- r; n.right <- l)
-      | OEQ | ONE | OLE | OLT | OGE | OGT | OHI | OHS | OLO | OLS when (h ()).shifts ->
-          if (Option.get l).op = OCONST then (n.left <- r; n.right <- l; n.op <- Check.invrel.(Check.relindex n.op))
+      (* the constant on the right, as an immediate; a relation reversed (7c) *)
+      | OADD | OXOR | OAND | OOR -> if lconst () then (n.left <- r; n.right <- l)
+      | (OEQ | ONE) when not (h ()).shifts -> if lconst () then (n.left <- r; n.right <- l)
+      | o when is_rel o && (h ()).shifts -> if lconst () then (n.left <- r; n.right <- l; n.op <- Check.invrel.(Check.relindex o))
       | _ -> ()
   end
 
@@ -282,376 +248,294 @@ let rec xcom (n : node) =
 
 let gmove f t = (bk ()).gmove f t
 let gopcode o f1 f2 t = (bk ()).gopcode o false f1 f2 t
-let gopcodet o tr f1 f2 t = (bk ()).gopcode o tr f1 f2 t
-let rel_tab o = let i = Check.relindex o in i
+let op2 o f t = gopcode o (Some f) None (Some t)                  (* t = t o f *)
+let op3 o f m t = gopcode o (Some f) (Some m) (Some t)            (* t = m o f *)
+let compare ?(tr = false) o f m = (bk ()).gopcode o tr (Some f) (Some m) None
+let jump () = ignore (gbranch OGOTO)
+let here q = patch q !pc
+let iconst n = nodconst (Int64.of_int n)
+
+(* the heavier side first: its value's register takes nn *)
+let ordered (l : node) (r : node) f g = if l.complex >= r.complex then (let a = f () in a, g ()) else (let b = g () in f (), b)
 
 exception Return
 
+(* n into nn, or for its effects when nn is None; inrel, as a
+ * comparison's operand *)
 let rec cgen (n : node) (nn : node option) = cgenrel n nn false
 
 (* the value of a comma list, the rest generated first *)
-and uncomma (n : node option) =
-  match n with Some ({ op = OCOMMA; _ } as n) -> cgen (Tree.l n) None; uncomma n.right | n -> n
+and uncomma (n : node option) = match n with Some ({ op = OCOMMA; _ } as n) -> cgen (Tree.l n) None; uncomma n.right | n -> n
 
-and nullwarn (l : node option) (r : node option) =
-  Option.iter (fun l -> cgen l None) l;
-  Option.iter (fun r -> cgen r None) r
+and effects (l : node option) = Option.iter (fun l -> cgen l None) l
 
 and cgenrel (n : node) (nn : node option) inrel =
   match n.ntype with
   | None -> ()
   | Some nt when (m ()).typecmplx nt.etype -> sugen n nn nt.width
+  | Some _ when n.addable >= indexed -> Option.iter (gmove n) nn
   | Some _ ->
-      let o = n.op in
-      if n.addable >= indexed then begin
-        match nn with
-        | None -> (match o with OINDEX -> nullwarn n.left n.right | _ -> ())
-        | Some nn -> gmove n nn
-      end
-      else begin
-        let curs = !cursafe in
-        match cgen1 n nn inrel with
-        | () -> cursafe := curs
-        | exception Return -> ()
-      end
+      let curs = !cursafe in
+      (match cgen1 n nn inrel with () -> cursafe := curs | exception Return -> ())
+
+(* both sides calls: the right one first, to a temporary; the tree
+ * with the temporary as its right side *)
+and spill_right (n : node) ~rel =
+  let r = Tree.r n in
+  let nod = regret r in
+  cgenrel r (Some nod) rel;
+  let nod1 = regsalloc r in
+  gmove nod nod1;
+  regfree nod;
+  { n with right = Some nod1 }
+
+(* an lvalue in a register unless it is addressable; its release *)
+and lvalue (l : node) = if l.addable < indexed then reglcgen l None else l
+and unlvalue (l : node) nod = if l.addable < indexed then regfree nod
+
+(* c ? a : b, a and b generating themselves *)
+and ifelse (c : node) a b =
+  bcgen c true;
+  let p1 = p () in
+  a ();
+  jump ();
+  here p1;
+  let p1 = p () in
+  b ();
+  here p1
 
 and cgen1 (n : node) (nn : node option) inrel =
   let o = n.op in
   let l () = Tree.l n and r () = Tree.r n in
-  (* both sides calls: the right one first, to a temporary *)
   if n.complex >= fnx && (l ()).complex >= fnx && (match n.right with Some r -> r.complex >= fnx | None -> false)
-     && not (match o with OFUNC | OCOMMA | OANDAND | OOROR | OCOND | ODOT -> true | _ -> false)
-     && not (Check.relindex_opt o <> None && typesu (et (l ()))) then begin
-    let nod = regret (r ()) in
-    cgen (r ()) (Some nod);
-    let nod1 = regsalloc (r ()) in
-    gopcode OAS (Some nod) None (Some nod1);
-    regfree nod;
-    let nod = dup n in
-    nod.right <- Some nod1;
-    cgen nod nn;
+     && not (List.mem o [ OFUNC; OCOMMA; OANDAND; OOROR; OCOND; ODOT ]) && not (is_rel o && typesu (et (l ()))) then begin
+    cgen (spill_right n ~rel:false) nn;
     raise Return
   end;
-  let nnv () = Option.get nn in
+  let unary f = match nn with None -> effects n.left | Some nn -> f nn in
   let muldiv () =
     match nn with
-    | None -> nullwarn n.left n.right
+    | None -> effects n.left; effects n.right
+    | Some nn when (o = OMUL || o = OLMUL) && mulcon n nn -> ()
     | Some nn ->
-        if (o = OMUL || o = OLMUL) && mulcon n nn then ()
-        else begin
-          let l = l () and r = r () in
-          let ty_r = if (h ()).by_left then l else r in
-          let nod, nod1 =
-            if l.complex >= r.complex then begin
-              let nod = regalloc l (Some nn) in
-              cgen l (Some nod);
-              let nod1 = regalloc ty_r None in
-              cgen r (Some nod1);
-              gopcode o (Some nod1) None (Some nod);
-              nod, nod1
-            end
-            else begin
-              let nod = regalloc ty_r (Some nn) in
-              cgen r (Some nod);
-              let nod1 = regalloc l None in
-              cgen l (Some nod1);
-              gopcode o (Some nod) (Some nod1) (Some nod);
-              nod, nod1
-            end
-          in
-          gopcode OAS (Some nod) None (Some nn);
-          regfree nod;
-          regfree nod1
-        end
+        let l = l () and r = r () in
+        let ty_r = if (h ()).by_left then l else r in
+        let nod, nod1 =
+          if l.complex >= r.complex then begin
+            let nod = regalloc l (Some nn) in
+            cgen l (Some nod);
+            let nod1 = regalloc ty_r None in
+            cgen r (Some nod1);
+            op2 o nod1 nod;
+            nod, nod1
+          end
+          else begin
+            let nod = regalloc ty_r (Some nn) in
+            cgen r (Some nod);
+            let nod1 = regalloc l None in
+            cgen l (Some nod1);
+            op3 o nod nod1 nod;
+            nod, nod1
+          end
+        in
+        gmove nod nn;
+        regfree nod;
+        regfree nod1
   in
+  (* x op c, an immediate *)
   let immediate () =
     if nn <> None && (r ()).op = OCONST && not (typefd (et n)) then begin
       cgen (l ()) nn;
-      if (r ()).vconst = 0L && o <> OAND then () else gopcode o n.right None nn
+      if (r ()).vconst <> 0L || o = OAND then gopcode o n.right None nn
     end
     else muldiv ()
   in
-  (* l op= r *)
-  (* 7c's: r into the result's register, l loaded after, converted if its type isn't the result's *)
-  let asop_load () =
+  (* l op= r: 7c's, r into the result's register and l loaded after,
+   * converted if its type isn't the result's; 5c's, l into it *)
+  let asop () =
     let l = l () and r = r () in
-    let nod2, nod =
-      if l.complex >= r.complex then begin
-        let nod2 = if l.addable < indexed then reglcgen l None else l in
-        let nod = regalloc n nn in
-        cgen r (Some nod);
-        nod2, nod
-      end
-      else begin
-        let nod = regalloc n nn in
-        cgen r (Some nod);
-        let nod2 = if l.addable < indexed then reglcgen l None else l in
-        nod2, nod
-      end
-    in
-    let nod1 = regalloc n None in
-    gopcode OAS (Some nod2) None (Some nod1);
-    let nod1 =
-      if et nod1 <> et nod then (let nod3 = regalloc nod None in gmove nod1 nod3; regfree nod1; nod3) else nod1 in
-    gopcode o (Some nod) (Some nod1) (Some nod);
-    gmove nod nod2;
-    (match nn with Some nn -> gmove nod nn | None -> ());
-    regfree nod;
-    regfree nod1;
-    if l.addable < indexed then regfree nod2
+    let into = if (h ()).asop_load then n else r in
+    let nod2, nod = ordered l r (fun () -> lvalue l) (fun () -> let nod = regalloc into (if (h ()).asop_load then nn else None) in cgen r (Some nod); nod) in
+    if (h ()).asop_load then begin
+      let nod1 = regalloc n None in
+      gmove nod2 nod1;
+      let nod1 = if et nod1 <> et nod then (let nod3 = regalloc nod None in gmove nod1 nod3; regfree nod1; nod3) else nod1 in
+      op3 o nod nod1 nod;
+      gmove nod nod2;
+      Option.iter (gmove nod) nn;
+      regfree nod;
+      regfree nod1
+    end
+    else begin
+      let res = regalloc n nn in
+      gmove nod2 res;
+      op2 o nod res;
+      gmove res nod2;
+      Option.iter (gmove res) nn;
+      regfree res;
+      regfree nod
+    end;
+    unlvalue l nod2
   in
-  let asop_move () =
-    let l = l () and r = r () in
-    let nod2, nod1 =
-      if l.complex >= r.complex then begin
-        let nod2 = if l.addable < indexed then reglcgen l None else l in
-        let nod1 = regalloc r None in
-        cgen r (Some nod1);
-        nod2, nod1
-      end
-      else begin
-        let nod1 = regalloc r None in
-        cgen r (Some nod1);
-        let nod2 = if l.addable < indexed then reglcgen l None else l in
-        nod2, nod1
-      end
-    in
-    let nod = regalloc n nn in
-    gmove nod2 nod;
-    gopcode o (Some nod1) None (Some nod);
-    gmove nod nod2;
-    if nn <> None then gopcode OAS (Some nod) None nn;
-    regfree nod;
-    regfree nod1;
-    if l.addable < indexed then regfree nod2
-  in
-  let asop () = if (h ()).asop_load then asop_load () else asop_move () in
   match o with
   | OAS ->
       let l = l () and r = r () in
-      if l.op = OBIT then diag (Some n) "bitfields are not in the subset"
-      else if l.addable >= indexed && l.complex < fnx then begin
-        if nn <> None || r.addable < indexed then begin
+      if l.addable >= indexed && l.complex < fnx then begin
+        if nn = None && r.addable >= indexed then gmove r l
+        else begin
           let nod = if r.complex >= fnx && nn = None then regret r else regalloc r nn in
           cgen r (Some nod);
           gmove nod l;
-          (match nn with Some nn -> gmove nod nn | None -> ());
+          Option.iter (gmove nod) nn;
           regfree nod
         end
-        else gmove r l
       end
-      else if l.complex >= r.complex then begin
+      else if l.complex >= r.complex && r.addable >= indexed then begin
         let nod1 = reglcgen l None in
-        if r.addable >= indexed then begin
-          gmove r nod1;
-          (match nn with Some nn -> gmove r nn | None -> ());
-          regfree nod1
-        end
-        else begin
-          let nod = regalloc r nn in
-          cgen r (Some nod);
-          gmove nod nod1;
-          regfree nod;
-          regfree nod1
-        end
+        gmove r nod1;
+        Option.iter (gmove r) nn;
+        regfree nod1
       end
       else begin
-        let nod = regalloc r nn in
-        cgen r (Some nod);
-        let nod1 = reglcgen l None in
+        let nod1, nod = ordered l r (fun () -> reglcgen l None) (fun () -> let nod = regalloc r nn in cgen r (Some nod); nod) in
         gmove nod nod1;
         regfree nod;
         regfree nod1
       end
-  | ODIV | OMOD ->
-      let t = if nn <> None then Check.vlog (Tree.r n) else -1 in
-      if t >= 0 then begin
-        (* signed division by a power of 2 *)
-        let nn = nnv () in
-        cgen (l ()) (Some nn);
-        gopcode OGE (Some (nodconst 0L)) (Some nn) None;
+  | ODIV | OMOD when nn <> None && Check.vlog (r ()) >= 0 ->
+      (* signed division by a power of 2 *)
+      let nn = Option.get nn and t = Check.vlog (r ()) in
+      cgen (l ()) (Some nn);
+      compare OGE (nodconst 0L) nn;
+      let p1 = p () in
+      if o = ODIV then begin
+        op2 OADD (iconst ((1 lsl t) - 1)) nn;
+        here p1;
+        op2 OASHR (iconst t) nn
+      end
+      else begin
+        (h ()).neg nn nn;
+        op2 OAND (iconst ((1 lsl t) - 1)) nn;
+        (h ()).neg nn nn;
+        jump ();
+        here p1;
         let p1 = p () in
-        let mask = nodconst (Int64.of_int ((1 lsl t) - 1)) in
-        if o = ODIV then begin
-          gopcode OADD (Some mask) None (Some nn);
-          patch p1 !pc;
-          gopcode OASHR (Some (nodconst (Int64.of_int t))) None (Some nn)
-        end
-        else begin
-          (h ()).neg nn nn;
-          gopcode OAND (Some mask) None (Some nn);
-          (h ()).neg nn nn;
-          ignore (gbranch OGOTO);
-          patch p1 !pc;
-          let p1 = p () in
-          gopcode OAND (Some (nodconst (Int64.of_int ((1 lsl t) - 1)))) None (Some nn);
-          patch p1 !pc
-        end
+        op2 OAND (iconst ((1 lsl t) - 1)) nn;
+        here p1
       end
-      else muldiv ()
-  | OSUB ->
-      if (h ()).rsb && nn <> None && (l ()).op = OCONST && not (typefd (et n)) then (cgen (r ()) nn; gopcode o None n.left nn)
-      else immediate ()
+  | OSUB when (h ()).rsb && nn <> None && (l ()).op = OCONST && not (typefd (et n)) -> cgen (r ()) nn; gopcode o None n.left nn
+  | OADD | OSUB | OAND | OOR | OXOR | OLSHR | OASHL | OASHR -> immediate ()
+  | OLMUL | OLDIV | OLMOD | OMUL | ODIV | OMOD -> muldiv ()
   (* only 7c's front end leaves them: 5c's makes them 0-x and -1^x *)
-  | ONEG | OCOM -> (
-      match nn with
-      | None -> nullwarn n.left None
-      | Some nn ->
-          let nod = regalloc (l ()) (Some nn) in
-          cgen (l ()) (Some nod);
-          gopcode o (Some nod) None (Some nod);
-          gmove nod nn;
-          regfree nod)
-  | OADD | OAND | OOR | OXOR | OLSHR | OASHL | OASHR -> immediate ()
-  | OLMUL | OLDIV | OLMOD | OMUL -> muldiv ()
-  | OASLSHR | OASASHL | OASASHR | OASAND | OASADD | OASSUB | OASXOR | OASOR ->
-      let l = l () and r = r () in
-      if l.op = OBIT then diag (Some n) "bitfields are not in the subset"
-      else if r.op = OCONST && not (typefd (et r)) && not (typefd (et n)) then begin
-        let nod2 = if l.addable < indexed then reglcgen l None else l in
-        let nod = regalloc (if (h ()).by_left then l else r) nn in
-        gopcode OAS (Some nod2) None (Some nod);
-        gopcode o (Some r) None (Some nod);
-        gopcode OAS (Some nod) None (Some nod2);
-        regfree nod;
-        if l.addable < indexed then regfree nod2
-      end
-      else asop ()
-  | OASLMUL | OASLDIV | OASLMOD | OASMUL | OASDIV | OASMOD ->
-      if (l ()).op = OBIT then diag (Some n) "bitfields are not in the subset" else asop ()
-  | OADDR -> (match nn with None -> nullwarn n.left None | Some nn -> lcgen (l ()) (Some nn))
+  | ONEG | OCOM -> unary (fun nn -> let nod = regalloc (l ()) (Some nn) in cgen (l ()) (Some nod); op2 o nod nod; gmove nod nn; regfree nod)
+  | OASLSHR | OASASHL | OASASHR | OASAND | OASADD | OASSUB | OASXOR | OASOR
+    when (r ()).op = OCONST && not (typefd (et (r ()))) && not (typefd (et n)) ->
+      let l = l () in
+      let nod2 = lvalue l in
+      let nod = regalloc (if (h ()).by_left then l else r ()) nn in
+      gmove nod2 nod;
+      op2 o (r ()) nod;
+      gmove nod nod2;
+      regfree nod;
+      unlvalue l nod2
+  | OASLSHR | OASASHL | OASASHR | OASAND | OASADD | OASSUB | OASXOR | OASOR | OASLMUL | OASLDIV | OASLMOD | OASMUL
+  | OASDIV | OASMOD -> asop ()
+  | OADDR -> unary (fun nn -> lcgen (l ()) (Some nn))
   | OFUNC ->
       let l = Option.get (uncomma n.left) in
       if l.complex >= fnx then begin
         (* the function is itself computed by a call *)
-        if l.op <> OIND then ignore (diag (Some n) "bad function call");
         let ll = Tree.l l in
         let nod = regret ll in
         cgen ll (Some nod);
         let nod1 = regsalloc ll in
-        gopcode OAS (Some nod) None (Some nod1);
+        gmove nod nod1;
         regfree nod;
-        let nod2 = dup l in
-        nod2.left <- Some nod1; nod2.complex <- 1;
-        let nod = dup n in
-        nod.left <- Some nod2;
-        cgen nod nn;
+        cgen { n with left = Some { l with left = Some nod1; complex = 1 } } nn;
         raise Return
       end;
       let regarg = (bk ()).regret in
       let o = !regs.(regarg) in
       gargs n.right;
-      if l.addable < indexed then begin
-        let nod = reglcgen l None in
-        gopcode OFUNC None None (Some nod);
-        regfree nod
-      end
+      if l.addable < indexed then (let nod = reglcgen l None in gopcode OFUNC None None (Some nod); regfree nod)
       else gopcode OFUNC None None (Some l);
       if o <> !regs.(regarg) then !regs.(regarg) <- !regs.(regarg) - 1;
-      (match nn with
-       | Some nn -> let nod = regret n in gopcode OAS (Some nod) None (Some nn); regfree nod
-       | None -> ())
-  | OIND -> (
-      match nn with
-      | None -> nullwarn n.left None
-      | Some nn ->
-          let nod = regialloc n (Some nn) in
-          let rec right (x : node) = if x.op = OADD then right (Tree.r x) else x in
-          let r = right (l ()) in
-          if sconst r && (h ()).fits n (Int64.to_int r.vconst + nod.xoffset) then begin
-            let v = r.vconst in
-            r.vconst <- 0L;
-            cgen (l ()) (Some nod);
-            nod.xoffset <- nod.xoffset + Int64.to_int v;
-            r.vconst <- v
-          end
-          else cgen (l ()) (Some nod);
-          regind nod n;
-          gopcode OAS (Some nod) None (Some nn);
-          regfree nod)
-  | OEQ | ONE | OLE | OLT | OGE | OGT | OLO | OLS | OHI | OHS -> (
-      match nn with None -> nullwarn n.left n.right | Some _ -> boolgen n true nn)
-  | OANDAND | OOROR -> boolgen n true nn; if nn = None then patch (p ()) !pc
-  | ONOT -> (match nn with None -> nullwarn n.left None | Some _ -> boolgen n true nn)
+      Option.iter (fun nn -> let nod = regret n in gmove nod nn; regfree nod) nn
+  | OIND ->
+      unary (fun nn ->
+        let nod = regialloc n (Some nn) in
+        fold_offset (l ()) nod n (fun () -> cgen (l ()) (Some nod));
+        regind nod n;
+        gmove nod nn;
+        regfree nod)
+  | o when is_rel o -> if nn = None then (effects n.left; effects n.right) else boolgen n true nn
+  | OANDAND | OOROR -> boolgen n true nn; if nn = None then here (p ())
+  | ONOT -> unary (fun _ -> boolgen n true nn)
   | OCOMMA -> cgen (l ()) None; cgen (r ()) nn
-  | OCAST -> (
-      match nn with
-      | None -> nullwarn n.left None
-      | Some nnn ->
-          let l = l () in
-          if Check.nocast l.ntype n.ntype && Check.nocast n.ntype nnn.ntype then cgen l nn
-          else begin
-            let nod = regalloc l nn in
-            cgen l (Some nod);
-            let nod1 = regalloc n (Some nod) in
-            if inrel then (bk ()).gmover nod nod1 else gopcode OAS (Some nod) None (Some nod1);
-            gopcode OAS (Some nod1) None nn;
-            regfree nod1;
-            regfree nod
-          end)
-  | ODOT ->
-      let l = l () in
-      let rat = Option.get !nodrat in
-      sugen l (Some rat) (t l).width;
-      (match nn with
-       | Some _ ->
-           let nod = dup rat in
-           (match n.right with
-            | Some ({ op = OCONST; _ } as r) ->
-                nod.xoffset <- nod.xoffset + Int64.to_int (sx32 r.vconst);
-                nod.ntype <- n.ntype;
-                cgen nod nn
-            | _ -> ignore (diag (Some n) "DOT and no offset"))
-       | None -> ())
-  | OCOND ->
-      bcgen (l ()) true;
-      let p1 = p () in
-      cgen (Tree.l (r ())) nn;
-      ignore (gbranch OGOTO);
-      patch p1 !pc;
-      let p1 = p () in
-      cgen (Tree.r (r ())) nn;
-      patch p1 !pc
+  | OCAST ->
+      unary (fun nnn ->
+        let l = l () in
+        if Check.nocast l.ntype n.ntype && Check.nocast n.ntype nnn.ntype then cgen l nn
+        else begin
+          let nod = regalloc l nn in
+          cgen l (Some nod);
+          let nod1 = regalloc n (Some nod) in
+          if inrel then (bk ()).gmover nod nod1 else gmove nod nod1;
+          gmove nod1 nnn;
+          regfree nod1;
+          regfree nod
+        end)
+  | ODOT -> dot n nn (fun nod -> cgen nod nn)
+  | OCOND -> ifelse (l ()) (fun () -> cgen (Tree.l (r ())) nn) (fun () -> cgen (Tree.r (r ())) nn)
   | OPOSTINC | OPOSTDEC | OPREINC | OPREDEC ->
       let l = l () in
       let v = if et l = Tind then (link (t l)).width else 1 in
       let v = if o = OPOSTDEC || o = OPREDEC then - v else v in
-      if l.op = OBIT then diag (Some n) "bitfields are not in the subset"
-      else if (o = OPOSTINC || o = OPOSTDEC) && nn <> None then begin
-        let nod2 = if l.addable < indexed then reglcgen l None else l in
-        let nod = regalloc l nn in
-        gopcode OAS (Some nod2) None (Some nod);
-        let nod1 = regalloc l None in
-        if typefd (et l) then begin
-          let nod3 = regalloc l None in
-          if v < 0 then (gopcode OAS (Some (nodfconst (float_of_int (- v)))) None (Some nod3); gopcode OSUB (Some nod3) (Some nod) (Some nod1))
-          else (gopcode OAS (Some (nodfconst (float_of_int v))) None (Some nod3); gopcode OADD (Some nod3) (Some nod) (Some nod1));
-          regfree nod3
-        end
-        else gopcode OADD (Some (nodconst (Int64.of_int v))) (Some nod) (Some nod1);
-        gopcode OAS (Some nod1) None (Some nod2);
-        regfree nod;
-        regfree nod1;
-        if l.addable < indexed then regfree nod2
+      let post = (o = OPOSTINC || o = OPOSTDEC) && nn <> None in
+      let nod2 = lvalue l in
+      let nod = regalloc l nn in
+      gmove nod2 nod;
+      (* x++ into a new register, the old kept; ++x in place *)
+      let into = if post then regalloc l None else nod in
+      let middle = if post then Some nod else None in
+      if typefd (et l) then begin
+        let nod3 = regalloc l None in
+        gmove (nodfconst (float_of_int (abs v))) nod3;
+        gopcode (if v < 0 then OSUB else OADD) (Some nod3) middle (Some into);
+        regfree nod3
       end
-      else begin
-        let nod2 = if l.addable < indexed then reglcgen l None else l in
-        let nod = regalloc l nn in
-        gopcode OAS (Some nod2) None (Some nod);
-        if typefd (et l) then begin
-          let nod3 = regalloc l None in
-          if v < 0 then (gopcode OAS (Some (nodfconst (float_of_int (- v)))) None (Some nod3); gopcode OSUB (Some nod3) None (Some nod))
-          else (gopcode OAS (Some (nodfconst (float_of_int v))) None (Some nod3); gopcode OADD (Some nod3) None (Some nod));
-          regfree nod3
-        end
-        else gopcode OADD (Some (nodconst (Int64.of_int v))) None (Some nod);
-        gopcode OAS (Some nod) None (Some nod2);
-        (* in x = ++i, USED(i) *)
-        if nn <> None && l.op = ONAME then ignore (gins "NOP" (Some l) None);
-        regfree nod;
-        if l.addable < indexed then regfree nod2
-      end
+      else gopcode OADD (Some (iconst v)) middle (Some into);
+      gmove into nod2;
+      (* in x = ++i, USED(i) *)
+      if not post && nn <> None && l.op = ONAME then ignore (gins "NOP" (Some l) None);
+      regfree nod;
+      if post then regfree into;
+      unlvalue l nod2
   | o -> ignore (diag (Some n) "unknown op in cgen: %s" (opname o))
+
+(* a constant offset at the end of an address folded into the load or
+ * store (the constant zeroed while the rest is generated) *)
+and fold_offset (x : node) (t : node) (n : node) gen =
+  let rec right (x : node) = if x.op = OADD then right (Tree.r x) else x in
+  let r = right x in
+  if sconst r && (h ()).fits n (Int64.to_int r.vconst + t.xoffset) then begin
+    let v = r.vconst in
+    r.vconst <- 0L;
+    gen ();
+    t.xoffset <- t.xoffset + Int64.to_int v;
+    r.vconst <- v
+  end
+  else gen ()
+
+(* a structure's member: the structure into .rathole, then the member *)
+and dot (n : node) (nn : node option) k =
+  let l = Tree.l n in
+  let rat = Option.get !nodrat in
+  sugen l (Some rat) (t l).width;
+  if nn <> None then
+    match n.right with
+    | Some ({ op = OCONST; _ } as r) -> k { rat with xoffset = rat.xoffset + Int64.to_int (sx32 r.vconst); ntype = n.ntype }
+    | _ -> ignore (diag (Some n) "DOT and no offset")
 
 (* constants that fit an instruction; the linker sorts out the rest *)
 and sconst (n : node) = n.op = OCONST && not (typefd (et n))
@@ -659,15 +543,8 @@ and sconst (n : node) = n.op = OCONST && not (typefd (et n))
 (* the address of n, in a register, as an indirect node *)
 and reglcgen (n : node) (nn : node option) =
   let t = regialloc n nn in
-  let rec right (x : node) = if x.op = OADD then right (Tree.r x) else x in
   (match n.op with
-   | OIND when (let r = right (Tree.l n) in sconst r && (h ()).fits n (Int64.to_int r.vconst + t.xoffset)) ->
-       let r = right (Tree.l n) in
-       let v = r.vconst in
-       r.vconst <- 0L;
-       lcgen n (Some t);
-       t.xoffset <- t.xoffset + Int64.to_int v;
-       r.vconst <- v
+   | OIND -> fold_offset (Tree.l n) t n (fun () -> lcgen n (Some t))
    | OINDREG when (h ()).fits n (t.xoffset + n.xoffset) ->
        let v = n.xoffset and ty0 = n.ntype in
        n.op <- OREGISTER;
@@ -680,86 +557,66 @@ and reglcgen (n : node) (nn : node option) =
   regind t n;
   t
 
+(* the address of nn as a long's, in a register (5c's reglpcgen) *)
 and reglpcgen (nn : node) f =
   let ty0 = nn.ntype in
   nn.ntype <- Some (ty Tlong);
-  let n =
-    if f then reglcgen nn None
-    else (let n = regialloc nn None in lcgen nn (Some n); regind n nn; n)
-  in
+  let n = if f then reglcgen nn None else (let n = regialloc nn None in lcgen nn (Some n); regind n nn; n) in
   nn.ntype <- ty0;
   n
 
 (* the address of n into nn *)
 and lcgen (n : node) (nn : node option) =
-  match n.ntype with
-  | None -> ()
-  | Some _ ->
-      let nn = match nn with Some nn -> nn | None -> regalloc n None in
-      match n.op with
-      | OCOMMA -> cgen (Tree.l n) n.left; lcgen (Tree.r n) (Some nn)
-      | OIND -> cgen (Tree.l n) (Some nn)
-      | OCOND ->
-          bcgen (Tree.l n) true;
-          let p1 = p () in
-          lcgen (Tree.l (Tree.r n)) (Some nn);
-          ignore (gbranch OGOTO);
-          patch p1 !pc;
-          let p1 = p () in
-          lcgen (Tree.r (Tree.r n)) (Some nn);
-          patch p1 !pc
-      | _ ->
-          if n.addable < indexed then ignore (diag (Some n) "unknown op in lcgen: %s" (opname n.op))
-          else begin
-            let nod = dup n in
-            nod.op <- OADDR; nod.left <- Some n; nod.right <- None; nod.ntype <- Some (ty Tind);
-            gopcode OAS (Some nod) None (Some nn)
-          end
+  if n.ntype <> None then begin
+    let nn = match nn with Some nn -> nn | None -> regalloc n None in
+    match n.op with
+    | OCOMMA -> cgen (Tree.l n) n.left; lcgen (Tree.r n) (Some nn)
+    | OIND -> cgen (Tree.l n) (Some nn)
+    | OCOND -> ifelse (Tree.l n) (fun () -> lcgen (Tree.l (Tree.r n)) (Some nn)) (fun () -> lcgen (Tree.r (Tree.r n)) (Some nn))
+    | _ when n.addable < indexed -> ignore (diag (Some n) "unknown op in lcgen: %s" (opname n.op))
+    | _ -> gmove { n with op = OADDR; left = Some n; right = None; ntype = Some (ty Tind) } nn
+  end
 
-and bcgen (n : node) tr = if n.ntype = None then ignore (gbranch OGOTO) else boolgen n tr None
+and bcgen (n : node) tr = if n.ntype = None then jump () else boolgen n tr None
 
 (* n as a condition: a branch taken if n is tr; into nn, 1 or 0 *)
 and boolgen (n : node) tr (nn : node option) =
   let curs = !cursafe in
   let l () = Tree.l n and r () = Tree.r n in
   let com () =
-    match nn with
-    | Some _ ->
-        let p1 = p () in
-        gopcode OAS (Some (nodconst 1L)) None nn;
-        ignore (gbranch OGOTO);
-        let p2 = p () in
-        patch p1 !pc;
-        gopcode OAS (Some (nodconst 0L)) None nn;
-        patch p2 !pc
-    | None -> ()
+    Option.iter (fun nn ->
+      let p1 = p () in
+      gmove (nodconst 1L) nn;
+      jump ();
+      let p2 = p () in
+      here p1;
+      gmove (nodconst 0L) nn;
+      here p2) nn
   in
+  (* a and b, true; a or b, false: both branches to the end *)
   let caseand tr =
     bcgen (l ()) tr;
     let p1 = p () in
     bcgen (r ()) (not tr);
     let p2 = p () in
-    patch p1 !pc;
-    ignore (gbranch OGOTO);
-    patch p2 !pc;
-    com ()
+    here p1;
+    jump ();
+    here p2
   in
   let caseor tr =
     bcgen (l ()) (not tr);
     let p1 = p () in
     bcgen (r ()) (not tr);
     let p2 = p () in
-    ignore (gbranch OGOTO);
-    patch p1 !pc;
-    patch p2 !pc;
-    com ()
+    jump ();
+    here p1;
+    here p2
   in
+  let rel o = if tr then Check.comrel.(Check.relindex o) else o in
   (match n.op with
    | OCONST ->
-       let v = Check.vconst (Some n) <> 0 in
-       let v = if tr then v else not v in
-       ignore (gbranch OGOTO);
-       if v then (let p1 = p () in ignore (gbranch OGOTO); patch p1 !pc);
+       jump ();
+       if (Check.vconst (Some n) <> 0) = tr then (let p1 = p () in jump (); here p1);
        com ()
    | OCOMMA -> cgen (l ()) None; boolgen (r ()) tr nn
    | ONOT -> boolgen (l ()) (not tr) nn
@@ -768,74 +625,37 @@ and boolgen (n : node) tr (nn : node option) =
        let p1 = p () in
        bcgen (Tree.l (r ())) tr;
        let p2 = p () in
-       ignore (gbranch OGOTO);
-       patch p1 !pc;
+       jump ();
+       here p1;
        let p1 = p () in
        bcgen (Tree.r (r ())) (not tr);
-       patch p2 !pc;
+       here p2;
        let p2 = p () in
-       ignore (gbranch OGOTO);
-       patch p1 !pc;
-       patch p2 !pc;
+       jump ();
+       here p1;
+       here p2;
        com ()
-   | OANDAND -> if tr then caseand tr else caseor tr
-   | OOROR -> if tr then caseor tr else caseand tr
-   | OEQ | ONE | OLE | OLT | OGE | OGT | OHI | OHS | OLO | OLS ->
-       let o = if tr then Check.comrel.(rel_tab n.op) else n.op in
-       let l = l () and r = r () in
-       if l.complex >= fnx && r.complex >= fnx then begin
-         let nod = regret r in
-         cgenrel r (Some nod) true;
-         let nod1 = regsalloc r in
-         gopcode OAS (Some nod) None (Some nod1);
-         regfree nod;
-         let nod = dup n in
-         nod.right <- Some nod1;
-         boolgen nod tr nn
-       end
+   | OANDAND -> (if tr then caseand else caseor) tr; com ()
+   | OOROR -> (if tr then caseor else caseand) tr; com ()
+   | o when is_rel o && (l ()).complex >= fnx && (r ()).complex >= fnx -> boolgen (spill_right n ~rel:true) tr nn
+   | o when is_rel o ->
+       let o = rel o and l = l () and r = r () in
+       (* a constant compared: as an immediate *)
+       let one_side (x : node) c o = let nod = regalloc x nn in cgenrel x (Some nod) true; compare ~tr o c nod; regfree nod in
+       if sconst l then one_side r l Check.invrel.(Check.relindex o)
+       else if sconst r then one_side l r o
        else begin
-         if sconst l then begin
-           let nod = regalloc r nn in
-           cgenrel r (Some nod) true;
-           let o = Check.invrel.(rel_tab o) in
-           gopcodet o tr (Some l) (Some nod) None;
-           regfree nod
-         end
-         else if sconst r then begin
-           let nod = regalloc l nn in
-           cgenrel l (Some nod) true;
-           gopcodet o tr (Some r) (Some nod) None;
-           regfree nod
-         end
-         else begin
-           let nod, nod1 =
-             if l.complex >= r.complex then begin
-               let nod1 = regalloc l nn in
-               cgenrel l (Some nod1) true;
-               let nod = regalloc r None in
-               cgenrel r (Some nod) true;
-               nod, nod1
-             end
-             else begin
-               let nod = regalloc r nn in
-               cgenrel r (Some nod) true;
-               let nod1 = regalloc l None in
-               cgenrel l (Some nod1) true;
-               nod, nod1
-             end
-           in
-           gopcodet o tr (Some nod) (Some nod1) None;
-           regfree nod;
-           regfree nod1
-         end;
-         com ()
-       end
+         let nod1, nod = ordered l r (fun () -> let x = regalloc l (if l.complex >= r.complex then nn else None) in cgenrel l (Some x) true; x)
+                                     (fun () -> let x = regalloc r (if l.complex >= r.complex then None else nn) in cgenrel r (Some x) true; x) in
+         compare ~tr o nod nod1;
+         regfree nod;
+         regfree nod1
+       end;
+       com ()
    | _ ->
        let nod = regalloc n nn in
        cgen n (Some nod);
-       let o = if tr then Check.comrel.(rel_tab ONE) else ONE in
-       if typefd (et n) then gopcodet o tr (Some (nodfconst 0.)) (Some nod) None
-       else gopcode o (Some (nodconst 0L)) (Some nod) None;
+       if typefd (et n) then compare ~tr (rel ONE) (nodfconst 0.) nod else compare (rel ONE) (nodconst 0L) nod;
        regfree nod;
        com ());
   cursafe := curs
@@ -844,134 +664,77 @@ and boolgen (n : node) tr (nn : node option) =
 and sugen (n : node) (nn : node option) w =
   if n.ntype <> None then begin
     (match nn with Some x when x == Option.get !nodrat -> if w > !nrathole then nrathole := w | _ -> ());
-    let copy () = match nn with None -> () | Some nn -> sucopy n nn w in
-    match n.op with
-    | OIND when nn = None -> nullwarn n.left None
-    | OCONST when typev (et n) -> (
-        match nn with
-        | None -> nullwarn n.left None
-        | Some nn ->
-            let t0 = nn.ntype in
-            nn.ntype <- Some (ty Tlong);
-            let nod1 = reglcgen nn None in
-            nn.ntype <- t0;
-            gopcode OAS (Some (nodconst (sx32 n.vconst))) None (Some nod1);
-            nod1.xoffset <- nod1.xoffset + 4;
-            gopcode OAS (Some (nodconst (sx32 (Int64.shift_right n.vconst 32)))) None (Some nod1);
-            regfree nod1)
-    | ODOT ->
-        let l = Tree.l n in
-        let rat = Option.get !nodrat in
-        sugen l (Some rat) (t l).width;
-        (match nn with
-         | Some _ ->
-             let nod1 = dup rat in
-             (match n.right with
-              | Some ({ op = OCONST; _ } as r) ->
-                  nod1.xoffset <- nod1.xoffset + Int64.to_int (sx32 r.vconst);
-                  nod1.ntype <- n.ntype;
-                  sugen nod1 nn w
-              | _ -> ignore (diag (Some n) "DOT and no offset"))
-         | None -> ())
-    | OSTRUCT -> diag (Some n) "structure constructors are not in the subset"
-    | OAS -> (
-        match nn with
-        | None -> if n.addable < indexed then sugen (Tree.r n) n.left w
-        | Some _ ->
-            let rat = Option.get !nodrat in
-            sugen (Tree.r n) (Some rat) w;
-            sugen rat n.left w;
-            sugen rat nn w)
-    | OFUNC -> (
-        match nn with
-        | None -> sugen n (Some (Option.get !nodrat)) w
-        | Some nnn ->
-            (* the result's address, as the first argument *)
-            let a =
-              if nnn.op <> OIND then (let a = node1 OADDR (Some nnn) None in a.ntype <- Some (ty Tind); a.addable <- 0; a)
-              else Tree.l nnn
-            in
-            let f = node OFUNC n.left (Some (node OLIST (Some a) n.right)) in
-            f.ntype <- Some (ty Tvoid);
-            (Tree.l f).ntype <- Some (ty Tvoid);
-            cgen f None)
-    | OCOND ->
-        bcgen (Tree.l n) true;
-        let p1 = p () in
-        sugen (Tree.l (Tree.r n)) nn w;
-        ignore (gbranch OGOTO);
-        patch p1 !pc;
-        let p1 = p () in
-        sugen (Tree.r (Tree.r n)) nn w;
-        patch p1 !pc
-    | OCOMMA -> cgen (Tree.l n) None; sugen (Tree.r n) nn w
-    | _ -> copy ()
+    let rat = Option.get !nodrat in
+    match n.op, nn with
+    | (OIND | OCONST), None -> effects n.left
+    | OCONST, Some nn when typev (et n) ->
+        (* the two words *)
+        let t0 = nn.ntype in
+        nn.ntype <- Some (ty Tlong);
+        let nod1 = reglcgen nn None in
+        nn.ntype <- t0;
+        gmove (nodconst (sx32 n.vconst)) nod1;
+        nod1.xoffset <- nod1.xoffset + 4;
+        gmove (nodconst (sx32 (Int64.shift_right n.vconst 32))) nod1;
+        regfree nod1
+    | ODOT, _ -> dot n nn (fun nod -> sugen nod nn w)
+    | OSTRUCT, _ -> diag (Some n) "structure constructors are not in the subset"
+    | OAS, None -> if n.addable < indexed then sugen (Tree.r n) n.left w
+    | OAS, Some _ -> sugen (Tree.r n) (Some rat) w; sugen rat n.left w; sugen rat nn w
+    | OFUNC, None -> sugen n (Some rat) w
+    | OFUNC, Some nnn ->
+        (* the result's address, as the first argument *)
+        let a = if nnn.op <> OIND then (let a = node1 OADDR (Some nnn) None in a.ntype <- Some (ty Tind); a) else Tree.l nnn in
+        let f = node OFUNC n.left (Some (node OLIST (Some a) n.right)) in
+        f.ntype <- Some (ty Tvoid);
+        (Tree.l f).ntype <- Some (ty Tvoid);
+        cgen f None
+    | OCOND, _ -> ifelse (Tree.l n) (fun () -> sugen (Tree.l (Tree.r n)) nn w) (fun () -> sugen (Tree.r (Tree.r n)) nn w)
+    | OCOMMA, _ -> cgen (Tree.l n) None; sugen (Tree.r n) nn w
+    | _, None -> ()
+    | _, Some nn when n.complex >= fnx && nn.complex >= fnx ->
+        (* the destination's address first, to a temporary *)
+        let t0 = nn.ntype in
+        nn.ntype <- Some (ty Tlong);
+        let nod1 = regialloc nn None in
+        lcgen nn (Some nod1);
+        let nod2 = regsalloc nn in
+        nn.ntype <- t0;
+        gmove nod1 nod2;
+        regfree nod1;
+        nod2.ntype <- Some (typ Tind t0);
+        sugen n (Some { nod2 with op = OIND; left = Some nod2; right = None; complex = 1; ntype = t0 }) w
+    | _, Some nn -> (h ()).sucopy n nn w
   end
-
-and sucopy (n : node) (nn : node) w =
-  if n.complex >= fnx && nn.complex >= fnx then begin
-    (* the destination's address first, to a temporary *)
-    let t0 = nn.ntype in
-    nn.ntype <- Some (ty Tlong);
-    let nod1 = regialloc nn None in
-    lcgen nn (Some nod1);
-    let nod2 = regsalloc nn in
-    nn.ntype <- t0;
-    gopcode OAS (Some nod1) None (Some nod2);
-    regfree nod1;
-    nod2.ntype <- Some (typ Tind t0);
-    let nod1 = dup nod2 in
-    nod1.op <- OIND; nod1.left <- Some nod2; nod1.right <- None; nod1.complex <- 1; nod1.ntype <- t0;
-    sugen n (Some nod1) w
-  end
-  else (h ()).sucopy n nn w
 
 (*****************************************************************************)
 (* Multiplication by a constant (swt.c's mulcon) *)
 (*****************************************************************************)
 
 and mulcon (n : node) (nn : node) =
-  if typefd (et n) then false
-  else begin
-    let l, r = if (Tree.l n).op = OCONST then Tree.r n, Tree.l n else Tree.l n, Tree.r n in
-    if r.op <> OCONST then false
-    else begin
-      let v = convvtox r.vconst (et n) in
-      let v = if (h ()).mul32 then sx32 v else v in
-      if v <> r.vconst then false
-      else
-        match Multiply.mulcon0 (Int64.to_int v) with
-        | None -> false
-        | Some code ->
-            let code = if String.length code > 1 && code.[1] = 'i' then String.sub code 2 (String.length code - 2) else code in
-            let nod1 = regalloc n (Some nn) in
-            cgen l (Some nod1);
-            let nod2 = regalloc n None in
-            let pick k = if k then nod2 else nod1 in
-            let rec go i =
-              if i >= String.length code then begin
-                regfree nod2;
-                if Int64.compare v 0L < 0 then (gopcode OAS (Some nod1) None (Some nod1); (h ()).neg nod1 nn)
-                else gopcode OAS (Some nod1) None (Some nn);
-                regfree nod1
-              end
-              else begin
-                let d = Char.code code.[i + 1] - 48 in
-                (match code.[i] with
-                 | ('+' | '-') as c ->
-                     (* r, n, l in the digit's bits *)
-                     gopcode (if c = '+' then OADD else OSUB) (Some (pick (d land 1 <> 0))) (Some (pick (d land 2 <> 0))) (Some (pick (d land 4 <> 0)))
-                 | c ->
-                     let s = Char.code c - 97 in
-                     if s < 0 || s >= 32 then ignore (diag (Some n) "mulcon unknown op: %c" c)
-                     else gopcode OASHL (Some (nodconst (Int64.of_int s))) (Some (pick (d land 1 <> 0))) (Some (pick (d land 2 <> 0))));
-                go (i + 2)
-              end
-            in
-            go 0;
-            true
-    end
-  end
+  let l, r = if (Tree.l n).op = OCONST then Tree.r n, Tree.l n else Tree.l n, Tree.r n in
+  let v = convvtox r.vconst (et n) in
+  let v = if (h ()).mul32 then sx32 v else v in
+  match Multiply.mulcon0 (Int64.to_int v) with
+  | Some code when not (typefd (et n)) && r.op = OCONST && v = r.vconst ->
+      let code = if String.length code > 1 && code.[1] = 'i' then String.sub code 2 (String.length code - 2) else code in
+      let nod1 = regalloc n (Some nn) in
+      cgen l (Some nod1);
+      let nod2 = regalloc n None in
+      let pick k = if k then nod2 else nod1 in
+      (* two letters an operation: a shift by the letter's rank, or + -,
+       * then which registers, as bits *)
+      for i = 0 to (String.length code / 2) - 1 do
+        let d = Char.code code.[(2 * i) + 1] - 48 in
+        match code.[2 * i] with
+        | ('+' | '-') as c -> op3 (if c = '+' then OADD else OSUB) (pick (d land 1 <> 0)) (pick (d land 2 <> 0)) (pick (d land 4 <> 0))
+        | c -> op3 OASHL (iconst (Char.code c - 97)) (pick (d land 1 <> 0)) (pick (d land 2 <> 0))
+      done;
+      regfree nod2;
+      if Int64.compare v 0L < 0 then (gmove nod1 nod1; (h ()).neg nod1 nn) else gmove nod1 nn;
+      regfree nod1;
+      true
+  | _ -> false
 
 (*****************************************************************************)
 (* Arguments (txt.c's gargs) *)
@@ -981,56 +744,35 @@ and mulcon (n : node) (nn : node) =
  * register if it fits one *)
 and gargs (n : node option) =
   let regs0 = !cursafe in
-  let temps = ref [] in
-  let rec pass1 (n : node option) =
-    match n with
-    | None -> ()
-    | Some ({ op = OLIST; _ } as n) -> pass1 n.left; pass1 n.right
-    | Some n ->
-        if n.complex >= fnx then begin
-          let s = regsalloc n in
-          let nod = node OAS (Some s) (Some n) in
-          nod.ntype <- n.ntype;
-          cgen nod None;
-          temps := !temps @ [ s ]
-        end
-  in
-  pass1 n;
+  let rec args (n : node option) = match n with None -> [] | Some ({ op = OLIST; _ } as n) -> args n.left @ args n.right | Some n -> [ n ] in
+  let temps = List.map (fun (n : node) ->
+    if n.complex >= fnx then begin
+      let s = regsalloc n in
+      let nod = node OAS (Some s) (Some n) in
+      nod.ntype <- n.ntype;
+      cgen nod None;
+      s
+    end
+    else n) (args n) in
   curarg := 0;
-  let next () = match !temps with s :: rest -> temps := rest; s | [] -> assert false in
-  let rec pass2 (n : node option) =
-    match n with
-    | None -> ()
-    | Some ({ op = OLIST; _ } as n) -> pass2 n.left; pass2 n.right
-    | Some n ->
-        let src () = if n.complex >= fnx then next () else n in
-        if (m ()).typecmplx (et n) then begin
-          let tn2 = regaalloc n in
-          sugen (src ()) (Some tn2) (t n).width
-        end
-        else if !curarg = 0 && (m ()).typeword (et n) then begin
-          let tn1 = regaalloc1 n in
-          cgen (src ()) (Some tn1)
-        end
-        else if (h ()).zero_arg && Check.vconst (Some n) = 0 then begin
-          let tn2 = regaalloc n in
-          gopcode OAS (Some n) None (Some tn2)
-        end
-        else begin
-          let tn1 = regalloc n None in
-          cgen (src ()) (Some tn1);
-          let tn2 = regaalloc n in
-          gopcode OAS (Some tn1) None (Some tn2);
-          regfree tn1
-        end
-  in
-  pass2 n;
+  List.iter2 (fun (n : node) (src : node) ->
+    if (m ()).typecmplx (et n) then (let tn2 = regaalloc n in sugen src (Some tn2) (t n).width)
+    else if !curarg = 0 && (m ()).typeword (et n) then cgen src (Some (regaalloc1 n))
+    else if (h ()).zero_arg && Check.vconst (Some n) = 0 then gmove n (regaalloc n)
+    else begin
+      let tn1 = regalloc n None in
+      cgen src (Some tn1);
+      gmove tn1 (regaalloc n);
+      regfree tn1
+    end) (args n) temps;
   cursafe := regs0
 
 (*****************************************************************************)
 (* Statements (pgen.c) *)
 (*****************************************************************************)
 
+(* a switch's cases, the last first, and the one of the switch's
+ * start, which ends the list (pswt.c's casf) *)
 type case = { cval : int64; cdef : bool; clabel : int; cisv : bool }
 
 let cases : case list option ref = ref None
@@ -1041,9 +783,10 @@ let ncontin = ref 0
 let canreach = ref true
 
 let noretval k =
-  if k land 1 <> 0 then (let q = gins "NOP" None None in q.to_ <- Some (Ix_asm.Asm.Reg (bk ()).regret));
-  if k land 2 <> 0 then (let q = gins "NOP" None None in q.to_ <- Some (Ix_asm.Asm.FReg (bk ()).fregret))
+  if k land 1 <> 0 then (gins "NOP" None None).to_ <- Some (Ix_asm.Asm.Reg (bk ()).regret);
+  if k land 2 <> 0 then (gins "NOP" None None).to_ <- Some (Ix_asm.Asm.FReg (bk ()).fregret)
 
+(* a statement no label enters (sub.c's deadhead) *)
 let rec deadhead (n : node option) caseok =
   match n with
   | None -> true
@@ -1064,21 +807,20 @@ let deadheads (c : node) = deadhead c.left false && deadhead c.right false
 let bcomplex (n : node) (c : node option) =
   Check.complex (Some n);
   if n.ntype <> None && Check.tcompat n None n.ntype tnot then n.ntype <- None;
-  if n.ntype = None then (ignore (gbranch OGOTO); false)
+  if n.ntype = None then (jump (); false)
   else if c <> None && n.op = OCONST && deadheads (Option.get c) then true
   else (bool64 n; boolgen n true None; false)
 
-
-let casf () = cases := Some ({ cval = 0L; cdef = false; clabel = 0; cisv = false } :: Option.get !cases)
-let set_case c = match !cases with Some (_ :: rest) -> cases := Some (c :: rest) | _ -> ()
+let add_case c = cases := Some (c :: Option.get !cases)
 
 (* the cases, sorted, to the machine's dispatch (pswt.c's doswit) *)
 let doswit (n : node) =
-  let cs = List.filter (fun c -> not c.cdef) (List.rev (List.tl (List.rev (Option.get !cases)))) in
-  let def = List.fold_left (fun d c -> if c.cdef then c.clabel else d) 0 (Option.get !cases) in
+  let all = Option.get !cases in
+  let cs = List.filter (fun c -> not c.cdef) (List.rev (List.tl (List.rev all))) in
+  let def = List.fold_left (fun d c -> if c.cdef then c.clabel else d) 0 all in
   let isv = typev (et n) in
-  let q = List.map (fun c -> (if isv then c.cval else Int64.of_int32 (Int64.to_int32 c.cval)), c.clabel) (List.filter (fun c -> not c.cisv || isv) cs) in
-  let q = Array.of_list (List.stable_sort (fun (a, _) (b, _) -> compare a b) q) in
+  let q = List.map (fun c -> (if isv then c.cval else sx32 c.cval), c.clabel) (List.filter (fun c -> not c.cisv || isv) cs) in
+  let q = Array.of_list (List.stable_sort (fun (a, _) (b, _) -> Stdlib.compare a b) q) in
   for i = 0 to Array.length q - 2 do
     if fst q.(i) = fst q.(i + 1) then ignore (diag (Some n) "duplicate cases in switch %Ld" (fst q.(i)))
   done;
@@ -1089,6 +831,21 @@ let doswit (n : node) =
 (* a label's last forward goto (5c's n->label) *)
 let labels : (node * prog) list ref = ref []
 let pending (l : node) = List.assq_opt l !labels
+
+let goto target = patch (gbranch OGOTO) target
+
+(* a loop's or a switch's targets, restored after; can the end be
+ * reached: if it is broken out of *)
+let scoped ~contin f =
+  let scc = !continpc and sbc = !breakpc and snbreak = !nbreak and sncontin = !ncontin in
+  nbreak := 0;
+  if contin then ncontin := 0;
+  f ();
+  continpc := scc;
+  breakpc := sbc;
+  canreach := !nbreak <> 0;
+  nbreak := snbreak;
+  if contin then ncontin := sncontin
 
 let rec gen (n : node option) =
   match n with
@@ -1101,57 +858,49 @@ let rec gen (n : node option) =
           canreach := false;
           Check.complex (Some n);
           if n.ntype <> None then begin
-            match uncomma n.left with
-            | None -> noretval 3; ignore (gbranch ORETURN)
-            | Some l ->
-                if (m ()).typecmplx (et n) then begin
-                  let nod = node OAS !nodret (Some l) in
-                  nod.ntype <- n.ntype; nod.complex <- l.complex;
-                  cgen nod None;
-                  noretval 3
-                end
-                else begin
-                  let nod = regret n in
-                  cgen l (Some nod);
-                  regfree nod;
-                  noretval (if typefd (et n) then 1 else 2)
-                end;
-                ignore (gbranch ORETURN)
+            (match uncomma n.left with
+             | None -> noretval 3
+             | Some l when (m ()).typecmplx (et n) ->
+                 let nod = node OAS !nodret (Some l) in
+                 nod.ntype <- n.ntype; nod.complex <- l.complex;
+                 cgen nod None;
+                 noretval 3
+             | Some l ->
+                 let nod = regret n in
+                 cgen l (Some nod);
+                 regfree nod;
+                 noretval (if typefd (et n) then 1 else 2));
+            ignore (gbranch ORETURN)
           end
       | OLABEL ->
           canreach := true;
-          (match n.left with
-           | Some l -> l.pc <- !pc; (match pending l with Some q -> patch q !pc | None -> ())
-           | None -> ());
+          Option.iter (fun (l : node) -> l.pc <- !pc; Option.iter here (pending l)) n.left;
           (* no self reference *)
-          let q = gbranch OGOTO in
-          patch q !pc;
+          goto (!pc + 1);
           gen n.right
       | OGOTO -> (
           canreach := false;
           match n.left with
-          | None -> ()
-          | Some l ->
-              if l.complex = 0 then ignore (diag None "label undefined: %s" (sym l).name)
-              else if !suppress = 0 then begin
-                let q = gbranch OGOTO in
-                if l.pc <> 0 then patch q l.pc
-                else begin
-                  (* the previous goto branches to this one, as 5c's *)
-                  (match pending l with Some prev -> patch prev (!pc - 1) | None -> ());
-                  labels := (l, q) :: List.filter (fun (x, _) -> x != l) !labels
-                end
-              end)
+          | Some l when l.complex = 0 -> ignore (diag None "label undefined: %s" (sym l).name)
+          | Some l when !suppress = 0 ->
+              let q = gbranch OGOTO in
+              if l.pc <> 0 then patch q l.pc
+              else begin
+                (* the previous goto branches to this one, as 5c's *)
+                Option.iter (fun prev -> patch prev (!pc - 1)) (pending l);
+                labels := (l, q) :: List.filter (fun (x, _) -> x != l) !labels
+              end
+          | _ -> ())
       | OCASE ->
           canreach := true;
           if !cases = None then ignore (diag (Some n) "case/default outside a switch");
           (match n.left with
-           | None -> casf (); set_case { cval = 0L; cdef = true; clabel = !pc; cisv = false }
+           | None -> add_case { cval = 0L; cdef = true; clabel = !pc; cisv = false }
            | Some l ->
                Check.complex (Some l);
                if l.ntype <> None then begin
                  if l.op <> OCONST || not ((m ()).typeswitch (et l)) then ignore (diag (Some n) "case expression must be integer constant")
-                 else (casf (); set_case { cval = l.vconst; cdef = false; clabel = !pc; cisv = typev (et l) })
+                 else add_case { cval = l.vconst; cdef = false; clabel = !pc; cisv = typev (et l) }
                end);
           gen n.right
       | OSWITCH ->
@@ -1161,145 +910,106 @@ let rec gen (n : node option) =
             if not ((m ()).typeswitch (et l)) then ignore (diag (Some n) "switch expression must be integer");
             let sp = gbranch OGOTO in
             let cn = !cases in
-            cases := Some [];
-            casf ();
-            let sbc = !breakpc in
-            breakpc := !pc;
-            let snbreak = !nbreak in
-            nbreak := 0;
-            let spb = gbranch OGOTO in
-            gen n.right;
-            if !canreach then (let q = gbranch OGOTO in patch q !breakpc; incr nbreak);
-            patch sp !pc;
-            let nod = regalloc l None in
-            (* always signed *)
-            nod.ntype <- Some (ty (if typev (et l) then Tvlong else Tlong));
-            cgen l (Some nod);
-            doswit nod;
-            regfree nod;
-            patch spb !pc;
-            cases := cn;
-            breakpc := sbc;
-            canreach := !nbreak <> 0;
-            nbreak := snbreak
+            cases := Some [ { cval = 0L; cdef = false; clabel = 0; cisv = false } ];
+            scoped ~contin:false (fun () ->
+              breakpc := !pc;
+              let spb = gbranch OGOTO in
+              gen n.right;
+              if !canreach then (goto !breakpc; incr nbreak);
+              here sp;
+              let nod = regalloc l None in
+              (* always signed *)
+              nod.ntype <- Some (ty (if typev (et l) then Tvlong else Tlong));
+              cgen l (Some nod);
+              doswit nod;
+              regfree nod;
+              here spb);
+            cases := cn
           end
       | OWHILE | ODWHILE ->
           let l = Tree.l n in
           let sp = gbranch OGOTO in
-          let scc = !continpc in
-          continpc := !pc;
-          let spc = gbranch OGOTO in
-          let sbc = !breakpc in
-          breakpc := !pc;
-          let snbreak = !nbreak in
-          nbreak := 0;
-          let spb = gbranch OGOTO in
-          patch spc !pc;
-          if n.op = OWHILE then patch sp !pc;
-          ignore (bcomplex l None);
-          patch (p ()) !breakpc;
-          if l.op <> OCONST || Check.vconst (Some l) = 0 then incr nbreak;
-          if n.op = ODWHILE then patch sp !pc;
-          gen n.right;
-          let q = gbranch OGOTO in
-          patch q !continpc;
-          patch spb !pc;
-          continpc := scc;
-          breakpc := sbc;
-          canreach := !nbreak <> 0;
-          nbreak := snbreak
+          scoped ~contin:false (fun () ->
+            continpc := !pc;
+            let spc = gbranch OGOTO in
+            breakpc := !pc;
+            let spb = gbranch OGOTO in
+            here spc;
+            if n.op = OWHILE then here sp;
+            test l;
+            if n.op = ODWHILE then here sp;
+            gen n.right;
+            goto !continpc;
+            here spb)
       | OFOR ->
           let l = Tree.l n in
           gen (Tree.r l).left;
           let sp = gbranch OGOTO in
-          let scc = !continpc in
-          continpc := !pc;
-          let spc = gbranch OGOTO in
-          let sbc = !breakpc in
-          breakpc := !pc;
-          let snbreak = !nbreak in
-          nbreak := 0;
-          let sncontin = !ncontin in
-          ncontin := 0;
-          let spb = gbranch OGOTO in
-          patch spc !pc;
-          gen (Tree.r l).right;
-          patch sp !pc;
-          (match l.left with
-           | Some test ->
-               ignore (bcomplex test None);
-               patch (p ()) !breakpc;
-               if test.op <> OCONST || Check.vconst (Some test) = 0 then incr nbreak
-           | None -> ());
-          canreach := true;
-          gen n.right;
-          if !canreach then (let q = gbranch OGOTO in patch q !continpc; incr ncontin);
-          patch spb !pc;
-          continpc := scc;
-          breakpc := sbc;
-          canreach := !nbreak <> 0;
-          nbreak := snbreak;
-          ncontin := sncontin
+          scoped ~contin:true (fun () ->
+            continpc := !pc;
+            let spc = gbranch OGOTO in
+            breakpc := !pc;
+            let spb = gbranch OGOTO in
+            here spc;
+            gen (Tree.r l).right;
+            here sp;
+            Option.iter test l.left;
+            canreach := true;
+            gen n.right;
+            if !canreach then (goto !continpc; incr ncontin);
+            here spb)
       | OCONTINUE ->
           if !continpc < 0 then ignore (diag (Some n) "continue not in a loop")
-          else (let q = gbranch OGOTO in patch q !continpc; incr ncontin; canreach := false)
+          else (goto !continpc; incr ncontin; canreach := false)
       | OBREAK ->
           if !breakpc < 0 then ignore (diag (Some n) "break not in a loop")
           (* an unreachable break makes no branch *)
-          else if !canreach then (let q = gbranch OGOTO in patch q !breakpc; incr nbreak; canreach := false)
+          else if !canreach then (goto !breakpc; incr nbreak; canreach := false)
       | OIF ->
           let l = Tree.l n and r = Tree.r n in
           if bcomplex l n.right then begin
+            (* a constant: the dead side generated, and thrown away *)
             let f = if typefd (et l) then l.fconst = 0. else l.vconst = 0L in
-            if f then (canreach := true; supgen r.left; canreach := true; gen r.right)
-            else begin
-              canreach := true;
-              gen r.left;
-              let oldreach = !canreach in
-              canreach := true;
-              supgen r.right;
-              canreach := oldreach
-            end
+            canreach := true;
+            if f then (supgen r.left; canreach := true; gen r.right)
+            else (gen r.left; let oldreach = !canreach in canreach := true; supgen r.right; canreach := oldreach)
           end
           else begin
             let sp = ref (p ()) in
             canreach := true;
-            if r.left <> None then gen r.left;
+            gen r.left;
             let oldreach = !canreach in
             canreach := true;
-            if r.right <> None then begin
-              let q = gbranch OGOTO in
-              patch !sp !pc;
-              sp := q;
-              gen r.right
-            end;
-            patch !sp !pc;
+            if r.right <> None then (let q = gbranch OGOTO in here !sp; sp := q; gen r.right);
+            here !sp;
             canreach := !canreach || oldreach
           end
       | OSET | OUSED -> usedset n.left n.op
       | _ -> Check.complex (Some n); cgen n None
 
+(* a loop's test, its false branch to the break *)
+and test (l : node) =
+  ignore (bcomplex l None);
+  patch (p ()) !breakpc;
+  if l.op <> OCONST || Check.vconst (Some l) = 0 then incr nbreak
+
 (* generated then thrown away: its strings and labels stay *)
 and supgen (n : node option) =
-  match n with
-  | None -> ()
-  | Some _ ->
-      incr suppress;
-      let spc = !pc and sp = !progs in
-      gen n;
-      progs := sp;
-      pc := spc;
-      decr suppress
+  if n <> None then begin
+    incr suppress;
+    let spc = !pc and sp = !progs in
+    gen n;
+    progs := sp;
+    pc := spc;
+    decr suppress
+  end
 
 and usedset (n : node option) o =
   match n with
   | Some ({ op = OLIST; _ } as n) -> usedset n.left o; usedset n.right o
   | Some n ->
       Check.complex (Some n);
-      (match n.op with
-       | OADDR -> ignore (gins "NOP" (Some n) None)
-       | ONAME -> if o = OSET then ignore (gins "NOP" None (Some n)) else ignore (gins "NOP" (Some n) None)
-       | _ -> ())
+      if n.op = OADDR || n.op = ONAME then ignore (if o = OSET && n.op = ONAME then gins "NOP" None (Some n) else gins "NOP" (Some n) None)
   | None -> ()
 
 (*****************************************************************************)
@@ -1314,22 +1024,20 @@ let codgen (body : node) (fn : node) =
   let rec name (n : node) = if n.op = ONAME then n else name (Tree.l n) in
   let n1 = name fn in
   nearln := fn.lineno;
-  let sp = gpseudo "TEXT" (sym n1) (nodconst (Int64.of_int !Declare.stkoff)) in
+  let sp = gpseudo "TEXT" (sym n1) (iconst !Declare.stkoff) in
   sp.pseudo <- `Text (if !Pre.profile then 0 else 1);
-  let thisfn = Option.get !Declare.thisfn in
-  let ret = link thisfn in
+  let ret = link (Option.get !Declare.thisfn) in
+  (* the first argument arrives in a register: a structure's result's
+   * address, or the first parameter if it fits one *)
   if (m ()).typecmplx ret.etype then begin
     let n1 = Tree.l (Option.get !nodret) in
-    if n1.ntype = None || (link (t n1)) != ret then begin
+    if n1.ntype = None || link (t n1) != ret then begin
       n1.ntype <- Some (typ Tind (Some ret));
       n1.netype <- Tind;
       let r = node OIND (Some n1) None in
       Check.complex (Some r);
       nodret := Some r
-    end
-  end;
-  (* the first argument arrives in a register *)
-  if (m ()).typecmplx ret.etype then begin
+    end;
     let nod1 = dup (Tree.l (Option.get !nodret)) in
     gmove (nodreg nod1 (bk ()).regret) nod1
   end
