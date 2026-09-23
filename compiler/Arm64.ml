@@ -337,6 +337,6 @@ let fits (n : node) o =
 
 let hooks = {
   Gen.sucopy; swit; fits;
-  neg = (fun nn -> Gen.gopcode ONEG (Some nn) None (Some nn));
+  neg = (fun f t -> Gen.gopcode ONEG (Some f) None (Some t)); mul32 = true;
   rsb = false; by_left = true; com64 = false; shifts = true; zero_arg = true; asop_load = true; indreg_ptr = true;
 }

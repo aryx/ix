@@ -317,6 +317,6 @@ let backend = {
 let hooks = {
   Gen.sucopy; swit;
   fits = (fun _ v -> v > -4096 && v < 4096);
-  neg = (fun nn -> Gen.gopcode OSUB (Some nn) (Some (nodconst 0L)) (Some nn));
+  neg = (fun f t -> Gen.gopcode OSUB (Some f) (Some (nodconst 0L)) (Some t)); mul32 = false;
   rsb = true; by_left = false; com64 = true; shifts = false; zero_arg = false; asop_load = false; indreg_ptr = false;
 }

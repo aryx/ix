@@ -24,7 +24,8 @@ type hooks = {
   sucopy : node -> node -> int -> unit;       (* a structure's copy *)
   swit : (int64 * int) array -> int -> node -> unit;   (* a switch's dispatch *)
   fits : node -> int -> bool;         (* an offset folded into n's load or store *)
-  neg : node -> unit;                 (* nn = -nn *)
+  neg : node -> node -> unit;         (* to = -from *)
+  mul32 : bool;                       (* a multiplier held in 32 bits (7c's mulcon) *)
   rsb : bool;                         (* c - x as a reverse subtract (5c) *)
   by_left : bool;                     (* x op y's registers typed as x, so shifts work (7c) *)
   com64 : bool;                       (* vlong operators as calls (5c) *)
@@ -477,9 +478,9 @@ and cgen1 (n : node) (nn : node option) inrel =
           gopcode OASHR (Some (nodconst (Int64.of_int t))) None (Some nn)
         end
         else begin
-          (h ()).neg nn;
+          (h ()).neg nn nn;
           gopcode OAND (Some mask) None (Some nn);
-          (h ()).neg nn;
+          (h ()).neg nn nn;
           ignore (gbranch OGOTO);
           patch p1 !pc;
           let p1 = p () in
@@ -936,6 +937,7 @@ and mulcon (n : node) (nn : node) =
     if r.op <> OCONST then false
     else begin
       let v = convvtox r.vconst (et n) in
+      let v = if (h ()).mul32 then sx32 v else v in
       if v <> r.vconst then false
       else
         match Multiply.mulcon0 (Int64.to_int v) with
@@ -949,7 +951,7 @@ and mulcon (n : node) (nn : node) =
             let rec go i =
               if i >= String.length code then begin
                 regfree nod2;
-                if Int64.compare v 0L < 0 then (gopcode OAS (Some nod1) None (Some nod1); gopcode OSUB (Some nod1) (Some (nodconst 0L)) (Some nn))
+                if Int64.compare v 0L < 0 then (gopcode OAS (Some nod1) None (Some nod1); (h ()).neg nod1 nn)
                 else gopcode OAS (Some nod1) None (Some nn);
                 regfree nod1
               end

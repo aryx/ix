@@ -304,7 +304,7 @@ let side (n : node option) =
     | Some n -> (
         match n.op with
         | OCAST | ONOT | OADDR | OIND -> go n.left
-        | OCOND -> go n.left || go n.right
+        | OCOND -> go n.left || go (Tree.r n).left || go (Tree.r n).right
         | OEQ | ONE | OLT | OGE | OGT | OLE | OADD | OSUB | OMUL | OLMUL | ODIV | OLDIV | OLSHR | OASHL | OASHR
         | OAND | OOR | OXOR | OMOD | OLMOD | OANDAND | OOROR | OCOMMA | ODOT -> go n.left || go n.right
         | OSIGN | OSIZE | OCONST | OSTRING | OLSTRING | ONAME -> false

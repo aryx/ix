@@ -1794,3 +1794,27 @@ Claude committed TinyC as `4571d12`, a 870-line ARM64 C compiler in one file, wi
 **Yoann:**
 
 > we can always revisit later
+
+**Claude (summary):**
+
+Claude explained what float support requires: second register class, 7c conventions, conversions, and Plan 9 arithmetic rules. Claude saved unfinished work as scratchpad/tinyc_floats_wip.patch with the front end complete but back end still to do. Claude updated plan_cc.md with floats as first item to revisit and the implementation design fully sketched. Claude found a bug in cck's conversion table and documented it as 5c entry in plan_bugs_goken.md. Claude committed changes as 6af22fc and left prompt-history.md uncommitted in the working tree.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:30
+
+**Yoann:**
+
+> excelent. What's next?
+
+**Claude (summary):**
+
+Claude proposed three work groups for ix and recommended prioritizing the compiler with fuzzer, .mli files, and compaction passes. Yoann chose group 1, emphasizing .mli files with paper references like Sethi-Ullman and Thompson's compiler theory. He also prioritized the compaction pass on Check and Declare modules, which were over their allocated line budgets. Claude was directed to refactor types and code for elegance and compactness, independent of goken or xix code. The emulator and kernel were deferred.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 23:32
+
+**Yoann:**
+
+> let's do 1. especially the .mli references, and the compaction; do not follow too nuch the original code of goken (or xix), feel free to change types and refactor to get more compact and also elegant code
