@@ -1359,3 +1359,31 @@ Claude created a 410-line TinyAssembler that reads arm64 assembly and writes sta
 **Yoann:**
 
 > what's next?
+
+**Claude (summary):**
+
+Claude committed all prior work (e6e1300, ec372fc, 30e60d7) and the tree is clean.
+Claude recommended TinyCompiler, a direct-targeting arm64 C compiler, as the next program.
+Claude described the existing test setup: compile goken's libc and 17 hello_libc programs, link with TinyLd, verify output.
+Claude advised starting with a feature-count plan, plus tutorial and related-work documentation.
+TinyRaspberryPi emulator was presented as the alternate candidate for the next program.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 20:06
+
+**Yoann:**
+
+> for the C compiler, I wonder if want to use an intermediate target like in ~/c--/ instead of getting 5c directly target 5a and 7c 7a? Is there a way to factorize the code between tinycc targets?
+
+**Claude (summary):**
+
+Claude recommended using a parameterized code generator like xix's, with Plan 9 assembly serving as the intermediate instead of C--. Claude rejected C-- for being too complex and unsuited to tiny implementations, making it unnecessary overhead. Claude proposed studying the 5c/7c cgen diff to determine whether variations were minor details or substantial heuristics. Claude described the test contract as aiming for byte identity with `-O0` versions of both compilers. Claude agreed to write the plan with cgen diff analysis and feature counts over the test programs.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 20:35
+
+**Yoann:**
+
+> let's do it

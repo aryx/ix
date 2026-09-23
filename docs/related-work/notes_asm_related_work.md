@@ -156,14 +156,19 @@ teaching.
 **The ceiling, stated now**: static executables only (Mach-O names
 dyld because macOS insists); no dynamic linking, no debugging
 information; ELF, Mach-O for arm64 and Plan 9 a.out, not PE (goken has
-no arm PE to compare with); no
-floating point on arm (FPA can't run, VFP is an exercise); no kernel
-instructions.
+no arm PE to compare with); arm's
+floating point encoded for FPA but not run (VFP is an exercise); no
+kernel instructions.
 
-## Postscript: the numbers (to come)
+## Postscript: the numbers
 
-Once built: TinyAsm's and TinyLd's lines per module against the plan's
-targets, against xix's 5,542 lines of code for 5 and 7 and goken's
-32,000 of C; the corpus and the fuzzer's counts against goken; and the
-programs of milestone 2 running on both machines, then on a Raspberry
-Pi.
+Built (2026-09-23; plan_asm.md's Status has the details):
+- 2,301 lines of code (assembler 516, linker 1,785), against the
+  plan's 2,090, xix's 5,542 for 5 and 7, and goken's 32,000 of C.
+  The one-file variant, `tiny/TinyAssembler.ml`, is 410.
+- goken's 17 hello_libc programs, with all of goken's libc through
+  `5c -S` or `7c -S`, TinyAsm and TinyLd: byte for byte the same as
+  goken's on arm and arm64, and running. Mach-O too (15 of them).
+- The fuzzer: 1,500 random programs on arm and 1,398 on arm64 the same
+  as goken's.
+- On a Raspberry Pi and a Mac: the author's.
