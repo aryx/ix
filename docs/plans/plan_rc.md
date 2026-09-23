@@ -527,7 +527,7 @@ written):
   which read the next piece first (`pre$x` became one literal). Also
   9base's `*` matches dotfiles, since Plan 9 has none, and rc's `~`
   takes the first word of its arguments as the subject, even when a
-  list gave several. **The test**: `test.sh`, 26 scripts of the
+  list gave several. **The test**: `test.sh`, 25 scripts of the
   subset through both shells, the same output (the `rc (argv0)`
   prefix normalized), plus `-e`. **The milestone**: TinyMk with
   `MKSHELL` a link named `rc` to TinyShell (checked: `readlink
