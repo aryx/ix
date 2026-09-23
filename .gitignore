@@ -2,3 +2,4 @@
 .claude/hooks/.debug.log
 __pycache__/
 _build/
+.claude/hooks/.history.lock

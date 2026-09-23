@@ -732,63 +732,157 @@ Claude analyzed the playground project's structure and chose mk as the first ix 
 
 **Claude (summary):**
 
-Claude found that caps 0.1.0 already exists in the public opam repository.
-Claude located the source at aryx/ocaml-caps as a standard opam package.
-Claude recommended using caps directly as a plain opam dependency without special configuration.
-Claude recorded the decision to use this dependency in the project plan.
+Claude committed TinyMk docs as 08ffe37 on main with a clean working tree.
+Claude then proposed phase 0's first decision: should ix depend on xix's caps library or copy it locally?
+Claude recommended using caps as an external dependency rather than maintaining a local copy.
+Yoann chose to use caps as a dependency from xix, aligning with Claude's recommendation.
+This architectural decision is now settled, clearing the way for phase 0 implementation.
 
 ------------------------------------------------------------------------
 
-## 2026-09-23 08:47
+## 2026-09-23 08:41
 
 **Yoann:**
 
-> <task-notification>
-> <task-id>b3794xyuu</task-id>
-> <tool-use-id>toolu_01Q1Bk4TqUMELdyMvoMFvj1h</tool-use-id>
-> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/b3794xyuu.output</output-file>
-> <status>completed</status>
-> <summary>Background command "Look for plan9port mk sources" completed (exit code 0)</summary>
-> </task-notification>
+> use it as a dependency
+
+**Claude (summary):**
+
+Claude decided to use opam `caps` 0.1.0 as a dependency for ix, requiring no submodule or local copy. Recorded the decision in `docs/plans/plan_mk.md` with updates to Decision 9 and Phase 0. Also updated Status log with dated entry documenting Yoann's choice of opam `caps`. Noted version mismatch: xix uses 0.1.1 via submodule while opam currently has only 0.1.0. Yoann approved the plan and directed Claude to complete tiny mk pilot implementation for full review.
 
 ------------------------------------------------------------------------
 
-## 2026-09-23 09:10
+## 2026-09-23 08:42
 
 **Yoann:**
 
-> <task-notification>
-> <task-id>b30uaevil</task-id>
-> <tool-use-id>toolu_01HywyfjTryWCgBRfogN9SeP</tool-use-id>
-> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/b30uaevil.output</output-file>
-> <status>failed</status>
-> <summary>Background command "Add documented-difference outputs and run live three-way" failed with exit code 1</summary>
-> </task-notification>
+> ok let's again try this tiny mk as a pilot; follow the plan until the end and I'll review once the whole tiny mk project is done
+
+**Claude (summary):**
+
+Claude reported TinyMk finished all eight phases, passing sixty-three tests in five commits on `main` not yet pushed.
+Claude documented the build in `plan_mk.md` with Status section as the log, capturing all results and key decisions.
+Claude asked three decisions: whether `plan_mk.md` moves to `plans/done/`, principles to `docs/README.md`, or the command two-letter name.
+Claude wrote one thousand seven hundred eighty-two lines, exceeding the seven-fifty target by two point four times.
+Claude found thirty-one of thirty-four test mkfiles matched real mk exactly, with three differences deliberately chosen.
 
 ------------------------------------------------------------------------
 
-## 2026-09-23 09:12
+## 2026-09-23 11:38
 
 **Yoann:**
 
-> <task-notification>
-> <task-id>b0d9tnu0b</task-id>
-> <tool-use-id>toolu_01BtV5Qp3YaxcSzdnyJxR8GP</tool-use-id>
-> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/b0d9tnu0b.output</output-file>
-> <status>failed</status>
-> <summary>Background command "Run the live three-way differential (with omk)" failed with exit code 1</summary>
-> </task-notification>
+> is your summary above stored somewhere?
+
+**Claude (summary):**
+
+Claude located the summary mostly in plan_mk.md (Status section, tutorial §9-§11, related-work postscript), though the three decisions exist only in conversation. Claude found prompt-history.md has task notifications incorrectly logged as prompts and a wrong summary on the wrong entry. Claude noted no word-for-word copy exists written down anywhere outside these sources. Claude offered to add the summary to plan_mk.md as a review section or fix the hook to skip task notifications. Neither approach provides persistent word-for-word storage independent of repository and conversation logs.
 
 ------------------------------------------------------------------------
 
-## 2026-09-23 09:15
+## 2026-09-23 11:39
 
 **Yoann:**
 
-> <task-notification>
-> <task-id>ber3m8bqv</task-id>
-> <tool-use-id>toolu_01D8SjuL9P6hVCKzKJJvEtyn</tool-use-id>
-> <output-file>/tmp/claude-1000/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94/tasks/ber3m8bqv.output</output-file>
-> <status>completed</status>
-> <summary>Background command "Normalize omk output and rerun the live comparison" completed (exit code 0)</summary>
-> </task-notification>
+> I mean outside of this long prompt history log
+
+**Claude (summary):**
+
+Claude found most content in `docs/plans/plan_mk.md` with a Status section containing a summary table and dated entries documenting design iterations and wrong turns.
+Three unresolved decisions remain: whether `plan_mk.md` moves to `plans/done/`, whether principles move to `docs/README.md`, and what two-letter name the command receives.
+Claude proposed consolidating these three decisions as an "Open questions" section appended to the plan's Status.
+This section would consolidate all planning decisions and historical context in one self-contained document.
+The tutorial sections and related-work note contain supplementary measurements and historical context referenced within the plan.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:39
+
+**Yoann:**
+
+> (that is a special file used for another purpose)
+
+**Claude (summary):**
+
+Claude found summary stored in docs/plans/plan_mk.md spread across Status section and dated entries.
+File already committed so information persists in distributed form across multiple sections.
+Distributed structure meets the core requirement that summary content be stored somewhere.
+Three decisions not yet resolved: plan relocation, principles placement, and command naming choice.
+Claude offered creating Open questions item at end but awaited Yoann's approval first.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:39
+
+**Yoann:**
+
+> ok as long as its content is stored somewhere, even in spread form
+
+**Claude (summary):**
+
+Claude added three open questions as the final Status entry in commit dbd74c0 to plan_mk.md. These questions were positioned after the existing Status summary table and dated phase entries. Yoann followed up saying this addition was not useful and asked Claude to delete it. The other summary content (results, measurements, numbers, design reasoning) was already stored elsewhere in the repo.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:40
+
+**Yoann:**
+
+> you can delete what you added, it is not very useful
+
+**Claude (summary):**
+
+Claude removed the open-questions entry from plan_mk.md by reverting the commit 07ea1f1.
+This restoration brought the plan back to its state after phase 8.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:43
+
+**Yoann:**
+
+> ok. Before doing the same for the shell, let's do a variant of this Tiny build system but this time removing the constraint of being compatible with mk. The goal is to write a tiny build system that implement the core principles and goal of a build system, that is express concisely dependencies and maintain them efficiently (as described in ~/principia/builders/Intro.nw first few paragraphs). Maybe this time we can store the code in a single TinyBuildSystem.ml and aim for even shorter code than tinymk
+
+**Claude (summary):**
+
+Claude committed d0c2873: TinyBuildSystem.ml at 404 lines (261 code), verified by successfully building TinyMk modules in 1.1 seconds.
+Added `<file` includes and backslash continuations for ocamldep integration while maintaining minimal code.
+Deliberately chose `<file` syntax for includes, recognizing it as fundamental despite other syntax options available.
+Used content-based digests instead of timestamps for efficient up-to-date checks in a single topological pass.
+Established the design principle: select only essential features for future TinyXxx variants, ruthlessly minimize LOC.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:56
+
+**Yoann:**
+
+> I love it! This is great! Also I like a lot that you added <file (even though it could have been a different syntax; you were free to choose) because it's pretty fundamental feature we need. This is the complex tradeoff we want to keep as we go forward for those extra TinyXxx.ml, finding the right subset of features that are fundamental enough, and not too big in terms of LOC.
+
+**Claude (summary):**
+
+Claude saved the tradeoff approach as guidance: keep features only if real use needs them, drop them otherwise. The `<file` syntax was kept because without includes, TinyBuildSystem couldn't process ocamldep output or build with dependencies. Pattern substitutions and quoting stayed in the header as exercises since they didn't enable new functionality. For the shell, Claude recommended applying the same test: write real scripts like xix's mkfiles or rc recipes. Claude predicted pipes, redirections, lists, control flow, backquotes, and functions would be essential, but not switch statements or here-documents.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:57
+
+**Yoann:**
+
+> although I don't understand why the prompt history file is not updated ... you were supposed to have some hooks so that my prompt and a summary of you answer were automatically added in this file, so one can retrace how this repo came to be.
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:58
+
+**Yoann:**
+
+> you can also look at shell script (or mkfile) in ~/principia/ to guide the usage count of features
+
+------------------------------------------------------------------------
+
+## 2026-09-23 11:58
+
+**Yoann:**
+
+> in any case, this also requires judgments, not just statistics

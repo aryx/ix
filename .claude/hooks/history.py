@@ -3,7 +3,8 @@
 # Yoann's prompts verbatim, followed by a short summary of Claude's answer
 # (written by Haiku, since the full answers are long and not deterministic).
 #
-#   history.py prompt              UserPromptSubmit hook: flush the pending
+#   history.py prompt              UserPromptSubmit hook (its work in a
+#                                  detached child): flush the pending
 #                                  summary (see below), then append the
 #                                  new prompt
 #   history.py answer              Stop hook: stash the answer as pending,
@@ -23,13 +24,14 @@
 # triggers a new prompt in this repo.
 #
 # The hooks get their JSON payload on stdin.
-import concurrent.futures, datetime, json, os, re, subprocess, sys, time
+import concurrent.futures, datetime, fcntl, json, os, re, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 PATH = os.path.join(ROOT, "docs", "yoann_notes", "prompt-history.md")
 PENDING = os.path.join(ROOT, ".claude", "hooks", ".pending-answer.json")
 DEBUG_LOG = os.path.join(ROOT, ".claude", "hooks", ".debug.log")
+LOCK = os.path.join(ROOT, ".claude", "hooks", ".history.lock")
 
 # set in the environment of the summarizing `claude -p`, so that its own
 # hooks, if any, don't log or summarize it
@@ -127,13 +129,30 @@ def clear_pending():
     if os.path.exists(PENDING):
         os.remove(PENDING)
 
+def take_pending():
+    # move it away at once: a Stop hook that fires while the summary is
+    # being written then stashes the next exchange instead of losing it
+    taken = PENDING + ".%d" % os.getpid()
+    try:
+        os.rename(PENDING, taken)
+    except FileNotFoundError:
+        return None
+    with open(taken) as f:
+        pending = json.load(f)
+    os.remove(taken)
+    return pending
+
+def is_notification(prompt):
+    # background-task notifications arrive as prompts, but Yoann didn't
+    # write them
+    return prompt.lstrip().startswith("<task-notification>")
+
 def debug_log(msg):
     with open(DEBUG_LOG, "a") as f:
         f.write("[%s] %s\n" % (
             datetime.datetime.now(datetime.timezone.utc).isoformat(), msg))
 
-def flush_pending(next_prompt):
-    pending = load_pending()
+def flush_pending(pending, next_prompt):
     if not pending:
         return
     # Never lose the exchange: if summarization fails, fall back to a
@@ -143,7 +162,6 @@ def flush_pending(next_prompt):
         s = "(summary generation failed - raw answer follows)\n\n" + \
             pending["answer"][:1000]
     append(render_summary(s))
-    clear_pending()
 
 def summarize(prompt, answer, next_prompt=None):
     if not answer.strip():
@@ -190,7 +208,12 @@ def exchanges(transcript):
                 if b.get("type") == "text" and b["text"].strip():
                     turns[-1]["answer"].append(b["text"])
     for t in turns:
-        t["answer"] = "\n\n".join(t["answer"])
+        # a long turn (hours of work between two prompts) is summarized
+        # from its last message, the report Yoann read: given the whole
+        # turn cut to 40000 characters, Haiku once answered the next
+        # prompt instead of summarizing
+        whole = "\n\n".join(t["answer"])
+        t["answer"] = t["answer"][-1] if len(whole) > 40000 and t["answer"] else whole
         t["time"] = datetime.datetime.fromisoformat(
             t["time"].replace("Z", "+00:00"))
     return turns
@@ -201,10 +224,28 @@ def main():
         return
     if mode == "prompt":
         prompt = json.load(sys.stdin).get("prompt", "")
-        if prompt.strip():
-            flush_pending(prompt)
-            append(render_prompt(prompt,
-                                 datetime.datetime.now(datetime.timezone.utc)))
+        if not prompt.strip() or is_notification(prompt):
+            return
+        now = datetime.datetime.now(datetime.timezone.utc)
+        pending = take_pending()
+        # Summarizing can take longer than Claude Code waits for a hook
+        # (60 s), which used to kill it after the summary and before the
+        # prompt: lost prompts, summaries under the wrong entry. So the
+        # work goes to a detached child, serialized by a lock so that
+        # entries stay in order, and the hook returns at once.
+        if os.fork() == 0:
+            os.setsid()
+            devnull = os.open(os.devnull, os.O_RDWR)
+            for fd in (0, 1, 2):
+                os.dup2(devnull, fd)
+            try:
+                with open(LOCK, "w") as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX)
+                    flush_pending(pending, prompt)
+                    append(render_prompt(prompt, now))
+            except Exception as e:
+                debug_log("prompt: %r" % e)
+            os._exit(0)
     elif mode == "answer":
         transcript_path = json.load(sys.stdin)["transcript_path"]
         turns = exchanges(transcript_path)
@@ -243,4 +284,5 @@ def main():
                 if s:
                     f.write(render_summary(s))
 
-main()
+if __name__ == "__main__":
+    main()
