@@ -1,0 +1,4 @@
+a1b22c333
+foo bar  baz
+aa]b]]c
+a.b.c

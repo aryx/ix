@@ -1,0 +1,17 @@
+31
+1	first
+2	alpha
+3	bravo
+4	new
+5	charlie
+6	delta
+7	beforelast
+8	echo
+?
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo

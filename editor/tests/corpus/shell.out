@@ -1,0 +1,14 @@
+31
+hi from rc
+!
+two
+lines
+!
+echo
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo

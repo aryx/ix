@@ -1,0 +1,17 @@
+40
+echo
+fox
+zulu
+3
+echo
+fox
+?
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo
+fox
+zulu

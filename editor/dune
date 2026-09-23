@@ -1,0 +1,11 @@
+(library
+ (name ix_ed)
+ (modules Regex Text Input Out Address Command CLI)
+ (libraries unix caps))
+
+(executable
+ (name Main)
+ (public_name tinyed)
+ (package ix)
+ (modules Main)
+ (libraries ix_ed caps))

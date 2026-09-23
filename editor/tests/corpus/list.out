@@ -1,0 +1,17 @@
+93
+end \n
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\
+	xxxxx \n
+\bback
+1\ta\tb\\c\x0001d \x00e9
+2\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\
+	xxxxx \n
+3\t\bback
+4\tend \n
+4	end 
+[exit 0]
+--- case.txt
+a	b\c^Ad M-CM-)
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 
+^Hback
+end 

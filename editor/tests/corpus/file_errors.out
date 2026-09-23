@@ -1,0 +1,5 @@
+?/nonexistent/x
+?/nonexistent/dir/y
+?/nonexistent/x
+/nonexistent/x
+[exit 0]

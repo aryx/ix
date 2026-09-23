@@ -1,0 +1,3 @@
+!echo hi from rc
+!echo two; echo lines
+p

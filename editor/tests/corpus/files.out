@@ -1,0 +1,50 @@
+31
+31
+14
+8
+22
+alpha
+bravo
+charlie
+delta
+echo
+bravo
+charlie
+charlie
+case.txt
+other
+53
+31
+alpha
+bravo
+charlie
+delta
+echo
+22
+out2
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo
+--- other
+alpha
+bravo
+charlie
+delta
+echo
+bravo
+charlie
+charlie
+--- out1
+alpha
+bravo
+charlie
+delta
+echo
+--- out2
+bravo
+charlie
+charlie

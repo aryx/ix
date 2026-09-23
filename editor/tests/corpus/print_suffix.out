@@ -1,0 +1,14 @@
+31
+Alpha
+bRavo
+3	Charlie
+echo
+bRavo
+?
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo

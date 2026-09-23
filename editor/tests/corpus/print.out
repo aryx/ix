@@ -1,0 +1,32 @@
+31
+alpha
+bravo
+charlie
+echo
+5
+5
+bravo
+charlie
+delta
+charlie
+delta
+1	alpha
+2	bravo
+3	charlie
+4	delta
+5	echo
+alpha
+bravo
+charlie
+delta
+echo
+2	bravo
+3	charlie
+4	delta
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo

@@ -1,0 +1,13 @@
+w out1
+2,3w out2
+3W out2
+r out2
+,p
+f
+f other
+w
+e out1
+,p
+E out2
+f
+q

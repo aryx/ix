@@ -1,0 +1,22 @@
+31
+alpha
+changed
+delta
+echo
+1
+changed
+delta
+echo
+2
+changed
+delta
+1
+changed
+?
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo

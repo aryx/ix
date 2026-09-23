@@ -1,0 +1,28 @@
+31
+bravo
+charlie
+delta
+echo
+bravo
+charlie
+alpha
+bravo
+charlie
+delta
+echo
+bravo
+charlie
+delta
+echo
+alpha
+bravo
+charlie
+delta
+echo
+[exit 0]
+--- case.txt
+alpha
+bravo
+charlie
+delta
+echo
