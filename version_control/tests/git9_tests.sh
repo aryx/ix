@@ -11,8 +11,8 @@
 # git9's own tests (principia's version_control/git9/test/*.rc),
 # translated from rc to bash, each test a function run in a fresh
 # scratch directory, each check the rc one's. git/CMD is tinygit CMD.
-# The tests that clone and pull (basic, ftype, merge's first two parts)
-# come with the protocol (phase 8); export and rebase with patch
+# git9's tests name the default branch front (9front's); this git/init
+# makes master, which they say here. export and rebase come with patch
 # (phase 9).
 #
 # Usage: git9_tests.sh [test ...]
@@ -168,7 +168,98 @@ t_james() {
   [ -z "$d" ] || die "$d"
 }
 
-tests=${*:-add diff lca range noam james}
+t_basic() {
+  wrkdir=$(pwd)
+  mkdir -p upstream
+  (cd upstream && q git init && echo version1 > file.txt && q git add file.txt && q git commit -m version1 file.txt)
+  git clone $wrkdir/upstream downstream > /dev/null 2>&1
+  diff upstream/file.txt downstream/file.txt > /dev/null || die mismatch 1
+  (cd upstream && echo version2 > file.txt && q git commit -m version2 file.txt)
+  (cd downstream && q git pull)
+  diff upstream/file.txt downstream/file.txt > /dev/null || die mismatch 2
+  (cd upstream && echo version3 > file2.txt && git add file2.txt && q git commit -m version3 file2.txt)
+  (cd downstream && q git pull)
+  diff upstream/file.txt downstream/file.txt > /dev/null || die mismatch 3
+  diff upstream/file2.txt downstream/file2.txt > /dev/null || die mismatch 3b
+  (cd upstream && echo version4 > file.txt && git rm file2.txt && rm file2.txt && q git commit -m version4 file.txt file2.txt)
+  (cd downstream && q git pull)
+  diff upstream/file.txt downstream/file.txt > /dev/null || die mismatch 4
+  ! test -e upstream/file2.txt || die mismatch 4b
+  ! test -e downstream/file2.txt || die mismatch 4c
+}
+
+t_ftype() {
+  mkdir repo1 && cd repo1
+  repo1=$(pwd)
+  q git init
+  # A a file, B a directory
+  echo A > A
+  mkdir B
+  echo C > B/C
+  q git add A B/C
+  q git commit -m 1 A B/C
+  cd ..
+  q git clone $repo1 repo2
+  cd repo2
+  repo2=$(pwd)
+  diff -r $repo1/A $repo2/A > /dev/null || { die 'clone fail A'; return; }
+  diff -r $repo1/B $repo2/B > /dev/null || { die 'clone fail B'; return; }
+  cd $repo1
+  # A made a directory, B a file
+  rm -r A B
+  mkdir A
+  echo B > A/B
+  echo B > B
+  q git add A/B B
+  q git commit -m 2 A/B B
+  cd $repo2
+  q git pull
+  diff -r $repo1/A $repo2/A > /dev/null || die 'pull fail A'
+  diff -r $repo1/B $repo2/B > /dev/null || die 'pull fail B'
+}
+
+# merge.rc's first two parts: different files, then concurrent edits
+t_merge() {
+  c='foo
+bar
+baz
+'
+  q git init a
+  (cd a && echo hello > a && echo goodbye > b && printf '%s' "$c" > c && chmod +x a && q git add a b c && q git commit -m v1 .)
+  q git clone $(pwd)/a b
+  # merge different files
+  (cd a && echo x > a && q git commit -m diverge1a a)
+  (cd b && echo y > b && q git commit -m diverge1b b
+   git pull > /dev/null 2>&1
+   q git merge origin/master
+   q git commit -m merged)
+  [ "$(cat b/a)" = x ] || die merge 1.a
+  [ "$(cat b/b)" = y ] || die merge 1.b
+  [ "$(cat b/c)" = "$(printf '%s' "$c")" ] || die merge 1.c
+  test -x b/a || die merge preserve exec
+  ! test -x b/b || die merge preserve nonexec b
+  ! test -x b/c || die merge preserve nonexec c
+  (cd b && git walk -q) || die merge commit dropped files
+  # concurrent edits
+  (cd a && chmod -x a && chmod +x b && echo quux >> c && q git commit -m diverge2a a b c)
+  (cd b && sed s/foo/FOO/ < c > c.new && mv c.new c && q git commit -m diverge2b c
+   git pull > /dev/null 2>&1
+   git merge origin/master > /dev/null 2>&1
+   q git commit -m merge c)
+  c='FOO
+bar
+baz
+quux
+'
+  [ "$(cat b/a)" = x ] || die merge 2.a
+  [ "$(cat b/b)" = y ] || die merge 2.b
+  [ "$(cat b/c)" = "$(printf '%s' "$c")" ] || { diff -u b/c <(printf '%s' "$c"); die merge 2.c; }
+  ! test -x b/a || die merge remove exec
+  test -x b/b || die merge add exec
+  ! test -x b/c || die merge preserve nonexec c
+}
+
+tests=${*:-add diff lca range noam james basic ftype merge}
 for test in $tests; do
   dir=$(mktemp -d); failed=$dir.failed
   (cd $dir && t_$test)

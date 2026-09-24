@@ -131,6 +131,16 @@ let history t h =
   in
   next
 
+let heap () = { a = [||]; len = 0 }
+
+let put_commit t q h =
+  match Store.read t h with
+  | Commit c -> put q { h; color = Keep; time = Object.local_time c.committer }
+  | _ -> ()
+  | exception Store.Missing _ -> ()
+
+let pop_commit q = if q.len = 0 then None else Some (pop q).h
+
 let lca t a b = match paint t [ a ] [ b ] Lca with [ h ] -> Some h | _ -> None
 let twixt t heads tails = paint t heads tails Twixt
 

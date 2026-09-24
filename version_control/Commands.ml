@@ -499,20 +499,7 @@ let merge (caps : caps) args =
 (* repack *)
 (*****************************************************************************)
 
-(* a pack's bytes and its index into .git/objects/pack, named by the
- * pack's hash (git9 names them HASH.pack, without git's "pack-") *)
-let save_pack (r : Repo.t) pack =
-  let dir = Fpath.(r.store.git / "objects" / "pack") in
-  mkdir_p (Fpath.to_string dir);
-  let idx = Pack.index pack ~base:(Store.read_raw r.store) in
-  let name = Pack.name pack in
-  let tmp ext = Fpath.(dir / ("repack." ^ ext ^ ".tmp")) in
-  Files.write r.store.caps (tmp "pack") pack;
-  Files.write r.store.caps (tmp "idx") idx;
-  Unix.rename (Fpath.to_string (tmp "pack")) (Fpath.to_string Fpath.(dir / (name ^ ".pack")));
-  Unix.rename (Fpath.to_string (tmp "idx")) (Fpath.to_string Fpath.(dir / (name ^ ".idx")));
-  Store.refresh r.store;
-  name
+let save_pack (r : Repo.t) pack = Store.add_pack r.store ~warn:ignore pack
 
 (* all objects the references reach into one pack; then every loose
  * object and every other pack removed, as git9's repack does (what no
@@ -531,4 +518,245 @@ let repack (caps : caps) args =
   let pdir = Filename.concat objects "pack" in
   Array.iter (fun f -> if not (String.starts_with ~prefix:(name ^ ".") f) then Sys.remove (Filename.concat pdir f)) (Sys.readdir pdir);
   Store.refresh r.store;
+  0
+
+(*****************************************************************************)
+(* get, send, serve: the protocol's programs *)
+(*****************************************************************************)
+
+let proto_die what = function
+  | Proto.Error m -> die "%s: %s" what m
+  | e -> raise e
+
+let run_get (caps : caps) (r : Repo.t) (o : Get.opts) remote ~print =
+  let c = try Proto.connect ~print remote Upload with e -> proto_die ("could not dial " ^ remote) e in
+  Fun.protect ~finally:(fun () -> Proto.close c) (fun () ->
+    try Get.fetch r.store c o ~print ~eprint:(eprint caps) with e -> proto_die "fetch failed" e)
+
+let get (caps : caps) args =
+  let r = Repo.find (store_caps caps) in
+  let fl, args = try Flags.parse ~flags:"ld" ~with_arg:"uhb" args with Flags.Usage -> die "usage: git/get [-dl] [-b br] [-u upstream] remote" in
+  match args with
+  | [ remote ] ->
+      let heads = List.filter_map (fun h -> if Hash.is_hex h then Some (Hash.of_hex h) else None) (Flags.all fl 'h') in
+      let o = { Get.upstream = Option.value (Flags.get fl 'u') ~default:"origin"; heads; listonly = Flags.has fl 'l'; branch = Flags.get fl 'b' } in
+      run_get caps r o remote ~print:(print caps);
+      0
+  | _ -> die "usage: git/get [-dl] [-b br] [-u upstream] remote"
+
+let run_send (caps : caps) (r : Repo.t) (o : Send.opts) remote ~print =
+  let c = try Proto.connect ~print remote Receive with e -> proto_die ("git connect: " ^ remote) e in
+  Fun.protect ~finally:(fun () -> Proto.close c) (fun () ->
+    (try Send.send r.store c o ~print ~eprint:(eprint caps) with e -> proto_die "send failed" e);
+    Proto.close_write c)
+
+let send (caps : caps) args =
+  let r = Repo.find (store_caps caps) in
+  let fl, args = try Flags.parse ~flags:"dfa" ~with_arg:"rb" args with Flags.Usage -> die "usage: git/send remote [reponame]" in
+  match args with
+  | [ remote ] ->
+      let branch b =
+        if String.starts_with ~prefix:"refs/heads/" b then b
+        else if String.starts_with ~prefix:"heads/" b then "refs/" ^ b
+        else "refs/heads/" ^ b in
+      let o = { Send.all = Flags.has fl 'a'; force = Flags.has fl 'f'; branches = List.map branch (Flags.all fl 'b'); removed = Flags.all fl 'r' } in
+      run_send caps r o remote ~print:(print caps);
+      0
+  | _ -> die "usage: git/send remote [reponame]"
+
+let serve (caps : caps) args =
+  let fl, _ = try Flags.parse ~flags:"dw" ~with_arg:"r" args with Flags.Usage -> die "usage: git/serve [-dw] [-r rel]" in
+  let prefix = Flags.get fl 'r' in
+  (match prefix with Some p when String.length p = 0 || p.[0] <> '/' -> die "path prefix must begin with '/'" | _ -> ());
+  let c = Proto.stdio () in
+  (try Serve.serve (store_caps caps) ~allow_write:(Flags.has fl 'w') ~prefix c with
+   | Serve.Fatal m -> die "%s" m
+   | e -> proto_die "serve" e);
+  0
+
+(*****************************************************************************)
+(* clone, pull, push: the scripts over them *)
+(*****************************************************************************)
+
+(* a commit's tree written out, the x bits kept (tar from git/fs), and
+ * its files' paths *)
+let checkout_tree (r : Repo.t) commit =
+  let files = ref [] in
+  let rec go prefix h =
+    match Store.read r.store h with
+    | Tree es ->
+        List.iter (fun (e : Object.entry) ->
+          let p = if prefix = "" then e.name else prefix ^ "/" ^ e.name in
+          match e.mode with
+          | Dir -> mkdir_p (full r p); go p e.hash
+          | Submodule -> mkdir_p (full r p)
+          | File | Exec | Link -> (
+              match Store.read r.store e.hash with
+              | Blob data ->
+                  Out_channel.with_open_gen [ Open_wronly; Open_creat; Open_trunc; Open_binary ] (if e.mode = Exec then 0o755 else 0o644) (full r p)
+                    (fun oc -> output_string oc data);
+                  files := p :: !files
+              | _ -> ())) es
+    | _ -> () in
+  (match Store.read r.store commit with Commit c -> go "" c.tree | _ -> ());
+  List.rev !files
+
+let clone (caps : caps) args =
+  let fl, args = try Flags.parse ~flags:"d" ~with_arg:"b" args with Flags.Usage -> die "usage: git/clone [-d] [-b branch] remote [local]" in
+  let remote, local = match args with
+    | [ remote ] ->
+        (* the last path element, less .git *)
+        let parts = List.filter (( <> ) "") (String.split_on_char '/' remote) in
+        let last = match List.rev parts with l :: _ -> l | [] -> remote in
+        remote, (if Filename.check_suffix last ".git" then Filename.chop_suffix last ".git" else last)
+    | [ remote; local ] -> remote, local
+    | _ -> die "usage: git/clone [-d] [-b branch] remote [local]" in
+  if Sys.file_exists local && (not (Sys.is_directory local) || Sys.readdir local <> [||]) then die "destination already exists: %s" local;
+  (* the script works from inside the new directory: a relative remote
+   * is relative to it *)
+  let local = if Filename.is_relative local then Filename.concat (Sys.getcwd ()) local else local in
+  let cleanup st =
+    eprint caps (Printf.sprintf "failed to clone %s: cleaning %s\n" remote local);
+    rm_rf local;
+    st in
+  try
+    List.iter (fun d -> mkdir_p (Filename.concat local d)) [ ".git/fs"; ".git/objects/pack"; ".git/refs/heads" ];
+    let git d = Filename.concat local (".git/" ^ d) in
+    let config = git "config" in
+    let old = Option.value (Files.read_opt caps (Fpath.v config)) ~default:"" in
+    Files.write caps (Fpath.v config) (old ^ "[remote \"origin\"]\n\turl=" ^ remote ^ "\n");
+    (* git/get needs a repository: HEAD, as the awk's END writes it *)
+    Files.write caps (Fpath.v (git "HEAD")) "";
+    let r = Repo.at (store_caps caps) (Fpath.v (Unix.realpath local)) in
+    Sys.chdir local;
+    let lines = ref [] in
+    let o = { Get.upstream = "origin"; heads = []; listonly = false; branch = Flags.get fl 'b' } in
+    (try run_get caps r o remote ~print:(fun l -> lines := l :: !lines)
+     with Die m -> eprint caps (m ^ "\n"); raise (Die "could not clone repository"));
+    (* the awk *)
+    let headref = ref (match Flags.get fl 'b' with Some b -> "refs/remotes/origin/" ^ b | None -> "") in
+    let headhash = ref "" in
+    List.iter (fun l ->
+      match Get.fields " \t\n" l with
+      | [ "remote"; "HEAD"; h; _; _ ] -> headhash := h
+      | "remote" :: name :: h :: _ when String.starts_with ~prefix:"refs/heads/" name || String.starts_with ~prefix:"refs/tags/" name ->
+          let name = if String.starts_with ~prefix:"refs/heads" name then "refs/remotes/origin" ^ String.sub name 10 (String.length name - 10) else name in
+          if name = !headref || (!headref = "" && h = !headhash) then headref := name;
+          let out = git name in
+          mkdir_p (Filename.dirname out);
+          Files.write caps (Fpath.v out) (h ^ "\n")
+      | _ -> ()) (List.rev !lines);
+    if !headref <> "" then begin
+      let remote_ref = !headref in
+      let local_ref = "refs/heads" ^ String.sub remote_ref 19 (String.length remote_ref - 19) in
+      mkdir_p (Filename.dirname (git local_ref));
+      Files.write caps (Fpath.v (git local_ref)) (Option.value (Files.read_opt caps (Fpath.v (git remote_ref))) ~default:"");
+      Files.write caps (Fpath.v (git "HEAD")) ("ref: " ^ local_ref ^ "\n")
+    end
+    else if !headhash <> "" then begin
+      eprint caps (Printf.sprintf "warning: detached head %s\n" !headhash);
+      Files.write caps (Fpath.v (git "HEAD")) (!headhash ^ "\n")
+    end;
+    let lbranch = current_branch r in
+    let rbranch = match String.index_opt lbranch '/' with
+      | Some i when String.sub lbranch 0 i = "heads" -> "remotes/origin" ^ String.sub lbranch i (String.length lbranch - i)
+      | _ -> lbranch in
+    print caps "checking out repository...\n";
+    if Sys.file_exists (git ("refs/" ^ rbranch)) then begin
+      mkdir_p (Filename.dirname (git ("refs/" ^ lbranch)));
+      Files.write caps (Fpath.v (git ("refs/" ^ lbranch))) (Option.value (Files.read_opt caps (Fpath.v (git ("refs/" ^ rbranch)))) ~default:"");
+      let head = match Refs.read r.store "HEAD" with Some h -> h | None -> raise (Die "checkout failed") in
+      let files = checkout_tree r head in
+      Files.write caps (Fpath.v (git "INDEX9")) (String.concat "" (List.map (fun f -> "T NOQID 0 " ^ f ^ "\n") files))
+    end
+    else begin
+      eprint caps "no default branch\n";
+      eprint caps "check out your code with git/branch\n"
+    end;
+    0
+  with Die m -> eprint caps (Printf.sprintf "git/clone: %s\n" m); cleanup 1
+
+let pull (caps : caps) args =
+  let r = Repo.find (store_caps caps) in
+  let fl, args = try Flags.parse ~flags:"dqf" ~with_arg:"u" args with Flags.Usage -> die "usage: git/pull [-dqf] [-u upstream]" in
+  if args <> [] then die "usage: git/pull [-dqf] [-u upstream]";
+  let upstream = Option.value (Flags.get fl 'u') ~default:"origin" in
+  let upstream, remote =
+    match Conf.lookup caps (Conf.default_files r.root) (Printf.sprintf "remote \"%s\".url" upstream) with
+    | u :: _ -> upstream, u
+    | [] -> "THEM", upstream in
+  (* update: our heads and remote heads, newest file first, as haves *)
+  let refdir = Fpath.to_string Fpath.(r.store.git / "refs") in
+  let heads =
+    List.concat_map (fun d -> walk_files refdir d) [ "heads"; "remotes" ]
+    |> List.map (fun f -> f, (Unix.stat (Filename.concat refdir f)).st_mtime)
+    |> List.stable_sort (fun (_, a) (_, b) -> compare b a)
+    |> List.filter_map (fun (f, _) -> try Some (Query.eval1 r.store f) with Query.Error _ -> None) in
+  let lines = ref [] in
+  run_get caps r { Get.upstream; heads; listonly = false; branch = None } remote ~print:(fun l -> lines := l :: !lines);
+  List.iter (fun l ->
+    match Get.fields " \t\n" l with
+    | "remote" :: name :: h :: _ when String.starts_with ~prefix:"refs/heads/" name || String.starts_with ~prefix:"refs/tags/" name ->
+        let name = if String.starts_with ~prefix:"refs/heads" name then "refs/remotes/" ^ upstream ^ String.sub name 10 (String.length name - 10) else name in
+        let out = Filename.concat (Fpath.to_string r.store.git) name in
+        mkdir_p (Filename.dirname out);
+        Files.write caps (Fpath.v out) (h ^ "\n")
+    | _ -> ()) (List.rev !lines);
+  if Flags.has fl 'f' then 0
+  else begin
+    let local = current_branch r in
+    let remote =
+      let l = if String.starts_with ~prefix:"refs/" local then String.sub local 5 (String.length local - 5) else local in
+      if String.starts_with ~prefix:"heads" l then "remotes/" ^ upstream ^ String.sub l 5 (String.length l - 5) else l in
+    let q e = try Hash.to_hex (Query.eval1 r.store e) with Query.Error m -> die "%s" m in
+    let common = q ("HEAD " ^ remote ^ " @") in
+    if common = q remote then (eprint caps "up to date\n"; 0)
+    else if common <> q "HEAD" then begin
+      eprint caps (Printf.sprintf "ours:\t%s\ntheirs:\t%s\ncommon:\t%s\ngit/merge %s\n" (q "HEAD") (q remote) common remote);
+      1
+    end
+    else begin
+      let oldcommit = q local and newcommit = q remote in
+      if not (Flags.has fl 'q') then begin
+        List.iter (fun h -> match Store.read r.store h with
+          | Commit c -> print caps (Log.show ~short:true h c)
+          | _ -> ()) (try Query.eval r.store (oldcommit ^ ".." ^ newcommit) with Query.Error m -> die "%s" m);
+        print caps (Printf.sprintf "%s: %s => %s\n" remote oldcommit newcommit)
+      end;
+      branch caps [ "-mnb"; remote; local ]
+    end
+  end
+
+let push (caps : caps) args =
+  let r = Repo.find (store_caps caps) in
+  let fl, args = try Flags.parse ~flags:"afd" ~with_arg:"bru" args with Flags.Usage -> die "usage: git/push [-afd] [-b branch] [-r remove] [-u upstream]" in
+  if args <> [] then die "usage: git/push [-afd] [-b branch] [-r remove] [-u upstream]";
+  let branches =
+    if Flags.has fl 'a' then walk_files (Fpath.to_string Fpath.(r.store.git / "refs" / "heads")) "."
+    else Flags.all fl 'b' in
+  let branches = if branches = [] then [ current_branch r ] else branches in
+  let upstream = Option.value (Flags.get fl 'u') ~default:"origin" in
+  let remotes = match Conf.lookup caps ~all:true (Conf.default_files r.root) (Printf.sprintf "remote \"%s\".url" upstream) with
+    | [] -> [ upstream ] | rs -> rs in
+  let branch b =
+    if String.starts_with ~prefix:"refs/heads/" b then b
+    else if String.starts_with ~prefix:"heads/" b then "refs/" ^ b
+    else "refs/heads/" ^ b in
+  let o = { Send.all = false; force = Flags.has fl 'f'; branches = List.map branch branches; removed = Flags.all fl 'r' } in
+  List.iter (fun remote ->
+    let lines = ref [] in
+    run_send caps r o remote ~print:(fun l -> lines := l :: !lines);
+    List.iter (fun l ->
+      let refpath ref =
+        let local = if String.starts_with ~prefix:"refs/heads/" ref then Printf.sprintf ".git/refs/remotes/%s/%s" upstream (String.sub ref 11 (String.length ref - 11)) else ref in
+        Filename.concat (Fpath.to_string r.root) local in
+      match Get.fields " \t\n" l with
+      | [ "update"; ref; old; nw ] ->
+          let p = refpath ref in
+          mkdir_p (Filename.dirname p);
+          Files.write caps (Fpath.v p) (nw ^ "\n");
+          print caps (Printf.sprintf "%s: %s => %s\n" ref old nw)
+      | [ "delete"; ref ] -> print caps (ref ^ ": removed\n"); rm_rf (refpath ref)
+      | [ "uptodate"; ref ] -> print caps (ref ^ ": up to date\n")
+      | _ -> ()) (List.rev !lines)) remotes;
   0

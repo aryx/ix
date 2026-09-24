@@ -1,6 +1,6 @@
 (library
  (name ix_vcs)
- (modules Hash Object Loose Delta Pack Store Refs Conf Query Repo Flags Log Fs Index9 Walk Save Packer Diff Merge3 Difftool Commands CLI)
+ (modules Hash Object Loose Delta Pack Store Refs Conf Query Repo Flags Log Fs Index9 Walk Save Packer Proto Get Send Serve Diff Merge3 Difftool Commands CLI)
  (libraries ix_core ix_security ix_compression fpath unix caps logs))
 
 (executable

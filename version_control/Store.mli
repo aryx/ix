@@ -31,3 +31,8 @@ val all : t -> Hash.t list
 
 (* forget the packs, after one is added or removed *)
 val refresh : t -> unit
+
+(* a pack's bytes checked (its trailing SHA-1), indexed, and saved as
+ * .git/objects/pack/HASH.pack and .idx, git9's names; the hash. A
+ * pack already there is left, with git9's warning. *)
+val add_pack : t -> warn:(string -> unit) -> string -> string

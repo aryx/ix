@@ -39,6 +39,14 @@ val twixt : Store.t -> Hash.t list -> Hash.t list -> Hash.t list
  * (log's walk) *)
 val history : Store.t -> Hash.t -> (Hash.t * Object.commit) Seq.t
 
+(* git9's heap of commits by time, for get's haves: a hash not naming a
+ * commit is not put *)
+type heap
+
+val heap : unit -> heap
+val put_commit : Store.t -> heap -> Hash.t -> unit
+val pop_commit : heap -> Hash.t option
+
 (* the empty tree, 4b825dc642cb6eb9a060e54bf8d69288fbee4904 *)
 val empty_tree : Hash.t
 

@@ -70,3 +70,28 @@ let expand t prefix =
     match List.sort_uniq Hash.compare (List.filter (fun h -> String.starts_with ~prefix (Hash.to_hex h)) (all t)) with
     | [ h ] -> Some h
     | _ -> None
+
+let add_pack t ~warn pack =
+  let n = String.length pack in
+  if n < 28 then raise (Object.Corrupt "undersize packfile");
+  let expect = String.sub pack (n - 20) 20 and comp = Sha1.raw (Sha1.string (String.sub pack 0 (n - 20))) in
+  if expect <> comp then
+    raise (Object.Corrupt (Printf.sprintf "bad hash: %s != %s" (Sha1.to_hex (Sha1.of_raw comp)) (Sha1.to_hex (Sha1.of_raw expect))));
+  let dir = Fpath.(t.git / "objects" / "pack") in
+  let rec mkdirs d = if not (Sys.file_exists d) then (mkdirs (Filename.dirname d); Unix.mkdir d 0o755) in
+  mkdirs (Fpath.to_string dir);
+  let idx = Pack.index pack ~base:(read_raw t) in
+  let name = Pack.name pack in
+  let save ext data =
+    let final = Fpath.(dir / (name ^ ext)) in
+    if Sys.file_exists (Fpath.to_string final) then
+      warn (Printf.sprintf "warning, pack %s%s already %s\n" name ext (if ext = ".pack" then "fetched" else "indexed"))
+    else begin
+      let tmp = Fpath.(dir / (Printf.sprintf "tmp.%d%s" (Unix.getpid ()) ext)) in
+      Files.write t.caps tmp data;
+      Unix.rename (Fpath.to_string tmp) (Fpath.to_string final)
+    end in
+  save ".pack" pack;
+  save ".idx" idx;
+  refresh t;
+  name

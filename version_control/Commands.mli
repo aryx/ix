@@ -22,6 +22,12 @@ val revert : caps -> string list -> int
 val diff : caps -> string list -> int
 val merge : caps -> string list -> int
 val repack : caps -> string list -> int
+val get : caps -> string list -> int
+val send : caps -> string list -> int
+val serve : caps -> string list -> int
+val clone : caps -> string list -> int
+val pull : caps -> string list -> int
+val push : caps -> string list -> int
 
 (* a pack's bytes indexed and saved; its name *)
 val save_pack : Repo.t -> string -> string

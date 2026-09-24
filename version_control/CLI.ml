@@ -102,6 +102,12 @@ let commands : (string * (caps -> string list -> int) * string) list = [
   "diff", (fun c -> Commands.diff (c :> Commands.caps)), "[-c branch] [-su] [file ...]";
   "merge", (fun c -> Commands.merge (c :> Commands.caps)), "theirs";
   "repack", (fun c -> Commands.repack (c :> Commands.caps)), "[-d]";
+  "get", (fun c -> Commands.get (c :> Commands.caps)), "[-dl] [-b br] [-u upstream] remote";
+  "send", (fun c -> Commands.send (c :> Commands.caps)), "[-adf] [-b br] [-r br] remote";
+  "serve", (fun c -> Commands.serve (c :> Commands.caps)), "[-dw] [-r rel]";
+  "clone", (fun c -> Commands.clone (c :> Commands.caps)), "[-d] [-b branch] remote [local]";
+  "pull", (fun c -> Commands.pull (c :> Commands.caps)), "[-dqf] [-u upstream]";
+  "push", (fun c -> Commands.push (c :> Commands.caps)), "[-afd] [-b branch] [-r remove] [-u upstream]";
   "conf", conf, "[-f file] [-r] keys..";
   "fs", fs, "path ...";
   "log", log, "[-s] [-e expr | -c commit] files..";
