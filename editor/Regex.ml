@@ -23,10 +23,11 @@ type node =
   | Eol
   | Cat of node * node
   | Alt of node * node
-  | Star of node
-  | Plus of node
-  | Quest of node
+  | Repeat of rep * node
   | Group of int * node
+
+(* x*, x+, x?, in regcomp's order of priority *)
+and rep = Star | Plus | Quest
 
 let ngroups = 9   (* the whole match and \1-\8, as ed's MAXSUB *)
 
@@ -91,18 +92,18 @@ let parse (p : string) : node =
    * x+* is (x+)*, but x*+ is (x+)* too, the + applied first *)
   and e2 () =
     let a = e3 () in
-    let prio c = String.index "*+?" c in
-    let apply a c = match c with '*' -> Star a | '+' -> Plus a | _ -> Quest a in
+    let prio = function Star -> 0 | Plus -> 1 | Quest -> 2 in
+    let apply a r = Repeat (r, a) in
     let rec reps a stack =
-      match List.find_opt is [ '*'; '+'; '?' ] with
-      | Some c ->
+      match List.find_opt (fun (c, _) -> is c) [ '*', Star; '+', Plus; '?', Quest ] with
+      | Some (_, r) ->
           ignore (next ());
           let rec pop a = function
-            | top :: rest when prio top >= prio c -> pop (apply a top) rest
+            | top :: rest when prio top >= prio r -> pop (apply a top) rest
             | stack -> a, stack
           in
           let a, stack = pop a stack in
-          reps a (c :: stack)
+          reps a (r :: stack)
       | None -> List.fold_left apply a stack
     in
     reps a []
@@ -143,78 +144,46 @@ type kind =
   | IEol
   | ILbra of int
   | IRbra of int
-  | IOr          (* next is its left, followed at once; right is queued *)
-  | INop
+  | IOr of int   (* the right, queued; next, the left, followed at once *)
   | IEnd
 
-type inst = { kind : kind; mutable next : int; mutable right : int }
+type inst = { kind : kind; next : int }
 
 type t = { prog : inst array; start : int }
 
-(* evaluntil()'s cases: each piece is a (first, last) pair of
- * instructions, last's next to be set by what follows. The skip of
- * *, + and ? and the right side of | are the OR's left: followed first *)
+(* old: each piece a (first, last) pair, last's next set by what came
+ * after (-1 until then), a right field only an OR used, and NOPs
+ * removed by a pass: the matcher had an INop case that could not run *)
+
+(* evaluntil()'s cases, each piece emitted knowing what follows it (k):
+ * its first instruction. The skip of *, + and ? and the right side of
+ * | are the OR's next: followed first. A loop's OR is reserved, then
+ * filled once its body, which comes back to it, is emitted *)
 let compile (p : string) : t =
   let root = parse p in
   let code = Hashtbl.create 16 in
-  let get i = Hashtbl.find code i in
-  let mk kind = let id = Hashtbl.length code in Hashtbl.replace code id { kind; next = -1; right = -1 }; id in
-  let set_next a b = (get a).next <- b in
-  let rec emit = function
-    | Rune c -> let i = mk (IRune c) in i, i
-    | Any -> let i = mk IAny in i, i
-    | Class (neg, s) -> let i = mk (IClass (neg, s)) in i, i
-    | Bol -> let i = mk IBol in i, i
-    | Eol -> let i = mk IEol in i, i
-    | Cat (a, b) -> let f1, l1 = emit a in let f2, l2 = emit b in set_next l1 f2; f1, l2
-    | Alt (a, b) ->
-        let f1, l1 = emit a in
-        let f2, l2 = emit b in
-        let nop = mk INop in
-        set_next l2 nop;
-        set_next l1 nop;
-        let o = mk IOr in
-        (get o).right <- f1;
-        set_next o f2;
-        o, nop
-    | Star a ->
-        let f, l = emit a in
-        let o = mk IOr in
-        set_next l o;
-        (get o).right <- f;
-        o, o
-    | Plus a ->
-        let f, l = emit a in
-        let o = mk IOr in
-        set_next l o;
-        (get o).right <- f;
-        f, o
-    | Quest a ->
-        let f, l = emit a in
-        let o = mk IOr and nop = mk INop in
-        set_next o nop;
-        (get o).right <- f;
-        set_next l nop;
-        o, nop
-    | Group (g, a) ->
-        let f, l = emit a in
-        let r = mk (IRbra g) in
-        set_next l r;
-        let lb = mk (ILbra g) in
-        set_next lb f;
-        lb, r
+  let reserve () = let id = Hashtbl.length code in Hashtbl.replace code id { kind = IEnd; next = -1 }; id in
+  let fill id kind next = Hashtbl.replace code id { kind; next } in
+  let mk kind next = let id = reserve () in fill id kind next; id in
+  let rec emit n k =
+    match n with
+    | Rune c -> mk (IRune c) k
+    | Any -> mk IAny k
+    | Class (neg, s) -> mk (IClass (neg, s)) k
+    | Bol -> mk IBol k
+    | Eol -> mk IEol k
+    | Cat (a, b) -> emit a (emit b k)
+    | Alt (a, b) -> let right = emit a k in let left = emit b k in mk (IOr right) left
+    | Repeat (Quest, a) -> let right = emit a k in mk (IOr right) k
+    | Repeat (((Star | Plus) as r), a) ->
+        let o = reserve () in
+        let f = emit a o in
+        fill o (IOr f) k;
+        if r = Star then o else f
+    | Group (g, a) -> mk (ILbra g) (emit a (mk (IRbra g) k))
   in
-  let first, last = emit root in
-  let e = mk IEnd in
-  set_next last e;
-  let prog = Array.init (Hashtbl.length code) get in
-  (* optimize(): no NOP chains on next *)
-  Array.iter (fun i ->
-    if i.next >= 0 then begin
-      let rec skip j = if prog.(j).kind = INop then skip prog.(j).next else j in
-      i.next <- skip i.next
-    end) prog;
-  { prog; start = first }
+  let start = emit root (mk IEnd (-1)) in
+  { prog = Array.init (Hashtbl.length code) (Hashtbl.find code); start }
 
 (*****************************************************************************)
 (* Running it, as regexec.c does *)
@@ -274,8 +243,7 @@ let exec1 (re : t) (s : string) (from : int) (cap : int) best =
         | IRbra g -> t.caps.((2 * g) + 1) <- pos; run inst.next
         | IBol -> if pos = 0 || s.[pos - 1] = '\n' then run inst.next
         | IEol -> if pos >= len || r = 10 then run inst.next
-        | IOr -> renew clist ~from:!i inst.right t.caps; run inst.next
-        | INop -> ()
+        | IOr right -> renew clist ~from:!i right t.caps; run inst.next
         | IEnd ->
             t.caps.(1) <- pos;
             (* _renewmatch: the leftmost, then the longest *)
