@@ -96,7 +96,11 @@ and cmd =
   | Fn of string * cmd
   | Assign of string * word list * cmd option   (* x=v, or x=v cmd *)
 
-and redir = Open of int * Unix.open_flag list * word | Dup of int * int
+and redir = Open of int * mode * word | Dup of int * int
+
+(* < > >> *)
+(* old: the Unix.open_flag list itself, which said the kind only to open *)
+and mode = Read | Write | Append
 
 exception Error of string
 exception Exit of string
@@ -133,22 +137,19 @@ let rec token lx : token =
   | Some '{' -> op LBRACE | Some '}' -> op RBRACE
   | Some '&' -> two '&' AMP ANDAND
   | Some '|' -> two '|' PIPE OROR
-  | Some '<' -> skip lx; redir lx 0 [ Unix.O_RDONLY ]
-  | Some '>' ->
-      skip lx;
-      if peekc lx = Some '>' then (skip lx; redir lx 1 Unix.[ O_WRONLY; O_CREAT; O_APPEND ])
-      else redir lx 1 Unix.[ O_WRONLY; O_CREAT; O_TRUNC ]
+  | Some '<' -> skip lx; redir lx 0 Read
+  | Some '>' -> skip lx; if peekc lx = Some '>' then (skip lx; redir lx 1 Append) else redir lx 1 Write
   | Some _ -> WORD (word lx)
 
 (* <file >[2]file >[2=1] *)
-and redir lx fd flags : token =
+and redir lx fd mode : token =
   let num () =
     let start = lx.pos in
     while_ lx (fun c -> '0' <= c && c <= '9');
     match int_of_string_opt (String.sub lx.text start (lx.pos - start)) with
     | Some n -> n | None -> raise (Error "bad redirection")
   in
-  let file fd = match token lx with WORD w -> Open (fd, flags, w) | _ -> raise (Error "redirection without a file") in
+  let file fd = match token lx with WORD w -> Open (fd, mode, w) | _ -> raise (Error "redirection without a file") in
   if peekc lx <> Some '[' then REDIR (file fd)
   else begin
     skip lx;
@@ -200,7 +201,12 @@ let peek p = match p.ahead with Some t -> t | None -> let t = token p.lx in p.ah
 let next p = let t = peek p in p.ahead <- None; t
 let expect p t = if next p <> t then raise (Error "syntax error")
 let rec skipnl p = if peek p = NL then (ignore (next p); skipnl p)
-let keyword p = match peek p with WORD [ Lit (k, false) ] -> Some k | _ -> None
+(* old: the keyword's string, matched as Some "if": a misspelling was
+ * silently a command's name *)
+let keyword p : [ `Bang | `At | `If | `While | `For | `In | `Fn ] option =
+  match peek p with
+  | WORD [ Lit (k, false) ] -> List.assoc_opt k [ "!", `Bang; "@", `At; "if", `If; "while", `While; "for", `For; "in", `In; "fn", `Fn ]
+  | _ -> None
 let name p what = match next p with WORD [ Lit (x, _) ] -> x | _ -> raise (Error (what ^ ": a name"))
 
 (* x= at the start of a word: x, and what follows the = *)
@@ -246,19 +252,19 @@ and block p = expect p LBRACE; let c = body p (( = ) RBRACE) in expect p RBRACE;
 and unit p : cmd =
   let kw () = ignore (next p) in
   match keyword p, peek p with
-  | Some "!", _ -> kw (); Not (pipe p)
-  | Some "@", _ -> kw (); Subshell (pipe p)
-  | Some "if", _ -> kw (); let c = cond p in If (c, and_or p)
-  | Some "while", _ -> kw (); let c = cond p in While (c, and_or p)
-  | Some "for", _ ->
+  | Some `Bang, _ -> kw (); Not (pipe p)
+  | Some `At, _ -> kw (); Subshell (pipe p)
+  | Some `If, _ -> kw (); let c = cond p in If (c, and_or p)
+  | Some `While, _ -> kw (); let c = cond p in While (c, and_or p)
+  | Some `For, _ ->
       kw ();
       expect p LPAREN;
       let x = name p "for" in
-      let list = if keyword p = Some "in" then (ignore (next p); Some (words p)) else None in
+      let list = if keyword p = Some `In then (ignore (next p); Some (words p)) else None in
       expect p RPAREN;
       skipnl p;
       For (x, list, and_or p)
-  | Some "fn", _ -> kw (); let f = name p "fn" in Fn (f, block p)
+  | Some `Fn, _ -> kw (); let f = name p "fn" in Fn (f, block p)
   | _, LBRACE -> let c = block p in Brace (c, redirs p)
   | _, WORD w when assignment w <> None ->
       ignore (next p);
@@ -425,7 +431,7 @@ let fd (n : int) : Unix.file_descr = Obj.magic n
 
 (* [with_fds changes f]: each fd changed (the file, or another fd), f
  * run, then each fd put back *)
-let with_fds (changes : (int * [ `File of string * Unix.open_flag list | `Fd of int ]) list) f =
+let with_fds (changes : (int * [ `File of string * mode | `Fd of int ]) list) f =
   flush_all ();
   let saved = List.map (fun (n, _) -> n, try Some (Unix.dup ~cloexec:true (fd n)) with Unix.Unix_error _ -> None) changes in
   let restore () =
@@ -436,7 +442,8 @@ let with_fds (changes : (int * [ `File of string * Unix.open_flag list | `Fd of 
   let change (n, to_) =
     match to_ with
     | `Fd m -> Unix.dup2 (fd m) (fd n)
-    | `File (file, flags) ->
+    | `File (file, mode) ->
+        let flags = match mode with Read -> [ Unix.O_RDONLY ] | Write -> Unix.[ O_WRONLY; O_CREAT; O_TRUNC ] | Append -> Unix.[ O_WRONLY; O_CREAT; O_APPEND ] in
         let f = try Unix.openfile file (Unix.O_CLOEXEC :: flags) 0o666
           with Unix.Unix_error (e, _, _) -> raise (Error (file ^ ": " ^ Unix.error_message e)) in
         Unix.dup2 f (fd n);
@@ -537,9 +544,9 @@ and command caps (argv : string list) =
 and redirs caps rs =
   rs |> List.map (function
     | Dup (a, b) -> a, `Fd b
-    | Open (n, flags, w) -> (
+    | Open (n, mode, w) -> (
         match words caps [ w ] with
-        | [ file ] -> n, `File (file, flags)
+        | [ file ] -> n, `File (file, mode)
         | _ -> raise (Error "a redirection needs one file")))
 
 (* a word's values, escaped where not to glob *)
