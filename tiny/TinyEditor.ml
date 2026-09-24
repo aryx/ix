@@ -218,17 +218,30 @@ type addr =
 type cmd = { addr : addr list option; op : op }
 
 and op =
-  | Text of char * string          (* a i c *)
+  | Text of where * string         (* a i c *)
   | Delete
   | Subst of int * string * string * bool
   | Print
   | Eq of bool                     (* =, =# *)
   | Move of bool * addr list       (* m, or t *)
-  | Loop of char * string option * cmd   (* x y g v *)
+  | Loop of loop * cmd
   | Block of cmd list
-  | File of char * string          (* r w e f *)
+  | File of file * string
   | Quit
   | Newline
+
+(* where a, i and c put their text: after, before or instead of dot *)
+and where = After | Before | Instead
+
+(* x alone (each line), x/re/ (each match), y/re/ (between them), g/re/
+ * and v/re/ (if dot matches, or not) *)
+(* old: Loop of char * string option * cmd: a y without a pattern could
+ * be built, and ran as x does, where sam refuses it *)
+and loop = Lines | Matches of string | Between of string | If of bool * string
+
+(* r w e f *)
+(* old: File of char * string, whose last case, a catch-all, stood for f *)
+and file = Read | Write | Edit | Name
 
 (* the input, one character of pushback *)
 let input = ref "" and ip = ref 0
@@ -307,7 +320,12 @@ let rec parse () : cmd option =
   if skipbl () = '\000' then None
   else
     let c = getc () in
-    let delim () = match skipbl () with '\n' | '\000' -> raise (Error "no pattern") | _ -> getc () in
+    let delim () =
+      match skipbl () with
+      | '\n' | '\000' -> raise (Error "no pattern")
+      | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9') as c -> raise (Error (Printf.sprintf "bad delimiter `%c'" c))
+      | _ -> getc ()
+    in
     let text () =
       if skipbl () = '\n' then begin
         (* lines until "." *)
@@ -328,7 +346,9 @@ let rec parse () : cmd option =
     let sub () = match skipbl () with '\n' -> incr ip; { addr = None; op = Print } | _ -> Option.get (parse ()) in
     let op =
       match c with
-      | 'a' | 'i' | 'c' -> Text (c, text ())
+      | 'a' -> Text (After, text ())
+      | 'i' -> Text (Before, text ())
+      | 'c' -> Text (Instead, text ())
       | 'd' -> atnl (); Delete
       | 's' ->
           let n = num () in
@@ -341,9 +361,11 @@ let rec parse () : cmd option =
       | 'p' -> atnl (); Print
       | '=' -> let chars = peekc () = '#' in if chars then incr ip; atnl (); Eq chars
       | 'm' | 't' -> (match simple () with Some a -> atnl (); Move (c = 'm', a) | None -> raise (Error "bad address"))
+      | 'x' when (let n = peekc () in n = ' ' || n = '\t' || n = '\n') -> Loop (Lines, sub ())
       | 'x' | 'y' | 'g' | 'v' ->
-          let re = if (c = 'x' || c = 'y') && (let n = peekc () in n = ' ' || n = '\t' || n = '\n') then None else Some (regexp (delim ())) in
-          Loop (c, re, sub ())
+          let re = regexp (delim ()) in
+          let loop = match c with 'x' -> Matches re | 'y' -> Between re | _ -> If (c = 'g', re) in
+          Loop (loop, sub ())
       | '{' ->
           let rec cmds acc =
             if skipbl () = '\n' then incr ip;
@@ -351,7 +373,10 @@ let rec parse () : cmd option =
             else match parse () with Some c -> cmds (c :: acc) | None -> raise (Error "missing }")
           in
           Block (cmds [])
-      | 'r' | 'w' | 'e' | 'f' -> File (c, word ())
+      | 'r' -> File (Read, word ())
+      | 'w' -> File (Write, word ())
+      | 'e' -> File (Edit, word ())
+      | 'f' -> File (Name, word ())
       | 'q' -> atnl (); Quit
       | '\n' -> Newline
       | c -> raise (Error (Printf.sprintf "unknown command `%c'" c))
@@ -507,13 +532,14 @@ let menu name = Printf.sprintf "%c-. %s\n" (if !modified then '\'' else ' ') nam
 let read_file name = try Some (In_channel.with_open_bin name In_channel.input_all) with Sys_error _ -> None
 
 let rec exec (c : cmd) : unit =
-  let a = match c.addr, c.op with None, File ('w', _) -> (0, len ()) | None, _ -> !dot | Some ad, _ -> address ad !dot 0 in
+  let a = match c.addr, c.op with None, File (Write, _) -> (0, len ()) | None, _ -> !dot | Some ad, _ -> address ad !dot 0 in
   let q0, q1 = a in
   match c.op with
-  | Text (k, s) ->
-      let p = if k = 'i' then q0 else q1 in
-      if k = 'c' then change q0 q1 s else change p p s;
-      dot := if k = 'c' then (q0, q0 + String.length s) else (p, p + String.length s)
+  | Text (w, s) ->
+      (* the range the text replaces *)
+      let p0, p1 = match w with After -> q1, q1 | Before -> q0, q0 | Instead -> q0, q1 in
+      change p0 p1 s;
+      dot := (p0, p0 + String.length s)
   | Delete -> change q0 q1 ""; dot := (q0, q0)
   | Subst (n, pat, rep, g) ->
       let re = compile pat in
@@ -568,12 +594,10 @@ let rec exec (c : cmd) : unit =
         dot := (shift p - (if p >= q1 then q1 - q0 else 0), shift p - (if p >= q1 then q1 - q0 else 0) + String.length s)
       end
       else (change p p s; dot := (p, p + String.length s))
-  | Loop (('g' | 'v') as k, Some pat, sub) ->
+  | Loop (If (g, pat), sub) ->
       let found = search (compile pat) !text q0 q1 <> None in
-      if found = (k = 'g') then (dot := a; exec sub)
-  | Loop (k, None, sub) ->
-      (* x alone: each line *)
-      ignore k;
+      if found = g then (dot := a; exec sub)
+  | Loop (Lines, sub) ->
       let p = ref q0 in
       while !p < q1 do
         let e = match String.index_from_opt !text !p '\n' with Some e when e < q1 -> e + 1 | _ -> q1 in
@@ -581,15 +605,16 @@ let rec exec (c : cmd) : unit =
         exec sub;
         p := e
       done
-  | Loop (k, Some pat, sub) ->
+  | Loop ((Matches pat | Between pat) as k, sub) ->
       (* looper(): x on each match, y on the text between *)
+      let x = match k with Matches _ -> true | _ -> false in
       let re = compile pat in
-      let p = ref q0 and op = ref (if k = 'x' then -1 else q0) in
+      let p = ref q0 and op = ref (if x then -1 else q0) in
       (try
          while !p <= q1 do
            match search re !text !p q1 with
            | None ->
-               if k = 'x' || !op > q1 then raise Exit;
+               if x || !op > q1 then raise Exit;
                dot := (!op, q1);
                p := q1 + 1;
                exec sub
@@ -598,18 +623,18 @@ let rec exec (c : cmd) : unit =
                if s = e && s = !op then incr p
                else begin
                  p := if s = e then e + 1 else e;
-                 dot := if k = 'x' then (s, e) else (!op, s);
+                 dot := if x then (s, e) else (!op, s);
                  op := e;
                  exec sub
                end
          done
        with Exit -> ())
   | Block cmds -> List.iter (fun c -> dot := a; exec c) cmds
-  | File ('r', name) -> (
+  | File (Read, name) -> (
       match read_file name with
       | Some s -> change q0 q1 s; dot := (q0, q0 + String.length s); Buffer.add_string out (Printf.sprintf "#%d\n" (String.length s))
       | None -> raise (Error ("can't open " ^ name)))
-  | File ('w', name) ->
+  | File (Write, name) ->
       let name = if name = "" then !file else name in
       if name = "" then raise (Error "no file name");
       Out_channel.with_open_bin name (fun oc -> output_string oc (String.sub !text q0 (q1 - q0)));
@@ -618,13 +643,13 @@ let rec exec (c : cmd) : unit =
       Buffer.add_string out (name ^ ": ");
       if q1 > q0 && !text.[q1 - 1] <> '\n' then (flush (); prerr_endline "?warning: last char not newline");
       Buffer.add_string out (Printf.sprintf "#%d\n" (q1 - q0))
-  | File ('e', name) ->
+  | File (Edit, name) ->
       let name = if name = "" then !file else name in
       (match read_file name with
        | Some s -> text := s; file := name; dot := (0, 0); modified := false
        | None -> raise (Error ("can't open " ^ name)));
       Buffer.add_string out (menu name)
-  | File (_, name) -> if name <> "" then file := name; Buffer.add_string out (menu !file)
+  | File (Name, name) -> if name <> "" then file := name; Buffer.add_string out (menu !file)
   | Quit ->
       if !modified && not !warned then (warned := true; raise (Error "changed files"));
       flush ();

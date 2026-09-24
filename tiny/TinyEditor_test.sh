@@ -117,6 +117,10 @@ same "x" ',x/o/c/0/
 ,p
 w
 q'
+# y takes a pattern, whose delimiter is no letter (sam's "bad delimiter")
+same "y without a pattern" ',y p
+,p'
+
 same "x and y" ',x/t.*/p
 ,y/\n/p
 ,x/o/{
