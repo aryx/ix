@@ -1,6 +1,7 @@
 (* The arm64 machine (7l): frames and returns, the layout of the code
  * with its literal pool, and the encoding of each instruction by the
- * first of 7l's rules that takes its operands.
+ * form its opcode and its operands' classes select, in the order of
+ * 7l's rules.
  *
  * References: as Arm.mli for the one-pass layout (Szymanski's problem
  * does not arise: every instruction is 4 bytes) and for the frames;

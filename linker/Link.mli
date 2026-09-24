@@ -90,7 +90,6 @@ type 'm prog = {
   where : string * int;           (* its file and line *)
   mutable frame : int;            (* TEXT: the frame size, as written; the machine rounds it *)
   mutable leaf : bool;            (* TEXT: calls nothing *)
-  mutable rule : int;             (* the machine's cached choice of encoding, -1 before *)
 }
 
 (* a DATA: a symbol, an offset, a width, a value *)

@@ -126,13 +126,13 @@ let view (p : prog) : view =
 (* Operand classes (5l's m.h C_xxx, span.c's aclass, cmp) *)
 (*****************************************************************************)
 
-(* in 5l's order, which decides which rule matches first *)
+(* 5l's classes (C_xxx) *)
 type cls = NONE | REG | BRANCH | RCON | NCON | LCON | HOREG | FOREG | HFOREG | SOREG | LOREG | ROREG | SROREG
   | HEXT | FEXT | HFEXT | SEXT | LEXT | HAUTO | FAUTO | HFAUTO | SAUTO | LAUTO | RECON | RACON | LACON
   | SHIFT | ADDR | FREG | FCON | FCR | REGREG | PSR | GOK
 [@@warning "-37"]
 
-(* 5l's cmp: may a rule's class [a] take an operand of class [b] *)
+(* 5l's cmp: may a form for class [a] take an operand of class [b] *)
 let rec cmp a b =
   a = b
   || match a with
@@ -244,121 +244,6 @@ let aclass ctx (p : prog) (a : A.operand option) : cls * int =
   | _ -> GOK, 0
 
 (*****************************************************************************)
-(* The rules (5l's optab.c, oplook; xix's Codegen5 patterns) *)
-(*****************************************************************************)
-
-let lfrom = 1 and lto = 2 and lpool = 4 and v4 = 8
-
-type rule = { op : op Link.op; a1 : cls; a2 : cls; a3 : cls; case : int; size : int; param : int; flag : int }
-
-(* the rules of the subset; floating point, the PSR, SWP and RFE, and
- * dynamic modules (C_ADDR) are out *)
-let rules =
-  let r op a1 a2 a3 case size ?(param = 0) ?(flag = 0) () = { op; a1; a2; a3; case; size; param; flag } in
-  let sb = reg_sb and sp = reg_sp in
-  let mem_rules = List.concat_map (fun op ->
-      [ r (Ins op) SEXT NONE REG 21 4 ~param:sb (); r (Ins op) SAUTO NONE REG 21 4 ~param:sp (); r (Ins op) SOREG NONE REG 21 4 ();
-        r (Ins op) LEXT NONE REG 31 8 ~param:sb ~flag:lfrom (); r (Ins op) LAUTO NONE REG 31 8 ~param:sp ~flag:lfrom ();
-        r (Ins op) LOREG NONE REG 31 8 ~flag:lfrom () ]) [ Mov W32; Mov B8u ]
-    @ List.concat_map (fun op ->
-      [ r (Ins op) REG NONE SEXT 20 4 ~param:sb (); r (Ins op) REG NONE SAUTO 20 4 ~param:sp (); r (Ins op) REG NONE SOREG 20 4 ();
-        r (Ins op) REG NONE LEXT 30 8 ~param:sb ~flag:lto (); r (Ins op) REG NONE LAUTO 30 8 ~param:sp ~flag:lto ();
-        r (Ins op) REG NONE LOREG 30 8 ~flag:lto () ]) [ Mov W32; Mov B8u; Mov B8 ]
-    @ List.concat_map (fun op ->
-      [ r (Ins op) SEXT NONE REG 22 12 ~param:sb (); r (Ins op) SAUTO NONE REG 22 12 ~param:sp (); r (Ins op) SOREG NONE REG 22 12 ();
-        r (Ins op) LEXT NONE REG 32 16 ~param:sb ~flag:lfrom (); r (Ins op) LAUTO NONE REG 32 16 ~param:sp ~flag:lfrom ();
-        r (Ins op) LOREG NONE REG 32 16 ~flag:lfrom ();
-        r (Ins op) HEXT NONE REG 71 4 ~param:sb ~flag:v4 (); r (Ins op) HAUTO NONE REG 71 4 ~param:sp ~flag:v4 ();
-        r (Ins op) HOREG NONE REG 71 4 ~flag:v4 ();
-        r (Ins op) LEXT NONE REG 73 8 ~param:sb ~flag:(lfrom lor v4) (); r (Ins op) LAUTO NONE REG 73 8 ~param:sp ~flag:(lfrom lor v4) ();
-        r (Ins op) LOREG NONE REG 73 8 ~flag:(lfrom lor v4) () ]) [ Mov H16; Mov H16u; Mov B8 ]
-    @ List.concat_map (fun op ->
-      [ r (Ins op) REG NONE SEXT 23 12 ~param:sb (); r (Ins op) REG NONE SAUTO 23 12 ~param:sp (); r (Ins op) REG NONE SOREG 23 12 ();
-        r (Ins op) REG NONE LEXT 33 24 ~param:sb ~flag:lto (); r (Ins op) REG NONE LAUTO 33 24 ~param:sp ~flag:lto ();
-        r (Ins op) REG NONE LOREG 33 24 ~flag:lto ();
-        r (Ins op) REG NONE HEXT 70 4 ~param:sb ~flag:v4 (); r (Ins op) REG NONE HAUTO 70 4 ~param:sp ~flag:v4 ();
-        r (Ins op) REG NONE HOREG 70 4 ~flag:v4 ();
-        r (Ins op) REG NONE LEXT 72 8 ~param:sb ~flag:(lto lor v4) (); r (Ins op) REG NONE LAUTO 72 8 ~param:sp ~flag:(lto lor v4) ();
-        r (Ins op) REG NONE LOREG 72 8 ~flag:(lto lor v4) () ]) [ Mov H16; Mov H16u ]
-  in
-  (* FPA's: 5c's floating point, which goken's libc has (though no
-   * machine runs it now) *)
-  let float_rules =
-    [ r (Ins (Fmov F)) FREG NONE FEXT 50 4 ~param:sb (); r (Ins (Fmov F)) FREG NONE FAUTO 50 4 ~param:sp (); r (Ins (Fmov F)) FREG NONE FOREG 50 4 ();
-      r (Ins (Fmov F)) FEXT NONE FREG 51 4 ~param:sb (); r (Ins (Fmov F)) FAUTO NONE FREG 51 4 ~param:sp (); r (Ins (Fmov F)) FOREG NONE FREG 51 4 ();
-      r (Ins (Fmov F)) FREG NONE LEXT 52 12 ~param:sb ~flag:lto (); r (Ins (Fmov F)) FREG NONE LAUTO 52 12 ~param:sp ~flag:lto ();
-      r (Ins (Fmov F)) FREG NONE LOREG 52 12 ~flag:lto ();
-      r (Ins (Fmov F)) LEXT NONE FREG 53 12 ~param:sb ~flag:lfrom (); r (Ins (Fmov F)) LAUTO NONE FREG 53 12 ~param:sp ~flag:lfrom ();
-      r (Ins (Fmov F)) LOREG NONE FREG 53 12 ~flag:lfrom ();
-      r (Ins (Farith (Fadd, F))) FREG NONE FREG 54 4 (); r (Ins (Farith (Fadd, F))) FREG REG FREG 54 4 (); r (Ins (Farith (Fadd, F))) FCON NONE FREG 54 4 ();
-      r (Ins (Farith (Fadd, F))) FCON REG FREG 54 4 (); r (Ins (Fmov F)) FCON NONE FREG 54 4 (); r (Ins (Fmov F)) FREG NONE FREG 54 4 ();
-      r (Ins (Fcmp F)) FREG REG NONE 54 4 (); r (Ins (Fcmp F)) FCON REG NONE 54 4 ();
-      r (Ins (Ftoi F)) FREG NONE REG 55 4 (); r (Ins (Ftoi F)) REG NONE FREG 55 4 () ]
-  in
-  [ r (Ins Word) NONE NONE LCON 11 4 (); r (Ins Word) NONE NONE LEXT 11 4 ();
-    r (Ins (Alu Add)) REG REG REG 1 4 (); r (Ins (Alu Add)) REG NONE REG 1 4 (); r (Ins (Mov W32)) REG NONE REG 1 4 (); r (Ins Mvn) REG NONE REG 1 4 ();
-    r (Ins (Test Cmp)) REG REG NONE 1 4 ();
-    r (Ins (Alu Add)) RCON REG REG 2 4 (); r (Ins (Alu Add)) RCON NONE REG 2 4 (); r (Ins (Mov W32)) RCON NONE REG 2 4 (); r (Ins Mvn) RCON NONE REG 2 4 ();
-    r (Ins (Test Cmp)) RCON REG NONE 2 4 ();
-    r (Ins (Alu Add)) SHIFT REG REG 3 4 (); r (Ins (Alu Add)) SHIFT NONE REG 3 4 (); r (Ins Mvn) SHIFT NONE REG 3 4 (); r (Ins (Test Cmp)) SHIFT REG NONE 3 4 ();
-    r (Ins (Shift Lsl)) RCON REG REG 8 4 (); r (Ins (Shift Lsl)) RCON NONE REG 8 4 (); r (Ins (Shift Lsl)) REG NONE REG 9 4 (); r (Ins (Shift Lsl)) REG REG REG 9 4 ();
-    r (Ins (Mov B8)) REG NONE REG 14 8 (); r (Ins (Mov B8u)) REG NONE REG 58 4 (); r (Ins (Mov H16)) REG NONE REG 14 8 (); r (Ins (Mov H16u)) REG NONE REG 14 8 ();
-    r (Ins (Mul false)) REG REG REG 15 4 (); r (Ins (Mul false)) REG NONE REG 15 4 ();
-    r (Ins (Alu Add)) NCON REG REG 13 8 (); r (Ins (Alu Add)) NCON NONE REG 13 8 (); r (Ins Mvn) NCON NONE REG 13 8 (); r (Ins (Test Cmp)) NCON REG NONE 13 8 ();
-    r (Ins (Alu Add)) LCON REG REG 13 8 ~flag:lfrom (); r (Ins (Alu Add)) LCON NONE REG 13 8 ~flag:lfrom ();
-    r (Ins Mvn) LCON NONE REG 13 8 ~flag:lfrom (); r (Ins (Test Cmp)) LCON REG NONE 13 8 ~flag:lfrom ();
-    r (Ins (Mov W32)) NCON NONE REG 12 4 (); r (Ins (Mov W32)) LCON NONE REG 12 4 ~flag:lfrom ();
-    r B NONE NONE BRANCH 5 4 ~flag:lpool (); r Bl NONE NONE BRANCH 5 4 (); r (Bcond EQ) NONE NONE BRANCH 5 4 ();
-    r B NONE NONE ROREG 6 4 ~flag:lpool (); r Bl NONE NONE ROREG 7 8 ();
-    r (Ins (Mov W32)) RECON NONE REG 4 4 ~param:reg_sb (); r (Ins (Mov W32)) RACON NONE REG 4 4 ~param:reg_sp ();
-    r (Ins (Mov W32)) LACON NONE REG 34 8 ~param:reg_sp ~flag:lfrom ();
-    r (Ins Swi) NONE NONE NONE 10 4 (); r (Ins Swi) NONE NONE LCON 10 4 (); r (Ins Swi) NONE NONE LOREG 10 4 ();
-    r (Ins (Div false)) REG REG REG 16 4 (); r (Ins (Div false)) REG NONE REG 16 4 ();
-    r (Ins (Mull (false, false))) REG REG REGREG 17 4 ();
-    r (Ins Movm) LCON NONE SOREG 38 4 (); r (Ins Movm) SOREG NONE LCON 39 4 ();
-    r (Ins (Mov W32)) SHIFT NONE REG 59 4 (); r (Ins (Mov B8u)) SHIFT NONE REG 59 4 (); r (Ins (Mov B8)) SHIFT NONE REG 60 4 ();
-    r (Ins (Mov W32)) REG NONE SHIFT 61 4 (); r (Ins (Mov B8)) REG NONE SHIFT 61 4 (); r (Ins (Mov B8u)) REG NONE SHIFT 61 4 ();
-    r (Ins Case) REG NONE NONE 62 4 (); r Bcase NONE NONE BRANCH 63 4 () ]
-  @ mem_rules @ float_rules
-
-(* the opcodes that share a representative's rules (5l's buildop) *)
-let representative : op Link.op -> op Link.op = function
-  | Ins (Alu _) -> Ins (Alu Add)
-  | Ins (Test _) -> Ins (Test Cmp)
-  | Ins (Shift _) -> Ins (Shift Lsl)
-  | Ins (Mul _) -> Ins (Mul false)
-  | Bcond _ -> Bcond EQ
-  | Ins (Div _ | Mod _) -> Ins (Div false)
-  | Ins (Mula | Mull _) -> Ins (Mull (false, false))
-  | Ins (Farith _ | Fcvt _) -> Ins (Farith (Fadd, F))
-  | Ins (Fcmp _) -> Ins (Fcmp F)
-  | Ins (Fmov _) -> Ins (Fmov F)
-  | Ins (Itof _ | Ftoi _) -> Ins (Ftoi F)
-  | Ins (Mov _ | Mvn | Swi | Movm | Case | Word | Ret) | Func | Nop | B | Bl | Bcase as op -> op
-
-(* sorted as 5l's ocmp: by opcode, the ARMv4 rules first, then by classes *)
-let table =
-  let rank c = Obj.magic c in
-  let a = Array.of_list rules in
-  Array.stable_sort (fun x y -> compare (x.op, - (x.flag land v4), rank x.a1, rank x.a2, rank x.a3) (y.op, - (y.flag land v4), rank y.a1, rank y.a2, rank y.a3)) a;
-  a
-
-(* 5l's oplook: the first rule that takes the operands; cached *)
-let rule ctx (p : prog) : rule =
-  if p.rule < 0 then begin
-    let v = view p in
-    let a1 = fst (aclass ctx p v.from) and a3 = fst (aclass ctx p v.to_) in
-    let a2 = if v.reg <> None then REG else NONE in
-    let r = representative v.op in
-    let rec find i =
-      if i >= Array.length table then (let f, l = p.where in error "%s:%d: illegal combination: %s" f l (Link.show show p))
-      else let o = table.(i) in if o.op = r && o.a2 = a2 && cmp o.a1 a1 && cmp o.a3 a3 then i else find (i + 1)
-    in
-    p.rule <- find 0
-  end;
-  table.(p.rule)
-
-(*****************************************************************************)
 (* Following the flow (5l's follow and xfol; not in xix) *)
 (*****************************************************************************)
 
@@ -393,8 +278,8 @@ let follow (t : op Link.t) =
 
 let mem ?(off = 0) b = A.Mem { base = A.R b; name = None; off = Int64.of_int off; index = None }
 let imm n = A.Imm (Int64.of_int n)
-let prog_like (p : prog) op suffixes args = { p with op; suffixes; args; target = None; rule = -1; frame = 0; leaf = false }
-let become (p : prog) op suffixes args = p.op <- op; p.suffixes <- suffixes; p.args <- args; p.target <- None; p.rule <- -1
+let prog_like (p : prog) op suffixes args = { p with op; suffixes; args; target = None; frame = 0; leaf = false }
+let become (p : prog) op suffixes args = p.op <- op; p.suffixes <- suffixes; p.args <- args; p.target <- None
 
 let division (p : prog) = match p.op with Ins (Div _ | Mod _) -> true | _ -> false
 
@@ -457,90 +342,6 @@ let rewrite (t : op Link.t) =
             [ p ]
         | _ -> [ p ])
     | _ -> [ p ]) t.progs
-
-(*****************************************************************************)
-(* Layout: pcs and literal pools (5l's dotext, addpool, flushpool,
- * checkpool; xix's Layout5) *)
-(*****************************************************************************)
-
-let layout (t : op Link.t) =
-  let ctx = { t; autosize = 0 } in
-  let pool = ref [] (* (key, word), newest first *) and pool_start = ref 0 in
-  let pool_size () = 4 * List.length !pool in
-  let out = ref [] in
-  (* the pool after p, behind a branch around it when [skip] (to what
-   * follows, or to itself at the very end, as 5l) *)
-  let flush (p : prog) rest skip =
-    if !pool = [] then rest
-    else if (not skip) && p.pc + pool_size () - !pool_start < 2048 then rest
-    else begin
-      let words = List.rev_map snd !pool in
-      pool := [];
-      pool_start := 0;
-      if skip then begin
-        let b = prog_like p B [] [ A.Target 0 ] in
-        b.target <- (match rest with q :: _ -> Some q | [] -> Some b);
-        if rest = [] then b.target <- Some b;
-        b.args <- [ A.Target 0 ];
-        (b :: words) @ rest
-      end
-      else words @ rest
-    end
-  in
-  let add_pool (p : prog) (a : A.operand option) =
-    let c, v = aclass ctx p a in
-    let key = match c with
-      (* an offset made a constant: never the same record as an operand's
-       * (which carries its class), so never shared with one *)
-      | SROREG | LOREG | ROREG | FOREG | SOREG | FAUTO | SAUTO | LAUTO | LACON -> A.Imm (Int64.of_int v), -1
-      (* the operand, as 5l's memcmp of it: a name<> is its object's *)
-      | _ ->
-          let a = Option.get a in
-          a, (match a with A.Mem { name = Some { static = true; _ }; _ } | A.Addr { name = Some { static = true; _ }; _ } -> p.version | _ -> 0)
-    in
-    match List.assoc_opt key !pool with
-    | Some w -> p.target <- Some w
-    | None ->
-        let w = prog_like p (Ins Word) [] [ fst key ] in
-        if !pool = [] then pool_start := p.pc;
-        pool := (key, w) :: !pool;
-        p.target <- Some w
-  in
-  let pc = ref t.text_start in
-  let rec go = function
-    | [] -> ()
-    | (p : prog) :: rest ->
-        p.pc <- !pc;
-        out := p :: !out;
-        if p.op = Func then begin
-          ctx.autosize <- p.frame + 4;
-          (match p.args with A.Mem { name = Some n; _ } :: _ -> (sym_of t p.version n).value <- !pc | _ -> ());
-          go rest
-        end
-        else begin
-          let r = rule ctx p in
-          pc := !pc + r.size;
-          let v = view p in
-          if r.flag land (lfrom lor lto lor lpool) = lfrom then add_pool p v.from
-          else if r.flag land (lfrom lor lto lor lpool) = lto then add_pool p v.to_;
-          let rest = if r.flag land lpool <> 0 && v.sc land 15 = always then flush p rest false else rest in
-          let rest =
-            if v.op = Ins (Mov W32) && v.to_ = Some (A.Reg reg_pc) && v.sc land 15 = always then flush p rest false else rest
-          in
-          let rest =
-            if !pool <> [] && (rest = [] || pool_size () >= 0xffc || immaddr (p.pc + 4 + 4 + pool_size () - !pool_start + 8) = 0)
-            then flush p rest true
-            else rest
-          in
-          go rest
-        end
-  in
-  go t.progs;
-  t.progs <- List.rev !out;
-  let c = rnd !pc 8 in
-  t.text_size <- c - t.text_start;
-  (lookup t "etext" 0).value <- c;
-  t.data_start <- rnd c t.data_round
 
 (*****************************************************************************)
 (* Encoding (5l's asmout and its helpers, codegen.c; xix's Codegen5) *)
@@ -620,20 +421,38 @@ let shift_bits (s : A.shift) =
 
 let shift_of = function Some (A.Shifted s) -> s | Some (A.Mem { index = Some s; _ }) -> s | _ -> error "not a shift"
 
-let encode_prog ctx (p : prog) : int list =
-  let o = rule ctx p in
+(*****************************************************************************)
+(* Choosing an encoding (5l's optab, oplook and asmout) *)
+(*****************************************************************************)
+
+(* an instruction's encoding: its size, the operand it puts in the
+ * literal pool, whether the pool may follow it (after a B), and its
+ * words, made once the pcs are known *)
+(* old: 5l's design, a table of rules (opcode, three operand classes, a
+ * case number, a size, flags) sorted so that the first that fits is the
+ * one wanted, ARMv4's before the others, a cached index into it in each
+ * prog, and asmout's switch on the case numbers, away from what chose
+ * them. Here one match on the opcode tries the forms in the table's
+ * order, each next to its words; so written, its dead rules showed:
+ * the ARMv4 rules take every load of a byte or half and every store of
+ * a half, and cases 22, 23, 32 and 33 were never reached *)
+type action = { size : int; pool : A.operand option; flush : bool; words : unit -> int list }
+
+let select ctx (p : prog) : action =
   let v = view p in
   let sc = v.sc in
+  let c1 = fst (aclass ctx p v.from) and c3 = fst (aclass ctx p v.to_) in
+  let none = v.reg = None and fits a1 a3 = cmp a1 c1 && cmp a3 c3 in
+  let illegal () = let f, l = p.where in error "%s:%d: illegal combination: %s" f l (Link.show show p) in
   let off a = snd (aclass ctx p a) in
   let rt = regof v.to_ and rf = regof v.from in
-  let mid ~is_mov rt = if is_mov then 0 else match v.reg with Some r -> r | None -> rt in
-  (* the machine's instruction; a load's or store's width, a float's precision *)
-  let ins () = match v.op with Ins m -> m | op -> error "%s: not in the rule" (show_op show op) in
-  let width () = match ins () with Mov w -> w | m -> error "%s: not a move" (show m) in
-  let byte () = match width () with B8 | B8u -> true | H16 | H16u | W32 -> false in
-  let prec () = match ins () with Fmov pr -> pr | m -> error "%s: not a float move" (show m) in
   let is_mov = v.op = Ins (Mov W32) || v.op = Ins Mvn in
-  let base a = match regof a with -1 -> o.param | r -> r in
+  let mid rt = if is_mov then 0 else match v.reg with Some r -> r | None -> rt in
+  (* a memory operand's base: R12 and the frame's register for a name
+   * and an auto *)
+  let base a = match a with
+    | Some (A.Mem { base = SB; _ } | A.Addr { base = SB; _ }) -> reg_sb
+    | _ -> (match regof a with -1 -> reg_sp | r -> r) in
   (* a constant from the pool, or an MVN of its complement (5l's omvl) *)
   let omvl a dr =
     match p.target with
@@ -644,129 +463,286 @@ let encode_prog ctx (p : prog) : int list =
         | None -> error "missing literal")
   in
   let target_pc () = match p.target with Some q -> q.pc | None -> p.pc in
-  match o.case with
-  | 0 -> []
-  | 11 -> [ off v.to_ land 0xffffffff ]
-  | 1 ->
-      let rt = if v.to_ = None then 0 else rt in
-      [ oprrr (ins ()) sc lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) lor rf ]
-  | 2 ->
-      let rt = if v.to_ = None then 0 else rt in
-      [ oprrr (ins ()) sc lor Option.get (immrot (off v.from)) lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) ]
-  | 3 ->
-      let rt = if v.to_ = None then 0 else rt in
-      [ oprrr (ins ()) sc lor shift_bits (shift_of v.from) lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) ]
-  | 8 -> let r = mid ~is_mov:false rt in [ oprrr (ins ()) sc lor (rt lsl 12) lor ((off v.from land 31) lsl 7) lor r ]
-  | 9 -> let r = mid ~is_mov:false rt in [ oprrr (ins ()) sc lor (rt lsl 12) lor (rf lsl 8) lor (1 lsl 4) lor r ]
-  | 14 ->
-      let n = if byte () then 24 else 16 in
+  let act ?pool ?(flush = false) size words = { size; pool; flush; words } in
+  let one w = act 4 (fun () -> [ w () ]) in
+  (* data processing: R, a rotated constant, R<<n, or a constant from
+   * the pool (or the MVN of its complement) into REGTMP (5l's cases 1,
+   * 2, 3, 13) *)
+  let alu m d =
+    let rt' = if v.to_ = None then 0 else rt in
+    if fits REG d then one (fun () -> oprrr m sc lor (mid rt' lsl 16) lor (rt' lsl 12) lor rf)
+    else if fits RCON d then one (fun () -> oprrr m sc lor Option.get (immrot (off v.from)) lor (mid rt' lsl 16) lor (rt' lsl 12))
+    else if fits NCON d || fits LCON d then
+      act 8 ?pool:(if c1 = NCON then None else v.from) (fun () ->
+        [ omvl v.from reg_tmp; oprrr m sc lor (mid rt lsl 16) lor reg_tmp lor (if v.to_ <> None then rt lsl 12 else 0) ])
+    else if fits SHIFT d then one (fun () -> oprrr m sc lor shift_bits (shift_of v.from) lor (mid rt' lsl 16) lor (rt' lsl 12))
+    else illegal ()
+  in
+  (* loads and stores of words and bytes: a 12-bit offset, or one from
+   * the pool into REGTMP (5l's cases 20, 21, 30, 31) *)
+  let short = [ SEXT; SAUTO; SOREG ] and long = [ LEXT; LAUTO; LOREG ] in
+  let fits_any cs c = List.exists (fun a -> cmp a c) cs in
+  let word_access ?(load = true) ~byte () =
+    if not none then None
+    else if c1 = REG && fits_any short c3 then Some (one (fun () -> osr ~byte sc rf (off v.to_) (base v.to_)))
+    else if c1 = REG && fits_any long c3 then
+      Some (act 8 ?pool:v.to_ (fun () -> [ omvl v.to_ reg_tmp; osrr ~byte sc rf reg_tmp (base v.to_) ]))
+    else if load && c3 = REG && fits_any short c1 then Some (one (fun () -> olr ~byte sc (off v.from) (base v.from) rt))
+    else if load && c3 = REG && fits_any long c1 then
+      Some (act 8 ?pool:v.from (fun () -> [ omvl v.from reg_tmp; olrr ~byte sc reg_tmp (base v.from) rt ]))
+    else None
+  in
+  (* ARMv4's loads of halves and signed bytes, and stores of halves: an
+   * 8-bit offset, or one from the pool (5l's cases 70 to 73) *)
+  let half_access (w : width) ~store =
+    let sign o = match w with B8 -> o lxor ((1 lsl 5) lor (1 lsl 6)) | H16 -> o lxor (1 lsl 6) | B8u | H16u | W32 -> o in
+    let hshort = [ HEXT; HAUTO; HOREG ] in
+    if not none then None
+    else if store && c1 = REG && fits_any hshort c3 then Some (one (fun () -> oshr rf (off v.to_) (base v.to_) sc))
+    else if store && c1 = REG && fits_any long c3 then
+      Some (act 8 ?pool:v.to_ (fun () -> [ omvl v.to_ reg_tmp; oshrr rf reg_tmp (base v.to_) sc ]))
+    else if c3 = REG && fits_any hshort c1 then Some (one (fun () -> sign (olhr (off v.from) (base v.from) rt sc)))
+    else if c3 = REG && fits_any long c1 then
+      Some (act 8 ?pool:v.from (fun () -> [ omvl v.from reg_tmp; sign (olhrr reg_tmp (base v.from) rt sc) ]))
+    else None
+  in
+  (* a byte or half between registers: shifted up, then down (5l's case 14) *)
+  let extend (w : width) =
+    act 8 (fun () ->
+      let n = match w with B8 | B8u -> 24 | H16 | H16u | W32 -> 16 in
       [ oprrr (Shift Lsl) sc lor (rt lsl 12) lor (n lsl 7) lor rf;
-        oprrr (Shift (match width () with B8u | H16u -> Lsr | B8 | H16 | W32 -> Asr)) sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
-  | 58 -> let r = if rf < 0 then rt else rf in [ oprrr (Alu And) sc lor Option.get (immrot 0xff) lor (r lsl 16) lor (rt lsl 12) ]
-  | 15 ->
-      let r = mid ~is_mov:false rt in
-      let r, rf = if rt = r then rf, rt else r, rf in
-      [ oprrr (ins ()) sc lor (rt lsl 16) lor (rf lsl 8) lor r ]
-  | 13 ->
-      let o1 = omvl v.from reg_tmp in
-      let o2 = oprrr (ins ()) sc lor (mid ~is_mov rt lsl 16) lor reg_tmp lor (if v.to_ <> None then rt lsl 12 else 0) in
-      [ o1; o2 ]
-  | 12 -> [ omvl v.from rt ]
-  | 5 -> [ opbra v.op sc lor (((target_pc () - p.pc - 8) asr 2) land 0xffffff) ]
-  | 6 -> [ oprrr (Alu Add) sc lor Option.get (immrot (off v.to_)) lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) ]
-  | 7 ->
-      [ oprrr (Alu Add) sc lor (reg_pc lsl 16) lor (reg_link lsl 12) lor Option.get (immrot 0);
-        oprrr (Alu Add) sc lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) lor Option.get (immrot (off v.to_)) ]
-  | 21 -> [ olr ~byte:(byte ()) sc (off v.from) (base v.from) rt ]
-  | 31 -> [ omvl v.from reg_tmp; olrr ~byte:(byte ()) sc reg_tmp (base v.from) rt ]
-  | 20 -> [ osr ~byte:(byte ()) sc rf (off v.to_) (base v.to_) ]
-  | 30 -> [ omvl v.to_ reg_tmp; osrr ~byte:(byte ()) sc rf reg_tmp (base v.to_) ]
-  | 4 -> [ oprrr (Alu Add) sc lor (base v.from lsl 16) lor (rt lsl 12) lor Option.get (immrot (off v.from)) ]
-  | 34 -> [ omvl v.from reg_tmp; oprrr (Alu Add) sc lor (base v.from lsl 16) lor (rt lsl 12) lor reg_tmp ]
-  | 22 ->
-      let n = if byte () then 24 else 16 in
-      [ olr ~byte:false sc (off v.from) (base v.from) rt;
-        oprrr (Shift Lsl) sc lor (rt lsl 12) lor (n lsl 7) lor rt;
-        oprrr (Shift (if width () = H16u then Lsr else Asr)) sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
-  | 32 ->
-      let n = if byte () then 24 else 16 in
-      [ omvl v.from reg_tmp; olrr ~byte:(byte ()) sc reg_tmp (base v.from) rt;
-        oprrr (Shift Lsl) sc lor (rt lsl 12) lor (n lsl 7) lor rt;
-        oprrr (Shift (if width () = H16u then Lsr else Asr)) sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
-  | 23 ->
-      let b = base v.to_ and x = off v.to_ in
-      [ osr ~byte:true sc rf x b; oprrr (Shift Lsr) sc lor (reg_tmp lsl 12) lor (8 lsl 7) lor rf; osr ~byte:true sc reg_tmp (x + 1) b ]
-  | 33 ->
-      let b = base v.to_ in
-      [ omvl v.to_ reg_tmp; osrr ~byte:true sc rf reg_tmp b;
-        oprrr (Shift Lsr) sc lor (rf lsl 12) lor (8 lsl 7) lor rf lor (1 lsl 6);
-        oprrr (Alu Add) sc lor (reg_tmp lsl 16) lor (reg_tmp lsl 12) lor Option.get (immrot 1);
-        osrr ~byte:true sc rf reg_tmp b;
-        oprrr (Shift Lsr) sc lor (rf lsl 12) lor (24 lsl 7) lor rf lor (1 lsl 6) ]
-  | 10 -> [ oprrr (ins ()) sc lor (if v.to_ <> None then off v.to_ land 0xffffff else 0) ]
-  | 16 -> [ 0xf lsl 28 ]
-  | 17 ->
-      let rt, rt2 = match v.to_ with Some (A.Pair (a, b)) -> a, b | _ -> 0, 0 in
-      [ oprrr (ins ()) sc lor (rf lsl 8) lor Option.get v.reg lor (rt lsl 16) lor (rt2 lsl 12) ]
-  | 38 | 39 ->
-      let store = o.case = 38 in
-      let mask = if store then off v.from else off v.to_ in
-      let b = if store then regof v.to_ else rf in
-      if (if store then off v.to_ else off v.from) <> 0 then error "offset must be zero in MOVM";
-      [ (0x4 lsl 25) lor (if store then 0 else 1 lsl 20) lor (mask land 0xffff) lor (b lsl 16)
-        lor ((sc land 15) lsl 28) lor (if sc land c_pbit <> 0 then 1 lsl 24 else 0)
-        lor (if sc land c_ubit <> 0 then 1 lsl 23 else 0) lor (if sc land c_sbit <> 0 then 1 lsl 22 else 0)
-        lor (if sc land c_wbit <> 0 then 1 lsl 21 else 0) ]
-  | 70 -> [ oshr rf (off v.to_) (base v.to_) sc ]
-  | 71 ->
-      let o1 = olhr (off v.from) (base v.from) rt sc in
-      [ (match width () with B8 -> o1 lxor ((1 lsl 5) lor (1 lsl 6)) | H16 -> o1 lxor (1 lsl 6) | B8u | H16u | W32 -> o1) ]
-  | 72 -> [ omvl v.to_ reg_tmp; oshrr rf reg_tmp (base v.to_) sc ]
-  | 73 ->
-      let o2 = olhrr reg_tmp (base v.from) rt sc in
-      [ omvl v.from reg_tmp;
-        (match width () with B8 -> o2 lxor ((1 lsl 5) lor (1 lsl 6)) | H16 -> o2 lxor (1 lsl 6) | B8u | H16u | W32 -> o2) ]
-  | 59 -> (
+        oprrr (Shift (match w with B8u | H16u -> Lsr | B8 | H16 | W32 -> Asr)) sc lor (rt lsl 12) lor (n lsl 7) lor rt ])
+  in
+  (* a load by a shifted register index, and a store (5l's cases 59, 61) *)
+  let shifted_load m ~byte =
+    one (fun () ->
       match v.from with
-      | Some (A.Mem { base = R b; index = Some s; _ }) -> [ olrr ~byte:(byte ()) sc (shift_bits s) b rt ]
-      | _ -> [ oprrr (ins ()) sc lor shift_bits (shift_of v.from) lor (rt lsl 12) ])
-  | 60 -> (
-      match v.from with
-      | Some (A.Mem { base = R b; index = Some s; _ }) -> [ olhrr (shift_bits s) b rt sc lxor ((1 lsl 5) lor (1 lsl 6)) ]
-      | _ -> error "byte MOV from shifter operand")
-  | 61 -> (
+      | Some (A.Mem { base = R b; index = Some s; _ }) -> olrr ~byte sc (shift_bits s) b rt
+      | _ -> oprrr m sc lor shift_bits (shift_of v.from) lor (rt lsl 12))
+  in
+  let shifted_store ~byte =
+    one (fun () ->
       match v.to_ with
-      | Some (A.Mem { base = R b; index = Some s; _ }) -> [ osrr ~byte:(byte ()) sc rf (shift_bits s) b ]
+      | Some (A.Mem { base = R b; index = Some s; _ }) -> osrr ~byte sc rf (shift_bits s) b
       | _ -> error "MOV to shifter operand")
-  | 62 -> [ olrr ~byte:false sc rf reg_pc reg_pc lor (2 lsl 7) ]
-  | 63 -> [ target_pc () ]
-  | 50 -> [ ofsr (prec ()) (fregof v.from) (off v.to_) (base v.to_) sc ]
-  | 51 -> [ ofsr (prec ()) (fregof v.to_) (off v.from) (base v.from) sc lor (1 lsl 20) ]
-  | 52 -> [ omvl v.to_ reg_tmp; oprrr (Alu Add) sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.to_;
-            ofsr (prec ()) (fregof v.from) 0 reg_tmp sc ]
-  | 53 -> [ omvl v.from reg_tmp; oprrr (Alu Add) sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.from;
-            ofsr (prec ()) (fregof v.to_) 0 reg_tmp sc lor (1 lsl 20) ]
-  | 54 ->
-      let o1 = oprrr (ins ()) sc in
+  in
+  let or_else a f = match a with Some a -> a | None -> f () in
+  (* FPA's loads and stores (5l's cases 50 to 53) *)
+  let float_access pr =
+    let fshort = [ FEXT; FAUTO; FOREG ] in
+    if not none then None
+    else if c1 = FREG && fits_any fshort c3 then Some (one (fun () -> ofsr pr (fregof v.from) (off v.to_) (base v.to_) sc))
+    else if c1 = FREG && fits_any long c3 then
+      Some (act 12 ?pool:v.to_ (fun () ->
+        [ omvl v.to_ reg_tmp; oprrr (Alu Add) sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.to_;
+          ofsr pr (fregof v.from) 0 reg_tmp sc ]))
+    else if c3 = FREG && fits_any fshort c1 then Some (one (fun () -> ofsr pr (fregof v.to_) (off v.from) (base v.from) sc lor (1 lsl 20)))
+    else if c3 = FREG && fits_any long c1 then
+      Some (act 12 ?pool:v.from (fun () ->
+        [ omvl v.from reg_tmp; oprrr (Alu Add) sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.from;
+          ofsr pr (fregof v.to_) 0 reg_tmp sc lor (1 lsl 20) ]))
+    else None
+  in
+  (* FPA's data processing: F or one of its eight constants (5l's case 54) *)
+  let farith m =
+    one (fun () ->
+      let o1 = oprrr m sc in
       let rf = match v.from with
         | Some (A.Fimm x) -> (match chip_float x with Some i -> i lor 8 | None -> error "invalid floating-point immediate")
         | a -> fregof a in
       let rt = fregof v.to_ in
       let r = if v.to_ = None then Option.get v.reg else if o1 land (1 lsl 15) <> 0 then 0 else Option.value v.reg ~default:rt in
       let rt = if v.to_ = None then 0 else rt in
-      [ o1 lor rf lor (r lsl 16) lor (rt lsl 12) ]
-  | 55 -> (
-      let o1 = oprrr (ins ()) sc in
-      match v.from, v.to_ with
-      | Some (A.Reg rf), Some (A.FReg rt) -> [ o1 lor (rf lsl 12) lor (rt lsl 16) ]
-      | Some (A.FReg rf), Some (A.Reg rt) -> [ o1 lor rf lor (rt lsl 12) ]
-      | _ -> error "bad float conversion")
-  | n -> error "rule %d not in the subset" n
+      o1 lor rf lor (r lsl 16) lor (rt lsl 12))
+  in
+  match v.op with
+  | Ins (Alu _ as m) -> alu m REG
+  | Ins (Test _ as m) -> if none then illegal () else alu m NONE
+  | Ins (Mvn as m) -> if none then alu m REG else illegal ()
+  | Ins (Mov W32) ->
+      or_else (word_access ~byte:false ()) (fun () ->
+        if not none then illegal ()
+        else if fits REG REG then one (fun () -> oprrr (Mov W32) sc lor (rt lsl 12) lor rf)
+        else if fits REG SHIFT then shifted_store ~byte:false
+        else if fits RCON REG then one (fun () -> oprrr (Mov W32) sc lor Option.get (immrot (off v.from)) lor (rt lsl 12))
+        else if fits NCON REG || fits LCON REG then act 4 ?pool:(if c1 = NCON then None else v.from) (fun () -> [ omvl v.from rt ])
+        else if fits RECON REG || fits RACON REG then
+          one (fun () -> oprrr (Alu Add) sc lor (base v.from lsl 16) lor (rt lsl 12) lor Option.get (immrot (off v.from)))
+        else if fits LACON REG then
+          act 8 ?pool:v.from (fun () -> [ omvl v.from reg_tmp; oprrr (Alu Add) sc lor (base v.from lsl 16) lor (rt lsl 12) lor reg_tmp ])
+        else if fits SHIFT REG then shifted_load (Mov W32) ~byte:false
+        else illegal ())
+  | Ins (Mov B8u) ->
+      or_else (word_access ~byte:true ()) (fun () ->
+        if not none then illegal ()
+        else if fits REG REG then one (fun () -> oprrr (Alu And) sc lor Option.get (immrot 0xff) lor (rf lsl 16) lor (rt lsl 12))
+        else if fits REG SHIFT then shifted_store ~byte:true
+        else if fits SHIFT REG then shifted_load (Mov B8u) ~byte:true
+        else illegal ())
+  | Ins (Mov B8) ->
+      or_else (half_access B8 ~store:false) (fun () ->
+        or_else (word_access ~load:false ~byte:true ()) (fun () ->
+          if not none then illegal ()
+          else if fits REG REG then extend B8
+          else if fits REG SHIFT then shifted_store ~byte:true
+          else if fits SHIFT REG then
+            one (fun () ->
+              match v.from with
+              | Some (A.Mem { base = R b; index = Some s; _ }) -> olhrr (shift_bits s) b rt sc lxor ((1 lsl 5) lor (1 lsl 6))
+              | _ -> error "byte MOV from shifter operand")
+          else illegal ()))
+  | Ins (Mov (H16 | H16u as w)) ->
+      or_else (half_access w ~store:true) (fun () -> if none && fits REG REG then extend w else illegal ())
+  | Ins (Shift _ as m) ->
+      let r = match v.reg with Some r -> r | None -> rt in
+      if fits REG REG then one (fun () -> oprrr m sc lor (rt lsl 12) lor (rf lsl 8) lor (1 lsl 4) lor r)
+      else if fits RCON REG then one (fun () -> oprrr m sc lor (rt lsl 12) lor ((off v.from land 31) lsl 7) lor r)
+      else illegal ()
+  | Ins (Mul _ as m) when fits REG REG ->
+      one (fun () ->
+        let r = match v.reg with Some r -> r | None -> rt in
+        let r, rf = if rt = r then rf, rt else r, rf in
+        oprrr m sc lor (rt lsl 16) lor (rf lsl 8) lor r)
+  (* claude: 5l's case 16, a division left for the rewriting's calls *)
+  | Ins (Div _ | Mod _) when fits REG REG -> one (fun () -> 0xf lsl 28)
+  | Ins (Mula | Mull _ as m) when not none && fits REG REGREG ->
+      one (fun () ->
+        let rt, rt2 = match v.to_ with Some (A.Pair (a, b)) -> a, b | _ -> 0, 0 in
+        oprrr m sc lor (rf lsl 8) lor Option.get v.reg lor (rt lsl 16) lor (rt2 lsl 12))
+  | Ins Swi when none && c1 = NONE && (c3 = NONE || cmp LCON c3 || cmp LOREG c3) ->
+      one (fun () -> oprrr Swi sc lor (if v.to_ <> None then off v.to_ land 0xffffff else 0))
+  | Ins Movm when none && (fits LCON SOREG || fits SOREG LCON) ->
+      one (fun () ->
+        let store = cmp LCON c1 in
+        let mask = if store then off v.from else off v.to_ in
+        let b = if store then regof v.to_ else rf in
+        if (if store then off v.to_ else off v.from) <> 0 then error "offset must be zero in MOVM";
+        (0x4 lsl 25) lor (if store then 0 else 1 lsl 20) lor (mask land 0xffff) lor (b lsl 16)
+        lor ((sc land 15) lsl 28) lor (if sc land c_pbit <> 0 then 1 lsl 24 else 0)
+        lor (if sc land c_ubit <> 0 then 1 lsl 23 else 0) lor (if sc land c_sbit <> 0 then 1 lsl 22 else 0)
+        lor (if sc land c_wbit <> 0 then 1 lsl 21 else 0))
+  (* branches; B's pool may follow it *)
+  | (B | Bl | Bcond _) when none && fits NONE BRANCH ->
+      act 4 ~flush:(v.op = B) (fun () -> [ opbra v.op sc lor (((target_pc () - p.pc - 8) asr 2) land 0xffffff) ])
+  | B when none && fits NONE ROREG ->
+      act 4 ~flush:true (fun () -> [ oprrr (Alu Add) sc lor Option.get (immrot (off v.to_)) lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) ])
+  | Bl when none && fits NONE ROREG ->
+      act 8 (fun () ->
+        [ oprrr (Alu Add) sc lor (reg_pc lsl 16) lor (reg_link lsl 12) lor Option.get (immrot 0);
+          oprrr (Alu Add) sc lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) lor Option.get (immrot (off v.to_)) ])
+  (* a switch: the PC loaded from the table of addresses that follows *)
+  | Ins Case when none && fits REG NONE -> one (fun () -> olrr ~byte:false sc rf reg_pc reg_pc lor (2 lsl 7))
+  | Bcase when none && fits NONE BRANCH -> one target_pc
+  | Ins Word when fits NONE LCON || fits NONE LEXT -> one (fun () -> off v.to_ land 0xffffffff)
+  (* FPA's floating point *)
+  | Ins (Fmov pr) ->
+      or_else (float_access pr) (fun () -> if none && (fits FCON FREG || fits FREG FREG) then farith (Fmov pr) else illegal ())
+  | Ins (Farith _ | Fcvt _ as m) when fits FREG FREG || fits FCON FREG -> farith m
+  | Ins (Fcmp _ as m) when not none && (fits FREG NONE || fits FCON NONE) -> farith m
+  | Ins (Itof _ | Ftoi _ as m) when none && (fits FREG REG || fits REG FREG) ->
+      one (fun () ->
+        let o1 = oprrr m sc in
+        match v.from, v.to_ with
+        | Some (A.Reg rf), Some (A.FReg rt) -> o1 lor (rf lsl 12) lor (rt lsl 16)
+        | Some (A.FReg rf), Some (A.Reg rt) -> o1 lor rf lor (rt lsl 12)
+        | _ -> error "bad float conversion")
+  | Func | Nop | B | Bl | Bcond _ | Bcase
+  | Ins (Mul _ | Div _ | Mod _ | Mula | Mull _ | Swi | Movm | Case | Word | Ret | Farith _ | Fcvt _ | Fcmp _ | Itof _ | Ftoi _) -> illegal ()
+
+(*****************************************************************************)
+(* Layout: pcs and literal pools (5l's dotext, addpool, flushpool,
+ * checkpool; xix's Layout5) *)
+(*****************************************************************************)
+
+let layout (t : op Link.t) =
+  let ctx = { t; autosize = 0 } in
+  let pool = ref [] (* (key, word), newest first *) and pool_start = ref 0 in
+  let pool_size () = 4 * List.length !pool in
+  let out = ref [] in
+  (* the pool after p, behind a branch around it when [skip] (to what
+   * follows, or to itself at the very end, as 5l) *)
+  let flush (p : prog) rest skip =
+    if !pool = [] then rest
+    else if (not skip) && p.pc + pool_size () - !pool_start < 2048 then rest
+    else begin
+      let words = List.rev_map snd !pool in
+      pool := [];
+      pool_start := 0;
+      if skip then begin
+        let b = prog_like p B [] [ A.Target 0 ] in
+        b.target <- (match rest with q :: _ -> Some q | [] -> Some b);
+        if rest = [] then b.target <- Some b;
+        b.args <- [ A.Target 0 ];
+        (b :: words) @ rest
+      end
+      else words @ rest
+    end
+  in
+  let add_pool (p : prog) (a : A.operand option) =
+    let c, v = aclass ctx p a in
+    let key = match c with
+      (* an offset made a constant: never the same record as an operand's
+       * (which carries its class), so never shared with one *)
+      | SROREG | LOREG | ROREG | FOREG | SOREG | FAUTO | SAUTO | LAUTO | LACON -> A.Imm (Int64.of_int v), -1
+      (* the operand, as 5l's memcmp of it: a name<> is its object's *)
+      | _ ->
+          let a = Option.get a in
+          a, (match a with A.Mem { name = Some { static = true; _ }; _ } | A.Addr { name = Some { static = true; _ }; _ } -> p.version | _ -> 0)
+    in
+    match List.assoc_opt key !pool with
+    | Some w -> p.target <- Some w
+    | None ->
+        let w = prog_like p (Ins Word) [] [ fst key ] in
+        if !pool = [] then pool_start := p.pc;
+        pool := (key, w) :: !pool;
+        p.target <- Some w
+  in
+  let pc = ref t.text_start in
+  let rec go = function
+    | [] -> ()
+    | (p : prog) :: rest ->
+        p.pc <- !pc;
+        out := p :: !out;
+        if p.op = Func then begin
+          ctx.autosize <- p.frame + 4;
+          (match p.args with A.Mem { name = Some n; _ } :: _ -> (sym_of t p.version n).value <- !pc | _ -> ());
+          go rest
+        end
+        else begin
+          let a = select ctx p in
+          pc := !pc + a.size;
+          let v = view p in
+          if a.pool <> None then add_pool p a.pool;
+          let rest = if a.flush && v.sc land 15 = always then flush p rest false else rest in
+          let rest =
+            if v.op = Ins (Mov W32) && v.to_ = Some (A.Reg reg_pc) && v.sc land 15 = always then flush p rest false else rest
+          in
+          let rest =
+            if !pool <> [] && (rest = [] || pool_size () >= 0xffc || immaddr (p.pc + 4 + 4 + pool_size () - !pool_start + 8) = 0)
+            then flush p rest true
+            else rest
+          in
+          go rest
+        end
+  in
+  go t.progs;
+  t.progs <- List.rev !out;
+  let c = rnd !pc 8 in
+  t.text_size <- c - t.text_start;
+  (lookup t "etext" 0).value <- c;
+  t.data_start <- rnd c t.data_round
+
 
 let encode (t : op Link.t) : Bytes.t =
   let ctx = { t; autosize = 0 } in
   let b = Bytes.make t.text_size '\000' in
   List.iter (fun (p : prog) ->
     if p.op = Func then ctx.autosize <- p.frame + 4
-    else List.iteri (fun i w -> Link.put32 b (p.pc - t.text_start + (4 * i)) w) (encode_prog ctx p)) t.progs;
+    else begin
+      (* chosen again, now that the pcs are known: as layout chose it *)
+      let a = select ctx p in
+      let ws = a.words () in
+      if 4 * List.length ws <> a.size then (let f, l = p.where in error "%s:%d: phase error: %s" f l (Link.show show p));
+      List.iteri (fun i w -> Link.put32 b (p.pc - t.text_start + (4 * i)) w) ws
+    end) t.progs;
   b

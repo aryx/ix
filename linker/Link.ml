@@ -61,7 +61,6 @@ type 'm prog = {
   where : string * int;
   mutable frame : int;
   mutable leaf : bool;
-  mutable rule : int;
 }
 
 type data = { dsym : sym; off : int; width : int; value : Asm.operand; dversion : int }
@@ -119,7 +118,7 @@ let add_object t ~decode:decode_machine version (o : Asm.obj) =
   let items = o.items in
   (* the prog of each item that has a pc; the targets point at items *)
   let progs = Array.map (fun (it, line) ->
-    let mk op suffixes args = Some { op; suffixes; args; pc = 0; target = None; version; where = (o.file, line); frame = 0; leaf = false; rule = -1 } in
+    let mk op suffixes args = Some { op; suffixes; args; pc = 0; target = None; version; where = (o.file, line); frame = 0; leaf = false } in
     match (it : Asm.item) with
     | Ins i -> (
         match decode decode_machine i.op with
@@ -313,7 +312,7 @@ let follow t ~ends =
           match find p 0 with
           | Some q ->
               let rec copy (p : _ prog) =
-                let r = { p with rule = -1 } in
+                let r = { p with pc = p.pc } (* a copy *) in
                 fresh r;
                 mark r;
                 Option.iter (Hashtbl.replace link r.pc) (next p);
@@ -328,7 +327,7 @@ let follow t ~ends =
               in
               copy p
           | None ->
-              let b = { p with op = B; suffixes = []; args = [ Asm.Target 0 ]; target = Some p; rule = -1 } in
+              let b = { p with op = B; suffixes = []; args = [ Asm.Target 0 ]; target = Some p } in
               fresh b;
               Hashtbl.remove link b.pc;
               mark b;

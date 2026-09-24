@@ -2842,3 +2842,26 @@ Claude finished TinyEd refactoring and confirmed all shell tests pass with same 
 **Yoann:**
 
 > why linker/Arm.ml got deleted?
+
+**Claude (summary):**
+
+Claude fixed TinyAssembler's FMOVD→UXTB bug, refactored linker Asm/Arm/Arm64 opcodes to variants, shared a cond type, and confirmed all tests byte-identical.
+Claude proposed converting linker rule.case from intermediate case numbers into a variant per machine, replacing goken's C-style optab pattern.
+Yoann approved but asked whether variant names are useful, noting C required intermediate case numbers precisely because it lacks ADTs and match.
+Yoann suggested redesigning away from goken's approach entirely, possibly following xix's linker model, instead of just wrapping the case numbers.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:13
+
+**Yoann:**
+
+> yes, do the rule case variant next, but only if the variant name is useful. maybe the case field made sense in goken because C does not have ADTs not match and so used optab and an intermediate case number, but here maybe we can redesign things (like I did in xix linker)
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:14
+
+**Yoann:**
+
+> also still not use for a lib_core/ or libs/ to factorize code (or TinyLibXxx for the tiny/ one)

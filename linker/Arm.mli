@@ -1,7 +1,7 @@
 (* The arm machine (5l): the rewriting of frames, returns and
  * divisions, the layout of the code with its literal pools, and the
- * encoding of each instruction by the first of 5l's rules that takes
- * its operands.
+ * encoding of each instruction by the form its opcode and its
+ * operands' classes select, in the order of 5l's rules.
  *
  * References: T. G. Szymanski, "Assembling Code for Machines with
  * Span-dependent Instructions" (CACM, 1978), the road not taken: when
