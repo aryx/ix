@@ -143,9 +143,10 @@ def take_pending():
     return pending
 
 def is_notification(prompt):
-    # background-task notifications arrive as prompts, but Yoann didn't
-    # write them
-    return prompt.lstrip().startswith("<task-notification>")
+    # background-task notifications, subagents' reports (<agent-message>)
+    # and system reminders arrive as prompts, but Yoann didn't write them;
+    # as in exchanges(), a prompt starting with a tag is not his
+    return prompt.lstrip().startswith("<")
 
 def debug_log(msg):
     with open(DEBUG_LOG, "a") as f:
