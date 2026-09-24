@@ -186,9 +186,12 @@ raspberry/                 library ix_raspberry; the tinypi executable
   Emmc.ml(i), Dma.ml(i)    the SD card, for 9pi
   Dwc2.ml(i), Usbkbd.ml(i) USB: the DWC2 host controller, a hub (the
                            boards' LAN951x), a HID keyboard
-  Framebuffer.ml(i)        the framebuffer shown: a window through
-                           ~/playground's libraries, or PPM snapshots
-                           when headless
+  Framebuffer.ml(i)        the framebuffer's device side: its RAM,
+                           its geometry, the refresh; shown through a
+                           display record (decision 9)
+  Sdl_display.ml(i)        the display in an SDL window (tsdl), the one
+                           module linking a C library
+  Ppm_display.ml(i)        headless: PPM snapshots, for the tests
   Firmware.ml(i)           the board's boot: the SD card's FAT boot
                            partition, config.txt, the kernel's load
                            address and entry state, ATAGs or a DTB
@@ -295,26 +298,49 @@ list is the kernels' own `emulating()` branches and QEMU workarounds
 (xv6's `notes_arch_*.txt`, 9pi's `usbdwc.c`), each a test: a kernel
 under `-hw` must take its hardware branch.
 
-### 9. The framebuffer through the playground; the keyboard back through USB
+### 9. The framebuffer through a display record, SDL first; the keyboard back through USB
 
-TinyRaspberryPi is **the one ix program to depend on the author's
-playground libraries** (`~/playground`: the Elm playground's OCaml port,
-its native backends on Cairo and SDL, its graphics and GUI libraries);
-TinyArm does not, nor any other ix program. A playground window shows
-the framebuffer's RAM at each vertical refresh (60 times a simulated
-second) -- which of its APIs (an image redrawn, or a raw-pixel
-primitive if it lacks one) is chosen in phase B, reading it then.
-The playground's web backend brings a second target for free: **the
-whole Pi in a browser**, compiled by js_of_ocaml (JSLinux's road, for
-TinyEMU). That is a constraint from the first line of `machine/`: the
-cores and devices use no C stubs, and nothing of `Unix` (the host --
-files, console, window, clock -- stays behind a record of functions at
-the edge), and the arithmetic that depends on OCaml's integer width
-(63 bits native, 32 under js_of_ocaml, `Int64` emulated and slow there)
-is in `Bits` alone (plan_arm.md, decision 3); a key pressed in the window becomes a USB HID report the
-emulated keyboard delivers when the kernel's driver polls. Headless
-(the tests), the framebuffer is written as PPM on request, and the
-graphical tests compare pictures: the console's text drawn in pixels.
+The screen and the input devices are **a record of functions at the
+edge**, as the host is for TinyArm's system calls (`Linux.host`):
+
+```ocaml
+type display = {
+  present : Bytes.t -> width:int -> height:int -> unit;  (* the framebuffer, at each vsync *)
+  poll : unit -> event list;                             (* keys, mouse: USB HID reports *)
+}
+```
+
+The window shows the framebuffer's RAM at each vertical refresh (60
+times a simulated second); a key pressed in it becomes a USB HID
+report the emulated keyboard delivers when the kernel's driver polls.
+Two backends first:
+
+- **SDL, through tsdl** (the opam package, 1.3.0 installed here): a
+  window, a streaming texture updated from the raw pixels, the
+  keyboard and mouse events. `Sdl_display` is the one module that
+  links it; the rest of TinyRaspberryPi builds without it.
+- **PPM, headless** (the tests): the framebuffer written on request,
+  the graphical tests comparing pictures (the console's text drawn in
+  pixels).
+
+The author's playground libraries (`~/playground`: the Elm
+playground's OCaml port, its Cairo, SDL and web backends) were the
+first choice; tsdl was preferred for now (the author: "maybe it's ok
+to rely on tsdl directly rather than the playground. we can always
+migrate to the playground later"): a standard package, a raw-pixel
+texture with no question of which API draws an image, and no coupling
+to another repository's moving interface. A playground backend is a
+third implementation of the same record, when wanted.
+
+**The web** stays a target, postponed rather than dropped: tsdl has
+C stubs, so the browser build needs another display (the playground's
+web backend, or a canvas through js_of_ocaml's DOM bindings; phase
+H'). What makes it possible is kept from the first line of
+`machine/`: the cores and devices use no C stubs and nothing of
+`Unix` (the host -- files, console, window, clock -- stays behind
+records of functions at the edge), and the arithmetic that depends on
+OCaml's integer width (63 bits native, 32 under js_of_ocaml, `Int64`
+emulated and slow there) is in `Bits` alone (plan_arm.md, decision 3).
 
 ## Phases
 
@@ -347,9 +373,9 @@ graphical tests compare pictures: the console's text drawn in pixels.
   author's Pi4. The Pi4's framebuffer (property tags) and USB (xHCI on
   PCIe) when a kernel drives them.
 - **H. Optional: virt.** xv6 arm64 on `virt`: GICv3, PSCI, virtio-blk.
-- **H'. The web.** The machine compiled by js_of_ocaml with the
-  playground's web backend: a Pi1 with xv6 in a browser page, the card
-  image fetched; its speed measured.
+- **H'. The web.** The machine compiled by js_of_ocaml with a web
+  display (the playground's web backend, or a canvas): a Pi1 with xv6
+  in a browser page, the card image fetched; its speed measured.
 - **I. `tiny/TinyPi.ml`.**
 
 Each phase checked by the kernels' own tests, by QEMU's trace for the

@@ -3352,3 +3352,19 @@ Claude described building Phase 2 of TinyArm with memory management, ELF loader,
 **Yoann:**
 
 > let's move forward
+
+**Claude (summary):**
+
+Phase 4 completed: random block harness verified arm32 against native CPU across 6,000 instruction blocks.
+Phase 5 completed arm64: decoder and printer matched objdump on all 2,218 words; full corpus passed.
+Both 34-program corpora matched native execution; random harness reliably caught deliberately injected bugs.
+Claude chose Int64.t array over Bytes for arm64 registers after benchmarking showed 9 MIPS improvement.
+Three commits merged; next is phase 6 speed optimization toward 30 MIPS target.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 21:15
+
+**Yoann:**
+
+> good. For later, maybe it's ok to rely on tsdl directly rather than the playground. we can always migrate to the playground later. What do you think?
