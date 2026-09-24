@@ -29,6 +29,9 @@
 
 (* a type's kind; Tdot is a prototype's ..., Told an old-style one's
  * parameters *)
+(* old: 5c's one numbering for the kinds and a declaration's words
+ * (TCHAR... BAUTO...), tables as bit sets indexed by Obj.magic ranks: a
+ * word could reach the typechecker, and a table any integer *)
 type etype =
   | Txxx | Tchar | Tuchar | Tshort | Tushort | Tint | Tuint | Tlong | Tulong | Tvlong | Tuvlong | Tfloat | Tdouble
   | Tind | Tfunc | Tarray | Tvoid | Tstruct | Tunion | Tenum | Tdot | Told
@@ -133,6 +136,10 @@ type addr =
   | Aname | Areg | Aindreg | Aconst   (* name or stack slot; reg; offset(reg); $c *)
 
 (* an expression: its kind, and what the passes learn of it *)
+(* old: 5c's Node, an op with an optional left and right for all trees
+ * (expressions, statements, declarators), rewritten in place: every
+ * pass read its sides by Option.get and tested n.op, and a Node of an
+ * op with the wrong sides was a runtime error *)
 type expr = {
   e : kind;
   t : typ;                            (* untyped until typed *)

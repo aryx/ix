@@ -119,6 +119,8 @@ type node = {
 }
 
 (* a node is a source, or made by a recipe (a pattern's, with its stem) *)
+(* old: recipe and stem strings, "" for none: a stem without a recipe
+ * could be built, and each use re-tested recipe = "" *)
 and make = Source | Recipe of { text : string; stem : string }
 
 let target_of (s : string) =

@@ -192,6 +192,8 @@ let rec tokens (macros : (string, token list) Hashtbl.t) (read : string -> strin
 (* the operators: an arithmetic one's value is of its operands' type,
  * a relation's an int; >> is logical, / % and the relations unsigned,
  * for an unsigned type *)
+(* old: strings ("+", "<="): a misspelled operator was a runtime error,
+ * and the machine's match over them needed a catch-all *)
 type arith = Add | Sub | Mul | Div | Mod | And | Or | Xor | Shl | Shr
 type rel = Lt | Gt | Le | Ge | Eq | Ne
 type binop = A of arith | R of rel
@@ -285,6 +287,8 @@ let either a b = mk (Cond (rv a, num 1L int_t, truth b)) int_t
 (* Statements *)
 (*****************************************************************************)
 
+(* old: none, the parser emitted the stack machine's code as it read,
+ * with break's and continue's targets on global stacks *)
 type stmt =
   | Expr of expr
   | Block of stmt list

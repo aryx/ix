@@ -75,6 +75,8 @@ val start : < caps; .. > -> shell:string list -> env:string array -> args:string
 
 (* how a recipe ended: why it failed, as mk prints it ("exit(1)",
  * "signal 9") *)
+(* old: a string, "" for success: a test of why <> "" is easily written
+ * backwards, and nothing says "" can't be a reason *)
 type ended = Succeeded | Exit_status of string
 
 (* [wait caps]: a child that ended, and how *)

@@ -44,6 +44,8 @@ type t = Literal of string | Meta of meta
 
 (* how a rule matched a name: a literal's exactly, % and & by a stem,
  * a regexp by its groups *)
+(* old: a string array, [||], [|stem|] or [|\0..\9|] by the rule's kind,
+ * read as stems.(0): mk '%.o' read .(0) of an exact rule's [||] and crashed *)
 type binding = Exact | Stem of string | Groups of string array
 
 (* [of_target ~regexp s]: Literal if [s] has no % or &, unless the rule
