@@ -1,9 +1,9 @@
 # Plan: TinyGit, git9 in OCaml, and its diff (`version_control/`)
 
-Companions, to write with the code as for TinyDb: `notes_vcs.md`, the
+Companions: [`notes_vcs.md`](../tutorials/notes_vcs.md), the
 tutorial (content-addressed objects, trees as Merkle trees, commits as
 a DAG, the staging file, packs and deltas, the wire protocol, three-way
-merge), and `notes_vcs_related_work.md` (SCCS and RCS to CVS and
+merge), and [`notes_vcs_related_work.md`](../related-work/notes_vcs_related_work.md) (SCCS and RCS to CVS and
 Subversion, BitKeeper, Monotone and git, Mercurial, Darcs and Pijul,
 and the git clones: dulwich, ocaml-git, libgit2, git9; principia's
 `version_control/lineage.txt` lists them).
@@ -325,4 +325,54 @@ restores its tree; merge is symmetric; a clone has the same hashes.
 
 ## Status
 
-2026-09-24: plan written; phase 1 done.
+2026-09-24: phases 1 to 8 done in a day (8b, http, and 9, patch and
+what uses it, left); then `tiny/TinyVCS.ml`.
+
+**Size**: 3,609 lines of `.ml` (with 261 of copyright headers), the
+target's 3,600, against 10,627 twinned (git9's 7,912 of C and 1,406 of
+rc, diff and merge3's 1,309); Sha1 51 and Zlib 221 apart:
+
+| module | target | actual |
+|---|---|---|
+| Hash, Object, Loose, Store | 360 | 270 |
+| Pack, Delta, Packer | 570 | 508 |
+| Refs, Conf, Query, Log, Fs | 590 | 477 |
+| Index9, Walk, Save | 410 | 377 |
+| Proto, Get, Send, Serve | 700 | 540 |
+| Diff, Merge3, Difftool | 470 | 506 |
+| Commands | 550 | 707 |
+| CLI, Main, Repo, Flags | 100 | 234 |
+
+Commands came over: the scripts are longer as OCaml than as rc, their
+file handling (cp, tar, walk, mkdir -p) being code here.
+
+**Checked**:
+- every object of ix, xix and principia (65,234), loose, packed by
+  `git gc`, repacked with REF deltas, and repacked by tinygit, read
+  as `git cat-file` reads them (`objects.sh`);
+- the revision language against `git merge-base`, `rev-list` and
+  `rev-parse` on 110 random histories (`query.py`);
+- 200 random sessions of edits, commits and branch switches through
+  tinygit and C git, every commit hash equal (`session.py`);
+- principia's own diff and merge3, built for Linux by goken
+  (`build_plan9_diff.sh`), byte for byte on 14 of principia's 15 diff
+  cases, its 13 merge cases, and 2,000 random ones (`diff_fuzz.py`);
+- the protocol both ways against `git daemon`, ssh, `ext::`
+  (`net.sh`);
+- git9's own tests, translated: add, diff, lca, range, noam, basic,
+  ftype, merge (`git9_tests.sh`).
+
+**What the design got wrong, and the tests found**:
+- a file and a directory of the same name are not equal in git9's
+  `entcmp` (a file first); my port made them equal, and a branch
+  switch from a file to a directory lost the directory's files;
+- git9 itself: a stale index line for a file turned directory made the
+  next commit drop the directory (deliberate difference 6);
+- principia's diff prints a line through `%s`, so a NUL cuts it and
+  its newline; and its binary message goes out unbuffered, ahead of the
+  buffered diff output: both found only by running the C;
+- an OCaml `if ... then let ... in if ... then ... else` read the
+  raw pack's end as the start of a pkt-line (the dangling else).
+
+**Left**: http(s) through curl (8b); patch, export, import, rebase,
+hist (9).

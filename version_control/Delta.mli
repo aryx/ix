@@ -8,8 +8,8 @@
  * that many bytes, which follow.
  *
  *    base "hello world", result "hello there":
- *    0b 0b | 91 00 06 | 05 't' 'h' 'e' 'r' 'e'
- *            copy 6 from 0   insert 5
+ *    0b 0b | 90 06 | 05 't' 'h' 'e' 'r' 'e'
+ *            copy 6 (from 0: no offset byte)   insert 5
  *
  * The instructions are a variant here, decoded once and applied. *)
 
