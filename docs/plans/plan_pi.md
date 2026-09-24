@@ -408,3 +408,33 @@ ports and 9pi2 the same day, from the survey and the census
 (`machine/tests/xv6_census.sh`); revised again for the author's real
 Pi1, Pi2 and Pi4 (the boards' personality, graphics and USB
 required). Starts after TinyArm's phases 1-5.
+
+**Phase A, first port done** (2026-09-25): **xv6 arm-pi1-bis passes its
+own acceptance test under TinyRaspberryPi**: `test-xv6.py`, unchanged,
+run with `QEMU=tinypi`, boots, runs `usertests`, "ALL TESTS PASSED",
+in 2 min 9 s (QEMU 8.2: 22 s; the harness allows 300). The boot's
+console, to the shell's prompt, is byte for byte QEMU's
+(`raspberry/tests/xv6.sh`); the aborts usertests provokes print the
+same addresses and status registers as under QEMU.
+
+What it took (a survey of the port first, 2026-09-25: its boot path,
+its CP15 operations, the devices and the values that keep it from
+hanging, read against QEMU 11.1's sources):
+
+- machine/'s `Arm32` with the privileged state (modes and banks, the
+  SPSRs, exceptions, `movs pc` and `ldm ^` returns, `ldm`/`stm ^` on the
+  user registers, `mrs`/`msr` on the SPSR, `mcr`/`mrc`/`mcrr`, the
+  hints), ARMv6's extends (`uxtb`, `sxtah`...), loads and stores
+  through an MMU hook leaving the registers unchanged on an abort; a
+  mode the CPU lacks ignored, as QEMU's Non-secure Pi (xv6's tvinit
+  writes monitor mode and counts on it staying SVC);
+- `Mmu32`: ARMv6's short descriptors, the legacy subpage format this
+  kernel uses and the ARMv6 one, domains, the FSR's codes, a TLB;
+- `raspberry/`: `Board` (CP15, 512MB, QEMU's loader, the loop: a decode
+  cache by virtual address and privilege flushed with the TLB, aborts
+  and undefined instructions as exceptions, the system timer's
+  microsecond every 30 instructions), `Intc`, `Systimer`, `Pl011`,
+  `Devices` (AUX, GPIO, the mailbox's property tags and framebuffer
+  channel as QEMU answers them, the DWC2 with QEMU's reset values and
+  id, so that CSUD enumerates its root hub as under QEMU); `tinypi`
+  taking QEMU's command line.
