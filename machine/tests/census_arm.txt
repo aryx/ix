@@ -1,0 +1,756 @@
+qemu-arm: 35 programs, 2311 distinct instruction words, 89 mnemonics
+mnemonics: ldr(654) bl(477) str(235) add(157) mov(137) cmp(92) beq(47) bne(36) b(34) ands(31) strb(30) ldreq(28) ldrsb(27) sub(23) bge(20) ldrne(15) lsl(14) ldm(14) and(14) blt(14) moveq(13) asr(12) ldrb(11) bgt(10) movne(9) ldrlt(7) streq(7) rsb(7) mul(6) movs(6) mvn(6) orr(6) ble(5) bls(5) bhi(5) lsr(5) subeq(4) bcc(4) bcs(4) rsbmi(4) strbne(4) subs(3) addne(3) ldrls(3) strne(3) movlt(3) strbeq(3) addeq(2) mvnlt(2) addcc(2) strlt(2) andmi(2) orrne(2) andpl(2) mvncc(2) ldrle(2) ldrcc(2) subhi(2) eor(2) push(1) orrcs(1) orrlt(1) rsblt(1) umull(1) svcle(1) subcs(1) svc(1) strcc(1) mvneq(1) ldrmi(1) movmi(1) ldrhi(1) bpl(1) pop(1) movhi(1) movge(1) ldrge(1) mvnne(1) bleq(1) mvnle(1) rsbcc(1) cmn(1) movle(1) blne(1) mvns(1) stm(1) lslne(1) stmia(1) ldrh(1)
+forms (752):
+   610  ldr r, [r, #i]
+   196  str r, [r, #i]
+   107  add r, r, #i
+    84  mov r, #i
+    53  mov r, r
+    48  cmp r, #i
+    44  cmp r, r
+    33  add r, r, r
+    21  str r, [r, #i]!
+    19  ldreq r, [r, #i]
+    18  strb r, [r, #i]
+    17  ldr r, [r], #i
+    17  add r, r, r, lsl #i
+    16  ands r, r, #i
+    15  ands r, r, r
+    14  lsl r, r, #i
+    14  ldrne r, [r, #i]
+    13  ldr r, [r]
+    13  ldm r, {..}
+    13  sub r, r, r
+    12  asr r, r, #i
+    11  str r, [r]
+    11  ldrsb r, [r]
+    10  sub r, r, #i
+    10  moveq r, #i
+     9  strb r, [r]
+     8  ldr r, [r, r, lsl #i]
+     8  ldreq r, [r], #i
+     7  movne r, #i
+     7  ldrlt r, [r], #i
+     7  ldrb r, [r]
+     7  and r, r, #i
+     7  and r, r, r
+     7  ldrsb r, [r, #i]
+     6  mul r, r, r
+     6  streq r, [r, #i]
+     6  movs r, r
+     6  mvn r, #i
+     6  rsb r, r, r, lsl #i
+     5  ldrsb r, [r, r]
+     5  ldr r, [r, r]
+     5  lsr r, r, #i
+     4  ldrsb r, [r], #i
+     4  str r, [r, r, lsl #i]
+     4  rsbmi r, r, #i
+     4  strbne r, [r, #i]
+     3  addne r, r, #i
+     3  ldrls r, [r, r, lsl #i]
+     3  ldrb r, [r, #i]
+     3  subeq r, r, r
+     3  moveq r, r
+     3  movlt r, #i
+     3  strbeq r, [r, #i]
+     2  subs r, r, #i
+     2  bl 0x17bc
+     2  b 0xe8
+     2  bl 0x560
+     2  strne r, [r, #i]
+     2  bl 0x46c
+     2  mvnlt r, #i
+     2  bl 0x1680
+     2  addcc r, r, #i
+     2  bl 0x2d6c
+     2  beq 0xc90
+     2  beq 0xc94
+     2  bl 0x15b0
+     2  andmi r, r, #i
+     2  bl 0x1174
+     2  bl 0x1d4c
+     2  bl 0x3774
+     2  bl 0x25c4
+     2  andpl r, r, #i
+     2  bl 0x15d4
+     2  orr r, r, r
+     2  bl 0x1168
+     2  bl 0x1aa8
+     2  bl 0x26fc
+     2  bl 0x2700
+     2  movne r, r
+     2  bl 0x17a4
+     2  bl 0x295c
+     2  bl 0x1890
+     2  bl 0x1958
+     2  mvncc r, #i
+     2  str r, [r, r]
+     2  bl 0x20bc
+     2  bl 0x3844
+     2  ldrle r, [r], #i
+     2  ldrcc r, [r], #i
+     2  strb r, [r, r]
+     2  bl 0x1dac
+     2  bl 0x23a4
+     2  subhi r, r, #i
+     2  bl 0x3288
+     2  orr r, r, r, lsl #i
+     2  bl 0x2d4c
+     2  eor r, r, r
+     1  bl 0xffffffb0
+     1  push {..}
+     1  beq 0x70
+     1  bl 0xffffffdc
+     1  orrcs r, r, #i
+     1  bl 0x178
+     1  bl 0x4fc
+     1  bl 0x1540
+     1  beq 0xdc
+     1  bne 0xe4
+     1  bl 0x6538
+     1  bl 0xffffeabc
+     1  bl 0x7648
+     1  bl 0x2110
+     1  bl 0xa0
+     1  bl 0x160c
+     1  b 0x144
+     1  bl 0xa8
+     1  bl 0x2680
+     1  bne 0x1fc
+     1  addeq r, r, r, lsl #i
+     1  bge 0x27c
+     1  bl 0xe0
+     1  bl 0xec
+     1  orrlt r, r, #i
+     1  bl 0xffffe400
+     1  bge 0x28c
+     1  bge 0x258
+     1  rsblt r, r, #i
+     1  bl 0x47c
+     1  bl 0x3d0
+     1  beq 0x364
+     1  bl 0x793c
+     1  bl 0x674
+     1  umull r, r, r, r
+     1  bl 0x11fc
+     1  b 0x304
+     1  ble 0x32c
+     1  strb r, [r], #i
+     1  streq r, [r, r, lsl #i]
+     1  bl 0x4d0
+     1  subs r, r, r
+     1  bl 0xa34
+     1  bl 0x23cc
+     1  bl 0x64c
+     1  bl 0x2a8
+     1  bls 0x39c
+     1  b 0x2d0
+     1  bl 0x2b0
+     1  bl 0x2a0
+     1  bl 0x4d4
+     1  beq 0x3ec
+     1  b 0x390
+     1  bne 0x41c
+     1  beq 0x45c
+     1  bl 0xcdc
+     1  bl 0x2168
+     1  bge 0x460
+     1  bge 0x458
+     1  beq 0x51c
+     1  bl 0x1f2c
+     1  bl 0x4f4
+     1  bge 0x4b8
+     1  bl 0x51c
+     1  beq 0x534
+     1  beq 0x4f8
+     1  bge 0x528
+     1  b 0x4bc
+     1  beq 0x514
+     1  bl 0x3f4
+     1  bge 0x52c
+     1  svcle 0x00002777
+     1  ble 0x550
+     1  bl 0x2330
+     1  b 0xffffe4a8
+     1  beq 0x578
+     1  ble 0x5a0
+     1  bl 0x480
+     1  bl 0xae4
+     1  bl 0x6a0
+     1  bne 0x5ac
+     1  bl 0x1cdc
+     1  bl 0x7c6c
+     1  bl 0x69dc
+     1  bgt 0x628
+     1  bl 0x9ac
+     1  bne 0x6a0
+     1  bl 0x740
+     1  bl 0x624
+     1  bl 0x6fc
+     1  bl 0x122c
+     1  bl 0x96c
+     1  subcs r, r, r
+     1  bls 0x764
+     1  bl 0x80c
+     1  bl 0x84c
+     1  bne 0x7a0
+     1  bne 0x754
+     1  bl 0x644
+     1  bl 0x8a8
+     1  svc 0x00000000
+     1  bl 0xb94
+     1  beq 0x7a8
+     1  blt 0x7e4
+     1  bgt 0x1234
+     1  bgt 0x9dc
+     1  bl 0x444
+     1  bl 0x678
+     1  bl 0x3484
+     1  bcc 0x854
+     1  bl 0xfffffebc
+     1  bhi 0x60c
+     1  bge 0x874
+     1  b 0x7ec
+     1  bl 0x45b4
+     1  beq 0x12ac
+     1  bl 0x1664
+     1  beq 0x858
+     1  beq 0x8cc
+     1  beq 0x898
+     1  b 0x7cc
+     1  bne 0x884
+     1  bls 0x8fc
+     1  bl 0x278
+     1  beq 0x4fc
+     1  beq 0x10dc
+     1  strcc r, [r, #i]
+     1  bl 0xffffee54
+     1  bl 0x7e0
+     1  bne 0x870
+     1  beq 0x99c
+     1  bl 0xcf8
+     1  bl 0x8d8
+     1  bl 0x2eec
+     1  bl 0x984
+     1  bl 0x1a54
+     1  b 0x900
+     1  mvneq r, #i
+     1  bl 0x9ec
+     1  bl 0xae0
+     1  bcs 0xa08
+     1  beq 0xf98
+     1  beq 0x870
+     1  bne 0x1304
+     1  bge 0xa84
+     1  bne 0xaac
+     1  b 0xa84
+     1  bgt 0x12e8
+     1  beq 0xb08
+     1  beq 0xb18
+     1  bge 0xb20
+     1  ble 0xc3c
+     1  blt 0xb08
+     1  bl 0x19ac
+     1  b 0xaf8
+     1  ldrmi r, [r], #i
+     1  bne 0xb50
+     1  beq 0xd0c
+     1  b 0xac8
+     1  bl 0x12a4
+     1  bne 0xbe0
+     1  bcs 0xbc4
+     1  beq 0x1674
+     1  bl 0x2654
+     1  bne 0xc14
+     1  strlt r, [r]
+     1  bl 0xb1c
+     1  bne 0xc74
+     1  beq 0xbf4
+     1  beq 0x1478
+     1  bl 0x4a4c
+     1  blt 0x13b4
+     1  beq 0xce8
+     1  bl 0x1888
+     1  bcs 0xcc4
+     1  bne 0xd4c
+     1  blt 0xe88
+     1  bl 0x39a4
+     1  beq 0x173c
+     1  bl 0x7d0
+     1  movmi r, #i
+     1  bl 0xfffffd74
+     1  bl 0x2738
+     1  bl 0x13b0
+     1  bl 0xcf0
+     1  bne 0xd98
+     1  bl 0x1530
+     1  bl 0x8bc
+     1  bl 0x27dc
+     1  b 0xd58
+     1  b 0xd5c
+     1  bl 0x1574
+     1  bl 0x8b8
+     1  bl 0xe50
+     1  bl 0xed8
+     1  bge 0xe30
+     1  bl 0xfffff338
+     1  bne 0xdd8
+     1  ldrhi r, [r], #i
+     1  bl 0x841c
+     1  bl 0x7ee0
+     1  bl 0x329c
+     1  bl 0x1c18
+     1  b 0xe6c
+     1  bl 0xe34
+     1  bl 0x7b18
+     1  beq 0x10ac
+     1  bl 0xffffe564
+     1  bne 0xd18
+     1  bl 0x3714
+     1  bl 0x7a90
+     1  b 0xdf0
+     1  bl 0x1c34
+     1  blt 0xfec
+     1  bl 0x1158
+     1  bl 0xce8
+     1  bl 0x1094
+     1  bls 0xf6c
+     1  bl 0x14c0
+     1  bne 0xd58
+     1  bl 0x1098
+     1  bl 0x1080
+     1  bl 0xff4
+     1  bge 0xf98
+     1  bl 0x155c
+     1  bne 0xfcc
+     1  bl 0xfa0
+     1  bl 0x17e4
+     1  orrne r, r, r
+     1  bpl 0xfdc
+     1  blt 0xff8
+     1  bl 0x1040
+     1  bge 0x1004
+     1  bl 0x7fa8
+     1  bl 0x7f40
+     1  bl 0x7c9c
+     1  bl 0x2940
+     1  bl 0x80b8
+     1  pop {..}
+     1  bl 0x1d88
+     1  bl 0x2790
+     1  bl 0x2660
+     1  blt 0x10a0
+     1  b 0xebc
+     1  bl 0x1ff0
+     1  beq 0x11a4
+     1  bl 0x8040
+     1  bl 0x7c98
+     1  bl 0x2ea8
+     1  bne 0x1160
+     1  bl 0x112c
+     1  bl 0x13f4
+     1  b 0x1100
+     1  bl 0x1590
+     1  blt 0x116c
+     1  bl 0x1048
+     1  bl 0x7d30
+     1  ldrb r, [r], #i
+     1  bl 0x3944
+     1  bl 0x1f38
+     1  orrne r, r, #i
+     1  bl 0x308c
+     1  bl 0x12a8
+     1  blt 0x11f8
+     1  bl 0x25e4
+     1  bl 0x87fc
+     1  bl 0x28bc
+     1  bl 0x8220
+     1  movhi r, #i
+     1  bl 0x14b4
+     1  bl 0x3ad8
+     1  bl 0xffffeb6c
+     1  blt 0x1288
+     1  bl 0x200c
+     1  beq 0x12b0
+     1  beq 0x1464
+     1  bl 0x3a58
+     1  bl 0x1b4c
+     1  bl 0x8250
+     1  b 0x114c
+     1  bne 0x1330
+     1  bl 0x2f48
+     1  bl 0x18fc
+     1  bl 0x1df8
+     1  bl 0x1784
+     1  bl 0x1940
+     1  bl 0x1424
+     1  bl 0x14fc
+     1  bl 0x1620
+     1  bl 0x1a10
+     1  bl 0x1808
+     1  ldrne r, [r], #i
+     1  movge r, #i
+     1  bl 0x15c4
+     1  ldrge r, [r], #i
+     1  bl 0x17c4
+     1  bl 0x16c8
+     1  bl 0xd70
+     1  bl 0x1778
+     1  bl 0x1764
+     1  bl 0x1d98
+     1  bl 0xfffff9c4
+     1  bl 0x1730
+     1  bl 0x15ec
+     1  bl 0x1d80
+     1  mvnne r, #i
+     1  bl 0x19a8
+     1  bl 0xdc0
+     1  bl 0x1dd8
+     1  bl 0x1310
+     1  bge 0x1448
+     1  bl 0x1868
+     1  bl 0x2f78
+     1  bl 0x1928
+     1  bl 0x2f40
+     1  bl 0x1b80
+     1  bl 0x1844
+     1  bl 0xe98
+     1  bl 0xebc
+     1  bl 0x21d4
+     1  bl 0x26d0
+     1  bl 0x19e0
+     1  bl 0x18f8
+     1  bl 0x3c20
+     1  bl 0x1ed4
+     1  bl 0x1a3c
+     1  bl 0x270c
+     1  bl 0x1a7c
+     1  bl 0x1f24
+     1  bl 0x103c
+     1  bl 0x37d0
+     1  bl 0x1d1c
+     1  bl 0x1c04
+     1  bl 0x1434
+     1  bl 0x1d04
+     1  bl 0x2f18
+     1  bl 0x1514
+     1  beq 0x15bc
+     1  beq 0x159c
+     1  addeq r, r, #i
+     1  bl 0x19e4
+     1  b 0x1538
+     1  bl 0x1e04
+     1  bl 0x1db4
+     1  bne 0x1560
+     1  bl 0xfffffb68
+     1  bl 0xfffffbfc
+     1  bl 0x1a40
+     1  bl 0x1cc4
+     1  bl 0x1368
+     1  bl 0x327c
+     1  bl 0x1788
+     1  bl 0x143c
+     1  bleq 0x1bc0
+     1  bl 0x17b0
+     1  bhi 0x1430
+     1  bl 0x3a7c
+     1  bl 0x2be8
+     1  bl 0x20d0
+     1  bl 0x21c4
+     1  bl 0x1360
+     1  bl 0x1d60
+     1  bl 0x1758
+     1  mvnle r, #i
+     1  bl 0x2298
+     1  bl 0x52cc
+     1  bl 0x21f8
+     1  bl 0x19b4
+     1  bl 0x20f4
+     1  bl 0xfffff6ac
+     1  bl 0x3550
+     1  bl 0x17a8
+     1  bl 0x1d90
+     1  bl 0x1898
+     1  bl 0x17b8
+     1  bgt 0x1944
+     1  bl 0x218c
+     1  bne 0x1774
+     1  bl 0x1638
+     1  bl 0x15bc
+     1  bl 0x4430
+     1  bl 0x1444
+     1  bl 0x1624
+     1  bl 0x22bc
+     1  b 0x16b0
+     1  bne 0x17e0
+     1  bl 0x1800
+     1  bl 0x20d4
+     1  bl 0x1470
+     1  bl 0x169c
+     1  bgt 0x1804
+     1  bl 0x3754
+     1  bl 0x19b0
+     1  bl 0x1a50
+     1  bl 0x2558
+     1  bl 0x2454
+     1  bl 0x1c9c
+     1  rsbcc r, r, r
+     1  bne 0x1854
+     1  bl 0x1be4
+     1  bl 0x237c
+     1  beq 0x1b58
+     1  bl 0x38ec
+     1  bne 0x18e0
+     1  bl 0x380c
+     1  bl 0x4530
+     1  bl 0x54fc
+     1  bl 0x1854
+     1  bl 0x3164
+     1  bl 0xffffff60
+     1  bl 0x1e20
+     1  bl 0x172c
+     1  bl 0xffffff14
+     1  bl 0x1ec0
+     1  bl 0x34b0
+     1  bl 0x1af8
+     1  bl 0x192c
+     1  bge 0x1944
+     1  bl 0x323c
+     1  b 0x18ec
+     1  bl 0x2afc
+     1  bl 0x1d74
+     1  bl 0x2160
+     1  b 0x1944
+     1  cmn r, #i
+     1  bl 0x17d8
+     1  bl 0x2038
+     1  bl 0x2244
+     1  bl 0xffffffbc
+     1  bl 0x344
+     1  bl 0x1db0
+     1  bl 0x2e3c
+     1  bl 0x24e8
+     1  bge 0x1a38
+     1  b 0x408
+     1  bl 0x1e50
+     1  bl 0x1850
+     1  bl 0x1674
+     1  bl 0x1770
+     1  bl 0x2fe4
+     1  bl 0x1af0
+     1  bl 0x18a4
+     1  ldreq r, [r, r, lsl #i]
+     1  bl 0xfffffab8
+     1  bl 0x2444
+     1  bl 0x388c
+     1  bl 0x3834
+     1  bl 0x2498
+     1  bl 0x2fb0
+     1  bl 0x19a0
+     1  bl 0x339c
+     1  bl 0x144
+     1  bl 0x1b88
+     1  bl 0x2120
+     1  bl 0x22a0
+     1  bl 0x20f8
+     1  bl 0x1b8c
+     1  bl 0x1b3c
+     1  bl 0x3688
+     1  bhi 0x1b48
+     1  bl 0x205c
+     1  blt 0x1b54
+     1  bl 0x35a4
+     1  b 0x1aec
+     1  bl 0x34c0
+     1  bl 0x3650
+     1  bl 0x348c
+     1  orr r, r, #i
+     1  bl 0x34bc
+     1  bcs 0x1ba8
+     1  bcc 0x1cd8
+     1  bl 0x1f18
+     1  bl 0x2958
+     1  bl 0x316c
+     1  bl 0x7b80
+     1  movle r, #i
+     1  bl 0x1c08
+     1  bl 0x20a8
+     1  bcc 0x1bec
+     1  bl 0x2d40
+     1  bl 0x1d44
+     1  bl 0x2100
+     1  blne 0x1b18
+     1  bl 0x2510
+     1  bcc 0x1d34
+     1  bl 0x31b8
+     1  b 0x1b0c
+     1  orr r, r, r, lsr #i
+     1  bgt 0x1c7c
+     1  bl 0x2770
+     1  bl 0x1fec
+     1  bl 0x35fc
+     1  bl 0x282c
+     1  bl 0x3564
+     1  bl 0x37e4
+     1  bl 0x2398
+     1  bhi 0x1ccc
+     1  bl 0x2220
+     1  bl 0x2d8c
+     1  bgt 0x1d0c
+     1  bl 0x1ff4
+     1  bne 0x1d78
+     1  bl 0x2018
+     1  bl 0x2138
+     1  bl 0x2628
+     1  bl 0x207c
+     1  blt 0x1dcc
+     1  bl 0x2728
+     1  bl 0x7da8
+     1  b 0x1c10
+     1  bl 0x196c
+     1  strne r, [r]
+     1  bl 0x3cc4
+     1  bl 0x3dd8
+     1  bl 0x2ae4
+     1  bl 0x255c
+     1  bl 0x3fa8
+     1  bl 0x2338
+     1  bl 0x3244
+     1  bl 0x2c3c
+     1  bl 0x48
+     1  bne 0x1e50
+     1  bl 0x4130
+     1  bl 0x3b10
+     1  mvns r, r
+     1  bl 0x1ca4
+     1  b 0x1d8c
+     1  bl 0x26bc
+     1  bl 0x277c
+     1  strlt r, [r, #i]
+     1  bl 0x2188
+     1  bl 0x279c
+     1  bl 0x27e8
+     1  b 0x1de4
+     1  bl 0x2170
+     1  bl 0x1930
+     1  bl 0x2ee8
+     1  bl 0x2f68
+     1  bl 0x2240
+     1  bl 0x1718
+     1  bl 0x21e8
+     1  bl 0x1c78
+     1  beq 0x1fe0
+     1  bl 0x2ee0
+     1  bl 0x2cd0
+     1  bl 0x8f0
+     1  bl 0x4304
+     1  bl 0x4434
+     1  bl 0x3d10
+     1  bl 0x31d4
+     1  bl 0xffffdfb8
+     1  bl 0x3e10
+     1  bl 0x3d3c
+     1  bl 0x5c18
+     1  bl 0x33b4
+     1  bl 0x1f64
+     1  b 0x1fd8
+     1  beq 0x21e4
+     1  bl 0x2460
+     1  bl 0x1a44
+     1  bhi 0x1e80
+     1  bl 0x5c14
+     1  bl 0x3ef4
+     1  bl 0x170c
+     1  bl 0x2a88
+     1  subeq r, r, #i
+     1  bl 0x3d78
+     1  bl 0x1fc4
+     1  beq 0x20bc
+     1  bl 0x5fc8
+     1  bl 0xffffaefc
+     1  bl 0x19f4
+     1  bl 0x3f2c
+     1  bl 0x20ec
+     1  bl 0x1d54
+     1  bgt 0x22cc
+     1  bge 0x2130
+     1  bl 0x4404
+     1  bl 0x1bfc
+     1  bl 0x6de4
+     1  bl 0x1f4c
+     1  bl 0xfffffc34
+     1  bl 0x36f4
+     1  bl 0x1f58
+     1  bl 0x4010
+     1  bl 0x6e4c
+     1  bne 0x2130
+     1  bl 0xfffffcdc
+     1  bls 0x21bc
+     1  bl 0x3344
+     1  ldr r, [r], r
+     1  bne 0x20c8
+     1  bl 0x240c
+     1  b 0x2078
+     1  bl 0x2f9c
+     1  bl 0x2c5c
+     1  stm r, {..}
+     1  bne 0x2278
+     1  rsb r, r, r
+     1  bl 0x2c20
+     1  bl 0x28cc
+     1  bl 0x2b7c
+     1  bl 0x2bb8
+     1  bl 0x3000
+     1  blt 0x23dc
+     1  bne 0x2320
+     1  bge 0x24b0
+     1  lslne r, r, #i
+     1  bl 0x42e0
+     1  bl 0x3050
+     1  bl 0x1fac
+     1  bl 0x2b34
+     1  ldm r!, {..}
+     1  bl 0x3078
+     1  str r, [r, r]!
+     1  bl 0x2328
+     1  bl 0x23c4
+     1  bl 0x292c
+     1  bl 0x2d98
+     1  bl 0x2e28
+     1  bl 0x479c
+     1  bl 0x2d58
+     1  beq 0x22b4
+     1  beq 0x2478
+     1  bgt 0x2300
+     1  bl 0x235c
+     1  bl 0x46a0
+     1  bl 0x35b8
+     1  bl 0x4684
+     1  beq 0x2520
+     1  ble 0x2584
+     1  bl 0x238c
+     1  bl 0x2db0
+     1  bne 0x20e8
+     1  bl 0x4308
+     1  bl 0x2d64
+     1  stmia r!, {..}
+     1  bne 0x23b4
+     1  blt 0x2490
+     1  bl 0x47c4
+     1  beq 0x2580
+     1  b 0x2184
+     1  bl 0x2da0
+     1  bl 0x46c0
+     1  bl 0x3700
+     1  ldrh r, [r, #i]
+     1  bl 0x2c1c
+     1  bge 0x2604
+     1  bl 0x3118
+     1  bl 0x393c
+     1  bl 0x2cf0
+     1  bl 0x4884
+     1  beq 0x2390
+     1  bl 0x21cc
+     1  bl 0x4620
+system calls (native, strace): write(66) exit(40) execve(36) close(32) open(27) rt_sigaction(24) getpid(22) unlink(22) rmdir(14) fstat64(11) setitimer(10) clock_gettime64(10) clock_nanosleep_time64(6) sigreturn(6) read(6) fork(6) wait4(6) mkdir(5) pipe(4) brk(4) kill(4) getcwd(4) openat(3) chdir(2) access(2) fchmod(2) getdents64(2)

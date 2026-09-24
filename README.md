@@ -66,7 +66,7 @@ to OCaml.
 
 | Book | ix | Plan 9 original |
 |---|---|---|
-| Emulator | TinyRaspberryPi | `5i` |
+| Emulator | TinyArm (arm32, arm64, user mode), TinyRaspberryPi (Pi1, then 64-bit) | `5i`, QEMU's raspi machines |
 | Kernel | TinyKernel | `9pi` |
 | Core libraries | *(not settled — ix programs are all OCaml, so there may be no separate TinyLibc, just what OCaml's stdlib and runtime give us)* | `libc`, `libthread`, `libbio`, `libregexp`, ... |
 | Shell | TinyShell | `rc` |

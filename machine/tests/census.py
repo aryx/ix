@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+# Claude Code
+#
+# Copyright (C) 2026 Yoann Padioleau
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public License
+# (LGPL) as published by the Free Software Foundation; either version
+# 2 of the License, or (at your option) any later version.
+#
+# The instruction census behind plan_arm.md: which instructions the
+# corpus executes. Each program runs under qemu-arm or qemu-aarch64
+# with -d in_asm (every block of code run, logged once, as raw words:
+# this qemu has no disassembler); the distinct words are disassembled
+# by binutils' objdump and counted by mnemonic, and by form (the
+# operands' shapes: register, immediate, shifted, pre/post-indexed).
+#
+# Usage: census.py 5|7 program...
+
+import collections, os, re, subprocess, sys, tempfile
+
+arch, progs = sys.argv[1], sys.argv[2:]
+qemu = {"5": "qemu-arm", "7": "qemu-aarch64"}[arch]
+objdump = {"5": ["objdump", "-m", "arm"], "7": ["objdump", "-m", "aarch64"]}[arch]
+words = collections.Counter()   # word -> in how many programs
+syscalls = collections.Counter()
+tmp = tempfile.mkdtemp()
+for p in progs:
+    log = os.path.join(tmp, "log")
+    subprocess.run([qemu, "-d", "in_asm", "-D", log, p, "one", "two"], cwd=tmp, stdin=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    seen = set()
+    for line in open(log):
+        if line.startswith("OBJD-T: "):
+            hx = line[8:].strip()
+            for i in range(0, len(hx), 8): seen.add(hx[i:i + 8])
+    for w in seen: words[w] += 1
+    st = subprocess.run(["strace", "-f", "-qq", "-e", "trace=all", "-o", os.path.join(tmp, "st"), p, "one", "two"],
+                        cwd=tmp, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    for line in open(os.path.join(tmp, "st")):
+        m = re.match(r"(?:\d+\s+)?(\w+)\(", line)
+        if m: syscalls[m.group(1)] += 1
+binf = os.path.join(tmp, "w.bin")
+with open(binf, "wb") as f:
+    for w in words: f.write(bytes.fromhex(w))
+dis = subprocess.run(objdump + ["-D", "-b", "binary", binf], capture_output=True, text=True).stdout
+mnem = collections.Counter(); forms = collections.Counter()
+for line in dis.splitlines():
+    m = re.match(r"\s+[0-9a-f]+:\s+[0-9a-f]{8}\s+(\S+)\s*(.*)", line)
+    if not m: continue
+    op, args = m.group(1), m.group(2).split(";")[0].split("@")[0].strip()
+    mnem[op] += 1
+    shape = re.sub(r"#-?(0x)?[0-9a-f]+", "#i", args)
+    shape = re.sub(r"\b[rwx]\d+\b|\b(sp|lr|pc|fp|ip|sl|xzr|wzr)\b", "r", shape)
+    shape = re.sub(r"\{[^}]*\}", "{..}", shape)
+    forms[op + " " + shape] += 1
+print("%s: %d programs, %d distinct instruction words, %d mnemonics" % (qemu, len(progs), len(words), len(mnem)))
+print("mnemonics:", " ".join("%s(%d)" % kv for kv in mnem.most_common()))
+print("forms (%d):" % len(forms))
+for f, n in forms.most_common(): print("  %4d  %s" % (n, f))
+print("system calls (native, strace):", " ".join("%s(%d)" % kv for kv in syscalls.most_common()))

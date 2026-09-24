@@ -3128,3 +3128,99 @@ Two pending decisions remained about reporting OCaml bugs and redesign items.
 **Yoann:**
 
 > let's do http(s) through curl (and Cap.exec?) so I can try it on github and clone the ix repo itself using ix
+
+**Claude (summary):**
+
+Claude implemented Procs.spawn for child processes and curl-based HTTP transport for git's smart protocol.
+Cloning ix from GitHub over https works successfully, finishing in about 2 seconds with clean checks.
+Claude added capability-based spawning through Cap.fork and Cap.exec for all child processes instead.
+Pull and push were tested only against a local git http-backend server, not against GitHub.
+Push to GitHub additionally needs credentials support in curl, which hasn't been wired in yet.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:35
+
+**Yoann:**
+
+> and it can pull and push from github after the clone?
+
+**Claude (summary):**
+
+Claude confirmed pull works against GitHub after testing with a locally rolled-back clone.
+Push was tested locally over git:// and http but not yet against GitHub's servers.
+Claude noted that ssh authentication works and push would send commits to GitHub over ssh.
+https push won't work yet because tinygit doesn't handle GitHub's credential requirement for curl.
+Claude offered to test the real push to GitHub or let Yoann run it manually.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:39
+
+**Yoann:**
+
+> ok, let's close the VCS chapter; I think we got it covered. What's next?
+
+**Claude (summary):**
+
+(summary generation failed - raw answer follows)
+My recommendation is the emulator, **TinyRaspberryPi, a twin of `5i`**. It's the first book of the series, and the pieces for it are ready:
+- **A runnable reference is already built.** goken's `machines/5i` is 4,839 lines of C and is compiled on this machine. It's principia's `machine/5i`, the subject of the Machine book. Following the diff approach, the test can run both emulators and compare registers, memory and output instruction by instruction.
+- **It closes the toolchain loop.** C compiled by `tinycc`, assembled by `tinyasm` and linked by `tinyld` would run on ix's own ARM machine. Today those programs only run on Linux.
+- **It opens the next books.** The kernel needs a machine to boot on, and the debugger and profiler need a machine to stop and inspect.
+- **It suits OCaml.** Instructions are a variant decoded once, with exhaustive matches for conditions, shifts and addressing modes (principle 12). Memory is segments, and system calls are a small table. The free one-file variant
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:44
+
+**Yoann:**
+
+> maybe we need to discuss more. Maybe we can first do a tiny ARM emulator, main the CPU and emulating linux syscalls, a la 5i and qemu-user-arm for instance, and later on do another tiny but for the Raspberry Pi that rely on the ARM emulator but extended for the qemu-system-part with MMU, framebuffer, storage, etc.. What do you think?
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:44
+
+**Yoann:**
+
+> Ideally we can emulate the arm32 and arm64 and emulate after the Pi1 and Pi4
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:47
+
+**Yoann:**
+
+> also maybe we don't have to emulate all the instructions; enough to emulate the binaries produced by ix toolchain (and maybe also the goken and xix toolchain)
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:48
+
+**Yoann:**
+
+> ideally we also want to be fast enough to be usable; dunno if we need dynamic translation trick, might be hard in ocaml to reproduce tricks like in qemu or tinyemu
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:48
+
+**Yoann:**
+
+> but maybe nowadays it could be fast enough
+
+**Claude (summary):**
+
+Claude built a toy interpreter with variant-decoded instructions and measured 75 MIPS on naive OCaml.
+He estimated a full ARM interpreter with all features at 30-50 MIPS, sufficient for ix programs running in seconds.
+Claude recommended a decode-once interpreter first instead of the planned JIT, with cheaper optimizations available as deferred optional phases.
+He confirmed the user-mode-first plan (arm32/arm64 then Pi1 and Pi4) remained viable with three deferred questions.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:52
+
+**Yoann:**
+
+> yes! and the tutorial and related-work document too, with both the arm/arm64 and then the pi1/pi4 as separate documents maybe

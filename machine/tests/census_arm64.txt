@@ -1,0 +1,817 @@
+qemu-aarch64: 35 programs, 2218 distinct instruction words, 45 mnemonics
+mnemonics: bl(368) add(336) ldrsw(285) ldr(271) str(263) mov(140) cmp(108) b.eq(54) and(44) b.ne(37) strb(33) sub(32) b(29) lsl(26) sxtw(24) ldrsb(22) b.ge(22) sdiv(15) b.gt(12) ldrb(11) msub(10) b.lt(10) b.le(7) sxtb(7) udiv(6) b.ls(6) b.cs(6) mul(5) ubfx(3) blr(3) b.hi(3) adr(2) ldur(2) orr(2) asr(2) mvn(2) lsr(2) svc(1) umull(1) cbz(1) br(1) ret(1) ldursw(1) cmn(1) ldrh(1)
+forms (813):
+   280  add r, r, #i
+   239  str r, [r, #i]
+   158  ldr r, [r, #i]
+   131  ldrsw r, [r, #i]
+    67  mov r, r
+    58  cmp r, r
+    55  add r, r, r
+    48  cmp r, #i
+    43  and r, r, #i
+    37  mov r, #i                  	// #i
+    26  lsl r, r, #i
+    24  sxtw r, r
+    21  mov r, #i                 	// #i
+    21  strb r, [r, #i]
+    17  sub r, r, #i
+    16  ldrsb r, [r]
+    15  sdiv r, r, r
+    15  sub r, r, r
+    13  str r, [r]
+    13  ldrsw r, [r]
+    12  ldr r, [r]
+    12  strb r, [r]
+    10  str r, [r, #i]!
+    10  ldr r, [r], #i
+    10  msub r, r, r, r
+     8  ldrb r, [r]
+     8  mov r, #i                   	// #i
+     7  sxtb r, r
+     6  udiv r, r, r
+     6  ldrsb r, [r, #i]
+     5  mul r, r, r
+     4  mov r, #i            	// #i
+     3  ldrb r, [r, #i]
+     3  ubfx r, r, #i, #i
+     3  blr r
+     3  mov r, #i                	// #i
+     3  bl 0x184c
+     2  ldrsw r, [r, r, lsl #i]
+     2  bl 0x5ec
+     2  bl 0x147c
+     2  cmp r, #i, lsl #i
+     2  bl 0x1570
+     2  ldur r, [r, #i]
+     2  bl 0x1668
+     2  bl 0x1030
+     2  bl 0x16a0
+     2  bl 0x1254
+     2  bl 0x177c
+     2  bl 0x1334
+     2  bl 0x1cbc
+     2  bl 0x1d24
+     2  bl 0x1794
+     2  bl 0x1cf8
+     2  bl 0x1d88
+     2  bl 0x19a8
+     2  bl 0x1c74
+     2  asr r, r, #i
+     2  ldrsw r, [r, r, sxtx]
+     2  bl 0x2304
+     2  bl 0x23a0
+     2  bl 0x22c0
+     2  bl 0x2094
+     2  bl 0x1f18
+     2  bl 0x28f0
+     2  bl 0x2160
+     2  bl 0x2bf0
+     2  mvn r, r
+     2  lsr r, r, #i
+     2  bl 0x2ef0
+     1  ldrsw r, 0x5c00
+     1  ldrsw r, 0x67b8
+     1  bl 0xa4
+     1  bl 0x1b8
+     1  b.eq 0x60  // b.none
+     1  b.ne 0x98  // b.any
+     1  bl 0xffffffffffffffac
+     1  b.le 0x84
+     1  bl 0x2198
+     1  b.ne 0x9c  // b.any
+     1  bl 0x19c
+     1  ldrsw r, 0x58cc
+     1  b.ne 0xdc  // b.any
+     1  bl 0x210
+     1  b.ls 0xfc  // b.plast
+     1  b.gt 0x1ac
+     1  bl 0x1bc
+     1  ldrsw r, 0x5b9c
+     1  b.eq 0x134  // b.none
+     1  b.ge 0x170  // b.tcont
+     1  bl 0x1e0
+     1  ldr r, 0x689c
+     1  adr r, 0x148
+     1  b 0x110
+     1  b.eq 0x174  // b.none
+     1  bl 0x4e0
+     1  bl 0x27c
+     1  bl 0x178
+     1  b.ne 0x110  // b.any
+     1  b.gt 0x18c
+     1  ldr r, 0x5ddc
+     1  b.le 0x248
+     1  b.eq 0x1c8  // b.none
+     1  bl 0x5f0
+     1  b 0x1ac
+     1  b.ge 0x250  // b.tcont
+     1  b.ge 0x22c  // b.tcont
+     1  b.eq 0x24c  // b.none
+     1  b 0xffffffffffffe054
+     1  b.ge 0x24c  // b.tcont
+     1  bl 0x23f4
+     1  bl 0x8b0
+     1  ldrsw r, 0x5b3c
+     1  ldrsw r, 0x6650
+     1  bl 0x2888
+     1  svc #i
+     1  b.eq 0x2cc  // b.none
+     1  b 0x1fc
+     1  b.eq 0x29c  // b.none
+     1  bl 0x42c
+     1  bl 0x410
+     1  bl 0xfc8
+     1  bl 0xb94
+     1  ldrsw r, 0x6884
+     1  b 0x30c
+     1  umull r, r, r
+     1  bl 0xfffffffffffffdd4
+     1  bl 0x66c
+     1  ldr r, 0x60bc
+     1  ldr r, 0x5ff8
+     1  ldr r, 0x6b50
+     1  b.ne 0x3b8  // b.any
+     1  bl 0xfffffffffffff5e8
+     1  ldrsw r, 0x5d1c
+     1  ldr r, 0x5cf8
+     1  ldrsw r, 0x59d0
+     1  b.ne 0x438  // b.any
+     1  bl 0x518
+     1  bl 0x630
+     1  b 0x434
+     1  bl 0x8d8
+     1  bl 0x328
+     1  ldr r, 0x60ec
+     1  bl 0x354
+     1  b.eq 0x51c  // b.none
+     1  b.hi 0x4e8  // b.pmore
+     1  b 0x478
+     1  ldr r, 0x61e0
+     1  cbz r, 0x4fc
+     1  bl 0x8e4
+     1  b.ge 0x558  // b.tcont
+     1  bl 0xa48
+     1  b.ne 0x528  // b.any
+     1  ldrsw r, 0x6cdc
+     1  ldr r, 0x61dc
+     1  bl 0x104c
+     1  ldrsw r, 0x5c74
+     1  ldr r, 0x5e20
+     1  b.ge 0x5dc  // b.tcont
+     1  br r
+     1  b.ne 0x5a8  // b.any
+     1  b.eq 0x5e8  // b.none
+     1  b.eq 0x638  // b.none
+     1  bl 0x1240
+     1  b.ls 0x65c  // b.plast
+     1  b.ge 0x674  // b.tcont
+     1  ldr r, 0x5bf4
+     1  ret 
+     1  b.eq 0x79c  // b.none
+     1  ldr r, 0x6ce0
+     1  bl 0x7dc
+     1  b.ne 0x690  // b.any
+     1  b.eq 0xda0  // b.none
+     1  b.ne 0x6c0  // b.any
+     1  b.eq 0x6c8  // b.none
+     1  b.eq 0x6cc  // b.none
+     1  bl 0x335c
+     1  ldr r, 0x5ba8
+     1  b.eq 0x75c  // b.none
+     1  b.ne 0x738  // b.any
+     1  b.eq 0x7d8  // b.none
+     1  ldrsw r, 0x5cf4
+     1  b.eq 0x76c  // b.none
+     1  bl 0x6a4
+     1  ldrsw r, 0x65b0
+     1  b.eq 0x10e4  // b.none
+     1  bl 0x75c
+     1  ldr r, 0x6700
+     1  b.lt 0x7c0  // b.tstop
+     1  b.ne 0xf44  // b.any
+     1  b.ge 0x774  // b.tcont
+     1  bl 0x1140
+     1  bl 0x1198
+     1  b.ge 0x7bc  // b.tcont
+     1  b.ne 0xa40  // b.any
+     1  ldrsw r, 0x3ad8
+     1  bl 0x2d24
+     1  bl 0x364
+     1  bl 0x694
+     1  b.ne 0x834  // b.any
+     1  b.eq 0x9ec  // b.none
+     1  b 0x750
+     1  ldursw r, [r, #i]
+     1  b.eq 0x8a0  // b.none
+     1  b.le 0x9b4
+     1  and r, r, r
+     1  b.gt 0xfe8
+     1  b.ne 0x8a4  // b.any
+     1  b.ne 0x7e0  // b.any
+     1  b.eq 0x434  // b.none
+     1  b.eq 0xff4  // b.none
+     1  b.cs 0x8dc  // b.hs, b.nlast
+     1  bl 0xfffffffffffff9a0
+     1  b.eq 0x924  // b.none
+     1  b.lt 0xfe0  // b.tstop
+     1  b.eq 0x12e8  // b.none
+     1  bl 0xa50
+     1  bl 0x1fc
+     1  b.ne 0x978  // b.any
+     1  bl 0x17a0
+     1  b.le 0xa1c
+     1  bl 0xd34
+     1  b.cs 0x9c4  // b.hs, b.nlast
+     1  b.gt 0xbcc
+     1  b.cs 0xab0  // b.hs, b.nlast
+     1  bl 0x54
+     1  b.ne 0xc1c  // b.any
+     1  b.hi 0x7e0  // b.pmore
+     1  ldrsw r, 0x5ecc
+     1  b.eq 0x7e0  // b.none
+     1  b 0x8d8
+     1  bl 0x910
+     1  b.ge 0xa78  // b.tcont
+     1  b.eq 0xa90  // b.none
+     1  b.ne 0xa48  // b.any
+     1  ldrsw r, 0x6a70
+     1  b.ne 0xa2c  // b.any
+     1  b.gt 0x1438
+     1  bl 0x54c
+     1  b.ne 0x9ec  // b.any
+     1  b.ne 0xb0c  // b.any
+     1  b.eq 0xfa8  // b.none
+     1  b 0xa50
+     1  b.ge 0xb20  // b.tcont
+     1  ldr r, 0x4b44
+     1  bl 0x31e4
+     1  b 0xacc
+     1  bl 0x1b60
+     1  bl 0xd0
+     1  b.eq 0xae4  // b.none
+     1  b 0x1f0
+     1  ldrsw r, 0x6208
+     1  bl 0x37c0
+     1  b 0xb14
+     1  bl 0xba4
+     1  b.ge 0xc20  // b.tcont
+     1  bl 0x13a8
+     1  b.lt 0xda0  // b.tstop
+     1  bl 0x80c
+     1  b.eq 0x1590  // b.none
+     1  b.ls 0xc1c  // b.plast
+     1  b.cs 0xc24  // b.hs, b.nlast
+     1  b 0xbc0
+     1  b.eq 0xc30  // b.none
+     1  ldrsw r, 0x6200
+     1  b.eq 0xc94  // b.none
+     1  b 0xbb4
+     1  bl 0xd90
+     1  ldr r, 0x6c48
+     1  bl 0x798
+     1  bl 0x1504
+     1  ldrsw r, 0x6ce8
+     1  b.ne 0xc70  // b.any
+     1  b.ge 0xd24  // b.tcont
+     1  bl 0xd80
+     1  ldrsw r, 0x6b5c
+     1  b.eq 0xcf8  // b.none
+     1  ldrsw r, 0x62d4
+     1  bl 0x1584
+     1  ldr r, 0x6cbc
+     1  ldrsw r, 0x6d60
+     1  ldr r, 0x61c4
+     1  ldrsw r, 0x63c0
+     1  bl 0xcac
+     1  bl 0x15b4
+     1  b 0xc9c
+     1  ldrsw r, 0x63dc
+     1  bl 0x1b70
+     1  bl 0xfffffffffffff644
+     1  bl 0xcdc
+     1  bl 0x240c
+     1  b.lt 0xda4  // b.tstop
+     1  bl 0x1164
+     1  ldr r, 0x6950
+     1  b.ne 0xf14  // b.any
+     1  bl 0x129c
+     1  bl 0x2474
+     1  bl 0xb64
+     1  ldr r, 0x7a5c
+     1  b.ls 0xe04  // b.plast
+     1  b.hi 0xde8  // b.pmore
+     1  b.lt 0xde4  // b.tstop
+     1  bl 0x1700
+     1  ldrsw r, 0x7bd4
+     1  bl 0xe74
+     1  bl 0x1374
+     1  ldr r, 0x6d24
+     1  ldrsw r, 0x6548
+     1  ldr r, 0x6dd0
+     1  adr r, 0xe48
+     1  ldrsw r, 0x7bf4
+     1  ldrsw r, 0x7b98
+     1  b.lt 0xf2c  // b.tstop
+     1  ldrsw r, 0x6278
+     1  b.ne 0xe28  // b.any
+     1  b.ge 0xe88  // b.tcont
+     1  ldrsw r, 0x71e4
+     1  bl 0x24f0
+     1  b.eq 0x108c  // b.none
+     1  bl 0x1764
+     1  bl 0xf84
+     1  ldrsw r, 0x6d54
+     1  ldrsw r, 0x7964
+     1  bl 0xf4c
+     1  bl 0x1d74
+     1  ldrsw r, 0x7a50
+     1  bl 0xe4c
+     1  bl 0xfffffffffffff878
+     1  bl 0x1dd0
+     1  b.ne 0x1090  // b.any
+     1  bl 0x1acc
+     1  bl 0x10c8
+     1  ldrsw r, 0x6e04
+     1  bl 0x13d0
+     1  bl 0x1fa4
+     1  bl 0x10a8
+     1  bl 0x1b04
+     1  b.ge 0xfd0  // b.tcont
+     1  ldrsw r, 0x7388
+     1  bl 0x165c
+     1  b 0xf94
+     1  ldr r, 0x6c00
+     1  bl 0x13fc
+     1  b.eq 0x10f4  // b.none
+     1  bl 0x1524
+     1  ldr r, 0x7d14
+     1  ldrsw r, 0x6ec8
+     1  ldr r, 0x7d50
+     1  ldr r, 0x6df8
+     1  ldrsw r, 0x7d48
+     1  bl 0x1e8c
+     1  b.eq 0xe68  // b.none
+     1  bl 0x269c
+     1  b.ls 0x1080  // b.plast
+     1  bl 0x1324
+     1  bl 0x1168
+     1  ldr r, 0x6bd0
+     1  ldr r, 0x6f4c
+     1  b.eq 0xf28  // b.none
+     1  b.eq 0x12d8  // b.none
+     1  b 0x10fc
+     1  ldrsw r, 0x6670
+     1  b.eq 0x1130  // b.none
+     1  ldrsw r, 0x67dc
+     1  b.ge 0x1198  // b.tcont
+     1  b.lt 0x1170  // b.tstop
+     1  bl 0x13b0
+     1  bl 0x1f78
+     1  add r, r, #i, lsl #i
+     1  bl 0x13d8
+     1  bl 0x13bc
+     1  ldr r, 0x65ec
+     1  b.lt 0x120c  // b.tstop
+     1  bl 0x1aec
+     1  bl 0x10f8
+     1  bl 0x2830
+     1  bl 0x13d4
+     1  ldrsw r, 0x6f30
+     1  ldrsw r, 0x6834
+     1  b.ge 0x1258  // b.tcont
+     1  bl 0x1ca4
+     1  bl 0x1838
+     1  ldrsw r, 0x7180
+     1  bl 0xa78
+     1  ldrsw r, 0x74c8
+     1  ldr r, 0x70e8
+     1  bl 0x171c
+     1  bl 0x12d4
+     1  bl 0xae4
+     1  bl 0x15f8
+     1  ldrsw r, 0x7398
+     1  bl 0x16cc
+     1  ldrsw r, 0x74b4
+     1  ldrsw r, 0x72a0
+     1  ldrsw r, 0x7090
+     1  ldrsw r, 0x6fa4
+     1  bl 0x1184
+     1  ldrsw r, 0x6f20
+     1  ldrsw r, 0x74a0
+     1  ldrsw r, 0x73ac
+     1  bl 0x1830
+     1  ldr r, 0x72d0
+     1  ldr r, 0x67c8
+     1  b.lt 0x1314  // b.tstop
+     1  bl 0x16b4
+     1  bl 0x1920
+     1  ldr r, 0x746c
+     1  orr r, r, r
+     1  bl 0x1500
+     1  bl 0x1514
+     1  bl 0x1088
+     1  bl 0x1e7c
+     1  bl 0x18a8
+     1  bl 0x143c
+     1  ldrsw r, 0x7500
+     1  bl 0x1d60
+     1  b.eq 0x13ec  // b.none
+     1  bl 0x158c
+     1  bl 0x1664
+     1  bl 0x1ee4
+     1  bl 0x1560
+     1  bl 0x1904
+     1  ldrsw r, 0x675c
+     1  bl 0x3778
+     1  bl 0x1f1c
+     1  ldrsw r, 0x7e08
+     1  ldrsw r, 0x7e68
+     1  ldrsw r, 0x7430
+     1  ldrsw r, 0x72ac
+     1  ldr r, 0x7ed4
+     1  ldrsw r, 0x67b0
+     1  ldr r, 0x7a3c
+     1  bl 0x1ef4
+     1  ldr r, 0x66ac
+     1  ldrsw r, 0x75a4
+     1  bl 0x2678
+     1  ldr r, 0x7ed8
+     1  ldrsw r, 0x7e34
+     1  bl 0x2680
+     1  bl 0x2694
+     1  bl 0x26a0
+     1  ldrsw r, 0x73d0
+     1  bl 0x213c
+     1  ldr r, 0x7524
+     1  ldrsw r, 0x7e9c
+     1  bl 0x1df0
+     1  bl 0x1d3c
+     1  bl 0xf64
+     1  b.eq 0x1518  // b.none
+     1  bl 0xbcc
+     1  bl 0x1368
+     1  b 0x141c
+     1  ldrsw r, 0x724c
+     1  bl 0x1d84
+     1  ldr r, 0x73ac
+     1  b.eq 0x1504  // b.none
+     1  bl 0x1474
+     1  b.eq 0x1588  // b.none
+     1  bl 0x1e18
+     1  b.eq 0x1594  // b.none
+     1  bl 0x18b4
+     1  ldr r, 0x69bc
+     1  b.ne 0x14cc  // b.any
+     1  b.eq 0x15c0  // b.none
+     1  bl 0xd5c
+     1  bl 0x2108
+     1  ldr r, 0x6a00
+     1  ldrsw r, 0x7234
+     1  ldrsw r, 0x7710
+     1  bl 0x1a0c
+     1  ldrsw r, 0x6b3c
+     1  bl 0x12f8
+     1  ldrsw r, 0x70d8
+     1  ldr r, 0x7514
+     1  ldr r, 0x4400
+     1  bl 0x2414
+     1  b.ge 0x160c  // b.tcont
+     1  bl 0x1808
+     1  b.gt 0x1594
+     1  ldr r, 0x4354
+     1  bl 0x1410
+     1  ldrsw r, 0x7a34
+     1  bl 0x1844
+     1  bl 0x186c
+     1  bl 0x4200
+     1  bl 0x17dc
+     1  bl 0x1f34
+     1  ldrsw r, 0x6ad0
+     1  bl 0x16ec
+     1  bl 0x674
+     1  b.ne 0x1644  // b.any
+     1  bl 0x1ab8
+     1  bl 0x1b08
+     1  ldr r, 0x68f0
+     1  ldrsw r, 0x6d64
+     1  bl 0xf40
+     1  ldr r, 0x4468
+     1  bl 0x3b6c
+     1  bl 0x22e0
+     1  bl 0x42a0
+     1  bl 0x25f0
+     1  bl 0x26f0
+     1  ldr r, 0x4500
+     1  ldr r, 0x6f34
+     1  bl 0x1704
+     1  bl 0x1518
+     1  b.gt 0x1688
+     1  bl 0x16d0
+     1  bl 0x2194
+     1  ldr r, 0x4534
+     1  ldr r, 0x4510
+     1  ldr r, 0x554c
+     1  bl 0x2350
+     1  bl 0x16e8
+     1  bl 0x14f8
+     1  b.eq 0x19cc  // b.none
+     1  bl 0x1aac
+     1  bl 0x1910
+     1  ldr r, 0x44c4
+     1  ldrsw r, 0x7bb4
+     1  ldrsw r, 0x48fc
+     1  bl 0x1860
+     1  ldrsw r, 0x6c98
+     1  ldr r, 0x7b08
+     1  bl 0x1854
+     1  bl 0x19ac
+     1  bl 0x261c
+     1  bl 0x1918
+     1  ldr r, 0x731c
+     1  bl 0x1940
+     1  bl 0x140c
+     1  str r, [r, r, sxtx]
+     1  bl 0x1658
+     1  bl 0x24d0
+     1  bl 0x2380
+     1  ldr r, 0x45e8
+     1  bl 0x18a0
+     1  b.le 0x17d8
+     1  ldrsw r, 0x6ae8
+     1  bl 0x2744
+     1  ldrsw r, 0x7a58
+     1  b.le 0x1880
+     1  bl 0x1e6c
+     1  ldr r, 0x45cc
+     1  bl 0x1498
+     1  b.cs 0x1814  // b.hs, b.nlast
+     1  bl 0x18d8
+     1  bl 0xfa0
+     1  ldrsw r, 0x7adc
+     1  bl 0x2210
+     1  bl 0x1818
+     1  ldrsw r, 0x4b90
+     1  ldrsw r, 0x6e60
+     1  ldr r, 0x6d40
+     1  ldrsw r, 0x6da8
+     1  ldrsw r, 0x76a0
+     1  bl 0x1c38
+     1  ldrsw r, 0x7554
+     1  ldr r, 0x7698
+     1  ldr r, 0x5920
+     1  ldrsw r, 0x76c4
+     1  ldrsw r, 0x6ecc
+     1  bl 0x10f0
+     1  ldrsw r, 0x7974
+     1  ldrsw r, 0x74e4
+     1  ldrsw r, 0x6e7c
+     1  bl 0x1abc
+     1  bl 0x1770
+     1  bl 0x172c
+     1  b 0x18d4
+     1  ldrsw r, 0x765c
+     1  bl 0x10e0
+     1  bl 0x2228
+     1  b.ge 0x1958  // b.tcont
+     1  b.cs 0x1958  // b.hs, b.nlast
+     1  bl 0x21d0
+     1  cmn r, #i
+     1  bl 0x1494
+     1  bl 0x2308
+     1  ldr r, 0x7828
+     1  bl 0x19fc
+     1  bl 0x1d8c
+     1  bl 0xa10
+     1  ldrsw r, 0x6dc4
+     1  ldrsw r, 0x7ff4
+     1  ldrsw r, 0x745c
+     1  ldr r, 0x7338
+     1  ldrsw r, 0x7164
+     1  ldrsw r, 0x7fe8
+     1  bl 0x1f4c
+     1  ldr r, 0x7fd4
+     1  ldrsw r, 0x7f8c
+     1  bl 0x17bc
+     1  b.ge 0x1a48  // b.tcont
+     1  bl 0x1ad0
+     1  ldrsw r, 0x7f70
+     1  ldrsw r, 0x7540
+     1  ldrsw r, 0x72c0
+     1  bl 0x2870
+     1  ldr r, 0x7574
+     1  bl 0x2564
+     1  bl 0x17f0
+     1  bl 0x1efc
+     1  bl 0x1ecc
+     1  ldr r, 0x6e30
+     1  ldrsw r, 0x70e8
+     1  bl 0x2520
+     1  b.ne 0x1adc  // b.any
+     1  bl 0x1f28
+     1  ldrsw r, 0x7e24
+     1  b 0x149c
+     1  bl 0x1e28
+     1  ldr r, 0x75b4
+     1  bl 0x1e2c
+     1  b.ne 0x1ac8  // b.any
+     1  ldr r, 0x7398
+     1  ldrsw r, 0x707c
+     1  bl 0x1f08
+     1  ldrsw r, 0x8084
+     1  ldrsw r, 0x809c
+     1  ldr r, 0x7fc8
+     1  bl 0x2764
+     1  ldrsw r, 0x7664
+     1  bl 0x2948
+     1  ldrsw r, 0x70b0
+     1  ldrsw r, 0x796c
+     1  bl 0x231c
+     1  ldrsw r, 0x77bc
+     1  bl 0x1a28
+     1  ldrsw r, 0x77c0
+     1  ldr r, 0x793c
+     1  ldrsw r, 0x7978
+     1  ldrsw r, 0x7c60
+     1  bl 0x1e48
+     1  bl 0x1c98
+     1  b.gt 0x1c18
+     1  ldrsw r, 0x7a2c
+     1  bl 0x1e08
+     1  ldr r, 0x7b28
+     1  bl 0x1cec
+     1  ldr r, 0x7bc8
+     1  ldr r, 0x7b20
+     1  b.le 0x1ba0
+     1  bl 0x250c
+     1  bl 0x190c
+     1  bl 0x2058
+     1  bl 0x1fbc
+     1  b.gt 0x1c6c
+     1  ldr r, 0x7c08
+     1  bl 0x1f00
+     1  ldrsw r, 0x78ac
+     1  bl 0x1f44
+     1  bl 0x1dd8
+     1  b.gt 0x1c04
+     1  ldrsw r, 0x7cc0
+     1  bl 0x237c
+     1  ldr r, 0x7b44
+     1  ldrsw r, 0x7a90
+     1  bl 0x1db4
+     1  ldrsw r, 0x84b0
+     1  orr r, r, #i
+     1  bl 0x155c
+     1  bl 0x1ed0
+     1  ldrsw r, 0x7b10
+     1  bl 0x2a20
+     1  ldr r, 0x73f0
+     1  ldr r, 0x7d4c
+     1  bl 0x2a3c
+     1  ldr r, 0x82e8
+     1  bl 0x1f80
+     1  ldrsw r, 0x7054
+     1  bl 0x24c4
+     1  bl 0x2640
+     1  bl 0x13ac
+     1  bl 0x101c
+     1  bl 0x202c
+     1  ldrsw r, 0x70ac
+     1  ldrsw r, 0x6f9c
+     1  bl 0xfec
+     1  bl 0x1f8c
+     1  bl 0x2e20
+     1  bl 0x263c
+     1  bl 0x1aa4
+     1  bl 0x2dd0
+     1  ldrsw r, 0x7ccc
+     1  ldr r, 0x84d4
+     1  bl 0x2fec
+     1  ldr r, 0x82fc
+     1  ldrsw r, 0x7eec
+     1  ldr r, 0x6ff8
+     1  bl 0x2dbc
+     1  bl 0x2d78
+     1  bl 0x2be4
+     1  bl 0x5b8c
+     1  bl 0x31ac
+     1  bl 0x680
+     1  bl 0x1ce4
+     1  b.ls 0x1e4c  // b.plast
+     1  bl 0x2aac
+     1  bl 0x31f0
+     1  bl 0x6b74
+     1  b 0x1d20
+     1  bl 0x3384
+     1  b 0x1dac
+     1  bl 0x2c2c
+     1  ldr r, 0x7754
+     1  bl 0x4f2c
+     1  bl 0xffffffffffffbc28
+     1  bl 0x3284
+     1  bl 0x1c48
+     1  b 0x1dd0
+     1  bl 0x5bc8
+     1  ldrsw r, 0x6e88
+     1  bl 0x1790
+     1  bl 0x26a8
+     1  bl 0x2bd0
+     1  bl 0x1dc4
+     1  bl 0xfffffffffffff924
+     1  ldrsw r, 0x8174
+     1  bl 0x1e00
+     1  ldr r, 0x82c4
+     1  bl 0xffffffffffffdc50
+     1  bl 0x6c30
+     1  bl 0x2db0
+     1  b 0x1ed8
+     1  bl 0x1f20
+     1  ldrsw r, 0x7854
+     1  bl 0x1810
+     1  b.eq 0x20bc  // b.none
+     1  ldr r, 0x8490
+     1  bl 0x3218
+     1  bl 0x2c4c
+     1  bl 0x2d44
+     1  ldrsw r, 0x7ad4
+     1  ldrsw r, 0x7360
+     1  bl 0x1d10
+     1  ldrsw r, 0x84cc
+     1  bl 0x3120
+     1  ldr r, 0x83f0
+     1  bl 0xfffffffffffff99c
+     1  ldrsw r, 0x8464
+     1  ldr r, 0x8480
+     1  bl 0x3084
+     1  bl 0x2cec
+     1  ldrsw r, 0x3258
+     1  b.ne 0x1f84  // b.any
+     1  b.eq 0x2098  // b.none
+     1  b.ne 0x2150  // b.any
+     1  b.ne 0x208c  // b.any
+     1  ldr r, 0x2098
+     1  ldrsw r, 0x2074
+     1  b.eq 0x2060  // b.none
+     1  ldrsw r, 0x8478
+     1  bl 0x3568
+     1  bl 0x2508
+     1  bl 0x310c
+     1  bl 0x3388
+     1  bl 0x135c
+     1  ldrsw r, 0x8898
+     1  b.eq 0x2240  // b.none
+     1  b 0x1f6c
+     1  ldr r, 0x7854
+     1  b 0x1f24
+     1  b.lt 0x20b8  // b.tstop
+     1  b.eq 0x2250  // b.none
+     1  bl 0x2c34
+     1  b.eq 0x1e90  // b.none
+     1  ldrsw r, 0x8288
+     1  bl 0x2804
+     1  ldr r, 0x8628
+     1  bl 0x3338
+     1  b.gt 0x2068
+     1  bl 0x29d0
+     1  ldrsw r, 0x734c
+     1  bl 0x3354
+     1  ldr r, 0x78e0
+     1  bl 0x1ef8
+     1  ldrsw r, 0x8360
+     1  bl 0x29e8
+     1  bl 0x2bdc
+     1  bl 0x2eac
+     1  ldrsw r, 0x8850
+     1  b.ne 0x21a0  // b.any
+     1  bl 0x21a8
+     1  ldrsw r, 0x8b14
+     1  b.ne 0x2178  // b.any
+     1  b.gt 0x2158
+     1  b 0x1f74
+     1  bl 0x2f40
+     1  ldrsw r, 0x7698
+     1  ldrh r, [r, #i]
+     1  ldr r, 0x85f0
+     1  bl 0x2c54
+     1  bl 0x2f84
+     1  bl 0x3594
+     1  bl 0x268c
+     1  ldrsw r, 0x89c8
+     1  b.eq 0x219c  // b.none
+     1  b.eq 0x21d0  // b.none
+     1  ldr r, 0x8664
+     1  bl 0x2a60
+     1  b.ge 0x24c4  // b.tcont
+     1  bl 0x2cc8
+     1  ldr r, 0x86b8
+     1  bl 0x2460
+     1  b.ne 0x22a4  // b.any
+     1  b.ne 0x217c  // b.any
+     1  bl 0x3484
+     1  b.ge 0x2428  // b.tcont
+     1  bl 0x2db4
+     1  bl 0x35dc
+     1  b 0x20f0
+     1  b.eq 0x2370  // b.none
+     1  bl 0x2048
+system calls (native, strace): write(63) exit(38) execve(36) unlinkat(36) close(32) openat(31) rt_sigaction(24) getpid(22) fstat(11) setitimer(10) clock_gettime(10) clock_nanosleep(6) rt_sigreturn(6) read(6) mkdirat(6) clone(6) wait4(6) pipe2(4) kill(4) getcwd(4) chdir(2) faccessat(2) brk(2) fchmod(2) getdents64(2)
