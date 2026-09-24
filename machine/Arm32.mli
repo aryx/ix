@@ -66,6 +66,13 @@ type t =
   (* mcr ([load] false), mrc: a coprocessor's register (CP15's, the
    * system's), cp <> 10, 11 *)
   | Coproc of { cond : cond; load : bool; cp : int; opc1 : int; crn : int; crm : int; opc2 : int; rd : reg }
+  (* mcrr, mrrc: two registers (the ARM1176's cache range operations) *)
+  | Coproc2 of { cond : cond; load : bool; cp : int; opc1 : int; crm : int; rd : reg; rd2 : reg }
+  (* sxtb sxth uxtb uxth, and with an addend (rn <> 15) sxtab...:
+   * rm rotated right by 8 * rot, a byte or a half extended *)
+  | Extend of { cond : cond; signed : bool; half : bool; rd : reg; rn : reg; rm : reg; rot : int }
+  (* 0 nop, 1 yield, 2 wfe, 3 wfi, 4 sev *)
+  | Hint of { cond : cond; hint : int }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 

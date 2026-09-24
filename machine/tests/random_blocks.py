@@ -114,7 +114,11 @@ class Gen:
 
     def misc(self):
         r = self.r
-        k = r.randrange(3)
+        k = r.randrange(4)
+        if k == 3:
+            # ARMv6's extends: sxtb sxth uxtb uxth, with an addend or not
+            rn = r.choice([15, self.reg()])
+            return self.cond() | 0x06800070 | r.choice([2, 3, 6, 7]) << 20 | rn << 16 | self.dest() << 12 | r.randrange(4) << 10 | self.reg()
         if k == 0: return self.cond() | 0x016f0f10 | self.dest() << 12 | self.reg()
         if k == 1:
             # the flags of the CPSR only: its other bits are the

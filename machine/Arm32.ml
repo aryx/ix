@@ -32,6 +32,9 @@ type t =
   | Mrs of { cond : cond; rd : reg; spsr : bool }
   | Msr of { cond : cond; spsr : bool; fields : int; src : operand }
   | Coproc of { cond : cond; load : bool; cp : int; opc1 : int; crn : int; crm : int; opc2 : int; rd : reg }
+  | Coproc2 of { cond : cond; load : bool; cp : int; opc1 : int; crm : int; rd : reg; rd2 : reg }
+  | Extend of { cond : cond; signed : bool; half : bool; rd : reg; rn : reg; rm : reg; rot : int }
+  | Hint of { cond : cond; hint : int }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 
@@ -101,10 +104,16 @@ let decode w =
         else if bit w 21 && rd = 15 && field w 4 8 = 0 then Msr { cond; spsr = bit w 22; fields = rn; src = Sreg (field w 0 4, No_shift) }
         else Undefined w
     | 0 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = shifted w }
+    (* the hints: msr with no field (nop, yield, wfe, wfi, sev) *)
+    | 1 when field w 20 8 = 0x32 && rn = 0 && rd = 15 && field w 8 4 = 0 && field w 0 8 <= 4 -> Hint { cond; hint = field w 0 8 }
     | 1 when field w 23 2 = 2 && field w 20 2 = 2 && rd = 15 && rn <> 0 ->
         Msr { cond; spsr = bit w 22; fields = rn; src = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
     | 1 when field w 23 2 = 2 && not (bit w 20) -> Undefined w
     | 1 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
+    (* ARMv6's extends, sxtb uxth sxtah...: Rn 15 for none (not the
+     * dual-byte forms, 16) *)
+    | 3 when bit w 4 && field w 23 2 = 1 && field w 4 4 = 7 && field w 8 2 = 0 && field w 20 2 >= 2 ->
+        Extend { cond; signed = not (bit w 22); half = bit w 20; rd; rn; rm = field w 0 4; rot = field w 10 2 }
     | (2 | 3) as c ->
         if c = 3 && bit w 4 then Undefined w
         else
@@ -117,6 +126,8 @@ let decode w =
         Block { cond; load = bit w 20; rn; writeback = bit w 21; mode; regs = field w 0 16; psr = bit w 22 }
     | 5 -> Branch { cond; link = bit w 24; offset = Bits.sign_extend 24 (field w 0 24) * 4 }
     | 7 when bit w 24 -> Svc { cond; imm = field w 0 24 }
+    | 6 when field w 21 4 = 2 && field w 9 3 = 7 ->
+        Coproc2 { cond; load = bit w 20; cp = field w 8 4; opc1 = field w 4 4; crm = field w 0 4; rd; rd2 = rn }
     (* mcr, mrc to the system's coprocessors, 14 and 15 (10 and 11 are
      * VFP's; the others the Pi's cores lack) *)
     | 7 when bit w 4 && field w 9 3 = 7 ->
@@ -238,6 +249,13 @@ let print ~addr (i : t) =
   | Coproc { cond; load; cp; opc1; crn; crm; opc2; rd } ->
       m ((if load then "mrc" else "mcr") ^ cond_name cond)
         (Printf.sprintf "%d, %d, %s, cr%d, cr%d, {%d}" cp opc1 (if load && rd = 15 then "APSR_nzcv" else reg_name rd) crn crm opc2)
+  | Coproc2 { cond; load; cp; opc1; crm; rd; rd2 } ->
+      m ((if load then "mrrc" else "mcrr") ^ cond_name cond) (Printf.sprintf "%d, %d, %s, %s, cr%d" cp opc1 (reg_name rd) (reg_name rd2) crm)
+  | Extend { cond; signed; half; rd; rn; rm; rot } ->
+      let name = (if signed then "s" else "u") ^ "xt" ^ (if rn = 15 then "" else "a") ^ (if half then "h" else "b") in
+      let args = [ reg_name rd ] @ (if rn = 15 then [] else [ reg_name rn ]) @ [ reg_name rm ] in
+      m (name ^ cond_name cond) (String.concat ", " args ^ if rot = 0 then "" else Printf.sprintf ", ror #%d" (8 * rot))
+  | Hint { cond; hint } -> (match hint with 0 -> m ("nop" ^ cond_name cond) "{0}" | h -> [| ""; "yield"; "wfe"; "wfi"; "sev" |].(h) ^ cond_name cond)
   | Msr { cond; spsr; fields; src } ->
       let names = String.concat "" (List.filter_map (fun (b, c) -> if fields land b <> 0 then Some c else None)
                                       [ 8, "f"; 4, "s"; 2, "x"; 1, "c" ]) in
@@ -564,5 +582,14 @@ let execute st ~addr ~svc i =
         end
         else write_cpsr st v fields
       end
-  | Coproc { cond; _ } -> if cond_passed st cond then st.coproc st i
+  | Coproc { cond; _ } | Coproc2 { cond; _ } -> if cond_passed st cond then st.coproc st i
+  | Extend { cond; signed; half; rd; rn; rm; rot } ->
+      if cond_passed st cond then begin
+        let v = Bits.ror32 st.r.(rm) (8 * rot) in
+        let v = if half then v land 0xffff else v land 0xff in
+        let v = if signed then Bits.mask32 (Bits.sign_extend (if half then 16 else 8) v) else v in
+        set st rd (if rn = 15 then v else Bits.mask32 (st.r.(rn) + v))
+      end
+  (* nop and yield do nothing; wfe, wfi, sev are the system's *)
+  | Hint { cond; hint } -> if cond_passed st cond && hint >= 2 then st.coproc st i
   | Svc { cond; imm } -> if cond_passed st cond then svc st imm

@@ -54,7 +54,8 @@ if randomized:
         if k < 0.35: body = r.randrange(1 << 25)                          # class 000
         elif k < 0.5: body = (1 << 25) | r.randrange(1 << 25)            # 001
         elif k < 0.7: body = (2 << 25) | r.randrange(1 << 25)            # 010
-        elif k < 0.8: body = (3 << 25) | (r.randrange(1 << 25) & ~0x10)  # 011, bit 4 clear
+        elif k < 0.77: body = (3 << 25) | (r.randrange(1 << 25) & ~0x10) # 011, bit 4 clear
+        elif k < 0.8: body = (0xd << 23) | (r.randrange(1 << 23) & ~0x3f0) | 0x70   # the extends. space
         elif k < 0.88: body = (4 << 25) | r.randrange(1 << 25)           # 100
         elif k < 0.96: body = (5 << 25) | r.randrange(1 << 25)           # 101
         elif k < 0.98: body = (0xf << 24) | r.randrange(1 << 24)         # svc
