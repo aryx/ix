@@ -75,6 +75,7 @@ to OCaml.
 | Linker | TinyLinker | `5l` |
 | Editor | TinyEditor | `ed` |
 | Build system | TinyMk | `mk` |
+| Database | TinyDb | `chidb` (SQLite's teaching twin) |
 | Version control | TinyGit, TinyDiff | `git9`, `diff`, `patch` |
 | Debuggers | TinyDebugger | `db`, `acid` |
 | Profilers | TinyProfiler | `prof`, `tprof`, ... |

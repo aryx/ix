@@ -2964,3 +2964,51 @@ Claude argued ix had evolved beyond xix, so xix shouldn't be in the filename sin
 **Yoann:**
 
 > keep plan_redesign.md, let's commit and go back on the original track
+
+**Claude (summary):**
+
+Claude completed the principle-12 pass with two commits fixing shell, editor, and builder issues.
+Shell/TinyShell: redirection tokens merged into REDIR and exclusive bools became unified state.
+TinyEditor: addresses restructured as tree of steps instead of sam's list with markers.
+All tests passed including new edge cases; remaining work stored in the redesign plan.
+The pass is finished and the team can now move on to the next program.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 12:12
+
+**Yoann:**
+
+> ok, let's do another program from principia then. What's next?
+
+**Claude (summary):**
+
+Claude recommended the emulator (5i, the Machine book) as the next ix program.
+It closes the toolchain loop and is central to the README's vision.
+Claude outlined staging: plan and tutorial in docs/, faithful twin in machine/, free variant in tiny/.
+A good reference exists in goken's 5i for differential testing against real programs.
+Claude noted alternatives like diff or CLI utilities were simpler but less central.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 12:17
+
+**Yoann:**
+
+> What about tiny git? or a tiny sqlite based on the excellent ~/github/chidb/ ?
+
+**Claude (summary):**
+
+Claude recommended TinySQL (chidb-based) as the top choice with the strongest differential testing reference.
+Database files could be byte-compared against sqlite3, and VDBE VM programs compared like the compiler's assembly output.
+An existing literate book (Database.nw) and principle-12 teaching layers (pager, B-tree, records, VDBE, parser, codegen, optimizer) strengthened the case.
+Size is 7-8k lines of C, comparable to the compiler, with a small gap in the README series.
+Claude deprioritized TinyGit (needs infrastructure) and 5i emulator, offering to start the chidb plan.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 12:25
+
+**Yoann:**
+
+> ok let's do tiny sqlite under database/ (and its TinyDatabase.ml more free form later)
