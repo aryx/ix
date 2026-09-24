@@ -50,8 +50,13 @@ let line lx = lx.line
 let new_command lx = lx.continued <- false
 let add_heredoc lx h = lx.heredocs <- h :: lx.heredocs
 
-let keywords = [ "for"; "in"; "while"; "if"; "not"; "switch"; "fn"; "~"; "!"; "@" ]
-let is_keyword s = List.mem s keywords
+type keyword = [ `For | `In | `While | `If | `Not | `Switch | `Fn | `Match | `Bang | `At ]
+
+let keywords : (string * keyword) list =
+  [ "for", `For; "in", `In; "while", `While; "if", `If; "not", `Not; "switch", `Switch; "fn", `Fn; "~", `Match; "!", `Bang; "@", `At ]
+
+let keyword_of s = List.assoc_opt s keywords
+let is_keyword s = keyword_of s <> None
 
 let wordchr c = not (String.contains "\n \t#;&|^$=`'{}()<>" c)
 let idchr c = c > ' ' && not (String.contains "!\"#$%&'()+,-./:;<=>?@[\\]^`{|}~" c)

@@ -29,7 +29,9 @@ let skipnl p =
   while peek p = L.NEWLINE do ignore (next p) done;
   if p.ahead = [] then L.skip_newlines p.lx
 
-let is_kw p k = match peek p with L.WORD (s, false) -> s = k | _ -> false
+(* the keyword a command starts with, if its first word is one *)
+let kw p : L.keyword option = match peek p with L.WORD (s, false) -> L.keyword_of s | _ -> None
+let is_kw p k = kw p = Some k
 
 (* can this token start a word? *)
 let starts_word = function
@@ -131,8 +133,8 @@ and cmd p : cmd =
  * bang, one command on the right of a | *)
 and prefixed p ~(rest : p -> cmd) : cmd =
   let again () = prefixed p ~rest in
-  if is_kw p "!" then (ignore (next p); Not (again ()))
-  else if is_kw p "@" then (ignore (next p); Subshell (again ()))
+  if is_kw p `Bang then (ignore (next p); Not (again ()))
+  else if is_kw p `At then (ignore (next p); Subshell (again ()))
   (* <{cmd} is a word, not a redirection *)
   else if is_redir (peek p) && not (word_next p) then (let r = redir p in Redirect (r, again ()))
   else rest p
@@ -149,10 +151,10 @@ and pipe_from p (c : cmd) : cmd =
   | _ -> c
 
 and unit p : cmd =
-  match peek p with
-  | L.WORD ("if", false) ->
+  match kw p, peek p with
+  | Some `If, _ ->
       ignore (next p);
-      if is_kw p "not" then begin
+      if is_kw p `Not then begin
         ignore (next p);
         if not p.last_if then raise (Error "`if not' does not follow `if(...)'");
         skipnl p;
@@ -163,26 +165,26 @@ and unit p : cmd =
         let body = cmd p in
         If (c, body)
       end
-  | L.WORD ("while", false) -> ignore (next p); let c = paren p in skipnl p; While (c, cmd p)
-  | L.WORD ("for", false) ->
+  | Some `While, _ -> ignore (next p); let c = paren p in skipnl p; While (c, cmd p)
+  | Some `For, _ ->
       ignore (next p);
       expect p L.LPAREN;
       let x = word p in
-      let list = if is_kw p "in" then (ignore (next p); Some (words p)) else None in
+      let list = if is_kw p `In then (ignore (next p); Some (words p)) else None in
       expect p L.RPAREN;
       skipnl p;
       For (x, list, cmd p)
-  | L.WORD ("switch", false) ->
+  | Some `Switch, _ ->
       ignore (next p);
       let w = word p in
       skipnl p;
       Switch (w, Brace (brace_body p))
-  | L.WORD ("fn", false) ->
+  | Some `Fn, _ ->
       ignore (next p);
       let names = words p in
       if peek p = L.LBRACE then Fn (names, Some (Brace (brace_body p))) else Fn (names, None)
-  | L.WORD ("~", false) -> ignore (next p); let w = word p in Match (w, words p)
-  | L.LBRACE ->
+  | Some `Match, _ -> ignore (next p); let w = word p in Match (w, words p)
+  | _, L.LBRACE ->
       let c = Brace (brace_body p) in
       (* an epilog: redirections after the brace apply to it *)
       let rs = ref [] in

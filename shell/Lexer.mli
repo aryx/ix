@@ -75,6 +75,14 @@ val skip_line : t -> unit
 
 val line : t -> int
 
+(* for in while if not switch fn ~ ! @, which the parser takes as such
+ * where a command starts *)
+(* old: strings, matched in the parser as L.WORD ("if", false): a
+ * misspelling was silently a command's name *)
+type keyword = [ `For | `In | `While | `If | `Not | `Switch | `Fn | `Match | `Bang | `At ]
+
+val keyword_of : string -> keyword option
+
 val is_keyword : string -> bool
 
 (* how the token is written, for error messages *)
