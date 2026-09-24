@@ -27,7 +27,9 @@ while read -r line; do
     src=${@: -1}; b=$(echo ${src%.c} | tr / _)
     # 5c's flags, but the -o and the file; the listing is the lines
     # with a tab, its warnings go to stdout too
-    flags=$(echo "$line" | sed -e "s/^${O}c //" -e 's/ -o [^ ]* [^ ]*$//' -e 's/\$CFLAGS_EXTRA//')
+    flags=$(echo "$line" | sed -e "s/^${O}c //" -e 's/ -o [^ ]* [^ ]*$//')
+    # the mkfile's own CFLAGS_EXTRA (-DUnix...), which mk -n leaves unexpanded
+    flags=${flags//\$CFLAGS_EXTRA/$(grep '^CFLAGS_EXTRA=' mkfile | cut -d= -f2-)}
     if [ -n "${TINYCC:-}" ]; then
       ${O}c -O0 $flags -o $W/g/$b.$O $src > /dev/null 2>&1 || echo "${O}c-FAIL $b"
       $IX/compiler/Main.exe -m $O $flags -o $W/t/$b.$O $src 2> $W/t/$b.err || echo "TINYCC-FAIL $b"

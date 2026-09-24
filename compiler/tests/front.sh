@@ -26,7 +26,9 @@ for d in lib_core/libc lib_core/libbio lib_strings/libregexp lib_strings/libstri
   while read -r line; do
     w=($line)
     [ "${w[0]}" = ${O}c ] && [[ ${w[-1]} = *.c ]] || continue
-    flags=$(echo "${w[@]:1:${#w[@]}-2}" | sed -e 's/ *-o [^ ]*//' -e 's/\$CFLAGS_EXTRA//')
+    flags=$(echo "${w[@]:1:${#w[@]}-2}" | sed -e 's/ *-o [^ ]*//')
+    # the mkfile's own CFLAGS_EXTRA (-DUnix...), which mk -n leaves unexpanded
+    flags=${flags//\$CFLAGS_EXTRA/$(grep '^CFLAGS_EXTRA=' mkfile | cut -d= -f2-)}
     one $HOME/goken/$d "$flags" ${w[-1]}
   done < <(mk -a -n objtype=$OBJ cputype=$OBJ GOOS=linux 2>/dev/null)
 done
