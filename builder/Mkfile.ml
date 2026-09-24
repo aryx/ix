@@ -85,7 +85,10 @@ let exported t =
     if Hashtbl.mem t.noexport k then acc else (k, v) :: acc) t.vars []
   |> List.sort compare
 
-let rules_for t name = Option.value (Hashtbl.find_opt t.chains name) ~default:[]
+let chain t target = Option.value (Hashtbl.find_opt t.chains target) ~default:[]
+
+(* a metarule's target text names no file: mk '%.o' finds no rule *)
+let rules_for t name = List.filter (fun (r : rule) -> not (Pattern.is_meta r.pattern)) (chain t name)
 let metarules t = List.rev t.metas
 let default_targets t = t.default
 let default_shell t = t.default_shell
@@ -93,7 +96,7 @@ let set_default_shell t shell = t.default_shell <- shell
 
 (* rule.c's addrule: one target of a rule line *)
 let add_one t (r : rule) : unit =
-  let chain = rules_for t r.target in
+  let chain = chain t r.target in
   match List.find_opt (fun (old : rule) -> old.prereqs = r.prereqs) chain with
   | Some old ->
       Hashtbl.replace t.chains r.target (List.map (fun x -> if x == old then r else x) chain);

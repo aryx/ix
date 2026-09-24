@@ -59,7 +59,11 @@ let word_tests = [
 
 let pattern_tests = [
   t "pattern: the table" (fun () ->
-    let m ?(regexp = false) p name = Pattern.matches (Pattern.of_target ~regexp p) name in
+    let m ?(regexp = false) p name =
+      match Pattern.of_target ~regexp p with
+      | Literal s -> if s = name then Some [||] else None
+      | Meta m -> Option.map (function Pattern.Exact -> [||] | Stem s -> [| s |] | Groups g -> g) (Pattern.matches m name)
+    in
     let stems = Alcotest.(check (option (array string))) in
     stems "literal" (Some [||]) (m "hello" "hello");
     stems "%" (Some [| "hello" |]) (m "%.5" "hello.5");
@@ -67,11 +71,9 @@ let pattern_tests = [
     stems "& and /" None (m "&.5" "dir/hello.5");
     stems ":R:" (Some [| "hello.5"; "hello" |]) (m ~regexp:true "(.+)\\.5" "hello.5"));
   t "pattern: subst" (fun () ->
-    let p = Pattern.of_target ~regexp:false "%.5" in
-    str "%.c" "hello.c" (Pattern.subst p [| "hello" |] "%.c");
-    str "every %" "hello/hello.c" (Pattern.subst p [| "hello" |] "%/%.c");
-    let r = Pattern.of_target ~regexp:true "(.+)\\.5" in
-    str "\\1.c" "hello.c" (Pattern.subst r [| "hello.5"; "hello" |] "\\1.c"));
+    str "%.c" "hello.c" (Pattern.subst (Stem "hello") "%.c");
+    str "every %" "hello/hello.c" (Pattern.subst (Stem "hello") "%/%.c");
+    str "\\1.c" "hello.c" (Pattern.subst (Groups [| "hello.5"; "hello" |]) "\\1.c"));
 ]
 
 (*****************************************************************************)
@@ -128,7 +130,7 @@ let graph_tests = [
     words "hello" [ "hello.5"; "world.5" ] (U.prereqs root);
     let h5 = Option.get (List.hd root.arcs).prereq in
     words "hello.5" [ "hello.c" ] (U.prereqs h5);
-    str "stem" "hello" (List.hd h5.arcs).stems.(0));
+    str "stem" "hello" (match (List.hd h5.arcs).stems with Stem s -> s | _ -> "no stem"));
   t "graph: vacuous arcs are dropped" (fun () ->
     let text = "%.5: %.c\n\t5c\n%.5: %.s\n\t5a\n" in
     words "only the .c" [ "hello.c" ] (U.prereqs (graph ~files:[ "hello.c" ] text "hello.5"));

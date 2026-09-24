@@ -3,12 +3,12 @@
  * In mk every rule's target is a pattern, and one type covers the four
  * kinds, so that a simple rule is just a rule whose pattern is literal:
  *
- *     pattern       name           stems                 kind
- *     hello         hello          [||]                  literal
- *     %.5           hello.5        [|"hello"|]           % : any string
- *     %.5           dir/hello.5    [|"dir/hello"|]
- *     &.5           dir/hello.5    no match              & : no '/', no '.'
- *     (.+)\.5  :R:  hello.5        [|"hello.5"; "hello"|]   regexp: \0 .. \9
+ *     pattern       name           binding                     kind
+ *     hello         hello          Exact                       literal
+ *     %.5           hello.5        Stem "hello"                % : any string
+ *     %.5           dir/hello.5    Stem "dir/hello"
+ *     &.5           dir/hello.5    no match                    & : no '/', no '.'
+ *     (.+)\.5  :R:  hello.5        Groups [|"hello.5"; "hello"|]   regexp: \0 .. \9
  *
  * The prerequisites are then the rule's prerequisite patterns with the
  * stem put back ([subst]): %.5: %.c matched on hello.5 wants hello.c,
@@ -34,11 +34,17 @@
  * metarules" -- here a regexp match per candidate name; principia's
  * match.c; regexp(6) for the syntax. *)
 
-type t =
-  | Literal of string
+(* a metarule's target *)
+type meta =
   | Percent of string * string   (* A%B: prefix and suffix *)
   | Amp of string * string       (* A&B: the same, the stem without / or . *)
   | Regexp of string * Re.re     (* :R:, the source kept for printing *)
+
+type t = Literal of string | Meta of meta
+
+(* how a rule matched a name: a literal's exactly, % and & by a stem,
+ * a regexp by its groups *)
+type binding = Exact | Stem of string | Groups of string array
 
 (* [of_target ~regexp s]: Literal if [s] has no % or &, unless the rule
  * is :R:. Raises Invalid_argument on a bad regexp. *)
@@ -46,17 +52,13 @@ val of_target : regexp:bool -> string -> t
 
 val is_meta : t -> bool
 
-(* [matches p name]: None, or the stems: [||] for a literal pattern,
- * [|stem|] for % and &, [|\0; \1; ...|] for a regexp (\0 the whole
- * match, as $stem0). E.g. matches (of_target ~regexp:false "%.5")
- * "hello.5" = Some [|"hello"|]. *)
-val matches : t -> string -> string array option
+(* [matches m name]: how the metarule's target [m] matches [name], if
+ * it does: Stem for % and &, Groups [|\0; \1; ...|] for a regexp (\0
+ * the whole match, as $stem0). E.g. matches (Percent ("", ".5"))
+ * "hello.5" = Some (Stem "hello"). *)
+val matches : meta -> string -> binding option
 
-(* [subst p stems s]: [s] with each % and & replaced by the stem (for
- * a % or & pattern), or with \1..\9 replaced by the groups (for :R:); a
- * literal rule's prerequisites are returned unchanged. E.g. subst %
- * [|"hello"|] "%.c" = "hello.c". *)
-val subst : t -> string array -> string -> string
-
-(* The stem as $stem sees it: stems.(0) for % and &, "" otherwise. *)
-val stem : t -> string array -> string
+(* [subst b s]: a prerequisite [s] with each % and & replaced by the
+ * stem, or with \1..\9 replaced by the groups; unchanged for an exact
+ * match. E.g. subst (Stem "hello") "%.c" = "hello.c". *)
+val subst : binding -> string -> string

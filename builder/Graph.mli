@@ -69,7 +69,7 @@ type node = {
 and arc = {
   prereq : node option;
   rule : Mkfile.rule;
-  stems : string array;   (* Pattern.matches's, for the recipe's $stem *)
+  stems : Pattern.binding;   (* how the rule matched, for the recipe's $stem *)
 }
 
 exception Error of string

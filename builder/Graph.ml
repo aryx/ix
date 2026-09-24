@@ -21,7 +21,7 @@ type node = {
 and arc = {
   prereq : node option;
   rule : Mkfile.rule;
-  stems : string array;
+  stems : Pattern.binding;
 }
 
 exception Error of string
@@ -127,21 +127,19 @@ let rec build g ~nrep (count : (int * string, int) Hashtbl.t) (path : string lis
       let add (r : Mkfile.rule) stems =
         match r.prereqs with
         | [] -> arcs := { prereq = None; rule = r; stems } :: !arcs
-        | ps -> ps |> List.iter (fun p ->
-            let p = Pattern.subst r.pattern stems p in
-            arcs := { prereq = prereq p; rule = r; stems } :: !arcs)
+        | ps -> ps |> List.iter (fun p -> arcs := { prereq = prereq (Pattern.subst stems p); rule = r; stems } :: !arcs)
       in
       let useless (r : Mkfile.rule) = r.recipe = "" && r.prereqs = [] in
       Mkfile.rules_for g.mk name |> List.iter (fun (r : Mkfile.rule) ->
-        if not (useless r) then use r (fun () -> probable := true; add r [||]));
+        if not (useless r) then use r (fun () -> probable := true; add r Pattern.Exact));
       Mkfile.metarules g.mk |> List.iter (fun (r : Mkfile.rule) ->
         let after_virtual () =
           match !arcs with a :: _ -> a.rule.attrs.virtual_ | [] -> false
         in
-        if not (useless r) && not (r.attrs.novirtual && after_virtual ()) then
-          match Pattern.matches r.pattern name with
-          | Some stems -> use r (fun () -> add r stems)
-          | None -> ());
+        match r.pattern with
+        | Meta m when not (useless r) && not (r.attrs.novirtual && after_virtual ()) ->
+            Option.iter (fun stems -> use r (fun () -> add r stems)) (Pattern.matches m name)
+        | _ -> ());
       let lookup n = Hashtbl.find g.built n in
       let arcs, all_dropped = prune_vacuous lookup (List.rev !arcs) in
       let vacuous = (not !probable) && all_dropped in

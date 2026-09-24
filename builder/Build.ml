@@ -182,27 +182,25 @@ let dorecipe t did (node : Graph.node) =
       (* the rule's other targets that are in the graph and out of date
        * are made by the same job *)
       let nodes, targets, alltargets =
-        if r.attrs.regexp then [ node ], [ node.name ], [ node.name ]
-        else
-          let all =
-            List.map (fun tg -> if Pattern.is_meta r.pattern then Pattern.subst r.pattern ma.stems tg else tg)
-              r.alltargets
-          in
-          let others = ref [] and olds = ref [] in
-          all |> List.iter (fun tg ->
-            match Graph.find t.g tg with
-            | None -> ()
-            | Some n ->
-                let up_to_date =
-                  (not t.flags.always) && time t n.name <> 0.
-                  && not (List.exists (fun (a : Graph.arc) ->
-                    match a.prereq with Some p -> out_of_date t n a p | None -> false) n.arcs)
-                in
-                if not up_to_date then begin
-                  olds := tg :: !olds;
-                  if n.name <> node.name then others := n :: !others
-                end);
-          node :: !others, List.rev !olds, all
+        match ma.stems with
+        | Groups _ -> [ node ], [ node.name ], [ node.name ]
+        | Exact | Stem _ ->
+            let all = List.map (Pattern.subst ma.stems) r.alltargets in
+            let others = ref [] and olds = ref [] in
+            all |> List.iter (fun tg ->
+              match Graph.find t.g tg with
+              | None -> ()
+              | Some n ->
+                  let up_to_date =
+                    (not t.flags.always) && time t n.name <> 0.
+                    && not (List.exists (fun (a : Graph.arc) ->
+                      match a.prereq with Some p -> out_of_date t n a p | None -> false) n.arcs)
+                  in
+                  if not up_to_date then begin
+                    olds := tg :: !olds;
+                    if n.name <> node.name then others := n :: !others
+                  end);
+            node :: !others, List.rev !olds, all
       in
       let prereqs = ref [] and newprereqs = ref [] in
       let add l x = if not (List.mem x !l) then l := x :: !l in

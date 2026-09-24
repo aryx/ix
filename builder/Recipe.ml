@@ -11,7 +11,7 @@
 
 type job = {
   rule : Mkfile.rule;
-  stems : string array;
+  stems : Pattern.binding;
   targets : string list;
   alltargets : string list;
   prereqs : string list;
@@ -40,18 +40,18 @@ let env mk ?job ~slot ~pid () : (string * string list) list =
     match job with
     | None -> List.map (fun v -> v, []) specials
     | Some j ->
-        let regexp = j.rule.attrs.regexp in
+        (* $stem is an exact rule's "", a % rule's stem; $stem0..9 a
+         * regexp's groups *)
+        let stem, groups = match j.stems with Exact -> [ "" ], [||] | Stem s -> [ s ], [||] | Groups g -> [], g in
         [ "target", j.targets;
           "prereq", j.prereqs;
-          "stem", (if regexp then [] else [ Pattern.stem j.rule.pattern j.stems ]);
+          "stem", stem;
           "alltarget", j.alltargets;
           "newprereq", j.newprereqs;
           "pid", [ string_of_int pid ];
           "nproc", [ string_of_int slot ];
           "newmember", List.filter_map member j.newprereqs ]
-        @ List.mapi (fun i v ->
-            v, if regexp && i < Array.length j.stems then [ j.stems.(i) ] else [])
-            stem_vars
+        @ List.mapi (fun i v -> v, if i < Array.length groups then [ groups.(i) ] else []) stem_vars
   in
   own @ List.filter (fun (k, _) -> not (List.mem k specials)) (Mkfile.exported mk)
 

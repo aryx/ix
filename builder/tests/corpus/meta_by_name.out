@@ -1,0 +1,7 @@
+$ mk -n %.o
+mk: don't know how to make '%.o' in DIR
+[exit 1]
+$ mk -n hello.o
+echo source
+echo compile hello
+[exit 0]

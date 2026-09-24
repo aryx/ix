@@ -43,7 +43,7 @@
 
 type job = {
   rule : Mkfile.rule;         (* the master rule, whose recipe runs *)
-  stems : string array;
+  stems : Pattern.binding;
   targets : string list;      (* $target *)
   alltargets : string list;   (* $alltarget *)
   prereqs : string list;      (* $prereq *)
