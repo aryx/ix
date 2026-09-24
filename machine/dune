@@ -1,0 +1,4 @@
+; claude: TinyArm (plan_arm.md): the CPU cores, and later the process
+(library
+ (name ix_machine)
+ (modules Bits Arm32))

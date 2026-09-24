@@ -308,3 +308,19 @@ differential (native, qemu, TinyArm), and a short random harness;
 ## Status
 
 2026-09-24: plan written; the census and the speed estimate measured.
+
+**Phase 1 done** (2026-09-24): `Bits` and `Arm32` (the variant, the
+decoder, objdump's printing). Checked (`machine/tests/decode_check.py`):
+all 2,311 words of the corpus, and 120,000 random words of the classes
+decoded, printed as objdump 2.42 prints them; about one random word in
+ten is left `Undefined` (miscellaneous-space forms, `movw`/`movt`, the
+signed multiplies: not in the corpus); the same printing compiled by
+js_of_ocaml is identical to the native one.
+
+What the random words found that the corpus did not: r10's name (sl);
+the unprivileged transfers (`ldrt`, `strbt`, `strht`) a post-indexed
+W bit means; multiply's bits 27-22; objdump's own spellings (`#imm8,
+rot` for a non-canonical rotation, `stmia`, `ldmfd`/`stmfd` for one
+register from sp, ldrd's single register, a halfword's `#0`, no `!` on
+a pc-based halfword). And js_of_ocaml found the first width bug, an
+unsigned test written as `<= 0xff`: hence `Bits.ule32`.

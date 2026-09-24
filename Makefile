@@ -20,6 +20,8 @@ test: all
 	./version_control/tests/git9_tests.sh
 	./version_control/tests/net.sh
 	./tiny/TinyVCS_test.sh 10
+	./machine/tests/decode_check.py
+	./machine/tests/decode_check.py --random 5000
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.

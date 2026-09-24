@@ -1,0 +1,5 @@
+(executable
+ (name Disasm)
+ (modules Disasm)
+ (modes native js)
+ (libraries ix_machine))
