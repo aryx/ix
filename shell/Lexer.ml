@@ -132,9 +132,16 @@ let read_heredoc lx (h : Ast.heredoc) =
 (* Tokens *)
 (*****************************************************************************)
 
+(* what an arrow is: | a pipe, > >> < <> a redirection, << a here document *)
+type arrow = Pipe | Open of Ast.rkind | Here
+
 (* after > < | : an optional [fd], [fd=] or [fd=fd] *)
-let fds lx ~pipe (arrow : token) : token =
-  if not (next_is lx '[') then arrow
+(* old: the arrow's default token, with ~pipe:bool repeating its kind,
+ * and a catch-all over the token for the [fd] case *)
+let fds lx (arrow : arrow) : token =
+  let pipe = arrow = Pipe in
+  let at fd = match arrow with Pipe -> PIPE (fd, 0) | Open k -> REDIR (k, fd) | Here -> HERE fd in
+  if not (next_is lx '[') then at (match arrow with Pipe | Open (Ast.Write | Ast.Append) -> 1 | Open (Ast.Read | Ast.RdWr) | Here -> 0)
   else
     let number () =
       let rec go n seen =
@@ -152,11 +159,7 @@ let fds lx ~pipe (arrow : token) : token =
             let b = number () in
             if pipe then PIPE (a, b) else DUP (a, b)
         | _ -> if pipe then raise (Error "pipe syntax") else CLOSE a
-      else match arrow with
-        | PIPE _ -> PIPE (a, 0)
-        | REDIR (k, _) -> REDIR (k, a)
-        | HERE _ -> HERE a
-        | t -> t
+      else at a
     in
     if not (next_is lx ']') then raise (Error (if pipe then "pipe syntax" else "redirection syntax"));
     t
@@ -194,12 +197,9 @@ let token lx : token =
           if next_is lx '#' then COUNT else if next_is lx '"' then JOIN else DOLLAR
       | Some '|' ->
           if next_is lx '|' then (skip_newlines lx; OROR)
-          else (let t = fds lx ~pipe:true (PIPE (1, 0)) in skip_newlines lx; t)
-      | Some '>' -> fds lx ~pipe:false (if next_is lx '>' then REDIR (Ast.Append, 1) else REDIR (Ast.Write, 1))
-      | Some '<' ->
-          fds lx ~pipe:false
-            (if next_is lx '<' then HERE 0 else if next_is lx '>' then REDIR (Ast.RdWr, 0)
-             else REDIR (Ast.Read, 0))
+          else (let t = fds lx Pipe in skip_newlines lx; t)
+      | Some '>' -> fds lx (Open (if next_is lx '>' then Ast.Append else Ast.Write))
+      | Some '<' -> fds lx (if next_is lx '<' then Here else Open (if next_is lx '>' then Ast.RdWr else Ast.Read))
       | Some '\n' ->
           (* the here documents of this line follow it *)
           let hs = List.rev lx.heredocs in
