@@ -85,6 +85,17 @@ for the first, `FCVTSD` and `FMULD` for the second. Probably a typo
 in the table. TinyCompiler reproduces it (`compiler/Tree.ml`'s
 `arith_tab`, which says so).
 
+### 5d. A narrowing cast tested as a condition is not narrowed
+
+`short x = -256; if((uchar)x) ...` is taken: 5c and 7c, at -O0 as
+optimized, load the short (`MOVH`) and compare all of it with 0,
+while `(uchar)-256` is 0 (gcc agrees). The narrowing between two
+registers (txt.c's `gmove`, short to uchar) is a plain move, the
+truncation left to a store; in a condition nothing is stored. Found by
+TinyC's fuzzer (fuzz44 of `tiny/TinyC_fuzz.py`, seed 11: `x0 ^=
+(uchar)((uchar)x3 ? 256 ^ x2 : x5)`), where TinyC is right and 7c the
+reference. TinyCompiler reproduces it, being 7c's twin.
+
 ### 6. The code depends on the host's `qsort`
 
 cck's reassociation (`scon.c`'s `acom2`) sorts its terms with `qsort`,
