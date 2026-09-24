@@ -57,7 +57,7 @@ let push1 (s : sym) = dclstack := Name (s, s.typ, s.sclass, s.soffset, s.block, 
 (* Alignment, by the machine (each back end's swt.c) *)
 (*****************************************************************************)
 
-let axxx = 0 and ael1 = 1 and ael2 = 2 and asu2 = 3 and aarg0 = 4 and aarg1 = 5 and aarg2 = 6 and aaut3 = 7
+let ael1 = 1 and ael2 = 2 and asu2 = 3 and aarg0 = 4 and aarg1 = 5 and aarg2 = 6 and aaut3 = 7
 
 let round v w =
   if w <= 0 || w > 8 then ignore (diag None "rounding by %d" w);

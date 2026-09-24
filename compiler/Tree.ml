@@ -43,7 +43,6 @@ let typechl = set chl
 let typechlv = set integers
 let typechlvp = set (Tind :: integers)
 let typechlp = set (Tind :: chl)
-let typechlpfd = set (Tfloat :: Tdouble :: Tind :: chl)
 let typev = set [ Tvlong; Tuvlong ]
 let typefd = set [ Tfloat; Tdouble ]
 let typeaf = set [ Tfunc; Tarray ]
@@ -283,7 +282,6 @@ exception Error of string
 let errors = ref 0
 let error_at line fmt = Printf.ksprintf (fun s -> incr errors; raise (Error (Printf.sprintf "%d: %s" line s))) fmt
 let diag (n : node option) fmt = error_at (match n with Some n -> n.lineno | None -> !nearln) fmt
-let warn (_ : node option) fmt = Printf.ksprintf (fun _ -> ()) fmt
 
 (*****************************************************************************)
 (* The same type (dcl.c's sametype) *)

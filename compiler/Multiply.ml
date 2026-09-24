@@ -50,8 +50,6 @@ let hints = [
   61750, "b+g-c+g+"; 62250, "f--+c-i-"; 62750, "e+f--+g+"; 64750, "b+f+d+p-"
 ]
 
-exception Found
-
 (* the program of v in r0, the other register r1, from a hint's ops
  * (docode): each op tries its register choices in order *)
 let rec docode mulval (hp : string) i (code : Buffer.t) r0 r1 =

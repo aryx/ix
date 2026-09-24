@@ -157,8 +157,6 @@ let gpseudo a (s : sym) (n : node) =
 (* Nodes the generator makes (txt.c's ginit) *)
 (*****************************************************************************)
 
-let znode () = node OXXX None None
-
 let nodconst v = let n = node OCONST None None in n.ntype <- Some (ty Tlong); n.addable <- 20; n.vconst <- v; n
 let nodfconst d = let n = node OCONST None None in n.ntype <- Some (ty Tdouble); n.addable <- 20; n.fconst <- d; n
 

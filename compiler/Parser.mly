@@ -9,7 +9,15 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* C's grammar, and the actions that declare as they parse: cc.y's, whose
- * mid-rule actions are small rules here (ocamlyacc has none). *)
+ * mid-rule actions are small rules here (ocamlyacc has none).
+ *
+ * References: S. C. Johnson, "YACC -- Yet Another Compiler Compiler"
+ * (UNIX Programmer's Manual, Seventh Ed., Vol. 2A, 1979), which
+ * Thompson cites for 5c's first pass ("Plan 9 C Compilers", section
+ * "Parsing"): declarations are
+ * "interpreted immediately, building a block structured symbol table",
+ * while "Executable statements are put into a parse tree" to be
+ * compiled at the function's end. *)
 open Tree
 
 let nw op l r = Some (node op l r)
