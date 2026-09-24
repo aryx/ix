@@ -27,15 +27,23 @@
 # always known and every address stays inside the 512-byte buffer.
 # On a difference, the shortest differing prefix is the culprit.
 #
-# Usage: random_blocks.py [blocks] [length] [seed]
+# With -64: arm64 blocks (Arm64): every data processing form decoded,
+# the flags through msr/mrs nzcv, loads and stores of every size and
+# addressing mode (x27 the base), pairs, and conditional branches over
+# one instruction. A64 has no conditional execution, so every
+# writeback's value is known here. Registers: x0-x30 and nzcv out.
+#
+# Usage: random_blocks.py [-64] [blocks] [length] [seed]
 
 import concurrent.futures, os, random, struct, subprocess, sys, tempfile
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
 TA = os.path.join(ROOT, "_build/default/machine/Main.exe")
-BLOCKS = int(sys.argv[1]) if len(sys.argv) > 1 else 500
-LENGTH = int(sys.argv[2]) if len(sys.argv) > 2 else 30
-SEED = int(sys.argv[3]) if len(sys.argv) > 3 else 1
+A64 = len(sys.argv) > 1 and sys.argv[1] == "-64"
+argv = sys.argv[2:] if A64 else sys.argv[1:]
+BLOCKS = int(argv[0]) if len(argv) > 0 else 500
+LENGTH = int(argv[1]) if len(argv) > 1 else 30
+SEED = int(argv[2]) if len(argv) > 2 else 1
 
 BASE = 0x10000                  # the segment's address
 CODE = 0x100                    # offsets in the file
@@ -177,6 +185,184 @@ class Gen:
         if k < 0.9: return self.mem()
         return self.block()
 
+
+#############################################################################
+# arm64
+#############################################################################
+
+STATE64 = 0x2000                # x0-x30, nzcv: 32 doublewords
+BUF64 = STATE64 + 256
+FILE64 = BUF64 + BUFSIZE
+OUT64 = FILE64 - STATE64
+LO64, HI64 = BASE + BUF64 + 192, BASE + BUF64 + 320   # x27's range
+M64 = (1 << 64) - 1
+
+def lit64(rd, value):
+    # ldr xd, [pc, #8]; b over the literal; the literal
+    return [0x58000040 | rd, 0x14000003, value & 0xffffffff, value >> 32]
+
+def elf64(block, flags, regs, buf):
+    sp = 31
+    code = lit64(0, BASE + STATE64) + [0x9100001f]          # mov sp, x0
+    code += [0xf9407fe0, 0xd51b4200]                         # ldr x0, [sp, #248]; msr nzcv, x0
+    code += [0xa9400000 | k << 15 | (k + 1) << 10 | sp << 5 | k for k in range(0, 30, 2)]  # ldp
+    code += [0xf9407bfe]                                     # ldr x30, [sp, #240]
+    code += block
+    code += [0xa9000000 | k << 15 | (k + 1) << 10 | sp << 5 | k for k in range(0, 30, 2)]  # stp
+    code += [0xf9007bfe, 0xd53b4200, 0xf9007fe0]             # str x30; mrs x0, nzcv; str x0, [sp, #248]
+    code += [0xd2800020, 0x910003e1, 0xd2800002 | OUT64 << 5, 0xd2800808, 0xd4000001]  # write(1, sp, OUT)
+    code += [0xd2800000, 0xd2800ba8, 0xd4000001]             # exit(0)
+    img = bytearray(FILE64)
+    img[0:64] = struct.pack("<4sBBBB8xHHIQQQIHHHHHH", b"\x7fELF", 2, 1, 1, 0,
+                            2, 183, 1, BASE + CODE, 64, 0, 0, 64, 56, 1, 0, 0, 0)
+    img[64:120] = struct.pack("<IIQQQQQQ", 1, 7, 0, BASE, BASE, FILE64, FILE64, 0x1000)
+    img[CODE:CODE + 4 * len(code)] = b"".join(struct.pack("<I", w) for w in code)
+    img[STATE64:STATE64 + 256] = b"".join(struct.pack("<Q", v & M64) for v in regs + [flags << 28])
+    img[BUF64:BUF64 + BUFSIZE] = buf
+    return bytes(img)
+
+def bitmask_ok(sf, n, imms):
+    v = n << 6 | (~imms & 0x3f)
+    if v == 0: return False
+    length = v.bit_length() - 1
+    if length < 1 or (not sf and n): return False
+    levels = (1 << length) - 1
+    return imms & levels != levels
+
+class Gen64:
+    def __init__(self, r):
+        self.r = r
+        self.base = (LO64 + HI64) // 2 & ~15
+
+    def reg(self): return self.r.randrange(32)            # 31: zr (or sp)
+    def dest(self, sp=False):
+        """a destination: never x27; 31 is sp when [sp], and sp is never written"""
+        return self.r.choice([k for k in range(32) if k != 27 and not (sp and k == 31)])
+
+    def dp(self):
+        r = self.r
+        sf = r.randrange(2)
+        width = 64 if sf else 32
+        k = r.randrange(16)
+        if k == 0:                                           # add/sub immediate
+            s = r.randrange(2)
+            return sf << 31 | r.randrange(2) << 30 | s << 29 | 0b100010 << 23 | r.randrange(2) << 22 | r.randrange(4096) << 10 | self.reg() << 5 | self.dest(sp=not s)
+        if k == 1:                                           # logical immediate
+            while True:
+                n = r.randrange(2) if sf else 0
+                imms = r.randrange(64 if sf else 32)
+                if bitmask_ok(sf, n, imms): break
+            opc = r.randrange(4)
+            return sf << 31 | opc << 29 | 0b100100 << 23 | n << 22 | r.randrange(width) << 16 | imms << 10 | self.reg() << 5 | self.dest(sp=opc != 3)
+        if k == 2:                                           # move wide
+            return sf << 31 | r.choice([0, 2, 3]) << 29 | 0b100101 << 23 | r.randrange(4 if sf else 2) << 21 | r.getrandbits(16) << 5 | self.dest()
+        if k == 3:                                           # bitfield
+            return sf << 31 | r.randrange(3) << 29 | 0b100110 << 23 | sf << 22 | r.randrange(width) << 16 | r.randrange(width) << 10 | self.reg() << 5 | self.dest()
+        if k == 4:                                           # extr
+            return sf << 31 | 0b100111 << 23 | sf << 22 | self.reg() << 16 | r.randrange(width) << 10 | self.reg() << 5 | self.dest()
+        if k == 5:                                           # adr, adrp
+            return r.randrange(2) << 31 | r.randrange(4) << 29 | 0b10000 << 24 | r.getrandbits(19) << 5 | self.dest()
+        if k == 6:                                           # add/sub shifted register
+            return sf << 31 | r.randrange(4) << 29 | 0b01011 << 24 | r.randrange(3) << 22 | self.reg() << 16 | r.randrange(width) << 10 | self.reg() << 5 | self.dest()
+        if k == 7:                                           # add/sub extended register
+            s = r.randrange(2)
+            return sf << 31 | r.randrange(2) << 30 | s << 29 | 0b01011001 << 21 | self.reg() << 16 | r.randrange(8) << 13 | r.randrange(5) << 10 | self.reg() << 5 | self.dest(sp=not s)
+        if k == 8:                                           # logical shifted register
+            return sf << 31 | r.randrange(4) << 29 | 0b01010 << 24 | r.randrange(4) << 22 | r.randrange(2) << 21 | self.reg() << 16 | r.randrange(width) << 10 | self.reg() << 5 | self.dest()
+        if k == 9:                                           # adc, sbc
+            return sf << 31 | r.randrange(4) << 29 | 0b11010000 << 21 | self.reg() << 16 | self.reg() << 5 | self.dest()
+        if k == 10:                                          # ccmp, ccmn
+            return sf << 31 | r.randrange(2) << 30 | 1 << 29 | 0b11010010 << 21 | self.reg() << 16 | r.randrange(16) << 12 | r.randrange(2) << 11 | self.reg() << 5 | r.randrange(16)
+        if k == 11:                                          # csel, csinc, csinv, csneg
+            return sf << 31 | r.randrange(2) << 30 | 0b11010100 << 21 | self.reg() << 16 | r.randrange(16) << 12 | r.randrange(2) << 10 | self.reg() << 5 | self.dest()
+        if k == 12:                                          # rbit, rev16, rev32, rev, clz, cls
+            op = r.choice([0, 1, 2, 3, 4, 5] if sf else [0, 1, 2, 4, 5])
+            return sf << 31 | 1 << 30 | 0b11010110 << 21 | op << 10 | self.reg() << 5 | self.dest()
+        if k == 13:                                          # udiv, sdiv, lslv, lsrv, asrv, rorv
+            return sf << 31 | 0b11010110 << 21 | self.reg() << 16 | r.choice([2, 3, 8, 9, 10, 11]) << 10 | self.reg() << 5 | self.dest()
+        if k == 14:                                          # madd, msub; the long and high multiplies
+            if r.randrange(2) or not sf:
+                return sf << 31 | 0b11011 << 24 | self.reg() << 16 | r.randrange(2) << 15 | self.reg() << 10 | self.reg() << 5 | self.dest()
+            op31, o0 = r.choice([(1, 0), (1, 1), (5, 0), (5, 1), (2, 0), (6, 0)])
+            ra = 31 if op31 in (2, 6) else self.reg()
+            return 1 << 31 | 0b11011 << 24 | op31 << 21 | self.reg() << 16 | o0 << 15 | ra << 10 | self.reg() << 5 | self.dest()
+        if r.randrange(2): return 0xd53b4200 | self.dest()     # mrs xN, nzcv
+        return 0xd51b4200 | self.reg()                         # msr nzcv, xN
+
+    def moved(self, lo, hi, align):
+        """an offset in [lo, hi], aligned, keeping the base in range"""
+        while True:
+            off = self.r.randrange(lo // align, hi // align + 1) * align
+            if LO64 <= self.base + off <= HI64: return off
+
+    def mem(self):
+        r = self.r
+        size = r.randrange(4)
+        # (opc, is a load) for the size: stores, loads, signed loads
+        opc = r.choice([0, 1, 2, 3] if size < 2 else [0, 1, 2] if size == 2 else [0, 1])
+        load = opc != 0
+        kind = r.choice(["uoff", "unscaled", "pre", "post", "reg"])
+        wb = kind in ("pre", "post")
+        rt = self.dest() if load else r.choice([k for k in range(32) if not (wb and k == 27)])
+        top = 0b111 << 27 | size << 30 | opc << 22 | 27 << 5 | rt
+        if kind == "uoff":
+            off = r.randrange(0, 129 >> size) << size
+            return top | 1 << 24 | (off >> size) << 10
+        if kind == "unscaled":
+            return top | (r.randrange(-128, 129) & 0x1ff) << 12
+        if kind == "reg":
+            # the index register xzr: offset 0, every extend and shift
+            return top | 1 << 21 | 31 << 16 | r.choice([2, 3, 6, 7]) << 13 | r.randrange(2) << 12 | 0b10 << 10
+        off = self.moved(-128, 128, 1)
+        self.base += off
+        return top | (off & 0x1ff) << 12 | (0b11 if kind == "pre" else 0b01) << 10
+
+    def pair(self):
+        r = self.r
+        opc, load = r.choice([(0, 0), (0, 1), (2, 0), (2, 1), (1, 1)])
+        scale = 8 if opc == 2 else 4
+        mode = r.choice([0, 1, 2, 3])                          # nontemporal, post, offset, pre
+        wb = mode in (1, 3)
+        if load:
+            rt = self.dest(); rt2 = r.choice([k for k in range(32) if k not in (27, rt)])
+        else:
+            rt = r.choice([k for k in range(32) if not (wb and k == 27)]); rt2 = r.choice([k for k in range(32) if not (wb and k == 27)])
+        if mode == 0 and opc == 1: mode = 2                   # ldpsw has no nontemporal form
+        if wb:
+            off = self.moved(-128, 128, scale); self.base += off
+        else:
+            off = r.randrange(-128 // scale, 128 // scale + 1) * scale
+        return opc << 30 | 0b101 << 27 | mode << 23 | load << 22 | ((off // scale) & 0x7f) << 15 | rt2 << 10 | 27 << 5 | rt
+
+    def branch(self):
+        """a conditional branch over the next instruction (a data
+        processing one: never a writeback, whose base would be unknown)"""
+        r = self.r
+        k = r.randrange(3)
+        if k == 0: b = 0x54000040 | r.randrange(16)                                   # b.cond +8
+        elif k == 1: b = r.randrange(2) << 31 | 0b011010 << 25 | r.randrange(2) << 24 | 2 << 5 | self.reg()  # cbz/cbnz +8
+        else:
+            bit = r.randrange(64)
+            b = (bit >> 5) << 31 | 0b011011 << 25 | r.randrange(2) << 24 | (bit & 31) << 19 | 2 << 5 | self.reg()  # tbz/tbnz +8
+        return [b, self.dp()]
+
+    def insn(self):
+        k = self.r.random()
+        if k < 0.6: return self.dp()
+        if k < 0.8: return self.mem()
+        if k < 0.9: return self.pair()
+        return self.branch()
+
+def regs64(r, g):
+    special = [0, 1, M64, 1 << 63, (1 << 63) - 1, 0xffffffff, 0x80000000, 0x7fffffff, 64, 32]
+    regs = [r.getrandbits(64) if r.random() < 0.8 else r.choice(special) for _ in range(31)]
+    regs[27] = g.base
+    return regs
+
+#############################################################################
+# Running and comparing
+#############################################################################
+
 def run(cmd):
     p = subprocess.run(cmd, capture_output=True, timeout=30)
     return p.returncode, p.stdout
@@ -187,10 +373,12 @@ def compare(path):
 
 def check(i):
     r = random.Random(SEED * 1000003 + i)
-    g = Gen(r)
-    regs = [r.getrandbits(32) if r.random() < 0.8 else r.choice([0, 1, 31, 32, 0x7fffffff, 0x80000000, 0xffffffff])
-            for _ in range(14)]
-    regs[12] = g.base
+    g = Gen64(r) if A64 else Gen(r)
+    if A64: regs = regs64(r, g)
+    else:
+        regs = [r.getrandbits(32) if r.random() < 0.8 else r.choice([0, 1, 31, 32, 0x7fffffff, 0x80000000, 0xffffffff])
+                for _ in range(14)]
+        regs[12] = g.base
     flags = r.randrange(16)
     buf = bytes(r.getrandbits(8) for _ in range(BUFSIZE))
     # groups of instructions (an mrs and its mask), never split
@@ -201,7 +389,7 @@ def check(i):
 def search(d, i, groups, flags, regs, buf):
     def prog(n):
         path = os.path.join(d, "b%d" % n)
-        with open(path, "wb") as f: f.write(elf(sum(groups[:n], []), flags, regs, buf))
+        with open(path, "wb") as f: f.write((elf64 if A64 else elf)(sum(groups[:n], []), flags, regs, buf))
         os.chmod(path, 0o755)
         return path
     same, a, b = compare(prog(len(groups)))
@@ -217,12 +405,23 @@ def search(d, i, groups, flags, regs, buf):
 def objdump(w):
     with tempfile.NamedTemporaryFile(suffix=".bin") as f:
         f.write(struct.pack("<I", w)); f.flush()
-        out = subprocess.run(["objdump", "-D", "-b", "binary", "-m", "arm", f.name], capture_output=True, text=True).stdout
+        out = subprocess.run(["objdump", "-D", "-b", "binary", "-m", "aarch64" if A64 else "arm", f.name], capture_output=True, text=True).stdout
     return out.strip().splitlines()[-1].split("\t", 2)[-1]
 
 def explain(a, b):
-    names = ["r%d" % k for k in range(13)] + ["lr", "cpsr"]
     (sa, oa), (sb, ob) = a, b
+    if A64:
+        if sa != sb or len(oa) != OUT64 or len(ob) != OUT64:
+            return "  status %d vs %d, %d vs %d bytes" % (sa, sb, len(oa), len(ob))
+        names = ["x%d" % k for k in range(31)] + ["nzcv"]
+        lines = []
+        for k in range(32):
+            x, y = struct.unpack_from("<Q", oa, 8 * k)[0], struct.unpack_from("<Q", ob, 8 * k)[0]
+            if x != y: lines.append("  %-4s cpu %016x  tinyarm %016x" % (names[k], x, y))
+        for o in range(256, OUT64):
+            if oa[o] != ob[o]: lines.append("  buffer+%d cpu %02x  tinyarm %02x" % (o - 256, oa[o], ob[o]))
+        return "\n".join(lines[:12])
+    names = ["r%d" % k for k in range(13)] + ["lr", "cpsr"]
     if sa != sb or len(oa) != OUT or len(ob) != OUT:
         return "  status %d vs %d, %d vs %d bytes%s" % (sa, sb, len(oa), len(ob), "")
     lines = []
@@ -237,7 +436,7 @@ def explain(a, b):
 # the flags compared, not the rest of the CPSR (its mode and mask bits)
 def masked(out):
     code, data = out
-    if len(data) == OUT:
+    if not A64 and len(data) == OUT:
         cpsr = struct.unpack_from("<I", data, 56)[0] & 0xf0000000
         data = data[:56] + struct.pack("<I", cpsr) + data[60:]
     return code, data
@@ -248,13 +447,15 @@ def compare(path):
     a, b = masked(a), masked(b)
     return a == b, a, b
 
-# a host without AArch32 (x86, or an arm64 kernel without COMPAT) skips
+# a host that does not run the programs (x86; an arm64 kernel without
+# COMPAT for arm32) skips
 with tempfile.TemporaryDirectory() as d:
     probe = os.path.join(d, "probe")
-    open(probe, "wb").write(elf([], 0, [0] * 14, bytes(BUFSIZE))); os.chmod(probe, 0o755)
+    open(probe, "wb").write(elf64([], 0, [0] * 31, bytes(BUFSIZE)) if A64 else elf([], 0, [0] * 14, bytes(BUFSIZE)))
+    os.chmod(probe, 0o755)
     try: subprocess.run([probe], capture_output=True)
     except OSError:
-        print("random_blocks: this machine does not run arm32 programs, skipped"); sys.exit(0)
+        print("random_blocks: this machine does not run %s programs, skipped" % ("arm64" if A64 else "arm32")); sys.exit(0)
 
 # processes, not threads: a program written while another thread forks
 # would be busy (ETXTBSY) when run
@@ -263,5 +464,5 @@ with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as ex:
 for i, w, flags, regs, a, b in bad[:20]:
     print("block %d: %08x  %s   (flags %x)" % (i, w, objdump(w), flags))
     print(explain(a, b))
-print("random_blocks: %d blocks of %d instructions, %d differ" % (BLOCKS, LENGTH, len(bad)))
+print("random_blocks%s: %d blocks of %d instructions, %d differ" % (" -64" if A64 else "", BLOCKS, LENGTH, len(bad)))
 sys.exit(1 if bad else 0)

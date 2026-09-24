@@ -60,6 +60,8 @@ type t =
   | Pair of { load : bool; sf : sf; signed : bool; rt : reg; rt2 : reg; rn : reg; offset : int; mode : pair_mode }
   | Svc of int
   | Nop
+  | Mrs_nzcv of reg
+  | Msr_nzcv of reg
   | Undefined of int
 
 let field = Bits.field
@@ -149,6 +151,9 @@ let branch w =
           offset = Bits.sign_extend 14 (field w 5 14) * 4 }
   else if field w 21 11 = 0b11010100000 && field w 0 5 = 1 then Svc (field w 5 16)
   else if field w 16 16 = 0xd503 && field w 0 16 = 0x201f then Nop
+  (* the flags as a system register, NZCV (op0 3, op1 3, CRn 4, CRm 2) *)
+  else if field w 16 16 = 0xd53b && field w 5 11 = 0x210 then Mrs_nzcv (field w 0 5)
+  else if field w 16 16 = 0xd51b && field w 5 11 = 0x210 then Msr_nzcv (field w 0 5)
   else if field w 25 7 = 0b1101011 && field w 10 11 = 0b11111000000 && field w 0 5 = 0 then
     (match field w 21 4 with
      | 0 -> Br { link = false; rn = field w 5 5 }
@@ -459,4 +464,305 @@ let print ~addr (i : t) =
       m name (args [ reg_name rsf ~sp:false rt; reg_name rsf ~sp:false rt2; where ])
   | Svc imm -> m "svc" (hex imm)
   | Nop -> "nop"
+  | Mrs_nzcv rt -> m "mrs" (args [ x rt; "nzcv" ])
+  | Msr_nzcv rt -> m "msr" (args [ "nzcv"; x rt ])
   | Undefined w -> Printf.sprintf ".inst\t0x%08x" (Bits.unsigned32 w)
+
+(*****************************************************************************)
+(* Execution *)
+(*****************************************************************************)
+
+(* x0-x30 and sp (slot 31), boxed Int64 in an array: measured faster
+ * than a Bytes read as Int64, whose every read boxes a new value
+ * (bench64.py: 24.0 MIPS, against 17.9 with Bytes.get_int64_le and
+ * 20.8 with the %caml_bytes_get64u primitive; plan_arm.md, decision 3) *)
+type state = {
+  x : int64 array;
+  mutable n : bool;
+  mutable z : bool;
+  mutable c : bool;
+  mutable v : bool;
+  mutable next : int;
+  mem : Memory.t;
+}
+
+exception Unimplemented of int * int
+
+let create mem = { x = Array.make 32 0L; n = false; z = false; c = false; v = false; next = 0; mem }
+
+let m32 = 0xffffffffL
+let mask sf v = match sf with X -> v | W -> Int64.logand v m32
+
+(* register 31 as the zero register, and as sp *)
+let get st r = if r = 31 then 0L else Array.unsafe_get st.x r
+let get_sp st r = Array.unsafe_get st.x r
+let set st sf r v = if r <> 31 then Array.unsafe_set st.x r (mask sf v)
+let set_sp st sf r v = Array.unsafe_set st.x r (mask sf v)
+
+(* an address: user mode maps nothing at or above 4GB (Memory's
+ * addresses are 32-bit, the web's ints too) *)
+let address v =
+  if Int64.shift_right_logical v 32 <> 0L then raise (Memory.Fault (Bits.mask32 (Int64.to_int v)))
+  else Bits.mask32 (Int64.to_int v)
+
+let int32 v = Bits.mask32 (Int64.to_int v)
+(* zero-extended: a word with bit 31 set is a negative int under
+ * js_of_ocaml *)
+let of32 w = Int64.logand (Int64.of_int w) m32
+let of_address = of32
+let sext bits v = Int64.shift_right (Int64.shift_left v (64 - bits)) (64 - bits)
+
+let cond_passed st = function
+  | EQ -> st.z | NE -> not st.z | CS -> st.c | CC -> not st.c | MI -> st.n | PL -> not st.n
+  | VS -> st.v | VC -> not st.v | HI -> st.c && not st.z | LS -> (not st.c) || st.z
+  | GE -> st.n = st.v | LT -> st.n <> st.v | GT -> (not st.z) && st.n = st.v | LE -> st.z || st.n <> st.v
+  | AL | NV -> true
+
+let set_nz st sf r =
+  let r = mask sf r in
+  st.n <- Int64.compare (sext (width sf) r) 0L < 0;
+  st.z <- r = 0L
+
+(* a + b + cin in the width, and its flags *)
+let add_flags st sf a b cin =
+  match sf with
+  | W ->
+      let r, c, v = Bits.add_carry (int32 a) (int32 b) cin in
+      let r = of32 r in
+      set_nz st W r; st.c <- c; st.v <- v; r
+  | X ->
+      let r = Int64.add (Int64.add a b) (Int64.of_int cin) in
+      let u = Int64.unsigned_compare r a in
+      set_nz st X r;
+      st.c <- (if cin = 0 then u < 0 else u <= 0);
+      st.v <- Int64.compare (Int64.logand (Int64.logxor a r) (Int64.logxor b r)) 0L < 0;
+      r
+
+let add_sub st sf ~sub ~s a b =
+  let b = if sub then mask sf (Int64.lognot b) else b and cin = if sub then 1 else 0 in
+  if s then add_flags st sf a b cin else mask sf (Int64.add (Int64.add a b) (Int64.of_int cin))
+
+let shift_value sf v sh n =
+  let v = mask sf v in
+  match sh with
+  | LSL -> mask sf (Int64.shift_left v n)
+  | LSR -> Int64.shift_right_logical v n
+  | ASR -> mask sf (Int64.shift_right (sext (width sf) v) n)
+  | ROR -> if n = 0 then v else mask sf (Int64.logor (Int64.shift_right_logical v n) (Int64.shift_left v (width sf - n)))
+
+let extend_value v e =
+  match e with
+  | UXTB -> Int64.logand v 0xffL | UXTH -> Int64.logand v 0xffffL | UXTW -> Int64.logand v m32 | UXTX | SXTX -> v
+  | SXTB -> sext 8 v | SXTH -> sext 16 v | SXTW -> sext 32 v
+
+(* the bitfield moves: bits S..R of the source (S >= R), or its low S+1
+ * bits placed at width - R *)
+let bitfield st sf ~rd ~rn ~immr:r ~imms:s ~signed ~keep =
+  let w = width sf and src = get st rn in
+  let field, len, pos = if s >= r then Int64.shift_right_logical src r, s - r + 1, 0 else src, s + 1, w - r in
+  let f = Int64.logand field (ones len) in
+  let f = if signed then sext len f else f in
+  let bits = mask sf (Int64.shift_left f pos) in
+  let result =
+    if keep then
+      let m = Int64.shift_left (ones len) pos in
+      Int64.logor (Int64.logand (get st rd) (Int64.lognot m)) (Int64.logand bits m)
+    else bits in
+  set st sf rd result
+
+(* the high 64 bits of a 128-bit product, from 32-bit halves *)
+let umulh a b =
+  let lo v = Int64.logand v m32 and hi v = Int64.shift_right_logical v 32 in
+  let p0 = Int64.mul (lo a) (lo b) and p1 = Int64.mul (lo a) (hi b) and p2 = Int64.mul (hi a) (lo b) in
+  let mid = Int64.add (Int64.add (hi p0) (lo p1)) (lo p2) in
+  Int64.add (Int64.add (Int64.mul (hi a) (hi b)) (Int64.add (hi p1) (hi p2))) (hi mid)
+
+let smulh a b =
+  let h = umulh a b in
+  let h = if Int64.compare a 0L < 0 then Int64.sub h b else h in
+  if Int64.compare b 0L < 0 then Int64.sub h a else h
+
+let count_leading sf v =
+  let w = width sf in
+  let rec go k = if k < 0 then w else if Int64.logand (Int64.shift_right_logical v k) 1L = 1L then w - 1 - k else go (k - 1) in
+  go (w - 1)
+
+let reverse_bytes sf v chunk =
+  let w = width sf / 8 in
+  let byte k = Int64.logand (Int64.shift_right_logical v (8 * k)) 0xffL in
+  let r = ref 0L in
+  for k = 0 to w - 1 do
+    let base = k / chunk * chunk in
+    let k' = base + (chunk - 1 - (k - base)) in
+    r := Int64.logor !r (Int64.shift_left (byte k) (8 * k'))
+  done;
+  !r
+
+let load st size signed a =
+  let m = st.mem in
+  let v, bits = match size with
+    | Byte -> Int64.of_int (Memory.load8 m a), 8
+    | Half -> Int64.of_int (Memory.load16 m a), 16
+    | Word -> of32 (Memory.load32 m a), 32
+    | Dword -> Memory.load64 m a, 64 in
+  match signed with None -> v | Some sf -> mask sf (sext bits v)
+
+let store st size a v =
+  let m = st.mem in
+  match size with
+  | Byte -> Memory.store8 m a (Int64.to_int (Int64.logand v 0xffL))
+  | Half -> Memory.store16 m a (Int64.to_int (Int64.logand v 0xffffL))
+  | Word -> Memory.store32 m a (int32 v)
+  | Dword -> Memory.store64 m a v
+
+let size_shift = function Byte -> 0 | Half -> 1 | Word -> 2 | Dword -> 3
+
+let execute st ~addr ~svc i =
+  st.next <- Bits.mask32 (addr + 4);
+  match i with
+  | Undefined w -> raise (Unimplemented (w, addr))
+  | Nop -> ()
+  | Mrs_nzcv rt ->
+      let b f k = if f then 1 lsl k else 0 in
+      set st X rt (of32 (b st.n 31 lor b st.z 30 lor b st.c 29 lor b st.v 28))
+  | Msr_nzcv rt ->
+      let v = get st rt in
+      let b k = Int64.logand (Int64.shift_right_logical v k) 1L = 1L in
+      st.n <- b 31; st.z <- b 30; st.c <- b 29; st.v <- b 28
+  | Add_imm { sf; sub; s; rd; rn; imm; lsl12 } ->
+      let b = Int64.of_int (if lsl12 then imm lsl 12 else imm) in
+      let r = add_sub st sf ~sub ~s (get_sp st rn) b in
+      if s then set st sf rd r else set_sp st sf rd r
+  | Add_reg { sf; sub; s; rd; rn; rm; shift; amount } ->
+      set st sf rd (add_sub st sf ~sub ~s (get st rn) (shift_value sf (get st rm) shift amount))
+  | Add_ext { sf; sub; s; rd; rn; rm; extend; amount } ->
+      let b = mask sf (Int64.shift_left (extend_value (get st rm) extend) amount) in
+      let r = add_sub st sf ~sub ~s (get_sp st rn) b in
+      if s then set st sf rd r else set_sp st sf rd r
+  | Adc { sf; sub; s; rd; rn; rm } ->
+      let b = if sub then mask sf (Int64.lognot (get st rm)) else get st rm in
+      let cin = if st.c then 1 else 0 in
+      let a = get st rn in
+      set st sf rd (if s then add_flags st sf a b cin else Int64.add (Int64.add a b) (Int64.of_int cin))
+  | Logic_imm { sf; op; rd; rn; imm } ->
+      let a = get st rn in
+      let r = match op with AND | ANDS -> Int64.logand a imm | ORR -> Int64.logor a imm | EOR -> Int64.logxor a imm in
+      if op = ANDS then (set_nz st sf r; st.c <- false; st.v <- false; set st sf rd r) else set_sp st sf rd r
+  | Logic_reg { sf; op; invert; rd; rn; rm; shift; amount } ->
+      let b = shift_value sf (get st rm) shift amount in
+      let b = if invert then Int64.lognot b else b in
+      let a = get st rn in
+      let r = match op with AND | ANDS -> Int64.logand a b | ORR -> Int64.logor a b | EOR -> Int64.logxor a b in
+      if op = ANDS then (set_nz st sf r; st.c <- false; st.v <- false);
+      set st sf rd r
+  | Movz { sf; rd; imm16; hw } -> set st sf rd (Int64.shift_left (Int64.of_int imm16) (16 * hw))
+  | Movn { sf; rd; imm16; hw } -> set st sf rd (Int64.lognot (Int64.shift_left (Int64.of_int imm16) (16 * hw)))
+  | Movk { sf; rd; imm16; hw } ->
+      let m = Int64.shift_left 0xffffL (16 * hw) in
+      set st sf rd (Int64.logor (Int64.logand (get st rd) (Int64.lognot m)) (Int64.shift_left (Int64.of_int imm16) (16 * hw)))
+  | Sbfm { sf; rd; rn; immr; imms } -> bitfield st sf ~rd ~rn ~immr ~imms ~signed:true ~keep:false
+  | Ubfm { sf; rd; rn; immr; imms } -> bitfield st sf ~rd ~rn ~immr ~imms ~signed:false ~keep:false
+  | Bfm { sf; rd; rn; immr; imms } -> bitfield st sf ~rd ~rn ~immr ~imms ~signed:false ~keep:true
+  | Extr { sf; rd; rn; rm; lsb } ->
+      let lo = mask sf (get st rm) and hi = get st rn in
+      set st sf rd (if lsb = 0 then lo else Int64.logor (Int64.shift_right_logical lo lsb) (Int64.shift_left hi (width sf - lsb)))
+  | Adr { page; rd; offset } ->
+      let v = if page then Int64.add (of32 (addr land lnot 0xfff)) (Int64.shift_left (Int64.of_int offset) 12)
+              else Int64.add (of32 addr) (Int64.of_int offset) in
+      set st X rd v
+  | Csel { sf; inc; inv; rd; rn; rm; cond } ->
+      if cond_passed st cond then set st sf rd (get st rn)
+      else
+        let b = get st rm in
+        let b = if inv then Int64.lognot b else b in
+        set st sf rd (if inc then Int64.succ b else b)
+  | Ccmp { sf; neg; rn; imm; rm; nzcv; cond } ->
+      if cond_passed st cond then
+        let b = if imm then Int64.of_int rm else get st rm in
+        ignore (add_sub st sf ~sub:(not neg) ~s:true (get st rn) b)
+      else begin
+        st.n <- nzcv land 8 <> 0; st.z <- nzcv land 4 <> 0; st.c <- nzcv land 2 <> 0; st.v <- nzcv land 1 <> 0
+      end
+  | Rbit { sf; rd; rn } ->
+      let v = get st rn and r = ref 0L in
+      for k = 0 to width sf - 1 do
+        if Int64.logand (Int64.shift_right_logical v k) 1L = 1L then r := Int64.logor !r (Int64.shift_left 1L (width sf - 1 - k))
+      done;
+      set st sf rd !r
+  | Rev { sf; bytes; rd; rn } -> set st sf rd (reverse_bytes sf (get st rn) bytes)
+  | Clz { sf; cls = false; rd; rn } -> set st sf rd (Int64.of_int (count_leading sf (mask sf (get st rn))))
+  | Clz { sf; cls = true; rd; rn } ->
+      let v = mask sf (get st rn) in
+      (* the bits after the top one equal to it: the leading zeros of
+       * v xor (v >> 1), less one *)
+      let d = mask sf (Int64.logxor v (Int64.shift_right_logical v 1)) in
+      let d = Int64.logand d (ones (width sf - 1)) in
+      set st sf rd (Int64.of_int (count_leading sf d - 1))
+  | Div { sf; signed; rd; rn; rm } ->
+      let a = get st rn and b = get st rm in
+      let r =
+        if mask sf b = 0L then 0L
+        else if signed then
+          let ext v = if sf = W then sext 32 v else v in
+          Int64.div (ext a) (ext b)
+        else Int64.unsigned_div (mask sf a) (mask sf b) in
+      set st sf rd r
+  | Shiftv { sf; shift; rd; rn; rm } ->
+      set st sf rd (shift_value sf (get st rn) shift (Int64.to_int (Int64.logand (get st rm) (Int64.of_int (width sf - 1)))))
+  | Madd { sf; sub; rd; rn; rm; ra } ->
+      let p = Int64.mul (get st rn) (get st rm) in
+      set st sf rd (if sub then Int64.sub (get st ra) p else Int64.add (get st ra) p)
+  | Maddl { signed; sub; rd; rn; rm; ra } ->
+      let ext v = if signed then sext 32 v else Int64.logand v m32 in
+      let p = Int64.mul (ext (get st rn)) (ext (get st rm)) in
+      set st X rd (if sub then Int64.sub (get st ra) p else Int64.add (get st ra) p)
+  | Mulh { signed; rd; rn; rm } -> set st X rd ((if signed then smulh else umulh) (get st rn) (get st rm))
+  | B { link; offset } ->
+      if link then set st X 30 (of32 (addr + 4));
+      st.next <- Bits.mask32 (addr + offset)
+  | Bcond { cond; offset } -> if cond_passed st cond then st.next <- Bits.mask32 (addr + offset)
+  | Cbz { sf; nz; rt; offset } -> if (mask sf (get st rt) <> 0L) = nz then st.next <- Bits.mask32 (addr + offset)
+  | Tbz { nz; rt; bit; offset } ->
+      if (Int64.logand (Int64.shift_right_logical (get st rt) bit) 1L = 1L) = nz then st.next <- Bits.mask32 (addr + offset)
+  | Br { link; rn } ->
+      let target = address (get st rn) in
+      if link then set st X 30 (of32 (addr + 4));
+      st.next <- target
+  | Ret rn -> st.next <- address (get st rn)
+  | Mem { load = l; size; signed; rt; addr = a } ->
+      let base, a', writeback = match a with
+        | Literal off -> None, of32 (addr + off), None
+        | Base { rn; offset; mode = (Offset | Unscaled | Unpriv) } -> Some rn, Int64.add (get_sp st rn) (Int64.of_int offset), None
+        | Base { rn; offset; mode = Pre } -> let v = Int64.add (get_sp st rn) (Int64.of_int offset) in Some rn, v, Some v
+        | Base { rn; offset; mode = Post } -> Some rn, get_sp st rn, Some (Int64.add (get_sp st rn) (Int64.of_int offset))
+        | Index { rn; rm; extend; s } ->
+            let off = Int64.shift_left (extend_value (get st rm) extend) (if s then size_shift size else 0) in
+            Some rn, Int64.add (get_sp st rn) off, None in
+      let ea = address a' in
+      if l then begin
+        let v = load st size signed ea in
+        (match base, writeback with Some rn, Some wb -> set_sp st X rn wb | _ -> ());
+        set st (match signed, size with Some sf, _ -> sf | None, Dword -> X | None, _ -> W) rt v
+      end
+      else begin
+        store st size ea (get st rt);
+        match base, writeback with Some rn, Some wb -> set_sp st X rn wb | _ -> ()
+      end
+  | Pair { load = l; sf; signed; rt; rt2; rn; offset; mode } ->
+      let b = get_sp st rn in
+      let moved = Int64.add b (Int64.of_int offset) in
+      let a = address (match mode with P_post -> b | _ -> moved) in
+      let size = if sf = X && not signed then Dword else Word in
+      let step = if size = Dword then 8 else 4 in
+      if l then begin
+        let sg = if signed then Some X else None in
+        let v1 = load st size sg a and v2 = load st size sg (Bits.mask32 (a + step)) in
+        set st (if signed then X else sf) rt v1;
+        set st (if signed then X else sf) rt2 v2
+      end
+      else begin
+        store st size a (get st rt);
+        store st size (Bits.mask32 (a + step)) (get st rt2)
+      end;
+      (match mode with P_pre | P_post -> set_sp st X rn moved | P_offset | P_nontemporal -> ())
+  | Svc imm -> svc st imm

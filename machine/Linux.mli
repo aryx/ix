@@ -89,9 +89,15 @@ val log_calls : bool ref
 (* arm32's svc: the call in r7 *)
 val syscall32 : proc -> Arm32.state -> unit
 
+(* arm64's svc: the call in x8, asm-generic's numbers and structures
+ * (struct stat 128 bytes, 64-bit timespecs, 8-byte vectors) *)
+val syscall64 : proc -> Arm64.state -> unit
+
 (* a signal the host received *)
 val raise_signal : int -> unit
 val signal_waiting : bool ref
 
 (* the pending signals delivered at [pc], the next instruction *)
 val deliver : proc -> Arm32.state -> pc:int -> unit
+
+val deliver64 : proc -> Arm64.state -> pc:int -> unit

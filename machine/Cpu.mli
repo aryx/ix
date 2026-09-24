@@ -9,3 +9,8 @@ type stats = { mutable instructions : int }
 val run32 :
   ?trace:(int -> Arm32.t -> unit) -> Arm32.state -> pc:int -> svc:(Arm32.state -> int -> unit) ->
   signal:(Arm32.state -> int -> unit) -> stats -> unit
+
+(* the same for arm64 *)
+val run64 :
+  ?trace:(int -> Arm64.t -> unit) -> Arm64.state -> pc:int -> svc:(Arm64.state -> int -> unit) ->
+  signal:(Arm64.state -> int -> unit) -> stats -> unit

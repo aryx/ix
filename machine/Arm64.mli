@@ -94,6 +94,9 @@ type t =
   | Pair of { load : bool; sf : sf; signed : bool; rt : reg; rt2 : reg; rn : reg; offset : int; mode : pair_mode }
   | Svc of int
   | Nop
+  (* the flags, the one system register user code reads or writes *)
+  | Mrs_nzcv of reg
+  | Msr_nzcv of reg
   | Undefined of int
 
 val decode : int -> t
@@ -104,3 +107,38 @@ val print : addr:int -> t -> string
 (* the value of a logical immediate, N:immr:imms, for the width; None
  * for the reserved encodings *)
 val bitmask : sf -> int -> int -> int -> int64 option
+
+(*****************************************************************************)
+(* Execution *)
+(*****************************************************************************)
+
+(* the user-mode state: x0-x30 and sp (slot 31), the flags; [next] is
+ * the address the instruction running jumps to, pc + 4 unless it
+ * branches *)
+type state = {
+  x : int64 array;
+  mutable n : bool;
+  mutable z : bool;
+  mutable c : bool;
+  mutable v : bool;
+  mutable next : int;
+  mem : Memory.t;
+}
+
+exception Unimplemented of int * int  (* the word, its address *)
+
+val create : Memory.t -> state
+
+(* register r, 31 read as the zero register, or as sp *)
+val get : state -> reg -> int64
+val get_sp : state -> reg -> int64
+val set : state -> sf -> reg -> int64 -> unit
+val set_sp : state -> sf -> reg -> int64 -> unit
+
+(* an address below 4GB, or Memory.Fault; and back, zero-extended *)
+val address : int64 -> int
+val of_address : int -> int64
+
+val execute : state -> addr:int -> svc:(state -> int -> unit) -> t -> unit
+
+val cond_passed : state -> cond -> bool

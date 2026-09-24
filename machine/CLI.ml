@@ -43,7 +43,20 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr; 
                 Console.eprint caps (Printf.sprintf "tinyarm: unimplemented instruction %08x at %x in %s\n" (Bits.unsigned32 w) a prog); report (); 134
             | Memory.Fault a ->
                 Console.eprint caps (Printf.sprintf "tinyarm: segmentation fault at %s in %s\n" (Bits.to_hex32 a) prog); report (); 139)
-        | Some { machine = Aarch64; _ } -> Console.eprint caps "tinyarm: arm64 is phase 5\n"; 2
+        | Some ({ machine = Aarch64; _ } as elf) -> (
+            let mem = Memory.create () in
+            let proc, entry, sp = Linux.load host mem elf file argv env in
+            let st = Arm64.create mem in
+            Arm64.set_sp st Arm64.X 31 (Arm64.of_address sp);
+            let tr = if trace then Some (fun a i -> Console.eprint caps (Printf.sprintf "%8x\t%s\n" a (Arm64.print ~addr:a i))) else None in
+            try Cpu.run64 ?trace:tr st ~pc:entry ~svc:(fun st _ -> Linux.syscall64 proc st)
+                  ~signal:(fun st pc -> Linux.deliver64 proc st ~pc) stats; 0 with
+            | Linux.Exit code -> report (); code
+            | Linux.Exec (path, argv, env) -> run path argv env
+            | Arm64.Unimplemented (w, a) ->
+                Console.eprint caps (Printf.sprintf "tinyarm: unimplemented instruction %08x at %x in %s\n" (Bits.unsigned32 w) a prog); report (); 134
+            | Memory.Fault a ->
+                Console.eprint caps (Printf.sprintf "tinyarm: segmentation fault at %s in %s\n" (Bits.to_hex32 a) prog); report (); 139)
         | _ ->
             (* not an ARM program: the host runs it, as binfmt would *)
             flush_all ();

@@ -25,6 +25,7 @@ test: all
 	./machine/tests/decode_check.py -64
 	./machine/tests/decode_check.py -64 --random 5000
 	./machine/tests/random_blocks.py 3000 30
+	./machine/tests/random_blocks.py -64 3000 30
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.
@@ -49,6 +50,7 @@ test-goken: all
 	./compiler/tests/fuzz.sh $(GOKEN_W)/fuzz 150
 	P9DIFF=$(GOKEN_W)/p9diff ./version_control/tests/diff_fuzz.py 500
 	./machine/tests/corpus.py 5 $(GOKEN_W)/libc5/*/*.exe
+	./machine/tests/corpus.py 7 $(GOKEN_W)/libc7/*/*.exe
 
 # The database against chidb (~/github/chidb, built): the course's
 # .dbmf cases (in make test too, when chidb's checkout is there), the

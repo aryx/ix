@@ -23,6 +23,11 @@ TA = os.path.join(ROOT, "_build/default/machine/Main.exe")
 arch, progs = sys.argv[1], sys.argv[2:]
 failures = 0
 ARGS = ["one", "two"]
+# the native runs without address randomization: TinyArm's layout is
+# fixed, and goken's brk takes any answer at or above its request as
+# success, so under a randomized heap mem.exe uses memory it never got
+# (it segfaults on arm64; on arm32 it happens to stay in its last page)
+NATIVE = ["setarch", "-R"] if shutil.which("setarch") else []
 # the system calls' names, from the kernel's header for the guest
 HEADER = {"5": "/usr/arm-linux-gnueabihf/include/asm/unistd-eabi.h",
           "7": "/usr/aarch64-linux-gnu/include/asm-generic/unistd.h"}[arch]
@@ -34,7 +39,7 @@ if os.path.exists(HEADER):
 
 def native_calls(p, d):
     out = os.path.join(d, ".strace")
-    subprocess.run(["strace", "-qq", "-o", out, p] + ARGS, cwd=d, input=b"a line\n", capture_output=True, timeout=30)
+    subprocess.run(NATIVE + ["strace", "-qq", "-o", out, p] + ARGS, cwd=d, input=b"a line\n", capture_output=True, timeout=30)
     calls = []
     for line in open(out):
         m = re.match(r"(\w+)\(", line)
@@ -61,7 +66,7 @@ def run(cmd):
 
 for p in progs:
     name = os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p)
-    want = run([p] + ARGS)
+    want = run(NATIVE + [p] + ARGS)
     got = run([TA, p] + ARGS)
     if (want[0], want[1]) != (got[0], got[1]):
         failures += 1

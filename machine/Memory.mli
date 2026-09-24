@@ -31,6 +31,11 @@ val store8 : t -> int -> int -> unit
 val store16 : t -> int -> int -> unit
 val store32 : t -> int -> int -> unit
 
+(* arm64's doublewords, as Int64 (an int has 63 bits, or 32 under
+ * js_of_ocaml) *)
+val load64 : t -> int -> int64
+val store64 : t -> int -> int64 -> unit
+
 val write_string : t -> int -> string -> unit
 val read_string : t -> int -> int -> string
 

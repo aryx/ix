@@ -47,6 +47,8 @@ let locate m addr n =
 let load8 m a = let s, o = locate m a 1 in Char.code (Bytes.unsafe_get s.data o)
 let load16 m a = let s, o = locate m a 2 in Bytes.get_uint16_le s.data o
 let load32 m a = let s, o = locate m a 4 in Bits.of_int32 (Bytes.get_int32_le s.data o)
+let load64 m a = let s, o = locate m a 8 in Bytes.get_int64_le s.data o
+let store64 m a v = let s, o = locate m a 8 in Bytes.set_int64_le s.data o v
 let store8 m a v = let s, o = locate m a 1 in Bytes.unsafe_set s.data o (Char.unsafe_chr (v land 0xff))
 let store16 m a v = let s, o = locate m a 2 in Bytes.set_uint16_le s.data o (v land 0xffff)
 let store32 m a v = let s, o = locate m a 4 in Bytes.set_int32_le s.data o (Bits.to_int32 v)

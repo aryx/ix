@@ -173,7 +173,7 @@ does not: arm64's registers are `Int64.t`, which OCaml unboxes in
 local arithmetic but boxes in arrays; so arm64's register file is
 stored in a `Bytes` of 32 × 8 (read and written with `get_int64_le`,
 unboxed), a choice measured in phase 5 against a plain `Int64.t
-array`.
+array`. (Measured: the array won, 24.0 MIPS against 17.9; see Status.)
 
 One more constraint, from the web (plan_pi.md, decision 9): compiled
 by js_of_ocaml, OCaml's `int` has 32 bits, not 63, and `Int64` is
@@ -373,3 +373,42 @@ And the CPSR's other bits belong to the machine: this ARMv8 core's
 AArch32 `mrs` returns the flags plus SSBS (bit 23), with the mode bits
 0. TinyArm returns the flags plus `usr` (0x10), as an ARMv6 or ARMv7
 does; the harness compares the flags only.
+
+**Phase 5 done** (2026-09-24): `Arm64`, decode, print and execute;
+`Linux.syscall64` (asm-generic's numbers: the `*at` calls, `clone` as
+fork, a 128-byte `struct stat`, 64-bit timespecs and vectors, its own
+signal frame and trampoline); `Cpu.run64`; `tinyarm` runs either.
+Checked:
+
+- the decoder (`decode_check.py -64`): the 2,218 words of the corpus,
+  and 330,000 random words of the decoded classes (data processing,
+  branches, loads and stores; SIMD excluded, objdump 2.42 itself
+  crashing on some of those), printed as objdump prints them, aliases
+  included (`mov`, `cmp`, `lsl`, `ubfx`, `sxtw`, `cset`, `mul`...);
+  js_of_ocaml's printing identical;
+- all 34 arm64 programs (`corpus.py 7`): standard output, exit status,
+  system-call sequence;
+- random blocks (`random_blocks.py -64`): every data processing form,
+  `msr`/`mrs nzcv` (added for it), loads and stores of every size and
+  addressing mode, pairs, conditional branches over one instruction;
+  6,000 blocks of 30, no difference. Deliberate `cls` and `csneg` bugs
+  are caught (40 and 23 blocks of 300).
+
+What they found: `csneg` decoded as `csinv`, the move to sp's `mov`
+alias (`movz` cannot write sp, so objdump keeps `mov` whatever the
+value), `adrp`'s offset too large for js_of_ocaml's ints (kept in
+pages), and `adr` to a negative address, which wraps in 64 bits
+(TinyArm zero-extended it). And the corpus harness now runs the native
+programs under `setarch -R`: goken's `brk` takes any answer at or
+above its request as success, and Linux's randomized heap made arm64
+`mem.exe` use memory it never got (a native segfault; TinyArm, whose
+layout is fixed, ran it).
+
+Decision 3, measured (`machine/tests/bench64.py`, a 7-instruction
+loop, 140 million instructions): registers in an `Int64.t array`, 24.0
+MIPS; in a `Bytes` read with `get_int64_le`, 17.9; with the
+`%caml_bytes_get64u` primitive, 20.8. A `Bytes` read boxes a new
+`Int64` at each call not inlined, where the array's values are already
+boxed. The array it is. (The shared register file for the Pi3's two
+modes, plan_pi.md, will take the same measurement.) 24 MIPS is under
+the 30 target: phase 6.
