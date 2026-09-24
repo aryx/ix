@@ -1,6 +1,6 @@
 (library
  (name ix_vcs)
- (modules Hash Object Loose Delta Pack Store Refs Conf Query Repo Flags Log Fs Index9 Walk Save Commands CLI)
+ (modules Hash Object Loose Delta Pack Store Refs Conf Query Repo Flags Log Fs Index9 Walk Save Diff Merge3 Difftool Commands CLI)
  (libraries ix_core ix_security ix_compression fpath unix caps logs))
 
 (executable
@@ -9,3 +9,17 @@
  (package ix)
  (modules Main)
  (libraries ix_vcs ix_core caps))
+
+(executable
+ (name Diffmain)
+ (public_name tinydiff)
+ (package ix)
+ (modules Diffmain)
+ (libraries ix_vcs caps))
+
+(executable
+ (name Merge3main)
+ (public_name tinymerge3)
+ (package ix)
+ (modules Merge3main)
+ (libraries ix_vcs caps))

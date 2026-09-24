@@ -40,4 +40,6 @@ let relative t arg =
   if String.length arg > 0 && arg.[0] = '/' then
     if String.starts_with ~prefix:root arg then Some (cleanname ("./" ^ String.sub arg (String.length root) (String.length arg - String.length root)))
     else None
-  else Some (cleanname ("./" ^ t.cwd ^ "/" ^ arg))
+  else
+    let p = cleanname ("./" ^ t.cwd ^ "/" ^ arg) in
+    if p = ".." || String.starts_with ~prefix:"../" p then None else Some p

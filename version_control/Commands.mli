@@ -20,6 +20,7 @@ val commit : caps -> string list -> int
 val branch : caps -> string list -> int
 val revert : caps -> string list -> int
 val diff : caps -> string list -> int
+val merge : caps -> string list -> int
 val walk : caps -> string list -> int
 val save : caps -> string list -> int
 

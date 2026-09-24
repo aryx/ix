@@ -22,7 +22,8 @@ let store_caps (caps : caps) = (caps :> Store.caps)
 
 (* the scripts cd to the root (gitup); their paths are then relative to
  * it: cleanname -d $gitrel $* *)
-let rel_paths (r : Repo.t) args = List.filter_map (Repo.relative r) args
+let rel_paths (r : Repo.t) args =
+  List.map (fun a -> match Repo.relative r a with Some p -> p | None -> die "path outside repo: %s" a) args
 
 let exists r p = Sys.file_exists (Filename.concat (Fpath.to_string r.Repo.root) p)
 let full r p = Filename.concat (Fpath.to_string r.Repo.root) p
@@ -279,8 +280,60 @@ let is_file (r : Repo.t) commit path =
   | Commit c -> (match Walk.lookup r.store c.tree path with Some (File _) -> true | _ -> false)
   | _ -> false
 
-let merge1_hook : (caps -> Repo.t -> string -> Hash.t -> Hash.t -> Hash.t -> string option) ref =
-  ref (fun _ _ _ _ _ _ -> Some "merge: not available")
+(* a file for merge1: its name as the script sees it, and its bytes
+ * and x bit, or None where the script uses /dev/null *)
+type side = { name : string; data : (string * bool) option }
+
+let gitfs (r : Repo.t) = Fpath.to_string r.root ^ "/.git/fs"
+
+(* a file of a commit's tree, named by its git/fs path *)
+let tree_side (r : Repo.t) commit path =
+  let name = Printf.sprintf "%s/object/%s/tree/%s" (gitfs r) (Hash.to_hex commit) path in
+  let data =
+    match Store.read r.store commit with
+    | Commit c -> (
+        match Walk.lookup r.store c.tree path with
+        | Some (File e) -> (match Store.read r.store e.hash with Blob d -> Some (d, e.mode = Exec) | _ -> None)
+        | _ -> None)
+    | _ -> None in
+  { name; data }
+
+let disk_side (r : Repo.t) path =
+  let p = full r path in
+  let data = match Unix.stat p with
+    | { st_kind = S_REG; st_perm; _ } -> Some (In_channel.with_open_bin p In_channel.input_all, st_perm land 0o100 <> 0)
+    | _ -> None
+    | exception Unix.Unix_error _ -> None in
+  { name = path; data }
+
+(* common.rc's merge1 out ours base theirs, and its mergeperm: a file
+ * deleted on one side and unchanged on the other is gone; else merge3,
+ * the x bit set if both sides have it, or if the base lacked it and
+ * one side has it *)
+let merge1 (caps : caps) (r : Repo.t) out ~ours ~base ~theirs =
+  let bytes s = match s.data with Some (d, _) -> d | None -> "" in
+  let x s = match s.data with Some (_, x) -> x | None -> false in
+  let gone = (ours.data = None && bytes base = bytes theirs) || (theirs.data = None && bytes ours = bytes base) in
+  let out_path = Repo.cleanname out in
+  if gone then begin
+    rm_rf (full r out_path);
+    Index9.append caps r.store.git [ Index9.Removed, out ]
+  end
+  else begin
+    let perm = if x base then x ours && x theirs else x ours || x theirs in
+    let file s = Diff.read Exact (if s.data = None then "/dev/null" else s.name) (bytes s) in
+    let merged, ok =
+      match file ours, file base, file theirs with
+      | Some left, Some b, Some right -> let text, conflict = Merge3.merge ~left ~base:b ~right in text, not conflict
+      | _ -> eprint caps "merge3: cannot merge binaries\n"; "", false in
+    if not ok then eprint caps (Printf.sprintf "merge needed: %s\n" out);
+    let p = full r out_path in
+    mkdir_p (Filename.dirname p);
+    (try Sys.remove p with Sys_error _ -> ());
+    Out_channel.with_open_bin p (fun oc -> output_string oc merged);
+    Unix.chmod p (if perm then 0o755 else 0o644);
+    Index9.append caps r.store.git [ Index9.Added, out_path ]
+  end
 
 exception Stop of int
 
@@ -358,9 +411,8 @@ let branch (caps : caps) args =
           end) (modified @ deleted);
         Index9.append caps r.store.git (List.rev !lines);
         List.iter (fun ours ->
-          match !merge1_hook caps r ours (Hash.of_hex orig) (Hash.of_hex orig) commit with
-          | None -> ()
-          | Some st -> eprint caps (Printf.sprintf "merge failed %s: %s\n" ours st)) dirtypaths;
+          merge1 caps r ours ~ours:(disk_side r ours) ~base:(tree_side r (Hash.of_hex orig) ours) ~theirs:(tree_side r commit ours))
+          dirtypaths;
         Refs.write r.store new_ commit;
         if Flags.has fl 's' then raise (Stop 0);
         if !failed then (eprint caps "pull failed: fix errors and try again\n"; raise (Stop 1));
@@ -384,8 +436,6 @@ let revert (caps : caps) args =
 (* diff *)
 (*****************************************************************************)
 
-let diff_hook : (caps -> Repo.t -> Hash.t -> string list -> unit) ref = ref (fun _ _ _ _ -> die "diff: not available")
-
 let diff (caps : caps) args =
   let r = Repo.find (store_caps caps) in
   let fl, args = try Flags.parse ~flags:"su" ~with_arg:"c" args with Flags.Usage -> die "usage: git/diff [-c branch] [-su] [file ...]" in
@@ -400,6 +450,47 @@ let diff (caps : caps) args =
   else begin
     let commit = match base with Some h -> h | None -> (try Query.eval1 r.store "HEAD" with Query.Error m -> die "%s" m) in
     let lines, _ = walk_run r { Walk.default with show; base; bare = true; paths = files } in
-    !diff_hook caps r commit lines;
+    (* diff -u a/f b/f, a the commit's tree and b the work tree, bound
+     * under /mnt/scratch; /dev/null for a file one side lacks *)
+    List.iteri (fun i f ->
+      if i = 0 then print caps (Printf.sprintf "diff %s uncommitted\n" (Hash.to_hex commit));
+      let side s label = match s.data with Some (d, _) -> label, d | None -> "/dev/null", "" in
+      let a, da = side (tree_side r commit f) ("a/" ^ f) and b, db = side (disk_side r f) ("b/" ^ f) in
+      match Diff.read Exact a da, Diff.read Exact b db with
+      | Some x, Some y -> print caps (Diff.output Unified (Diff.compute Exact x y))
+      | _ -> if da <> db then print caps (Printf.sprintf "binary files %s %s differ\n" a b)) lines;
     0
   end
+
+(*****************************************************************************)
+(* merge *)
+(*****************************************************************************)
+
+let merge (caps : caps) args =
+  let r = Repo.find (store_caps caps) in
+  match args with
+  | [ arg ] ->
+      let q e = try Query.eval1 r.store e with Query.Error m -> die "%s" m in
+      let theirs = q arg in
+      let ours = q "HEAD" in
+      let base = q (Hash.to_hex theirs ^ " " ^ Hash.to_hex ours ^ "@") in
+      if Hash.compare base theirs = 0 then die "nothing to merge, doofus";
+      let _, dirty = walk_run r { Walk.default with quiet = true } in
+      if dirty <> [] then die "dirty work tree, refusing to merge";
+      if Hash.compare base ours = 0 then begin
+        eprint caps "fast forwarding...\n";
+        Refs.write r.store ("refs/" ^ current_branch r) theirs;
+        revert caps [ "." ]
+      end
+      else begin
+        let mp = Fpath.(r.store.git / "merge-parents") in
+        let old = Option.value (Files.read_opt caps mp) ~default:"" in
+        Files.write caps mp (old ^ Hash.to_hex ours ^ "\n" ^ Hash.to_hex theirs ^ "\n");
+        let strip l = String.sub l 2 (String.length l - 2) in
+        let all = List.sort_uniq compare (List.map strip (Query.changes r.store ours base @ Query.changes r.store base theirs)) in
+        List.iter (fun f ->
+          merge1 caps r ("./" ^ f) ~ours:(tree_side r ours f) ~base:(tree_side r base f) ~theirs:(tree_side r theirs f)) all;
+        print caps "merge complete: remember to commit\n";
+        0
+      end
+  | _ -> die "usage: git/merge theirs"

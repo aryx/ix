@@ -13,6 +13,11 @@ test: all
 	./linker/tests/golden.sh
 	./_build/default/database/tests/Test.exe
 	./tiny/TinyDatabase_test.sh 20
+	./lib_compression/tests/check.py 50
+	./version_control/tests/objects.sh
+	./version_control/tests/query.py 10
+	./version_control/tests/session.py 10
+	./version_control/tests/git9_tests.sh
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.
@@ -35,6 +40,7 @@ test-goken: all
 	./compiler/tests/listing.sh 5 $(GOKEN_W)/listing5 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
 	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
 	./compiler/tests/fuzz.sh $(GOKEN_W)/fuzz 150
+	P9DIFF=$(GOKEN_W)/p9diff ./version_control/tests/diff_fuzz.py 500
 
 # The database against chidb (~/github/chidb, built): the course's
 # .dbmf cases (in make test too, when chidb's checkout is there), the

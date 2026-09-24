@@ -21,5 +21,5 @@ val cleanname : string -> string
 
 (* a command's path argument relative to the root, cleaned, as git9's
  * programs make them: "./CWD/ARG", or an absolute path inside the
- * root; None for an absolute path outside *)
+ * root; None for a path outside *)
 val relative : t -> string -> string option
