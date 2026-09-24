@@ -1,0 +1,5 @@
+; claude: principia's lib_strings/libflate: zlib's inflate and deflate
+(library
+ (name ix_compression)
+ (wrapped false)
+ (modules Zlib))

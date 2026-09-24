@@ -3048,3 +3048,51 @@ Claude built TinyDb across storage, bytecode machine, SQL front end, and shell p
 **Yoann:**
 
 > especially this transaction for free approach; using the hindsight of 50 years past the SQL and classic db intro and recent advances to simplify things while being more powerful
+
+**Claude (summary):**
+
+Claude built and tested TinyDatabase.ml (575 lines, 120 differential tests against SQLite). Copy-on-write B-trees make transactions atomic via a single header write, eliminating journals. Crash tests verify persistence by simulating pre-commit failures and reopening the file. Updated docs: plan_db.md phase 8 marked done, related-work notes, and tiny/ README. Yoann declined implementing three features but asked to add them as exercises in comments.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:38
+
+**Yoann:**
+
+> no, but add them as exercuse in comments in TinyDatabase.ml
+
+**Claude (summary):**
+
+Claude added an Exercises section to TinyDatabase.ml header comment, committed as 7bbd0b2.
+Transactions of several statements with begin-commit design, using in-memory catalogs for rollback.
+Time travel reads past table state via offset chains; compaction copies trees to new file.
+Lock-free readers use snapshot roots, and delete rebalancing merges underfull nodes with siblings.
+All exercises exploited the same design patterns already embedded in the database implementation.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:39
+
+**Yoann:**
+
+> excellent. Now let's to tiny git (see the code of git9 in ~/principia, or ocamlgit in ~/xix, and more) and then the freeform TinyVCS.ml!
+
+**Claude (summary):**
+
+Claude rejected goken as impractical due to missing libsec and 9P filesystem support for building git9. Claude chose C git 2.43 and 9base's diff as runnable references for understanding repository formats and diff behavior. Two agents surveyed git9 and ogit to spare Claude from reading 11k lines of C code directly. Claude planned to write docs/plans/plan_vcs.md with the agents' findings to guide the TinyVCS implementation. Both references were available locally to test network protocols and diff behavior during implementation.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:41
+
+**Yoann:**
+
+> ok, write the plan and start implementing
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:42
+
+**Yoann:**
+
+> maybe a new lib_compress/ or something next to lib_core

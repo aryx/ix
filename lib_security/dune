@@ -1,0 +1,5 @@
+; claude: principia's lib_security/libsec, what ix needs of it: SHA-1
+(library
+ (name ix_security)
+ (wrapped false)
+ (modules Sha1))
