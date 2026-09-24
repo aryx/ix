@@ -121,6 +121,7 @@ let rec tokens (macros : (string, token list) Hashtbl.t) (read : string -> strin
     | '0' .. '7' -> let rec oct j v = if j < n && j < i + 3 && s.[j] >= '0' && s.[j] <= '7' then oct (j + 1) ((v * 8) + Char.code s.[j] - 48) else v, j in oct i 0
     | c -> Char.code c, i + 1
   in
+  let rec span j p = if j < n && p s.[j] then span (j + 1) p else j in
   let rec go i bol =
     if i >= n then ()
     else
@@ -148,20 +149,17 @@ let rec tokens (macros : (string, token list) Hashtbl.t) (read : string -> strin
           let rec close j = if j + 1 >= n then n else if s.[j] = '*' && s.[j + 1] = '/' then j + 2 else close (j + 1) in
           go (close (i + 2)) bol
       | 'a' .. 'z' | 'A' .. 'Z' | '_' ->
-          let j = ref i in
-          while !j < n && (match s.[!j] with 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true | _ -> false) do incr j done;
-          emit (Id (String.sub s i (!j - i)));
-          go !j false
+          let j = span i (function 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true | _ -> false) in
+          emit (Id (String.sub s i (j - i)));
+          go j false
       | '0' .. '9' ->
-          let j = ref i in
-          while !j < n && (match s.[!j] with '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' | 'x' | 'X' -> true | _ -> false) do incr j done;
-          let lit = String.sub s i (!j - i) in
+          let k = span i (function '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' | 'x' | 'X' -> true | _ -> false) in
+          let lit = String.sub s i (k - i) in
           let lit = if String.length lit > 1 && lit.[0] = '0' && lit.[1] <> 'x' && lit.[1] <> 'X' then "0o" ^ String.sub lit 1 (String.length lit - 1) else lit in
-          let k = !j in
-          while !j < n && (match s.[!j] with 'u' | 'U' | 'l' | 'L' -> true | _ -> false) do incr j done;
-          let suffix = String.lowercase_ascii (String.sub s k (!j - k)) in
+          let j = span k (function 'u' | 'U' | 'l' | 'L' -> true | _ -> false) in
+          let suffix = String.lowercase_ascii (String.sub s k (j - k)) in
           emit (Num (Int64.of_string lit, String.length suffix >= 2 && String.contains (String.sub suffix 1 (String.length suffix - 1)) 'l'));
-          go !j false
+          go j false
       | '\'' ->
           let v, j = if s.[i + 1] = '\\' then escape (i + 2) else Char.code s.[i + 1], i + 2 in
           emit (Num (Int64.of_int v, false));
@@ -186,19 +184,35 @@ let rec tokens (macros : (string, token list) Hashtbl.t) (read : string -> strin
 (* Expressions, typed as they are built *)
 (*****************************************************************************)
 
+(* the operators: an arithmetic one's value is of its operands' type,
+ * a relation's an int; >> is logical, / % and the relations unsigned,
+ * for an unsigned type *)
+type arith = Add | Sub | Mul | Div | Mod | And | Or | Xor | Shl | Shr
+type rel = Lt | Gt | Le | Ge | Eq | Ne
+type binop = A of arith | R of rel
+type unop = Neg | Com
+
+let binops = [ "+", A Add; "-", A Sub; "*", A Mul; "/", A Div; "%", A Mod; "&", A And; "|", A Or; "^", A Xor; "<<", A Shl;
+               ">>", A Shr; "<", R Lt; ">", R Gt; "<=", R Le; ">=", R Ge; "==", R Eq; "!=", R Ne ]
+let binop_name o = fst (List.find (fun (_, o') -> o' = o) binops)
+
+(* x op= y's tokens *)
+let asg_ops = List.filter_map (function s, A o -> Some (s ^ "=", o) | _ -> None) binops
+
+(* where a variable is: a global's name in the assembly, a local's
+ * offset below SP, a parameter's from FP *)
+type place = Global of string | Local of int | Param of int
+
 type expr = { d : desc; t : ty }
 
 and desc =
   | Const of int64
-  | Sym of string                     (* a global's address: its name in the assembly *)
-  | Loc of int                        (* a local's address: its offset below SP *)
-  | Par of int                        (* a parameter's address: its offset from FP *)
+  | Addr of place
   | Deref of expr                     (* the object at an address: an lvalue *)
   | Cur                               (* in x op= y, x's value *)
-  | Un of string * expr               (* - ~ ! *)
-  | Bin of string * expr * expr       (* both operands of one type, the result t's *)
-  | Log of string * expr * expr       (* && || *)
-  | Cond of expr * expr * expr
+  | Un of unop * expr
+  | Bin of binop * expr * expr        (* both operands of one type; a relation's value an int *)
+  | Cond of expr * expr * expr        (* && || ! are made of it *)
   | Asg of expr * expr                (* an lvalue, its new value *)
   | Call of string * expr list
   | Conv of expr                      (* to t *)
@@ -206,21 +220,19 @@ and desc =
 
 let mk d t = { d; t }
 let num v t = mk (Const v) t
-let relational = [ "<"; ">"; "<="; ">="; "=="; "!=" ]
 
 (* an array is its address, a value of a small integer an int *)
 let rv (e : expr) = match e.t, e.d with Arr (t, _), Deref a -> { a with t = Ptr t } | _ -> e
 
 let conv (e : expr) t =
-  match e.t, t with
-  | a, b when same a b -> e
-  | Int _, Int (n, sg) when (match e.d with Const _ -> true | _ -> false) ->
+  match e.t, t, e.d with
+  | a, b, _ when same a b -> e
+  | Int _, Int (n, sg), Const v ->
       (* a constant converted now: truncated, extended *)
-      let v = match e.d with Const v -> v | _ -> 0L in
       let bits = 8 * n in
       let v = if bits = 64 then v else if sg then Int64.shift_right (Int64.shift_left v (64 - bits)) (64 - bits) else Int64.logand v (Int64.pred (Int64.shift_left 1L bits)) in
       num v t
-  | (Ptr _ | Arr _), Ptr _ | Ptr _, Int (8, _) | Int (8, _), Ptr _ -> { e with t }
+  | (Ptr _ | Arr _), Ptr _, _ | Ptr _, Int (8, _), _ | Int (8, _), Ptr _, _ -> { e with t }
   | _ -> mk (Conv e) t
 
 (* Plan 9's C keeps the sign as it widens: uchar and ushort become
@@ -234,29 +246,51 @@ let common a b =
   | Int (n, s), Int (m, u) -> Int (max n m, s && u)
   | t, _ -> t
 
-let scale (i : expr) t = if size t = 1 then conv i long_t else mk (Bin ("*", conv i long_t, num (Int64.of_int (size t)) long_t)) long_t
+let scale (i : expr) t = if size t = 1 then conv i long_t else mk (Bin (A Mul, conv i long_t, num (Int64.of_int (size t)) long_t)) long_t
 
 let rec binary op (a : expr) (b : expr) =
   let a = rv a and b = rv b in
   match op, a.t, b.t with
-  | ("+" | "-"), Ptr t, Int _ -> mk (Bin (op, a, scale b t)) a.t
-  | "+", Int _, Ptr _ -> binary op b a
-  | "-", Ptr t, Ptr _ -> mk (Bin ("/", mk (Bin ("-", conv a long_t, conv b long_t)) long_t, num (Int64.of_int (size t)) long_t)) long_t
-  | _, Ptr _, _ | _, _, Ptr _ when List.mem op relational ->
-      let t = if is_ptr a.t then a.t else b.t in
-      mk (Bin (op, conv a t, conv b t)) int_t
-  | _, Int _, Int _ ->
-      let t = if op = "<<" || op = ">>" then promote a.t else common a.t b.t in
-      mk (Bin (op, conv a t, conv b t)) (if List.mem op relational then int_t else t)
-  | _ -> error "bad operands for %s" op
+  | A (Add | Sub), Ptr t, Int _ -> mk (Bin (op, a, scale b t)) a.t
+  | A Add, Int _, Ptr _ -> binary op b a
+  | A Sub, Ptr t, Ptr _ -> mk (Bin (A Div, mk (Bin (op, conv a long_t, conv b long_t)) long_t, num (Int64.of_int (size t)) long_t)) long_t
+  | R _, Ptr _, _ | R _, _, Ptr _ -> let t = if is_ptr a.t then a.t else b.t in mk (Bin (op, conv a t, conv b t)) int_t
+  | R _, Int _, Int _ -> let t = common a.t b.t in mk (Bin (op, conv a t, conv b t)) int_t
+  | A o, Int _, Int _ -> let t = if o = Shl || o = Shr then promote a.t else common a.t b.t in mk (Bin (op, conv a t, conv b t)) t
+  | _ -> error "bad operands for %s" (binop_name op)
 
 let addr (e : expr) = match e.d with Deref a -> { a with t = Ptr e.t } | _ -> error "not an lvalue"
 let deref (e : expr) = let e = rv e in match e.t with Ptr t -> mk (Deref e) t | _ -> error "not a pointer"
 
-let assign (l : expr) (r : expr) = if not (match l.d with Deref _ -> true | _ -> false) then error "not an lvalue" else mk (Asg (l, conv (rv r) l.t)) l.t
+let assign (l : expr) (r : expr) = match l.d with Deref _ -> mk (Asg (l, conv (rv r) l.t)) l.t | _ -> error "not an lvalue"
 
 (* x op= y: the value computed from x's, loaded once *)
-let asg_op op (l : expr) r = assign l (binary op (mk Cur l.t) r)
+let asg_op o (l : expr) r = assign l (binary (A o) (mk Cur l.t) r)
+
+(* a variable, as an lvalue *)
+let var p t = mk (Deref (mk (Addr p) (Ptr t))) t
+
+(* a condition's value, 1 or 0; !, && and || as ?: of them *)
+let truth c = mk (Cond (rv c, num 1L int_t, num 0L int_t)) int_t
+let lnot c = mk (Cond (rv c, num 0L int_t, num 1L int_t)) int_t
+let both a b = mk (Cond (rv a, truth b, num 0L int_t)) int_t
+let either a b = mk (Cond (rv a, num 1L int_t, truth b)) int_t
+
+(*****************************************************************************)
+(* Statements *)
+(*****************************************************************************)
+
+type stmt =
+  | Expr of expr
+  | Block of stmt list
+  | If of expr * stmt * stmt option
+  | Do of stmt * expr
+  | For of expr option * expr option * expr option * stmt   (* while too *)
+  | Switch of expr * expr * stmt      (* its temporary, its value, its body *)
+  | Case of int64 option              (* default: None *)
+  | Break
+  | Continue
+  | Return of expr option
 
 (*****************************************************************************)
 (* The stack machine *)
@@ -264,24 +298,23 @@ let asg_op op (l : expr) r = assign l (binary op (mk Cur l.t) r)
 
 type ir =
   | Imm of int64
-  | Addr of string                    (* a global's address *)
-  | Frame of int                      (* a local's *)
-  | Param of int                      (* a parameter's *)
+  | Place of place                    (* a variable's address *)
   | Load of ty                        (* the address on top by its value *)
   | Store of ty                       (* value and address by the value *)
-  | Op of string * ty                 (* a b by a op b, of the operands' type *)
-  | Neg of ty | Com of ty | Not
+  | Op of binop * ty                  (* a b by a op b, of the operands' type; a relation 1 or 0 *)
+  | Unop of unop * ty
   | Ext of ty                         (* the value on top to a type *)
   | Dup | Drop
   | Call of string * int * bool       (* the name, the arguments, a result *)
   | Label of int | Jmp of int | Jz of int | Jnz of int
   | Ret of bool
 
-let show = function
-  | Imm v -> Printf.sprintf "imm %Ld" v | Addr s -> "addr " ^ s | Frame o -> Printf.sprintf "frame -%d" o
-  | Param o -> Printf.sprintf "param %d" o | Load t -> Printf.sprintf "load %d" (size t) | Store t -> Printf.sprintf "store %d" (size t)
-  | Op (o, t) -> Printf.sprintf "op %s %d%s" o (size t) (if unsigned t then "u" else "")
-  | Neg _ -> "neg" | Com _ -> "com" | Not -> "not" | Ext t -> Printf.sprintf "ext %d%s" (size t) (if unsigned t then "u" else "")
+let show i =
+  let w t = Printf.sprintf "%d%s" (size t) (if unsigned t then "u" else "") in
+  match i with
+  | Imm v -> Printf.sprintf "imm %Ld" v | Place (Global s) -> "addr " ^ s | Place (Local o) -> Printf.sprintf "frame -%d" o
+  | Place (Param o) -> Printf.sprintf "param %d" o | Load t -> "load " ^ w t | Store t -> "store " ^ w t
+  | Op (o, t) -> Printf.sprintf "op %s %s" (binop_name o) (w t) | Unop (o, _) -> if o = Neg then "neg" else "com" | Ext t -> "ext " ^ w t
   | Dup -> "dup" | Drop -> "drop" | Call (f, n, r) -> Printf.sprintf "call %s %d%s" f n (if r then " ->" else "")
   | Label l -> Printf.sprintf "L%d:" l | Jmp l -> Printf.sprintf "jmp L%d" l | Jz l -> Printf.sprintf "jz L%d" l
   | Jnz l -> Printf.sprintf "jnz L%d" l | Ret v -> if v then "ret value" else "ret"
@@ -295,26 +328,11 @@ let label () = incr labels; !labels
 let rec value (e : expr) =
   match e.d with
   | Const v -> emit (Imm v)
-  | Sym s -> emit (Addr s)
-  | Loc o -> emit (Frame o)
-  | Par o -> emit (Param o)
+  | Addr p -> emit (Place p)
   | Deref a -> value a; (match e.t with Arr _ | Struct _ | Func _ -> () | t -> emit (Load t))
   | Cur -> emit (Load e.t)
-  | Un ("-", a) -> value a; emit (Neg e.t)
-  | Un ("~", a) -> value a; emit (Com e.t)
-  | Un (_, a) -> value a; emit Not
-  | Bin (op, a, b) -> value a; value b; emit (Op (op, a.t))
-  | Log (op, a, b) ->
-      let short = label () and out = label () in
-      value a;
-      emit (if op = "&&" then Jz short else Jnz short);
-      value b;
-      emit (if op = "&&" then Jz short else Jnz short);
-      emit (Imm (if op = "&&" then 1L else 0L));
-      emit (Jmp out);
-      emit (Label short);
-      emit (Imm (if op = "&&" then 0L else 1L));
-      emit (Label out)
+  | Un (o, a) -> value a; emit (Unop (o, e.t))
+  | Bin (o, a, b) -> value a; value b; emit (Op (o, a.t))
   | Cond (c, a, b) ->
       let other = label () and out = label () in
       value c;
@@ -337,7 +355,7 @@ and uses_cur (e : expr) =
   match e.d with
   | Cur -> true
   | Deref a | Un (_, a) | Conv a -> uses_cur a
-  | Bin (_, a, b) | Log (_, a, b) | Comma (a, b) | Asg (a, b) -> uses_cur a || uses_cur b
+  | Bin (_, a, b) | Comma (a, b) | Asg (a, b) -> uses_cur a || uses_cur b
   | Cond (a, b, c) -> uses_cur a || uses_cur b || uses_cur c
   | Call (_, l) -> List.exists uses_cur l
   | _ -> false
@@ -345,11 +363,62 @@ and uses_cur (e : expr) =
 (* an expression as a statement *)
 let effect (e : expr) = value e; if e.t <> Void then emit Drop
 
+(* where break and continue go; the labels of a switch's cases *)
+type targets = { brk : int option; cont : int option; cases : (int64 option * int) list ref }
+
+let rec lower (k : targets) (s : stmt) =
+  let jump = function Some l -> emit (Jmp l) | None -> error "break or continue outside a loop" in
+  match s with
+  | Expr e -> effect e
+  | Block l -> List.iter (lower k) l
+  | If (c, a, b) ->
+      let other = label () in
+      value c;
+      emit (Jz other);
+      lower k a;
+      (match b with
+       | Some b -> let out = label () in emit (Jmp out); emit (Label other); lower k b; emit (Label out)
+       | None -> emit (Label other))
+  | Do (body, c) ->
+      let top = label () and cont = label () and out = label () in
+      emit (Label top);
+      lower { k with brk = Some out; cont = Some cont } body;
+      emit (Label cont); value c; emit (Jnz top); emit (Label out)
+  | For (init, c, step, body) ->
+      Option.iter effect init;
+      let top = label () and cont = label () and out = label () in
+      emit (Label top);
+      Option.iter (fun c -> value c; emit (Jz out)) c;
+      lower { k with brk = Some out; cont = Some cont } body;
+      emit (Label cont);
+      Option.iter effect step;
+      emit (Jmp top); emit (Label out)
+  | Switch (tmp, v, body) ->
+      (* the value in a temporary, the cases after the body *)
+      effect (assign tmp v);
+      let dispatch = label () and out = label () in
+      emit (Jmp dispatch);
+      let cases = ref [] in
+      lower { k with brk = Some out; cases } body;
+      let mine = List.rev !cases in
+      emit (Jmp out);
+      emit (Label dispatch);
+      List.iter (fun (c, l) -> match c with Some v -> value (binary (R Eq) tmp (num v long_t)); emit (Jnz l) | None -> ()) mine;
+      emit (Jmp (match List.assoc_opt None mine with Some l -> l | None -> out));
+      emit (Label out)
+  | Case v -> let l = label () in k.cases := (v, l) :: !(k.cases); emit (Label l)
+  | Break -> jump k.brk
+  | Continue -> jump k.cont
+  | Return None -> emit (Ret false)
+  | Return (Some e) -> value e; emit (Ret true)
+
 (*****************************************************************************)
-(* The parser: declarations and statements lowered as they are read *)
+(* The parser: declarations, and statements *)
 (*****************************************************************************)
 
-type var = { vty : ty; where : desc }
+type storage = Auto | Static | Extern | Typedef
+
+type var = { vty : ty; where : place }
 
 let toks = ref [||] and pos = ref 0
 let peek () = if !pos < Array.length !toks then !toks.(!pos) else EOF
@@ -364,14 +433,17 @@ let structs : (string, sdef) Hashtbl.t = Hashtbl.create 16
 let scopes : (string, var) Hashtbl.t list ref = ref []
 let frame = ref 0                         (* the current function's locals *)
 let result = ref Void
-let breaks : int list ref = ref [] and continues : int list ref = ref []
 let data = Buffer.create 4096             (* the DATA and GLOBL *)
 let strings = ref 0
+let tags = ref 0                          (* the anonymous structures' *)
 
 let lookup x =
   match List.find_map (fun s -> Hashtbl.find_opt s x) !scopes with
   | Some v -> v
   | None -> (match Hashtbl.find_opt globals x with Some v -> v | None -> error "undeclared: %s" x)
+
+(* a local's place, below SP at its alignment *)
+let local t = frame := round (!frame + size t) (max 1 (min 8 (align t))); Local !frame
 
 (* a string, as a static array of bytes *)
 let string_lit s =
@@ -384,7 +456,7 @@ let string_lit s =
     Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/%d, $\"%s\"\n" name (8 * i) (String.length chunk) (String.concat "" (List.map esc (List.of_seq (String.to_seq chunk)))))
   done;
   Buffer.add_string data (Printf.sprintf "\tGLOBL\t%s(SB), $%d\n" name (String.length s));
-  mk (Deref (mk (Sym name) (Ptr (Arr (char_t, String.length s))))) (Arr (char_t, String.length s))
+  var (Global name) (Arr (char_t, String.length s))
 
 let is_type () =
   match peek () with
@@ -394,10 +466,10 @@ let is_type () =
 
 (* the words before a declarator: the type, and static, extern, typedef *)
 let rec base_type () =
-  let storage = ref "" and words = ref [] and t = ref None in
+  let storage = ref Auto and words = ref [] and t = ref None in
   let rec go () =
     match peek () with
-    | Id (("static" | "extern" | "typedef") as s) -> ignore (next ()); storage := s; go ()
+    | Id ("static" | "extern" | "typedef" as w) -> ignore (next ()); storage := List.assoc w [ "static", Static; "extern", Extern; "typedef", Typedef ]; go ()
     | Id ("const" | "volatile") -> ignore (next ()); go ()
     | Id (("void" | "char" | "short" | "int" | "long" | "unsigned" | "signed") as w) -> ignore (next ()); words := w :: !words; go ()
     | Id "struct" -> ignore (next ()); t := Some (struct_type ()); go ()
@@ -421,7 +493,7 @@ let rec base_type () =
   !storage, t
 
 and struct_type () =
-  let tag = match peek () with Id x -> ignore (next ()); x | _ -> Printf.sprintf ".%d" (label ()) in
+  let tag = match peek () with Id x -> ignore (next ()); x | _ -> incr tags; Printf.sprintf ".%d" !tags in
   let s = match Hashtbl.find_opt structs tag with Some s -> s | None -> let s = { fields = []; ssize = 0; salign = 1 } in Hashtbl.replace structs tag s; s in
   if accept "{" then begin
     (* each member at its size's alignment, the whole rounded to 8, as 7c *)
@@ -484,8 +556,7 @@ and assign_expr () =
   let l = cond_expr () in
   match peek () with
   | P "=" -> ignore (next ()); assign l (assign_expr ())
-  | P ("+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" as op) ->
-      ignore (next ()); asg_op (String.sub op 0 (String.length op - 1)) l (assign_expr ())
+  | P op when List.mem_assoc op asg_ops -> ignore (next ()); asg_op (List.assoc op asg_ops) l (assign_expr ())
   | _ -> l
 
 and cond_expr () =
@@ -509,7 +580,7 @@ and binary_expr min =
         | Some lv when lv >= min ->
             ignore (next ());
             let r = binary_expr (lv + 1) in
-            loop (if op = "&&" || op = "||" then mk (Log (op, rv l, rv r)) int_t else binary op l r)
+            loop (match op with "&&" -> both l r | "||" -> either l r | op -> binary (List.assoc op binops) l r)
         | _ -> l)
     | _ -> l
   in
@@ -517,43 +588,46 @@ and binary_expr min =
 
 and unary () =
   match peek () with
-  | P "-" -> ignore (next ()); let e = rv (unary ()) in let t = promote e.t in (match e.d with Const v -> num (Int64.neg v) t | _ -> mk (Un ("-", conv e t)) t)
+  | P "-" -> ignore (next ()); let e = rv (unary ()) in let t = promote e.t in (match e.d with Const v -> num (Int64.neg v) t | _ -> mk (Un (Neg, conv e t)) t)
   | P "+" -> ignore (next ()); let e = rv (unary ()) in conv e (promote e.t)
-  | P "~" -> ignore (next ()); let e = rv (unary ()) in let t = promote e.t in mk (Un ("~", conv e t)) t
-  | P "!" -> ignore (next ()); mk (Un ("!", rv (unary ()))) int_t
+  | P "~" -> ignore (next ()); let e = rv (unary ()) in let t = promote e.t in mk (Un (Com, conv e t)) t
+  | P "!" -> ignore (next ()); lnot (unary ())
   | P "*" -> ignore (next ()); deref (unary ())
   | P "&" -> ignore (next ()); addr (unary ())
-  | P ("++" | "--" as op) -> ignore (next ()); asg_op (String.sub op 0 1) (unary ()) (num 1L int_t)
+  | P ("++" | "--" as op) -> ignore (next ()); asg_op (if op = "++" then Add else Sub) (unary ()) (num 1L int_t)
   | Id "sizeof" ->
       ignore (next ());
-      let t = if peek () = P "(" && (pos := !pos + 1; let ty = is_type () in pos := !pos - 1; ty) then (expect "("; let t = type_name () in expect ")"; t) else (unary ()).t in
+      let t = if paren_type () then (expect "("; let t = type_name () in expect ")"; t) else (unary ()).t in
       num (Int64.of_int (size t)) (Int (4, false))
-  | P "(" when (pos := !pos + 1; let ty = is_type () in pos := !pos - 1; ty) ->
+  | P "(" when paren_type () ->
       expect "(";
       let t = type_name () in
       expect ")";
       conv (rv (unary ())) t
   | _ -> postfix (primary ())
 
+(* ( type ...: a cast, or sizeof's type *)
+and paren_type () = peek () = P "(" && (incr pos; let ty = is_type () in decr pos; ty)
+
 and type_name () = let _, bt = base_type () in snd (declarator bt)
 
 and postfix e =
   match peek () with
-  | P "[" -> ignore (next ()); let i = expr () in expect "]"; postfix (deref (binary "+" e i))
+  | P "[" -> ignore (next ()); let i = expr () in expect "]"; postfix (deref (binary (A Add) e i))
   | P "." -> ignore (next ()); postfix (member e (ident ()))
   | P "->" -> ignore (next ()); postfix (member (deref e) (ident ()))
   | P ("++" | "--" as op) ->
       ignore (next ());
       (* x++ is (x += 1) - 1, and so on *)
-      let o = String.sub op 0 1 in
-      postfix (conv (binary (if o = "+" then "-" else "+") (asg_op o e (num 1L int_t)) (num 1L int_t)) e.t)
+      let o, back = if op = "++" then Add, Sub else Sub, Add in
+      postfix (conv (binary (A back) (asg_op o e (num 1L int_t)) (num 1L int_t)) e.t)
   | _ -> e
 
 and member e f =
   match e.t with
   | Struct s -> (
       match List.find_opt (fun (n, _, _) -> n = f) s.fields with
-      | Some (_, t, off) -> mk (Deref (mk (Bin ("+", conv (addr e) long_t, num (Int64.of_int off) long_t)) (Ptr t))) t
+      | Some (_, t, off) -> mk (Deref (mk (Bin (A Add, conv (addr e) long_t, num (Int64.of_int off) long_t)) (Ptr t))) t
       | None -> error "no member %s" f)
   | _ -> error "not a structure"
 
@@ -570,125 +644,85 @@ and primary () =
         go ()
       end;
       let args = List.rev !args in
-      let rt, ps, sym = match (try Some (lookup f) with Failure _ -> None) with Some { vty = Func (r, p, _); where = Sym s } -> r, p, s | _ -> int_t, [], f in
+      let rt, ps, sym = match (try Some (lookup f) with Failure _ -> None) with Some { vty = Func (r, p, _); where = Global s } -> r, p, s | _ -> int_t, [], f in
       (* a declared parameter's type, else the promotions *)
       let args = List.mapi (fun i (a : expr) -> match List.nth_opt ps i with Some t -> conv a t | None -> conv a (promote a.t)) args in
       mk (Call (sym, args)) rt
-  | Id x -> let v = lookup x in mk (Deref (mk v.where (Ptr v.vty))) v.vty
+  | Id x -> let v = lookup x in var v.where v.vty
   | _ -> error "expected an expression"
 
 and const_expr () =
   match (cond_expr ()).d with Const v -> v | _ -> error "not a constant"
 
 (* statements *)
-let rec statement () =
-  match peek () with
-  | P "{" -> ignore (next ()); block ()
-  | P ";" -> ignore (next ())
+let cond () = expect "("; let c = rv (expr ()) in expect ")"; c
+
+let rec statement () : stmt =
+  match next () with
+  | P "{" -> block ()
+  | P ";" -> Block []
   | Id "if" ->
-      ignore (next ()); expect "(";
-      let c = rv (expr ()) in
-      expect ")";
-      let other = label () in
-      value c; emit (Jz other);
-      statement ();
-      if peek () = Id "else" then begin
-        ignore (next ());
-        let out = label () in
-        emit (Jmp out); emit (Label other); statement (); emit (Label out)
-      end
-      else emit (Label other)
-  | Id "while" ->
-      ignore (next ()); expect "(";
-      let c = rv (expr ()) in
-      expect ")";
-      let top = label () and out = label () in
-      emit (Label top); value c; emit (Jz out);
-      loop out top;
-      emit (Jmp top); emit (Label out)
+      let c = cond () in
+      let a = statement () in
+      If (c, a, if peek () = Id "else" then (ignore (next ()); Some (statement ())) else None)
+  | Id "while" -> let c = cond () in For (None, Some c, None, statement ())
   | Id "do" ->
+      let body = statement () in
       ignore (next ());
-      let top = label () and cont = label () and out = label () in
-      emit (Label top);
-      loop out cont;
-      ignore (next ()); expect "(";
-      let c = rv (expr ()) in
-      expect ")"; expect ";";
-      emit (Label cont); value c; emit (Jnz top); emit (Label out)
-  | Id "for" ->
-      ignore (next ()); expect "(";
-      if not (accept ";") then (effect (expr ()); expect ";");
-      let c = if peek () = P ";" then None else Some (rv (expr ())) in
+      let c = cond () in
       expect ";";
-      let inc = if peek () = P ")" then None else Some (expr ()) in
+      Do (body, c)
+  | Id "for" ->
+      expect "(";
+      let opt close = if peek () = P close then None else Some (expr ()) in
+      let init = opt ";" in
+      expect ";";
+      let c = Option.map rv (opt ";") in
+      expect ";";
+      let step = opt ")" in
       expect ")";
-      let top = label () and cont = label () and out = label () in
-      emit (Label top);
-      Option.iter (fun c -> value c; emit (Jz out)) c;
-      loop out cont;
-      emit (Label cont);
-      Option.iter effect inc;
-      emit (Jmp top); emit (Label out)
+      For (init, c, step, statement ())
   | Id "switch" ->
-      ignore (next ()); expect "(";
-      let v = conv (rv (expr ())) long_t in
-      expect ")";
-      (* the value in a temporary, the cases after the body *)
-      frame := round !frame 8 + 8;
-      let tmp = mk (Deref (mk (Loc !frame) (Ptr long_t))) long_t in
-      effect (assign tmp v);
-      let dispatch = label () and out = label () in
-      emit (Jmp dispatch);
-      let saved = !cases in
-      cases := [];
-      breaks := out :: !breaks;
-      statement ();
-      breaks := List.tl !breaks;
-      let mine = List.rev !cases in
-      cases := saved;
-      emit (Jmp out);
-      emit (Label dispatch);
-      List.iter (fun (c, l) -> match c with Some v -> value (binary "==" tmp (num v long_t)); emit (Jnz l) | None -> ()) mine;
-      emit (Jmp (match List.assoc_opt None mine with Some l -> l | None -> out));
-      emit (Label out)
-  | Id "case" -> ignore (next ()); let v = const_expr () in expect ":"; let l = label () in cases := (Some v, l) :: !cases; emit (Label l); statement ()
-  | Id "default" -> ignore (next ()); expect ":"; let l = label () in cases := (None, l) :: !cases; emit (Label l); statement ()
-  | Id "break" -> ignore (next ()); expect ";"; emit (Jmp (List.hd !breaks))
-  | Id "continue" -> ignore (next ()); expect ";"; emit (Jmp (List.hd !continues))
+      let v = conv (cond ()) long_t in
+      let tmp = var (local long_t) long_t in
+      Switch (tmp, v, statement ())
+  | Id "case" -> let v = const_expr () in expect ":"; Block [ Case (Some v); statement () ]
+  | Id "default" -> expect ":"; Block [ Case None; statement () ]
+  | Id "break" -> expect ";"; Break
+  | Id "continue" -> expect ";"; Continue
   | Id "return" ->
-      ignore (next ());
-      if accept ";" then emit (Ret false)
-      else (let e = conv (rv (expr ())) !result in expect ";"; value e; emit (Ret true))
-  | _ when is_type () -> local ()
-  | _ -> effect (expr ()); expect ";"
-
-and cases : (int64 option * int) list ref = ref []
-
-and loop out cont =
-  breaks := out :: !breaks; continues := cont :: !continues;
-  statement ();
-  breaks := List.tl !breaks; continues := List.tl !continues
+      if accept ";" then Return None
+      else (let e = conv (rv (expr ())) !result in expect ";"; Return (Some e))
+  | _ ->
+      decr pos;
+      if is_type () then Block (locals ())
+      else (let e = expr () in expect ";"; Expr e)
 
 and block () =
   scopes := Hashtbl.create 8 :: !scopes;
-  while not (accept "}") do statement () done;
-  scopes := List.tl !scopes
+  let rec go acc = if accept "}" then List.rev acc else go (statement () :: acc) in
+  let l = go [] in
+  scopes := List.tl !scopes;
+  Block l
 
-(* a local: below SP, at its alignment *)
-and local () =
+(* a declaration of locals: their initializations *)
+and locals () =
   let storage, bt = base_type () in
   let rec go () =
     let name, t = declarator bt in
-    if storage = "typedef" then Hashtbl.replace typedefs name t
-    else begin
-      frame := round (!frame + size t) (max 1 (min 8 (align t)));
-      Hashtbl.replace (List.hd !scopes) name { vty = t; where = Loc !frame };
-      if accept "=" then effect (assign (mk (Deref (mk (Loc !frame) (Ptr t))) t) (assign_expr ()))
-    end;
-    if accept "," then go ()
+    let init =
+      if storage = Typedef then (Hashtbl.replace typedefs name t; [])
+      else begin
+        let p = local t in
+        Hashtbl.replace (List.hd !scopes) name { vty = t; where = p };
+        if accept "=" then [ Expr (assign (var p t) (assign_expr ())) ] else []
+      end
+    in
+    init @ (if accept "," then go () else [])
   in
-  go ();
-  expect ";"
+  let l = go () in
+  expect ";";
+  l
 
 (*****************************************************************************)
 (* The machine: the stack in R1..R15 (Wirth's register stack) *)
@@ -710,10 +744,12 @@ let extend t r =
   | Int (n, false) when n < 4 -> ins "AND\t$%d, R%d" ((1 lsl (8 * n)) - 1) r
   | _ -> ()
 
-let branch = function
-  | "<", false -> "BLT" | "<", true -> "BLO" | ">", false -> "BGT" | ">", true -> "BHI"
-  | "<=", false -> "BLE" | "<=", true -> "BLS" | ">=", false -> "BGE" | ">=", true -> "BHS"
-  | "==", _ -> "BEQ" | _ -> "BNE"
+(* a relation's branch, signed or unsigned *)
+let branch o u =
+  match o with
+  | Lt -> if u then "BLO" else "BLT" | Gt -> if u then "BHI" else "BGT"
+  | Le -> if u then "BLS" else "BLE" | Ge -> if u then "BHS" else "BGE"
+  | Eq -> "BEQ" | Ne -> "BNE"
 
 (* one function's code: sp is the depth of the stack, Rsp its top.
  * The frame, as 7c's: the locals below SP, then the saves of what is
@@ -736,27 +772,25 @@ let machine name (params : (string * ty) list) locals (body : ir list) =
         Buffer.add_string out (Printf.sprintf "L%d:\n" l)
     | _ when !dead -> ()
     | Imm v -> ins "MOV\t$%Ld, R%d" v (push ())
-    | Addr s -> ins "MOV\t$%s(SB), R%d" s (push ())
-    | Frame o -> ins "MOV\t$l-%d(SP), R%d" o (push ())
-    | Param o -> ins "MOV\t$p+%d(FP), R%d" o (push ())
+    | Place (Global s) -> ins "MOV\t$%s(SB), R%d" s (push ())
+    | Place (Local o) -> ins "MOV\t$l-%d(SP), R%d" o (push ())
+    | Place (Param o) -> ins "MOV\t$p+%d(FP), R%d" o (push ())
     | Load t -> ins "%s\t0(R%d), R%d" (load_op t) (top ()) (top ())
     | Store t -> let v = top () in decr sp; ins "%s\tR%d, 0(R%d)" (store_op t) v (top ()); ins "MOV\tR%d, R%d" v (top ())
-    | Op (o, t) ->
+    | Op (o, t) -> (
         let b = top () in
         decr sp;
         let a = top () and u = unsigned t in
-        if List.mem o relational then begin
-          ins "CMP\tR%d, R%d" b a; ins "MOV\t$1, R%d" a; ins "%s\t2(PC)" (branch (o, u)); ins "MOV\t$0, R%d" a
-        end
-        else begin
-          let op = List.assoc o [ "+", "ADD"; "-", "SUB"; "*", "MUL"; "/", (if u then "UDIV" else "SDIV"); "%", (if u then "UREM" else "REM");
-                                  "&", "AND"; "|", "ORR"; "^", "EOR"; "<<", "LSL"; ">>", (if u then "LSR" else "ASR") ] in
-          ins "%s\tR%d, R%d" op b a;
-          extend t a
-        end
-    | Neg t -> ins "NEG\tR%d, R%d" (top ()) (top ()); extend t (top ())
-    | Com t -> ins "MVN\tR%d, R%d" (top ()) (top ()); extend t (top ())
-    | Not -> let a = top () in ins "CMP\t$0, R%d" a; ins "MOV\t$1, R%d" a; ins "BEQ\t2(PC)"; ins "MOV\t$0, R%d" a
+        match o with
+        | R r -> ins "CMP\tR%d, R%d" b a; ins "MOV\t$1, R%d" a; ins "%s\t2(PC)" (branch r u); ins "MOV\t$0, R%d" a
+        | A o ->
+            ins "%s\tR%d, R%d"
+              (match o with
+               | Add -> "ADD" | Sub -> "SUB" | Mul -> "MUL" | Div -> if u then "UDIV" else "SDIV" | Mod -> if u then "UREM" else "REM"
+               | And -> "AND" | Or -> "ORR" | Xor -> "EOR" | Shl -> "LSL" | Shr -> if u then "LSR" else "ASR")
+              b a;
+            extend t a)
+    | Unop (o, t) -> ins "%s\tR%d, R%d" (if o = Neg then "NEG" else "MVN") (top ()) (top ()); extend t (top ())
     | Ext t -> extend t (top ())
     | Dup -> let a = top () in ins "MOV\tR%d, R%d" a (push ())
     | Drop -> decr sp
@@ -793,7 +827,7 @@ let machine name (params : (string * ty) list) locals (body : ir list) =
 (* -ir: the stack machine's code instead of the machine's *)
 let ir_only = ref false
 
-let asm_name storage name = if storage = "static" then name ^ "<>" else name
+let asm_name storage name = if storage = Static then name ^ "<>" else name
 
 (* a global's init_data, as DATA at offsets *)
 let rec init_data name t off =
@@ -811,7 +845,7 @@ let rec init_data name t off =
       let e = rv (assign_expr ()) in
       (match e.d, e.t with
        | Const v, _ -> Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/%d, $%Ld\n" name off (size t) v)
-       | Sym s, _ -> Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/8, $%s(SB)\n" name off s)
+       | Addr (Global s), _ -> Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/8, $%s(SB)\n" name off s)
        | _ -> error "%s: not a constant init_data" name);
       1
 
@@ -821,29 +855,30 @@ let external_decl () =
   else begin
     let rec go () =
       let name, t, pnames = declarator3 bt in
-      if storage = "typedef" then (Hashtbl.replace typedefs name t; if accept "," then go () else expect ";")
+      if storage = Typedef then (Hashtbl.replace typedefs name t; if accept "," then go () else expect ";")
       else
         match t with
         | Func (rt, ps, _) when peek () = P "{" ->
             (* a definition *)
-            Hashtbl.replace globals name { vty = t; where = Sym (asm_name storage name) };
+            Hashtbl.replace globals name { vty = t; where = Global (asm_name storage name) };
             ignore (next ());
             let params = List.combine pnames ps in
             scopes := [ Hashtbl.create 8 ];
-            List.iteri (fun i (p, pt) -> Hashtbl.replace (List.hd !scopes) p { vty = pt; where = Par (8 * i) }) params;
+            List.iteri (fun i (p, pt) -> Hashtbl.replace (List.hd !scopes) p { vty = pt; where = Param (8 * i) }) params;
             frame := 0;
             result := rt;
+            let body = block () in
             code := [];
-            block ();
+            lower { brk = None; cont = None; cases = ref [] } body;
             if !ir_only then (Buffer.add_string out (name ^ ":\n"); List.iter (fun i -> Buffer.add_string out ("\t" ^ show i ^ "\n")) (List.rev !code))
             else machine (asm_name storage name) params (round !frame 8) (List.rev !code);
             scopes := []
-        | Func _ -> Hashtbl.replace globals name { vty = t; where = Sym (asm_name storage name) }; if accept "," then go () else expect ";"
+        | Func _ -> Hashtbl.replace globals name { vty = t; where = Global (asm_name storage name) }; if accept "," then go () else expect ";"
         | _ ->
             let sym = asm_name storage name in
             let t = if accept "=" then (match t with Arr (e, 0) -> let n = init_data sym t 0 in Arr (e, n) | _ -> ignore (init_data sym t 0); t) else t in
-            Hashtbl.replace globals name { vty = t; where = Sym sym };
-            if storage <> "extern" then Buffer.add_string data (Printf.sprintf "\tGLOBL\t%s(SB), $%d\n" sym (size t));
+            Hashtbl.replace globals name { vty = t; where = Global sym };
+            if storage <> Extern then Buffer.add_string data (Printf.sprintf "\tGLOBL\t%s(SB), $%d\n" sym (size t));
             if accept "," then go () else expect ";"
     in
     go ()

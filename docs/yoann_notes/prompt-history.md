@@ -1862,3 +1862,47 @@ But this requires rewriting the core tree structure, not just refactoring existi
 **Yoann:**
 
 > let's use a real OCaml ADT, especially if this makes not only the code smaller but clearer. Regarding Option.get, I dunno if using let* could maybe help sometimes.
+
+**Claude (summary):**
+
+Claude designed new OCaml ADT types for statements, expressions, declarators, and initializers to replace the flat node structure. Claude rewrote Tree.ml, the parser, Declare, Check, Emit, Gen, Arm, and Arm64 to work with the new ADT representation. Every listing still matched 5c and 7c byte-for-byte on the first test run, with line count dropping from 5,328 to 5,253. Claude retired the front.sh dump comparison since the ADT changed tree shape, now printing the compiler's own tree format. Claude saved a memory note about modeling internals with ADTs while keeping output byte-identical to the C original.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 06:47
+
+**Yoann:**
+
+> yes! Can we apply the same thing on TinyC.ml to simplify it further?
+
+------------------------------------------------------------------------
+
+## 2026-09-24 06:50
+
+**Yoann:**
+
+> the important is to have clearer code, and also safer code as variant are compile-time checked as opposed to string and integers
+
+------------------------------------------------------------------------
+
+## 2026-09-24 06:50
+
+**Yoann:**
+
+> with a great exhaustive check
+
+------------------------------------------------------------------------
+
+## 2026-09-24 06:50
+
+**Yoann:**
+
+> ideally this also reduces the LOC in addition to make the code clearer
+
+------------------------------------------------------------------------
+
+## 2026-09-24 06:52
+
+**Yoann:**
+
+> first let's commit the progress
