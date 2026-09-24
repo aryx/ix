@@ -10,8 +10,10 @@ needs them.
 
 It is the specification of the program planned in
 [`plan_cc.md`](../plans/plan_cc.md), written before the code, to be
-checked against it, as the other tutorials were. The listings marked
-"checked" are goken's `5c -O0 -S` and `7c -O0 -S`, on 2026-09-23.
+checked against it, as the other tutorials were; it was checked on
+2026-09-24, and where the two differed the text now says what the code
+does. The listings marked "checked" are goken's `5c -O0 -S` and `7c
+-O0 -S`, on 2026-09-23.
 Companions:
 [`notes_cc_related_work.md`](../related-work/notes_cc_related_work.md),
 [`notes_asm.md`](notes_asm.md) (the toolchain's first half, which this
@@ -22,12 +24,19 @@ goken's 5c and 7c, and xix's `compiler/`.
 
 | module | what | section |
 |---|---|---|
+| `compiler/Tree` | the types, the tree, the symbols | §3, §4 |
 | `compiler/Pre` | the preprocessor | §3 |
-| `compiler/Lexer`, `Parser` | C into a tree | §3 |
-| `compiler/Type`, `Check` | types, and the tree made explicit | §4 |
-| `compiler/Gen` | code from the tree | §5, §6, §7 |
+| `compiler/Lexer`, `Parser` (ocamlyacc) | C into a tree | §3 |
+| `compiler/Declare` | declarations, scopes, frames, initializers | §3, §7 |
+| `compiler/Check` | types, and the tree made explicit | §4 |
+| `compiler/Gen` | code from the tree | §4, §5, §6, §7 |
+| `compiler/Multiply` | a multiplication by a constant | §5 |
 | `compiler/Arm`, `Arm64` | what each machine decides | §8 |
-| `compiler/Obj`, `CLI` | the objects, `-S`, `tinycc` | §9 |
+| `compiler/Emit`, `CLI` | the instructions, `-S`, the objects, `tinycc` | §9 |
+
+Each module's `.mli` says what it does and where it departs from 5c
+and 7c, with the papers it follows; read Tree's first, then in the
+order of the table.
 
 ## 1. From a `.c` to a running program
 
@@ -103,8 +112,9 @@ by its body, its arguments substituted and the result rescanned.
 
 **The lexer** needs one thing from the parser, C's famous one: whether
 a name is a typedef. `T * x;` declares `x` when `T` is a type, and
-multiplies otherwise; so the parser tells the lexer each typedef it
-declares, and the lexer hands back a type-name token for them.
+multiplies otherwise; so the lexer looks the name up in the symbol
+table, which the parser fills as it declares, and hands back a
+type-name token for a typedef's.
 
 **The parser** reads declarations with C's declarators, the part of C
 where the syntax is inside out: `int (*f[4])(char*)` is an array of four
@@ -134,7 +144,8 @@ Constant expressions are folded.
   generator computes the more complex side first, so that the other
   never holds a register while it waits.
 
-**64-bit arithmetic on arm** is rewritten here (5c's `com64.c`): arm
+**64-bit arithmetic on arm** is rewritten as the tree is labelled
+(Gen's `xcom`, with 5c's `com64.c`): arm
 has 32-bit registers, so a `vlong` sum is a call (checked):
 
 ```
@@ -249,11 +260,11 @@ sits beside the compiled ones.
 
 | | goken (C) | xix (OCaml) | TinyCompiler |
 |---|---|---|---|
-| front end | yacc, 7,900 lines | ocamlyacc, typechecker complete | by hand |
+| front end | yacc, 7,900 lines | ocamlyacc, typechecker complete | ocamlyacc; the preprocessor and lexer by hand |
 | back ends | one per machine, 3,600 to 3,900 lines each, plus 2,700 of optimizer | one, arm, mostly unwritten | one, with a record per machine |
 | objects | Plan 9's | xix's | TinyAsm's |
 | optimizer | registers, peephole | none | none (`-O0`) |
-| lines | about 22,000 (16,700 without the optimizers) | 5,553 | about 3,500 (target) |
+| lines | about 22,000 (16,700 without the optimizers) | 5,553 | 5,391 (the target was 3,500) |
 
 ## 11. How it is tested
 

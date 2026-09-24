@@ -20,11 +20,14 @@ The project was started on 2026-09-21, and this README describes the
 plan. Written so far (`make`, then `make test`): **TinyMk**, the build
 system ([`builder/`](builder/)), which builds all of xix from its
 mkfiles; **TinyRc**, the shell ([`shell/`](shell/)); **TinyEd**, the
-editor ([`editor/`](editor/)); and **TinyAsm and TinyLd**, the
+editor ([`editor/`](editor/)); **TinyAsm and TinyLd**, the
 assembler and the linker for arm and arm64
 ([`assembler/`](assembler/), [`linker/`](linker/)), whose executables
-are goken's byte for byte. Each also has a free one-file variant in
-[`tiny/`](tiny/). Their plans, tutorials and related-work notes are
+are goken's byte for byte; and **TinyCompiler** (`tinycc`), the C
+compiler for arm and arm64 ([`compiler/`](compiler/)), whose listings
+are goken's `5c -O0` and `7c -O0`'s instruction for instruction. Each
+also has a free one-file variant in [`tiny/`](tiny/) (the compiler's
+is TinyC, a C subset through an intermediate language of its own). Their plans, tutorials and related-work notes are
 indexed in [docs/README.md](docs/README.md).
 See [docs/history.md](docs/history.md) for how the project came to be
 and how it got its name.

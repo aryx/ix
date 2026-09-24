@@ -23,7 +23,6 @@ let read_file (caps : < Cap.open_in; .. >) file =
  * read by Lexer, from its input stack, not a lexbuf *)
 let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs incs file =
   Tree.mach := Some mach;
-  let codegen = true in
   (match mach.thechar with
    | '5' -> Emit.be := Some Arm.backend; Gen.hooks := Some Arm.hooks
    | _ -> Emit.be := Some Arm64.backend; Gen.hooks := Some Arm64.hooks);
@@ -39,15 +38,13 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
   let dir = if String.contains file '/' then Filename.dirname file else "." in
   Pre.includes := dir :: incs;
   Pre.read_file := read_file caps;
-  if codegen then begin
-    Check.xcom := Gen.xcom;
-    Check.outstring := Emit.outstring;
-    Declare.gextern := Emit.gextern;
-    Emit.init ()
-  end;
+  Check.xcom := Gen.xcom;
+  Check.outstring := Emit.outstring;
+  Declare.gextern := Emit.gextern;
+  Emit.init ();
   Declare.on_function := (fun f body ->
     if dump then print caps (Tree.prtree (Some f) "func" ^ Tree.prtree (Some body) "body");
-    if codegen then Gen.codgen body f);
+    Gen.codgen body f);
   match read_file caps file with
   | None -> Error (Printf.sprintf "cannot open %s" file)
   | Some text ->
@@ -55,11 +52,9 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
       Tree.lineno := 1;
       (match Parser.prog (fun _ -> Lexer.token ()) (Lexing.from_string "") with
        | () ->
-           if codegen then begin
-             Emit.gclean ();
-             if listing then print caps (Emit.listing ());
-             Ix_asm.Asm.save caps out (Emit.obj file)
-           end;
+           Emit.gclean ();
+           if listing then print caps (Emit.listing ());
+           Ix_asm.Asm.save caps out (Emit.obj file);
            Ok ()
        | exception Tree.Error m -> Error (Printf.sprintf "%s:%s" file m)
        | exception Parsing.Parse_error -> Error (Printf.sprintf "%s:%d: syntax error" file !Tree.lineno))
