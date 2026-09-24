@@ -38,3 +38,10 @@
  (package ix)
  (modules TinyDatabase)
  (libraries unix caps))
+
+(executable
+ (name TinyVCS)
+ (public_name tinyvcs)
+ (package ix)
+ (modules TinyVCS)
+ (libraries ix_core unix caps ix_security ix_compression))

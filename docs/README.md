@@ -14,7 +14,7 @@ where it sits among the real systems). `yoann_notes/` is the author's.
 | TinyAsm and TinyLd, the assembler and the linker | [plan_asm.md](plans/plan_asm.md) | [notes_asm.md](tutorials/notes_asm.md) | [notes_asm_related_work.md](related-work/notes_asm_related_work.md) | `assembler/`, `linker/`, `tiny/TinyAssembler.ml` |
 | TinyCompiler, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `compiler/`, `tiny/TinyC.ml` |
 | TinyDb, the relational database | [plan_db.md](plans/plan_db.md) | [notes_db.md](tutorials/notes_db.md) | [notes_db_related_work.md](related-work/notes_db_related_work.md) | `database/`, `tiny/TinyDatabase.ml` |
-| TinyGit and TinyDiff, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` (next) |
+| TinyGit and TinyDiff, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
 
 ## The principles
 

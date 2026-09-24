@@ -19,6 +19,7 @@ test: all
 	./version_control/tests/session.py 10
 	./version_control/tests/git9_tests.sh
 	./version_control/tests/net.sh
+	./tiny/TinyVCS_test.sh 10
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.

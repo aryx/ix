@@ -318,6 +318,32 @@ changed, as Mercurial and jj do); merge by diff3 on lines; history as
 the only index. Checked by its own laws: checkout of any commit
 restores its tree; merge is symmetric; a clone has the same hashes.
 
+**Chosen** (2026-09-24, when written; 609 lines): git's objects,
+trees and DAG kept, in a canonical text of its own, SHA-1 and deflate
+from the libraries; and, for the rest, the roads taken after git:
+
+- *The repository is one hash*: objects appended to one file, the
+  state (branches, the current one) an object too, an operation, and
+  `.tvcs/head` naming it, replaced by a rename; every command atomic,
+  as TinyDatabase.ml's statements.
+- *Every command undoable*: each operation points to the one before
+  (jj's operation log), so `ops` is the repository's own history and
+  `undo` sets it back.
+- *No staging area*: each command snapshots the work tree, every
+  file tracked but dotfiles and `.tvcsignore`'s (jj, Mercurial).
+- *A merge always succeeds*: a file that does not merge is committed
+  as a conflict entry (the three versions and the text with markers),
+  shown by status, resolved by editing it (jj's first-class
+  conflicts); the common ancestor found on the DAG, not by dates.
+- Myers' diff, diff3 over two of them; remotes are directories.
+
+**Checked** by its laws (`tiny/TinyVCS_test.sh`): GNU patch applies
+its diffs (100 random rounds); switching gives back a commit's files
+and x bits; disjoint merges are symmetric and hold both sides; a
+conflict is committed, shown, resolved; undo restores the branches; a
+crash before head's rename leaves the old state whole; clone, push and
+pull give the same log.
+
 ## Verification
 
 `make test` runs the Testo suite and the local differential scripts;
@@ -325,8 +351,8 @@ restores its tree; merge is symmetric; a clone has the same hashes.
 
 ## Status
 
-2026-09-24: phases 1 to 8 done in a day (8b, http, and 9, patch and
-what uses it, left); then `tiny/TinyVCS.ml`.
+2026-09-24: phases 1 to 8 and 10 (`tiny/TinyVCS.ml`, see "Outside
+git9") done in a day; 8b (http) and 9 (patch and what uses it) left.
 
 **Size**: 3,609 lines of `.ml` (with 261 of copyright headers), the
 target's 3,600, against 10,627 twinned (git9's 7,912 of C and 1,406 of
