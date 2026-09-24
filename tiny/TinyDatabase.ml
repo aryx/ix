@@ -56,6 +56,20 @@
  * The test: TinyDatabase_test.sh runs pipelines through it and the
  * equivalent SQL through SQLite (Python's sqlite3), rows compared.
  *
+ * Exercises, each cheap because nodes never change:
+ * - transactions of several statements: begin ... commit, the header
+ *   written only at commit (and rollback: forget the catalog in
+ *   memory); about 10 lines, since a statement is already one;
+ * - time travel: each catalog also records the offset of the one it
+ *   replaces, and books @ 3 reads the table as it was three commits
+ *   ago; the old roots are all still in the file;
+ * - compaction: copy the live trees into a new file, then rename it
+ *   over the old one; the rename is atomic too, and the file stops
+ *   growing forever;
+ * - readers beside a writer: a reader keeps the root it started with,
+ *   a snapshot, with no lock (LMDB's design);
+ * - rebalancing on delete: merge an underfull node with a sibling.
+ *
  * Usage: tinydatabase file.db -- statements on standard input, one a
  * line, # for comments
  *
