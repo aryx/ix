@@ -21,7 +21,10 @@ rely on the ARM emulator but extended for the qemu-system-part with
 MMU, framebuffer, storage"; "emulate after the Pi1 and Pi4"; "study
 ~/xv6/ and ideally we also want to run the different xv6 Pi kernels
 with TinyRaspberryPi"; "adjust the plan to support 9pi, 9pi2, but
-also possibly the Pi1 and Pi4 (and maybe more) under ~/xv6/").
+also possibly the Pi1 and Pi4 (and maybe more) under ~/xv6/"; "ultimately
+I want to boot on a real pi1, pi2, and pi4 (that I own). in xv6 there
+also some graphics-run target that requires usb and framebuffer and so
+on, which are also required by the physical pi to work correctly").
 
 ## The kernels it must boot
 
@@ -31,7 +34,7 @@ and xv6-multiarch's `forks/`, with each port's
 
 | kernel | ISA, CPU | board (QEMU) | cores | console | tick | storage | other devices |
 |---|---|---|---|---|---|---|---|
-| **9pi** (principia, `conf/arm/pi`) | ARMv6, ARM1176, VFP | raspi1ap | 1 | mini UART | system timer C3 | EMMC + DMA (SD image) | mailbox (property tags), framebuffer, watchdog, USB (DWC2, optional) |
+| **9pi** (principia, `conf/arm/pi`) | ARMv6, ARM1176, VFP | raspi1ap | 1 | mini UART | system timer C3 | EMMC + DMA (SD image) | mailbox (property tags), framebuffer, watchdog, USB (DWC2) |
 | **9pi2** (`conf/arm/pi2`) | ARMv7, Cortex-A7 | raspi2b | 4 | mini UART | generic timer | EMMC + DMA | ARM-local interrupts and mailboxes |
 | **xv6 arm-pi1** | ARMv6, ARM1176, hard-float | raspi1ap | 1 | PL011 (+ mini UART) | system timer C3, 100 Hz | ramdisk in the kernel | mailbox ch8 + ch1 framebuffer, USB keyboard (csud) |
 | **xv6 arm-pi1-bis** | ARMv6, soft-float | raspi1ap | 1 | PL011 (+ mini UART) | system timer C3 | ramdisk | mailbox, framebuffer, USB (csud) |
@@ -53,6 +56,61 @@ the part of QEMU's command line these ports use (`-M raspi1ap|raspi2b|
 raspi3b|raspi4b`, `-kernel` raw or ELF, `-device loader,file=,addr=,
 force-raw=on`, `-m`, `-smp`, `-nographic`, `-serial mon:stdio`), so the
 ports' Makefiles and harnesses run it as they run QEMU.
+
+## Toward the real boards
+
+The author owns a **Pi1, a Pi2 and a Pi4**, and the kernels are meant to
+boot on them: 9pi and xv6 arm-pi1 and arm-pi1-bis on the Pi1; 9pi2 and
+xv6 arm and arm-pi2 on the Pi2; xv6 arm64-pi4 on the Pi4 (arm-pi3 stays
+QEMU-only: no Pi3). None of xv6's has been booted on a board yet
+(xv6-multiarch's `plan_build_and_test_2.md`, §3: "the single largest
+untested claim in the repo"), and they cannot be exercised under
+QEMU: each kernel **detects QEMU and takes another path** -- 9pi's and
+xv6's `emulating()` read the DWC2 USB controller's id (QEMU's 2.94a
+against the silicon's 2.80a) and then skip the power handshake on the
+mailbox's channel 0, USB split transactions, the watchdog; xv6
+arm64-pi4 enters at EL3 under QEMU and EL2 on the board; QEMU's mailbox
+answers a framebuffer's *physical* address where the firmware answers a
+bus address; its mini UART has no backend; its SP804 timer is a stub.
+The real-hardware paths are the ones never run.
+
+So TinyRaspberryPi has **two personalities**:
+
+- **`-M raspi1ap` ... (QEMU's)**: QEMU's loader, QEMU's device
+  behaviour, its quirks included -- for the differential tests against
+  QEMU, and to run xv6's harnesses unchanged;
+- **`-hw pi1|pi2|pi4` (the board's)**: the firmware's boot and the
+  silicon's behaviour -- the SD card's boot partition read as the
+  firmware reads it (`config.txt`, `kernel.img`, `kernel7.img`,
+  `kernel8.img`, loaded at 0x8000 or 0x80000, the core in the state the
+  firmware leaves it: SVC on the Pi1, HYP on the Pi2, EL2 on the Pi4,
+  with ATAGs or a device tree's address in r2 or x0), and the devices as
+  the datasheets describe them (the DWC2's real id, the channel-0
+  handshake answered, bus addresses from the mailbox, a working mini
+  UART and SP804, the Pi1's and Pi2's LAN9512/9514 hub between the
+  controller and the keyboard). The kernels then take the paths the
+  boards will make them take: **the image to flash is the image
+  emulated.**
+
+The references for the second personality are the documents (BCM2835
+ARM Peripherals, the BCM2711 datasheet, the firmware's boot and
+mailbox documentation; from memory, to check) and the kernels' own
+real-hardware code; and, finally, **the boards themselves**: each
+board's serial console, captured (a USB-to-serial cable on GPIO 14/15),
+is compared with TinyRaspberryPi's `-hw` console for the same card
+image -- the last differential, and the one xv6-multiarch's plan asks
+for ("flash, boot, capture the serial log").
+
+**Graphics and USB are then required, not optional.** xv6's graphical
+targets (`run-arm-pi1-qemu-graphics`, `arm-pi1-bis`, `arm-pi3`: a
+framebuffer console and a USB keyboard; `make test-all-graphics`) and a
+board's normal use need the framebuffer (the mailbox's channel 1, and
+the property interface's framebuffer tags, the only way on the Pi4) and
+USB: the DWC2 host controller and a keyboard behind it (on the boards,
+behind the hub; on the Pi4, whose USB-A ports are an xHCI controller on
+PCIe (the VL805, from memory), a separate and larger model, planned
+last, and only once a kernel drives it -- xv6 arm64-pi4 has neither
+framebuffer nor USB yet).
 
 ## Context
 
@@ -122,16 +180,23 @@ raspberry/                 library ix_raspberry; the tinypi executable
   Uart.ml(i)               PL011; mini UART (AUX) and GPIO
   Mailbox.ml(i)            property tags; legacy channel 1 framebuffer
   Emmc.ml(i), Dma.ml(i)    the SD card, for 9pi
-  Dwc2.ml(i)               USB, enough for a keyboard (optional)
-  CLI.ml(i), Main.ml       QEMU's command line, the subset
+  Dwc2.ml(i), Usbkbd.ml(i) USB: the DWC2 host controller, a hub (the
+                           boards' LAN951x), a HID keyboard
+  Framebuffer.ml(i)        the framebuffer shown: a window through SDL
+                           (tsdl), or PPM snapshots when headless
+  Firmware.ml(i)           the board's boot: the SD card's FAT boot
+                           partition, config.txt, the kernel's load
+                           address and entry state, ATAGs or a DTB
+  CLI.ml(i), Main.ml       QEMU's command line, the subset; -hw
 tiny/TinyPi.ml             the free variant
 ```
 
 **The size target**: the core extensions 1,700 (Arm32 privileged 350,
 Arm64 privileged 400, Thumb 200, Vfp 300, Mmu32 250, Mmu64 200),
 Board+Smp 350, the devices 1,300 (Intc 120, Local 120, Gic 250,
-Systimer 150, Uart 200, Mailbox 200, Emmc+Dma 400; Dwc2 not counted),
-CLI 150: **about 3,500 lines** for all eight kernels.
+Systimer 150, Uart 200, Mailbox 200, Emmc+Dma 400),
+CLI 150; for the boards, Firmware (a FAT reader, config.txt) 300,
+Framebuffer 150, Dwc2 + Usbkbd + hub 700: **about 4,700 lines**.
 
 ## Groundwork decisions
 
@@ -182,10 +247,10 @@ and raspi4b: polling the spin table at 0xe0, 0xe8, 0xf0).
 | ARM-local (0x40000000) | 9pi2 | local timers, per-core mailboxes |
 
 Registers outside these are logged and read as zero. The SP804 ARM
-timer, stubbed by QEMU, is not modelled (no kernel relies on it under
-QEMU). USB (DWC2) comes last and is optional: it is the keyboard of
-the graphical consoles, and 9pi's and xv6's drivers already skip what
-QEMU does not do.
+timer, stubbed by QEMU, is modelled only in the boards' personality (it works on
+silicon). USB (DWC2, a hub, a keyboard) and the framebuffer are the
+graphical consoles' and the boards': required (see "Toward the real
+boards").
 
 ### 5. The MMU as a bus in front of the bus
 
@@ -215,30 +280,61 @@ QEMU's ROM; raspi4b: EL3, which xv6's entry takes down to EL2 and
 EL1), with r0-r2 or x0 as QEMU sets them, and the board's firmware
 conventions (the spin table) in RAM.
 
+### 8. Two personalities, one machine
+
+QEMU's and the board's differ in the loader and in a list of device
+behaviours, each a flag of the device model, set by the personality:
+the DWC2's id, the mailbox's channel 0 and its framebuffer addresses,
+the mini UART's backend, the SP804, the watchdog, the entry state. The
+list is the kernels' own `emulating()` branches and QEMU workarounds
+(xv6's `notes_arch_*.txt`, 9pi's `usbdwc.c`), each a test: a kernel
+under `-hw` must take its hardware branch.
+
+### 9. The framebuffer through SDL; the keyboard back through USB
+
+A window (tsdl, installed; lablgtk2 and cairo2 too) shows the
+framebuffer's RAM at each vertical refresh (60 times a simulated
+second); a key pressed in the window becomes a USB HID report the
+emulated keyboard delivers when the kernel's driver polls. Headless
+(the tests), the framebuffer is written as PPM on request, and the
+graphical tests compare pictures: the console's text drawn in pixels.
+
 ## Phases
 
 - **A. Pi1, xv6 first.** arm-pi1-bis then arm-pi1: Arm32's privileged
   state, Mmu32 (legacy descriptors), the interrupt controller, the
   system timer, the PL011, the mailbox's memory tag; boot, then
-  `usertests`. Then the framebuffer (channel 1) and VFP (arm-pi1's
-  hard-float).
-- **B. 9pi.** The mini UART, the mailbox's other tags, EMMC and DMA
+  `usertests`. Then VFP (arm-pi1's hard-float).
+- **B. The Pi1's graphics and USB.** The framebuffer (channel 1) in a
+  window, DWC2 and a keyboard: `run-arm-pi1-qemu-graphics`'s session
+  under TinyRaspberryPi, and `test-all-graphics`'s checks.
+- **C. 9pi.** The mini UART, the mailbox's other tags, EMMC and DMA
   with 9pi's SD image, high-vector and VFP details; 9pi's boot console
   against QEMU's, then its shell.
-- **C. Pi2.** xv6 arm (ARMv7 descriptors, TTBR split, the Thumb-2
-  subset), arm-pi2 (VBAR, CPACR/FPEXC, the NEON stores); then 9pi2 (the
-  ARM-local block, the generic timer, four cores).
-- **D. arm-pi3.** Four cores (decision 3), the AArch64 stub at EL2 and
-  the switch to AArch32 (decision 2), `ldrex/strex`.
-- **E. Pi4.** xv6 arm64-pi4: Arm64's exception levels and system
+- **D. The Pi1 as a board.** The `-hw pi1` personality: the SD card's
+  boot partition and `config.txt`, the firmware's entry state, the
+  devices' silicon behaviours (decision 8), the hub between DWC2 and
+  the keyboard; arm-pi1, arm-pi1-bis and 9pi each taking their
+  hardware paths; then flashed on the author's Pi1, the serial logs
+  compared.
+- **E. Pi2.** xv6 arm (ARMv7 descriptors, TTBR split, the Thumb-2
+  subset), arm-pi2 (VBAR, CPACR/FPEXC, the NEON stores); 9pi2 (the
+  ARM-local block, the generic timer, four cores); then `-hw pi2`
+  (HYP-mode entry) and the author's Pi2.
+- **F. arm-pi3.** Four cores (decision 3), the AArch64 stub at EL2 and
+  the switch to AArch32 (decision 2), `ldrex/strex`, its graphics
+  target (uspi's USB).
+- **G. Pi4.** xv6 arm64-pi4: Arm64's exception levels and system
   registers, Mmu64, the GIC-400, the generic timer, four cores; against
-  QEMU 11.1's raspi4b.
-- **F. Optional: virt.** xv6 arm64 on `virt`: GICv3, PSCI, virtio-blk.
-- **G. Optional: USB** (DWC2) for the graphical consoles' keyboard.
-- **H. `tiny/TinyPi.ml`.**
+  QEMU 11.1's raspi4b; then `-hw pi4` (EL2 entry, `kernel8.img`) and the
+  author's Pi4. The Pi4's framebuffer (property tags) and USB (xHCI on
+  PCIe) when a kernel drives them.
+- **H. Optional: virt.** xv6 arm64 on `virt`: GICv3, PSCI, virtio-blk.
+- **I. `tiny/TinyPi.ml`.**
 
-Each phase checked by the kernels' own tests, and by QEMU's trace for
-the first divergence when one fails.
+Each phase checked by the kernels' own tests, by QEMU's trace for the
+first divergence when one fails, and, for the boards' personality, by
+the boards' serial logs.
 
 ## Outside QEMU: TinyPi.ml
 
@@ -252,7 +348,10 @@ output, the interrupts' count per simulated second.
 ## Verification
 
 `make test-pi`: each xv6 port's `test-xv6.py` with TinyRaspberryPi as
-its QEMU, boot then `usertests`; 9pi's boot console against QEMU's.
+its QEMU, boot then `usertests`; 9pi's boot console against QEMU's;
+the graphical targets' pictures; under `-hw`, each kernel's hardware
+branches taken, and the boards' captured serial logs (kept in the
+repository with the card image's hash) matched.
 Needs `~/xv6` built and, for the Pi4, QEMU 11.1's raspi4b only to
 compare, not to test.
 
@@ -260,4 +359,6 @@ compare, not to test.
 
 2026-09-24: plan written with plan_arm.md; revised for xv6's six Pi
 ports and 9pi2 the same day, from the survey and the census
-(`machine/tests/xv6_census.sh`). Starts after TinyArm's phases 1-5.
+(`machine/tests/xv6_census.sh`); revised again for the author's real
+Pi1, Pi2 and Pi4 (the boards' personality, graphics and USB
+required). Starts after TinyArm's phases 1-5.

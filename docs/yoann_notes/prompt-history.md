@@ -3244,3 +3244,15 @@ Claude measured instruction census (89 arm32 mnemonics, 45 arm64, ~27 Linux sysc
 **Yoann:**
 
 > so might want to adjsut the plan to support 9pi, 9pi2, but also possibly the Pi1 and Pi4 (and maybe more) under ~/xv6/
+
+**Claude (summary):**
+
+Claude surveyed six xv6 Pi ports on qemu and wrote plan_pi.md with five phases targeting eight kernels. He found libgcc division routines are Thumb-2-only in ARMv7 ports and VFP/NEON in some kernels. Yoann noted xv6's graphics-run targets require USB and framebuffer that must work on his real pi1, pi2, pi4. These physical hardware features contradict Claude's plan, which marked USB keyboards and virt boards as optional. Claude asked to start TinyArm phase 1 but needs hardware scope clarified first.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 19:05
+
+**Yoann:**
+
+> note that ultimately I want to boot on a real pi1, pi2, and pi4 (that I own). in xv6 there also some graphics-run target that requires usb and framebuffer and so on, which are also required by the physical pi to work correctly

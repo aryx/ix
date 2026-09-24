@@ -209,7 +209,24 @@ needs overlap 9pi's, with differences worth knowing:
   raspi2b), 0x80000 (raspi3b, raspi4b) -- not the 0x8000 of the real
   firmware; the ports' QEMU builds are linked for it.
 
-## 8. How TinyRaspberryPi will be tested
+## 8. QEMU's Pi and the real Pi
+
+QEMU's raspi machines are close to the boards, not equal, and the
+kernels know it: they read the USB controller's id, see QEMU's, and
+take other paths. Where QEMU loads a kernel (0x10000, 0x80000), the
+board's firmware loads it from the SD card's FAT partition as
+`config.txt` says (`kernel.img` at 0x8000 on a Pi1, `kernel7.img` on a
+Pi2, `kernel8.img` at 0x80000 on a Pi4), and starts the core in
+another state: HYP mode on a Pi2, EL2 on a Pi4, with the address of
+ATAGs or a device tree in r2 or x0. The firmware answers the mailbox
+with bus addresses where QEMU gives physical ones, drives a hub
+(LAN9512/9514) between the USB controller and the ports, answers a
+power handshake on channel 0 QEMU never answers. An emulator meant as
+a stepping stone to the boards must do what the boards do; QEMU's
+behaviour is kept too, for comparing with QEMU (plan_pi.md, decision
+8).
+
+## 9. How TinyRaspberryPi will be tested
 
 xv6's ports' own tests, unchanged, with TinyRaspberryPi in QEMU's
 place: boot, a shell prompt, `ls`, `usertests` to "ALL TESTS PASSED".
@@ -219,7 +236,7 @@ the console output compared line by line; QEMU's instruction trace
 divergence; each device's registers checked against what 9pi's driver
 expects of them.
 
-## 9. Exercises
+## 10. Exercises
 
 - A second core (the Pi2): what must be shared, what per core; the
   ARM-local mailboxes that start the other cores.
