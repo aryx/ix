@@ -3256,3 +3256,63 @@ Claude surveyed six xv6 Pi ports on qemu and wrote plan_pi.md with five phases t
 **Yoann:**
 
 > note that ultimately I want to boot on a real pi1, pi2, and pi4 (that I own). in xv6 there also some graphics-run target that requires usb and framebuffer and so on, which are also required by the physical pi to work correctly
+
+**Claude (summary):**
+
+Claude proposed two emulator personalities: qemu mode for convenient testing, real-hardware mode for pre-flash validation.
+The hardware mode reads the SD card boot partition like real firmware, loads kernels at correct addresses, enters proper CPU state.
+Each qemu-hardware difference becomes a device flag and test, so kernels can exercise hardware paths before physical flashing.
+Graphics requires SDL framebuffer with keyboard input; USB means DWC2 and LAN9512 hub for Pi1/Pi2, xHCI for Pi4.
+The plan grew to 4,700 lines implementing firmware reading, framebuffer display and USB.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 19:37
+
+**Yoann:**
+
+> I mean we want both the real boards and the qemu; both have a use, and qemu is very convenient to test things
+
+**Claude (summary):**
+
+Updated plan_pi.md (commit 3659c46) to explicitly establish both qemu and real boards as first-class personalities. Documented qemu as the default everyday path used in `make test`, fast and scriptable. Documented the boards' personality (`-hw pi1|pi2|pi4`) for hardware-specific branches that qemu cannot show. Clarified the workflow: each board starts on qemu to catch bugs, then moves to real hardware before flashing. Corrected the earlier overstatement that boards were "the destination" by making both options equally primary.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 19:38
+
+**Yoann:**
+
+> excellent
+
+**Claude (summary):**
+
+Claude saved the hardware setup to memory: Pi1, Pi2, Pi4 final targets, qemu everyday development machine.
+Claude identified qemu 11.1 build with raspi4b at /home/pad/work/TOOLCHAINS/qemu/build as the development environment.
+Claude proposed TinyArm phase 1: arm32 instruction variant with decoder and disassembler in machine/ directory.
+The implementation will be validated against objdump output from 2,311 words the execution corpus processes.
+With this setup, Claude readied the TinyArm project for phase 1 development.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 19:44
+
+**Yoann:**
+
+> let's do it!
+
+------------------------------------------------------------------------
+
+## 2026-09-24 19:45
+
+**Yoann:**
+
+> another thing is that the TinyRaspberryPi will be the first and only program to depend on the playground libraries I think (~/playground/)
+
+------------------------------------------------------------------------
+
+## 2026-09-24 19:45
+
+**Yoann:**
+
+> not sure TinyMachineARM need to

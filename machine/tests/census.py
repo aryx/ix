@@ -15,7 +15,7 @@
 # by binutils' objdump and counted by mnemonic, and by form (the
 # operands' shapes: register, immediate, shifted, pre/post-indexed).
 #
-# Usage: census.py 5|7 program...
+# Usage: census.py [--words FILE] 5|7 program...
 #        census.py --logs 5|7 qemu-log...   (logs of a whole system's
 #        boot, qemu-system-* -d in_asm: kernel and user code alike)
 
@@ -23,6 +23,11 @@ import collections, os, re, subprocess, sys, tempfile
 
 logs_only = sys.argv[1] == "--logs"
 if logs_only: sys.argv.pop(1)
+# --words FILE: the distinct words run, one a line, as 8 hex digits of
+# the 32-bit value (the decoder test's corpus, words_arm*.txt)
+words_file = None
+if sys.argv[1] == "--words":
+    words_file = sys.argv[2]; del sys.argv[1:3]
 arch, progs = sys.argv[1], sys.argv[2:]
 qemu = {"5": "qemu-arm", "7": "qemu-aarch64"}[arch]
 objdump = {"5": ["objdump", "-m", "arm"], "7": ["objdump", "-m", "aarch64"]}[arch]
@@ -46,6 +51,10 @@ for p in progs:
     for line in open(os.path.join(tmp, "st")):
         m = re.match(r"(?:\d+\s+)?(\w+)\(", line)
         if m: syscalls[m.group(1)] += 1
+if words_file:
+    with open(words_file, "w") as f:
+        for w in sorted(words, key=lambda w: bytes.fromhex(w)[::-1]):
+            f.write(bytes.fromhex(w)[::-1].hex() + "\n")
 binf = os.path.join(tmp, "w.bin")
 with open(binf, "wb") as f:
     for w in words: f.write(bytes.fromhex(w))

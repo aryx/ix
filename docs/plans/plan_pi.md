@@ -186,8 +186,9 @@ raspberry/                 library ix_raspberry; the tinypi executable
   Emmc.ml(i), Dma.ml(i)    the SD card, for 9pi
   Dwc2.ml(i), Usbkbd.ml(i) USB: the DWC2 host controller, a hub (the
                            boards' LAN951x), a HID keyboard
-  Framebuffer.ml(i)        the framebuffer shown: a window through SDL
-                           (tsdl), or PPM snapshots when headless
+  Framebuffer.ml(i)        the framebuffer shown: a window through
+                           ~/playground's libraries, or PPM snapshots
+                           when headless
   Firmware.ml(i)           the board's boot: the SD card's FAT boot
                            partition, config.txt, the kernel's load
                            address and entry state, ATAGs or a DTB
@@ -294,11 +295,15 @@ list is the kernels' own `emulating()` branches and QEMU workarounds
 (xv6's `notes_arch_*.txt`, 9pi's `usbdwc.c`), each a test: a kernel
 under `-hw` must take its hardware branch.
 
-### 9. The framebuffer through SDL; the keyboard back through USB
+### 9. The framebuffer through the playground; the keyboard back through USB
 
-A window (tsdl, installed; lablgtk2 and cairo2 too) shows the
-framebuffer's RAM at each vertical refresh (60 times a simulated
-second); a key pressed in the window becomes a USB HID report the
+TinyRaspberryPi is **the one ix program to depend on the author's
+playground libraries** (`~/playground`: the Elm playground's OCaml port,
+its native backends on Cairo and SDL, its graphics and GUI libraries);
+TinyArm does not, nor any other ix program. A playground window shows
+the framebuffer's RAM at each vertical refresh (60 times a simulated
+second) -- which of its APIs (an image redrawn, or a raw-pixel
+primitive if it lacks one) is chosen in phase B, reading it then; a key pressed in the window becomes a USB HID report the
 emulated keyboard delivers when the kernel's driver polls. Headless
 (the tests), the framebuffer is written as PPM on request, and the
 graphical tests compare pictures: the console's text drawn in pixels.
