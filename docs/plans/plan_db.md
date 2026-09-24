@@ -246,6 +246,43 @@ replaced by an interpreter over the relational algebra (the road the
 tutorial compares). Checked by running the same SQL sessions and
 comparing rows (not files) with TinyDb.
 
+**Chosen** (2026-09-24, when written): not SQL at all, and not the
+machine. What was taken, and why:
+
+- *The query language is the algebra as a pipeline*:
+  `books | where year > 1980 | select title, year | sort year desc | take 3`.
+  SQL writes the same operators in a fixed order that is not the order
+  they run in (FROM first, SELECT last, HAVING because WHERE comes
+  before GROUP BY). A pipeline reads in the order it runs, each stage's
+  columns are the previous stage's output, and the grammar is a list of
+  stages. Stages: `where`, `select` (with computed columns), `join` (the
+  natural join), `group` (count, sum, min, max), `sort`, `take`; a
+  query may end in `delete` or `set`.
+- *The tree is copy-on-write*: nodes, marshalled OCaml values, are
+  appended and never changed; a statement commits by appending its
+  catalog and writing the catalog's offset into the header. So every
+  statement is atomic with no journal and no recovery code, because a
+  crash before that write leaves the old root whole. Nodes are cached
+  with no invalidation, and old roots are consistent snapshots. The
+  price is a file that only grows. chidb has no transactions; SQLite
+  needs a rollback journal or a WAL for the same guarantee.
+- *Evaluation is iterators* (a `Seq` per stage), where chidb compiles to
+  the machine. The first `where` picks the access path by its shape (a
+  range on the key, on an index, or a scan), as chidb's codegen does,
+  and `explain` prints it. A join hashes the right side.
+- *Deletion without rebalancing*: an underfull node, even an empty
+  leaf, stays and searches stay right.
+
+**Checked** against SQLite rather than TinyDb, since the language is not
+SQL: `tiny/TinyDatabase_test.sh` draws random sessions (inserts with
+duplicate keys, deletes, sets, queries over every stage, indexes, some
+sessions with 3,000 keys for three-level trees), writes each statement
+in both languages, and compares the rows. It reopens the file for every
+statement, and for every change simulates a crash before the commit's
+write (the old header put back) and checks the old state reads back.
+120 sessions over two seeds, identical. 575 lines, against about 500
+planned.
+
 ## The modules, with their references
 
 Each module's `.mli` cites what it implements (principle "References
@@ -304,8 +341,8 @@ in the code"), checked, not from memory:
 
 ## Status
 
-2026-09-24, phases 1 to 7 done in a day; phase 8 (TinyDatabase.ml) to
-do.
+2026-09-24, phases 1 to 8 done in a day (phase 8, TinyDatabase.ml:
+see "Outside chidb").
 
 **Size**: 2,394 lines of `.ml`, `.mll` and `.mly` against the target's
 2,600 (8% under; chidb's C about 10,800):
@@ -349,7 +386,7 @@ sessions (`fuzz.py`, seeds 1 to 4). `make test` runs the corpus,
   ([`../plan_bugs_ocaml.md`](../plan_bugs_ocaml.md)), worked around in
   `Record.types`.
 
-**Left**: `tiny/TinyDatabase.ml`; `.dbmrun` and `-c` are not in the
+**Left**: `.dbmrun` and `-c` are not in the
 differential corpus yet; the tutorial is to be checked against the
 code, as the earlier ones were.
 

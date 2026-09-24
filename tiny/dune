@@ -31,3 +31,10 @@
  (public_name tinyc)
  (package ix)
  (modules TinyC))
+
+(executable
+ (name TinyDatabase)
+ (public_name tinydatabase)
+ (package ix)
+ (modules TinyDatabase)
+ (libraries unix caps))

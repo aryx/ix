@@ -12,6 +12,7 @@ test: all
 	./tiny/TinyEditor_test.sh
 	./linker/tests/golden.sh
 	./_build/default/database/tests/Test.exe
+	./tiny/TinyDatabase_test.sh 20
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.

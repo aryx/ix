@@ -3012,3 +3012,39 @@ Claude deprioritized TinyGit (needs infrastructure) and 5i emulator, offering to
 **Yoann:**
 
 > ok let's do tiny sqlite under database/ (and its TinyDatabase.ml more free form later)
+
+**Claude (summary):**
+
+Claude built TinyDb across storage, bytecode machine, SQL front end, and shell phases, reaching 2,394 lines with all 131 test cases passing. The implementation discovered a miscompilation in OCaml 4.14.2 arm64 native code where byte-buffer reads return stale values after heap allocations. Yoann approved implementing TinyDatabase.ml next, described as the free variant—an immutable B-tree interpreter left unbuilt so far. Yoann explicitly permitted designing an elegant, compact query language for it rather than replicating chidb's SQL syntax.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:29
+
+**Yoann:**
+
+> yes, let's do TinyDatabase.ml but feel free to think outside the box; the query language does not have to be exactly SQL, it can be something more elegant and compact
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:32
+
+**Yoann:**
+
+> fantastic choices
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:32
+
+**Yoann:**
+
+> I like it a lot
+
+------------------------------------------------------------------------
+
+## 2026-09-24 13:33
+
+**Yoann:**
+
+> especially this transaction for free approach; using the hindsight of 50 years past the SQL and classic db intro and recent advances to simplify things while being more powerful

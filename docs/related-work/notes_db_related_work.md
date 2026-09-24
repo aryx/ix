@@ -56,6 +56,31 @@ memory).
   jumps. The tutorial's exercise to interpret the algebra directly is
   the iterator road.
 
+## Pipelines instead of SELECT
+
+What `tiny/TinyDatabase.ml` takes instead of SQL, all from memory:
+
+- **QUEL** (Ingres, above) and **Datalog** show that SQL's syntax was
+  never the only one; what stayed was the algebra underneath.
+- **Pipe syntax**: Unix pipes (McIlroy), then query languages built as
+  a chain of stages, each taking the previous one's table: Splunk's
+  SPL, Microsoft's Kusto (KQL), PRQL (2022), and Google's pipe syntax
+  for SQL (Shute et al., "SQL Has Problems. We Can Fix Them: Pipe
+  Syntax In SQL", VLDB 2024), which argues that SQL's fixed clause order
+  is its main usability defect. In all of them a query is the
+  algebra's operators in the order they run.
+
+## Copy-on-write trees
+
+- **Rodeh (2008)**, "B-trees, Shadowing, and Clones" (ACM Transactions
+  on Storage; from memory): B-trees that never change a node in place,
+  a change copying the path to the root; the design of btrfs.
+- **LMDB** (Howard Chu, 2011; from memory) and before it
+  **System R's shadow pages** (Lorie, 1977; from memory): a commit is
+  the switch to a new root, so a crash leaves the old one whole and
+  there is no log to replay. LMDB reuses freed pages; TinyDatabase.ml,
+  like an append-only log, does not.
+
 ## B-trees
 
 - **Bayer and McCreight (1972)**, "Organization and Maintenance of
@@ -108,5 +133,6 @@ cells, registers and the algebra as variants; labels instead of
 patched jumps; the optimizer as a function) and the tests: chidb's
 131 cases, the differential scripts, a fuzzer, and SQLite reading
 every file. The free variant, `tiny/TinyDatabase.ml`, is where the
-roads not taken go: an immutable B-tree, an interpreter over the
-algebra.
+roads not taken go: a copy-on-write B-tree (atomic statements by one
+header write), iterators over the algebra instead of the machine, and
+the algebra itself as the query language, a pipeline.

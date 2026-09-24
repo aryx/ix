@@ -13,6 +13,7 @@ files, children and pipes they share with the twins come from
 | `TinyEditor.ml` | `editor/` (TinyEd, ed) | sam's command language: dot a range, loops over matches, changes in parallel |
 | `TinyAssembler.ml` | `assembler/`, `linker/` (TinyAsm, TinyLd; 5a/5l, 7a/7l) | no separate compilation: all of a program's assembly into an arm64 executable, sizes known before addresses, a word per closure |
 | `TinyC.ml` | `compiler/` (TinyCompiler; 5c, 7c) | a C subset through a stack machine of its own, the stack in registers, 7c's calling convention so it links with goken's libc |
+| `TinyDatabase.ml` | `database/` (TinyDb; chidb) | the relational algebra as the query language, a pipeline (`t \| where ... \| group ... \| sort ...`); a copy-on-write B-tree, so every statement is atomic by one header write |
 
 Each has its tests beside it, `TinyXxx_test.sh`, run by `make test`
 (TinyAssembler's and TinyC's, which need goken, by `make test-goken`;
