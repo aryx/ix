@@ -1,7 +1,7 @@
 (library
  (name ix_asm)
  (modules Asm Lexer Parser CLI)
- (libraries ix_core caps))
+ (libraries ix_core fpath caps))
 
 (executable
  (name Main)

@@ -10,4 +10,4 @@
 (* tinymk, the ix build system: see CLI.mli *)
 
 let () =
-  Cap.main (fun caps -> CapStdlib.exit caps (Ix_mk.CLI.main caps (CapSys.argv caps)))
+  Cap.main (fun caps -> Logging.setup caps ~name:"tinymk"; CapStdlib.exit caps (Ix_mk.CLI.main caps (CapSys.argv caps)))

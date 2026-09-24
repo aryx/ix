@@ -2865,3 +2865,63 @@ Yoann suggested redesigning away from goken's approach entirely, possibly follow
 **Yoann:**
 
 > also still not use for a lib_core/ or libs/ to factorize code (or TinyLibXxx for the tiny/ one)
+
+**Claude (summary):**
+
+Claude surveyed xix's linker before redesigning arm64 with a select function matching instruction shapes instead of rule tables and case numbers.
+Each case of select paired its pattern directly with encoding, producing the instruction size and literal pool in one place.
+The redesign deleted unreachable rules, shrinking arm from 772 to 748 lines and arm64 from 810 to 780 lines.
+Testing proved byte-identical output to goken on golden tests, libc, compiler listings and fuzzer across both machines.
+Claude also created lib_core as a shared library and moved condition codes into Asm for assembler, linker and compiler to share.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:43
+
+**Yoann:**
+
+> why you didn't come yourself with the idea of this better design for the linker?
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:43
+
+**Yoann:**
+
+> why did you follow too close what was done in goken?
+
+**Claude (summary):**
+
+Claude anchored on goken's linker because transliterating for byte-identical output seemed safest, not realizing xix already had a better design using pattern matching instead of tables-and-case-codes. Goken's naming made its design look like specification rather than implementation, and small refactors never questioned the structure itself. Claude had read xix for other purposes but never opened its linker for comparison. It learned to treat C structures like tables-plus-codes as redesign candidates rather than requirements. Future components should check xix designs before mirroring goken's approach.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:44
+
+**Yoann:**
+
+> ok, now look at xix for the other components too
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:44
+
+**Yoann:**
+
+> or not just xix, think of possible better design yourself
+
+**Claude (summary):**
+
+Claude planned to compare each ix component with its xix counterpart looking for architectural differences beyond types.
+Identified four toolchain improvements: typed instructions end-to-end, handling suffixes as part of memory operands, not instructions.
+Operand classes could be replaced with explicit value types using range checks instead of semantic class lattices.
+Mutable record program representation in follow/rewrite/layout functions could become pure array-based functions.
+Said they'd await reports from six parallel component comparisons then rank improvements with risk assessment and test coverage.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:45
+
+**Yoann:**
+
+> in the mean time, let's start to use Fpath and Logs library, instead of using string for filename in many places, especially in this new Files.mli

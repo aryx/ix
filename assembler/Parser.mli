@@ -21,4 +21,4 @@
 exception Error of int * string   (* a line, a message *)
 
 (* [parse caps arch file text]; caps to read the #included files *)
-val parse : < Cap.open_in; .. > -> Asm.arch -> string -> string -> Asm.obj
+val parse : < Cap.open_in; .. > -> Asm.arch -> Fpath.t -> string -> Asm.obj

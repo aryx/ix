@@ -9,4 +9,4 @@
  *)
 (* tinycc, the ix C compiler: see CLI.mli *)
 
-let () = Cap.main (fun caps -> CapStdlib.exit caps (Ix_cc.CLI.main caps (CapSys.argv caps)))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinycc"; CapStdlib.exit caps (Ix_cc.CLI.main caps (CapSys.argv caps)))

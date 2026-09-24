@@ -84,9 +84,11 @@ let main (caps : < caps; .. >) (argv : string array) : int =
   | [] -> eprint caps "usage: tinyld -m 5|7 [-H2|-H6|-H7] [-E entry] [-o out] files... | -a lib.a objects...\n"; 1
   | _ -> (
       try
-        if !lib <> "" then Link.make_library caps !lib files
+        let path s = match Files.path s with Ok p -> p | Error m -> failwith m in
+        let files = List.map path files and out = path !out in
+        if !lib <> "" then Link.make_library caps (path !lib) files
         else (match !arch with
-          | Asm.Arm -> link arm caps ~verbose:!verbose !arch !format !entry !out files
-          | Asm.Arm64 -> link arm64 caps ~verbose:!verbose !arch !format !entry !out files);
+          | Asm.Arm -> link arm caps ~verbose:!verbose !arch !format !entry out files
+          | Asm.Arm64 -> link arm64 caps ~verbose:!verbose !arch !format !entry out files);
         0
       with Link.Error m | Sys_error m | Failure m -> eprint caps ("tinyld: " ^ m ^ "\n"); 1)

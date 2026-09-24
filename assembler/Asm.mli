@@ -98,7 +98,7 @@ type item =
   | Data of name * int64 * int * operand (* offset, width, value *)
   | Ins of instr
 
-type obj = { arch : arch; file : string; items : (item * int) array (* and its line *) }
+type obj = { arch : arch; file : Fpath.t; items : (item * int) array (* and its line *) }
 
 (* the register names: R0-R15, SP, PC on arm; R0-R30, ZR, RSP on arm64 *)
 val register : arch -> string -> operand option
@@ -120,8 +120,8 @@ val string_of_cond : cond -> string
 
 (* the objects, marshalled with a version; the files through the
  * capabilities *)
-val save : < Cap.open_out; .. > -> string -> obj -> unit
-val load : < Cap.open_in; .. > -> string -> obj
+val save : < Cap.open_out; .. > -> Fpath.t -> obj -> unit
+val load : < Cap.open_in; .. > -> Fpath.t -> obj
 
 (* an instruction, as the assembler would read it back (for errors,
  * listings, and the round-trip law) *)

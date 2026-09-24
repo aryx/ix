@@ -19,7 +19,7 @@ open Tree
 type input = { text : string; mutable pos : int }
 
 let stack : input list ref = ref []
-let includes : string list ref = ref []
+let includes : Fpath.t list ref = ref []
 let peekc : char option ref = ref None
 
 (* the end of the input: a NUL is no C *)
@@ -259,7 +259,7 @@ let macexpand s =
     Buffer.contents b
   end
 
-let read_file = ref (fun (_ : string) -> (None : string option))
+let read_file = ref (fun (_ : Fpath.t) -> (None : string option))
 
 let macinc () =
   let c0 = getnsc () in
@@ -270,10 +270,10 @@ let macinc () =
   if getcom () <> '\n' then error_at !lineno "syntax in #include";
   let f = Buffer.contents b in
   let dirs = List.filteri (fun i _ -> not (i = 0 && close = '>')) !includes in
-  let text = List.find_map (fun d -> !read_file (if d = "." then f else Filename.concat d f)) dirs in
+  let text = List.find_map (fun d -> !read_file (Fpath.append d (Fpath.v f))) dirs in
   match text with
   | Some t -> push t
-  | None -> (match !read_file f with Some t -> push t | None -> error_at !lineno "cannot open include file %s" f)
+  | None -> (match !read_file (Fpath.v f) with Some t -> push t | None -> error_at !lineno "cannot open include file %s" f)
 
 type cond = Ifdef | Ifndef | Else
 

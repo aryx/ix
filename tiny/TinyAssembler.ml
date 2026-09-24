@@ -318,7 +318,7 @@ let parse caps files =
         | _ -> fail "syntax error"
       in
       statement ();
-      if !toks <> [] then fail "junk after the operands") (lines [] [] (lex (Files.read caps file)));
+      if !toks <> [] then fail "junk after the operands") (lines [] [] (lex (Files.read caps (Fpath.v file))));
     let resolve id = function
       | `Rel n -> id + n
       | `Label l -> (match Hashtbl.find_opt labels l with Some i -> i | None -> error "%s: undefined label %s" file l) in
@@ -634,7 +634,7 @@ let link (caps : < Cap.open_in; Cap.open_out; .. >) files entry out =
   w16 2; w16 183; w32 1; w64 (addr entry); w64 64; w64 0; w32 0; w16 64; w16 56; w16 1; w16 0; w16 0; w16 0;
   w32 1; w32 7; w64 0; w64 base_addr; w64 base_addr; w64 (Bytes.length file); w64 (Bytes.length file + bsize); w64 0x1000;
   Bytes.blit (Buffer.to_bytes h) 0 file 0 headr;
-  Files.write caps ~perm:0o755 out (Bytes.to_string file)
+  Files.write caps ~perm:0o755 (Fpath.v out) (Bytes.to_string file)
 
 let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stderr; .. >) =
   let eprint (_ : < Cap.stderr; .. >) s = prerr_endline s in
@@ -649,4 +649,4 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stderr; .. >) =
   | entry, out, files -> (
       try link caps files entry out; 0 with Error m | Sys_error m -> eprint caps ("tinyassembler: " ^ m); 1)
 
-let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyassembler"; CapStdlib.exit caps (main caps))

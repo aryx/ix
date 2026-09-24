@@ -29,8 +29,7 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
   s.sclass <- Tree.Cstatic; s.typ <- Some t;
   List.iter Pre.dodefine defs;
   (* "." is the source's directory; <...> skips it *)
-  let dir = if String.contains file '/' then Filename.dirname file else "." in
-  Pre.includes := dir :: incs;
+  Pre.includes := Fpath.parent file :: incs;
   Pre.read_file := Files.read_opt caps;
   Check.xcom := Gen.xcom;
   Check.outstring := Emit.outstring;
@@ -40,7 +39,7 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
     if dump then print caps (Tree.prtree f.name body);
     Gen.codgen f body);
   match Files.read_opt caps file with
-  | None -> Error (Printf.sprintf "cannot open %s" file)
+  | None -> Error (Printf.sprintf "cannot open %s" (Fpath.to_string file))
   | Some text ->
       Pre.push text;
       Tree.lineno := 1;
@@ -50,8 +49,8 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
            if listing then print caps (Emit.listing ());
            Ix_asm.Asm.save caps out (Emit.obj file);
            Ok ()
-       | exception Tree.Error m -> Error (Printf.sprintf "%s:%s" file m)
-       | exception Parsing.Parse_error -> Error (Printf.sprintf "%s:%d: syntax error" file !Tree.lineno))
+       | exception Tree.Error m -> Error (Printf.sprintf "%s:%s" (Fpath.to_string file) m)
+       | exception Parsing.Parse_error -> Error (Printf.sprintf "%s:%d: syntax error" (Fpath.to_string file) !Tree.lineno))
 
 let main (caps : < caps; .. >) (argv : string array) : int =
   let mach = ref Arm.machine and dump = ref false and listing = ref false and out = ref "" and defs = ref [] and incs = ref [] and files = ref [] in
@@ -70,11 +69,13 @@ let main (caps : < caps; .. >) (argv : string array) : int =
     | [] -> ()
   in
   args (List.tl (Array.to_list argv));
-  match !files with
-  | [ file ] -> (
+  let path s = match Files.path s with Ok p -> p | Error m -> failwith m in
+  match List.map path !files, List.map path (List.rev !incs) with
+  | [ file ], incs -> (
       (* x.c to x.5, in the current directory, as 5c *)
-      let out = if !out <> "" then !out else Filename.remove_extension (Filename.basename file) ^ "." ^ String.make 1 !mach.thechar in
-      match compile caps !mach ~dump:!dump ~listing:!listing ~out (List.rev !defs) (List.rev !incs) file with
+      let out = if !out <> "" then path !out else Fpath.set_ext ("." ^ String.make 1 !mach.thechar) (Fpath.base file) in
+      match compile caps !mach ~dump:!dump ~listing:!listing ~out (List.rev !defs) incs file with
       | Ok () -> 0
       | Error m -> eprint caps (m ^ "\n"); 1)
-  | _ -> eprint caps "usage: tinycc -m 5|7 [-x] [-S] [-Idir] [-Dname=value] [-o out] file.c\n"; 1
+  | exception Failure m -> eprint caps ("tinycc: " ^ m ^ "\n"); 1
+  | _, _ -> eprint caps "usage: tinycc -m 5|7 [-x] [-S] [-Idir] [-Dname=value] [-o out] file.c\n"; 1

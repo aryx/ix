@@ -9,4 +9,4 @@
  *)
 (* tinyld, the ix linker: see CLI.mli *)
 
-let () = Cap.main (fun caps -> CapStdlib.exit caps (Ix_ld.CLI.main caps (CapSys.argv caps)))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyld"; CapStdlib.exit caps (Ix_ld.CLI.main caps (CapSys.argv caps)))

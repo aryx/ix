@@ -13,7 +13,7 @@
  * implemented as pushdowns. Thus there is no separate pass for
  * preprocessing." *)
 
-val includes : string list ref
+val includes : Fpath.t list ref
 
 (* the character put back, if any *)
 val peekc : char option ref
@@ -47,7 +47,7 @@ val dodefine : string -> unit
 val macexpand : Tree.sym -> string
 
 (* how #include reads a file, set by CLI (with its capability) *)
-val read_file : (string -> string option) ref
+val read_file : (Fpath.t -> string option) ref
 
 (* #pragma profile's: whether TEXT gets NOPROF *)
 val profile : bool ref

@@ -38,7 +38,7 @@ type item =
   | Data of name * int64 * int * operand
   | Ins of instr
 
-type obj = { arch : arch; file : string; items : (item * int) array }
+type obj = { arch : arch; file : Fpath.t; items : (item * int) array }
 
 let register arch s =
   let num prefix =
@@ -79,13 +79,13 @@ let cond_of_string =
   function "CS" -> Some HS | "CC" -> Some LO | s -> List.assoc_opt s all
 
 (* the objects: marshalled, with a version, as xix's *)
-let version = 2
+let version = 3
 
 let save caps file (o : obj) = Files.write caps file (Marshal.to_string (version, o) [])
 
 let load caps file : obj =
   let v, (o : obj) = Marshal.from_string (Files.read caps file) 0 in
-  if v <> version then failwith (file ^ ": an object of another version");
+  if v <> version then failwith (Fpath.to_string file ^ ": an object of another version");
   o
 
 let show_name (n : name) = if n.static then n.sym ^ "<>" else n.sym

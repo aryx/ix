@@ -103,19 +103,20 @@ let sym_of t version (n : Asm.name) = lookup t n.sym (if n.static then version e
  * TEXTs, GLOBLs and DATAs; each object has its own version, for its
  * name<>s *)
 let add_object t ~decode:decode_machine version (o : Asm.obj) =
-  if o.arch <> t.arch then error "%s: an object for another machine" o.file;
+  let file = Fpath.to_string o.file in
+  if o.arch <> t.arch then error "%s: an object for another machine" file;
   let items = o.items in
   (* the prog of each item that has a pc; the targets point at items *)
   let progs = Array.map (fun (it, line) ->
-    let mk op suffixes args = Some { op; suffixes; args; pc = 0; target = None; version; where = (o.file, line); frame = 0; leaf = false } in
+    let mk op suffixes args = Some { op; suffixes; args; pc = 0; target = None; version; where = (file, line); frame = 0; leaf = false } in
     match (it : Asm.item) with
     | Ins i -> (
         match decode decode_machine i.op with
         | Some op -> mk op i.suffixes i.args
-        | None -> error "%s:%d: unknown opcode %s" o.file line i.op)
+        | None -> error "%s:%d: unknown opcode %s" file line i.op)
     | Text (n, flag, frame) ->
         let s = sym_of t version n in
-        if s.kind = Text then error "%s:%d: %s defined twice" o.file line n.sym;
+        if s.kind = Text then error "%s:%d: %s defined twice" file line n.sym;
         s.kind <- Text;
         (match mk Func [] [ Asm.Mem { base = SB; name = Some n; off = 0L; index = None }; Asm.Imm (Int64.of_int flag) ] with
          | Some p -> p.frame <- Int64.to_int frame; Some p
@@ -147,6 +148,9 @@ type library = (Asm.obj * string list) list   (* each object, and the names it d
 
 let lib_version = 1
 
+let src = Logs.Src.create "link" ~doc:"the linker's objects and libraries"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 (* the names an object defines, for the library's index: its TEXTs,
  * its GLOBLs and DATAs (ar's objsym, 'T' and 'D') *)
 let defined_names (o : Asm.obj) =
@@ -174,9 +178,9 @@ let load caps t ~decode ?(needs = fun _ -> []) files =
   let next () = incr version; !version in
   let libs = ref [] in
   List.iter (fun f ->
-    if Filename.check_suffix f ".a" then begin
+    if Fpath.has_ext ".a" f then begin
       let v, (lib : library) = Marshal.from_string (Files.read caps f) 0 in
-      if v <> lib_version then error "%s: a library of another version" f;
+      if v <> lib_version then error "%s: a library of another version" (Fpath.to_string f);
       libs := !libs @ [ lib ]
     end
     else add_object t (next ()) (Asm.load caps f)) files;
@@ -192,6 +196,8 @@ let load caps t ~decode ?(needs = fun _ -> []) files =
            && List.exists (fun n -> match Hashtbl.find_opt t.syms (n, 0) with Some s -> s.kind = Undefined | None -> false) names
         then begin
           Hashtbl.replace loaded (li, mi) ();
+          Log.info (fun m -> m "from a library: %a, for %s" Fpath.pp o.file
+            (String.concat " " (List.filter (fun n -> match Hashtbl.find_opt t.syms (n, 0) with Some s -> s.kind = Undefined | None -> false) names)));
           add_object t (next ()) o;
           added := true
         end) (List.rev lib)) !libs;

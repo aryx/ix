@@ -9,4 +9,4 @@
  *)
 (* tinyed, the ix editor: see CLI.mli *)
 
-let () = Cap.main (fun caps -> CapStdlib.exit caps (Ix_ed.CLI.main caps (CapSys.argv caps)))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyed"; CapStdlib.exit caps (Ix_ed.CLI.main caps (CapSys.argv caps)))

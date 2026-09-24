@@ -1,7 +1,7 @@
 (library
  (name ix_mk)
  (modules Word Pattern Mkfile Graph Outofdate Recipe Build Archive CLI)
- (libraries ix_core unix re caps))
+ (libraries ix_core fpath unix re caps))
 
 (executable
  (name Main)

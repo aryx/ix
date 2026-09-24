@@ -90,7 +90,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
       let text =
         match !main_file with
         | None -> rcmain
-        | Some f -> Files.read caps f
+        | Some f -> Files.read caps (Fpath.v f)
       in
       let finish status =
         (* sigexit, if defined, runs once on the way out *)

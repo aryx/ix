@@ -3,14 +3,14 @@
  (public_name tinybuild)
  (package ix)
  (modules TinyBuildSystem)
- (libraries ix_core unix caps))
+ (libraries ix_core fpath unix caps))
 
 (executable
  (name TinyShell)
  (public_name tinyshell)
  (package ix)
  (modules TinyShell)
- (libraries ix_core unix caps))
+ (libraries ix_core fpath unix caps))
 
 (executable
  (name TinyEditor)
@@ -24,7 +24,7 @@
  (public_name tinyassembler)
  (package ix)
  (modules TinyAssembler)
- (libraries ix_core caps))
+ (libraries ix_core fpath caps))
 
 (executable
  (name TinyC)

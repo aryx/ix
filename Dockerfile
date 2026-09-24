@@ -19,7 +19,7 @@ WORKDIR /src
 # The dependencies, as dune-project lists them, before the sources, so
 # that a change to the code does not rebuild this layer
 COPY dune-project ./
-RUN eval $(opam env) && opam install -y dune caps re testo alcotest
+RUN eval $(opam env) && opam install -y dune caps re fpath logs fmt testo alcotest
 
 # Build
 COPY . .

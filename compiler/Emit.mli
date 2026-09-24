@@ -159,4 +159,4 @@ val gclean : unit -> unit
 
 (* the program as 5c's -S prints it; as TinyAsm's object *)
 val listing : unit -> string
-val obj : string -> Ix_asm.Asm.obj
+val obj : Fpath.t -> Ix_asm.Asm.obj

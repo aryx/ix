@@ -593,7 +593,7 @@ let main (caps : Cap.all_caps) : int =
         if String.contains a 'e' then eflag := true;
         flags rest
     | "-c" :: cmd :: args -> set "*" args; cmd
-    | file :: args -> set "*" args; Files.read caps file
+    | file :: args -> set "*" args; Files.read caps (Fpath.v file)
     | [] -> In_channel.input_all stdin
   in
   let st =
@@ -605,4 +605,4 @@ let main (caps : Cap.all_caps) : int =
   flush_all ();
   code st
 
-let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyshell"; CapStdlib.exit caps (main caps))

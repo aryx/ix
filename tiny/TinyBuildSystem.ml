@@ -298,7 +298,7 @@ let order (root : node) : node list =
 (* The outside world *)
 (*****************************************************************************)
 
-let read_file caps file = if Sys.file_exists file then Some (Files.read caps file) else None
+let read_file caps file = if Sys.file_exists file then Some (Files.read caps (Fpath.v file)) else None
 
 let digest_file (_ : < Cap.open_in; .. >) (file : string) : string option =
   if Sys.file_exists file && not (Sys.is_directory file) then Some (Digest.to_hex (Digest.file file))
@@ -418,8 +418,8 @@ let main (caps : Cap.all_caps) : int =
         end
         else build caps ~vars ~stamps ~jobs:(max 1 !jobs) ~dry:!dry root) targets
     in
-    if not !dry then Files.write caps stampfile (Hashtbl.fold (fun k v acc -> acc ^ Printf.sprintf "%s %s\n" k v) stamps "");
+    if not !dry then Files.write caps (Fpath.v stampfile) (Hashtbl.fold (fun k v acc -> acc ^ Printf.sprintf "%s %s\n" k v) stamps "");
     if ok then 0 else 1
   with Error msg -> Printf.eprintf "tinybuild: %s\n" msg; 1
 
-let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinybuild"; CapStdlib.exit caps (main caps))
