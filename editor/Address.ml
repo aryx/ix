@@ -11,7 +11,9 @@
 
 type t = { input : Input.t; text : Text.t; mutable pattern : Regex.t option }
 
-type range = { addr1 : int; addr2 : int; given : bool; last : int option; lastsep : int; cmd : int }
+type sep = Start | Comma | Semicolon
+
+type range = { addr1 : int; addr2 : int; given : bool; last : int option; lastsep : sep; cmd : int }
 
 let error () = raise (Input.Error "")
 let ch = Char.code
@@ -113,20 +115,19 @@ let address t : int option =
 let range t : range =
   let text = t.text and input = t.input in
   let addr1 = ref None in
-  let rec loop c =
-    let lastsep = c in
+  let rec loop lastsep =
     let a1 = address t in
     let c = Input.getc input in
     if c <> ch ',' && c <> ch ';' then (lastsep, a1, c)
     else begin
-      if lastsep = ch ',' then error ();
+      if lastsep = Comma then error ();
       let a1 = match a1 with Some a -> a | None -> if 1 > Text.dol text then 0 else 1 in
       addr1 := Some a1;
       if c = ch ';' then Text.set_dot text a1;
-      loop c
+      loop (if c = ch ';' then Semicolon else Comma)
     end
   in
-  let lastsep, a1, cmd = loop Input.nl in
-  let a1 = if lastsep <> Input.nl && a1 = None then Some (Text.dol text) else a1 in
+  let lastsep, a1, cmd = loop Start in
+  let a1 = if lastsep <> Start && a1 = None then Some (Text.dol text) else a1 in
   let addr2, given = match a1 with Some a -> a, true | None -> Text.dot text, false in
   { addr1 = Option.value !addr1 ~default:addr2; addr2; given; last = a1; lastsep; cmd }

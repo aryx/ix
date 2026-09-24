@@ -75,11 +75,15 @@ let add_rune b c = Buffer.add_utf_8_uchar b (Uchar.of_int c)
 
 (* ed.c's filename: a blank then a name up to the newline, or none for
  * the remembered one *)
-let filename t comm =
+(* the command a file name is read for: f may leave it empty, e and f
+ * remember it *)
+type naming = Reading | Writing | Editing | Naming
+
+let filename t (comm : naming) =
   t.count <- 0;
   let c = getc t in
   if c = Input.nl || c = Input.eof then begin
-    if t.savedfile = "" && comm <> 'f' then error ();
+    if t.savedfile = "" && comm <> Naming then error ();
     t.file <- t.savedfile
   end
   else begin
@@ -96,7 +100,7 @@ let filename t comm =
     in
     go c;
     t.file <- Buffer.contents b;
-    if t.savedfile = "" || comm = 'e' || comm = 'f' then t.savedfile <- t.file
+    if t.savedfile = "" || comm = Editing || comm = Naming then t.savedfile <- t.file
   end
 
 let print_range t =
@@ -368,25 +372,25 @@ let rec commands t =
   if c = Input.eof then ()
   else begin
     (match Char.chr (if c < 0 || c > 255 then 0 else c) with
-     | 'r' -> filename t 'r'; read t
+     | 'r' -> filename t Reading; read t
      | ('w' | 'W') as w ->
          setwide t;
          squeeze t (if Text.dol tx > 0 then 1 else 0);
-         let q = getc t in
-         let q = if q = ch 'q' || q = ch 'Q' then q else (unget t q; 0) in
-         filename t w;
+         (* wq quits, wQ even with changes *)
+         (* old: an int, the q or Q read, 0 for neither *)
+         let q = match getc t with c when c = ch 'q' -> `Quit | c when c = ch 'Q' -> `Quit_anyway | c -> unget t c; `Stay in
+         filename t Writing;
          write t (w = 'W');
          if t.addr1 <= 1 && t.addr2 = Text.dol tx then Text.set_changed tx false;
-         if q = ch 'Q' then Text.set_changed tx false;
-         if q <> 0 then quit t
+         (match q with `Stay -> () | `Quit -> quit t | `Quit_anyway -> Text.set_changed tx false; quit t)
      | 'l' -> Out.listf := true; newline t; print_range t
      | 'p' | 'P' -> newline t; print_range t
      | '\n' ->
          let a1 = match r.last with Some a -> a | None -> Text.dot tx + 1 in
          if r.last = None then (t.addr1 <- a1; t.addr2 <- a1);
-         if r.lastsep = ch ';' then t.addr1 <- a1;
+         if r.lastsep = Semicolon then t.addr1 <- a1;
          print_range t
-     | 'f' -> setnoaddr t; filename t 'f'; Out.putst t.savedfile
+     | 'f' -> setnoaddr t; filename t Naming; Out.putst t.savedfile
      | '=' -> setwide t; squeeze t 0; newline t; Out.putd t.addr2; Out.putchr (ch '\n')
      | 'a' -> add t false
      | 'i' -> add t true
@@ -427,7 +431,7 @@ let rec commands t =
          if e = 'E' then Text.set_changed tx false;
          setnoaddr t;
          if t.verbose && Text.changed tx then (Text.set_changed tx false; error ());
-         filename t 'e';
+         filename t Editing;
          Text.clear tx;
          t.addr2 <- 0;
          read t

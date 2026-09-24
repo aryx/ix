@@ -37,12 +37,15 @@ val address : t -> int option
  *
  *     "2,4p"  -> { addr1 = 2; addr2 = 4; given = true; cmd = 'p' }
  *     "p"     -> { addr1 = dot; addr2 = dot; given = false; ... } *)
+(* old: an int, ',' or ';', or a newline for none *)
+type sep = Start | Comma | Semicolon
+
 type range = {
   addr1 : int;
   addr2 : int;
   given : bool;          (* was there an address *)
   last : int option;     (* the last address read, for a newline command *)
-  lastsep : int;         (* the last separator: ',', ';', or a newline *)
+  lastsep : sep;         (* the last separator, Start if none *)
   cmd : int;             (* the character after them *)
 }
 
