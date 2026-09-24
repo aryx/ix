@@ -20,6 +20,7 @@ test: all
 	./version_control/tests/git9_tests.sh
 	./version_control/tests/net.sh
 	./tiny/TinyVCS_test.sh 10
+	./tiny/TinyArm_test.sh
 	./machine/tests/decode_check.py
 	./machine/tests/decode_check.py --random 5000
 	./machine/tests/decode_check.py -64

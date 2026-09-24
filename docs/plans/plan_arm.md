@@ -491,3 +491,29 @@ build on the CPU (the tests print the same lines everywhere). **17 of
 5i agrees with TinyArm on 10 of the 17; the other 7 need system calls
 5i lacks (`alarm`, `rfork`, `fstat`) or files it does not provide
 (`#c/pid`, `/env`, `/proc/PID/note`).
+
+**Phase 9a done** (2026-09-24): `tiny/TinyArm.ml` (`tinyarmasm`, 760
+lines), a computer in one file: an assembler for an arm32 subset in
+GNU as's syntax (data processing with every operand form and the
+shift aliases, conditions and `s` everywhere, mul and mla, word and
+byte transfers in every addressing mode, the block transfers and
+push/pop, the branches, svc, adr, `ldr =` and its literal pool), an
+interpreter that decodes the words it runs (read, write and exit, as
+Linux numbers them), and an ELF writer. One variant is read by the
+parser, the encoder, the decoder, the printer and the executor.
+Checked by `tiny/TinyArm_test.sh` against the real tools:
+
+- five programs (`TinyArm_tests/`: hello, fib, a sieve, a reversal of
+  standard input, a checksum over the other forms) assemble to GNU as's
+  text section byte for byte; their listing, each word decoded back,
+  is objdump's text; each runs the same here, on the CPU (the ELF
+  written) and under machine/'s `tinyarm`, output and status;
+- random lines of the subset's syntax (3,000 in `make test`; 120,000
+  over several seeds tried): GNU as's bytes, objdump's text.
+
+What GNU as taught: the smallest rotation for an immediate; the
+complementary instruction when a value does not fit (mov and mvn, add
+and sub, cmp and cmn, and and bic, adc and sbc); `ldr =` as a mov or
+mvn when the value fits one, the pool deduplicated, after everything;
+a single-register push or pop as a str or ldr, but for `push {sp}`
+(whose store would write back the register it stores), kept a block.

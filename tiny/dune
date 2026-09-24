@@ -45,3 +45,10 @@
  (package ix)
  (modules TinyVCS)
  (libraries ix_core unix caps ix_security ix_compression))
+
+(executable
+ (name TinyArm)
+ (public_name tinyarmasm)
+ (package ix)
+ (modules TinyArm)
+ (libraries ix_core fpath caps))
