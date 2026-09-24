@@ -80,8 +80,9 @@ Those of [`../README.md`](../README.md), and three of its own:
   census adds a Thumb-2 subset, VFP and system instructions); any other
   word stops the emulator with "unimplemented instruction WORD at PC"
   and the program's name. Principle 1's "every feature kept" becomes
-  "every instruction the toolchains emit": gcc's Thumb-2 and NEON,
-  which no ix program contains, are left out on purpose.
+  "every instruction the toolchains emit": gcc's Thumb-2 and NEON are
+  left out of user mode (no ix program contains them); the Pi brings
+  back only the few its kernels run.
 - **Hardware as fuzzing oracle.** Beyond the corpus, random instruction
   sequences of the forms the census found (data processing with every
   shifter form and flag, loads and stores with every addressing mode)
