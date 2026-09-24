@@ -1,0 +1,16 @@
+(* The repository a command runs in: the nearest directory, from the
+ * current one up, holding .git/HEAD (git9's findrepo and gitinit). *)
+
+type t = {
+  root : Fpath.t;       (* the work tree *)
+  rel : int;            (* how many levels below root the command ran *)
+  cwd : string;         (* that directory, relative to root, "" at root *)
+  store : Store.t;
+}
+
+exception Not_a_repository
+
+val find : Store.caps -> t
+
+(* a repository at a known root *)
+val at : Store.caps -> Fpath.t -> t

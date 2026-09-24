@@ -1,0 +1,11 @@
+(library
+ (name ix_vcs)
+ (modules Hash Object Loose Delta Pack Store Refs Conf Query Repo Flags CLI)
+ (libraries ix_core ix_security ix_compression fpath unix caps logs))
+
+(executable
+ (name Main)
+ (public_name tinygit)
+ (package ix)
+ (modules Main)
+ (libraries ix_vcs ix_core caps))

@@ -1,0 +1,4 @@
+(executable
+ (name Objects_check)
+ (modules Objects_check)
+ (libraries ix_vcs caps fpath))
