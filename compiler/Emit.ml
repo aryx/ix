@@ -16,6 +16,10 @@ module A = Ix_asm.Asm
 (* The machine, as the code generator sees it *)
 (*****************************************************************************)
 
+(* what gopcode makes: an operator's instruction, 7c's negation and
+ * complement, a call, a switch's table *)
+type gop = Op of binop | Gneg | Gcom | Gcall | Gcase
+
 (* the registers are numbered as 5c's: the integer ones, then the
  * floating ones from nreg *)
 type backend = {
@@ -32,9 +36,9 @@ type backend = {
   ret : string;                       (* RET, RETURN *)
   offset32 : bool;                    (* an operand's offset is 32 bits (5c's Adr) *)
   zero_reg : int option;              (* a constant 0 as a register (7c's raddr) *)
-  gmove : node -> node -> unit;
-  gmover : node -> node -> unit;
-  gopcode : op -> bool -> node option -> node option -> node option -> unit;
+  gmove : expr -> expr -> unit;
+  gmover : expr -> expr -> unit;
+  gopcode : gop -> bool -> expr option -> expr option -> expr option -> unit;
 }
 
 let be : backend option ref = ref None
@@ -77,37 +81,28 @@ let mask32 v = Int64.logand v 0xffffffffL
 (* an offset as the machine's Adr holds it *)
 let sx v = if (bk ()).offset32 then sx32 v else v
 
-let rec naddr (n : node) : A.operand =
+let rec naddr (n : expr) : A.operand =
   let m base name off = { A.base; name; off = sx (Int64.of_int off); index = None } in
-  match n.op with
-  | OREGISTER -> if n.reg >= (bk ()).nreg then A.FReg (n.reg - (bk ()).nreg) else A.Reg n.reg
-  | OIND -> (
-      match naddr (Tree.l n) with
-      | A.Reg r -> A.Mem (m (A.R r) None 0)
-      | A.Addr a -> A.Mem a
-      | _ -> diag (Some n) "bad in naddr: %s" (opname n.op))
-  | OINDREG -> A.Mem (m (A.R n.reg) None n.xoffset)
-  | ONAME ->
-      let s = sym n in
-      let base =
-        match n.nclass with
-        | Cstatic | Cextern | Cglobl -> A.SB
-        | Cauto -> A.SP
-        | Cparam -> A.FP
-        | _ -> diag (Some n) "bad in naddr: %s" (opname n.op)
-      in
-      A.Mem (m base (Some { A.sym = s.name; static = n.nclass = Cstatic }) n.xoffset)
-  | OCONST -> if typefd (et n) then A.Fimm n.fconst else A.Imm (sx n.vconst)
-  | OADDR -> (match naddr (Tree.l n) with A.Mem a -> A.Addr a | _ -> diag (Some n) "bad in naddr: %s" (opname n.op))
-  | OADD ->
-      let c, x = if (Tree.l n).op = OCONST then Tree.l n, Tree.r n else Tree.r n, Tree.l n in
+  let bad () = diag (Some n) "bad in naddr" in
+  match n.e with
+  | Reg r -> if r >= (bk ()).nreg then A.FReg (r - (bk ()).nreg) else A.Reg r
+  | Unary (Ind, l) -> (match naddr l with A.Reg r -> A.Mem (m (A.R r) None 0) | A.Addr a -> A.Mem a | _ -> bad ())
+  | Indreg (r, o) -> A.Mem (m (A.R r) None o)
+  | Name (s, c, o) ->
+      let base = match c with Cstatic | Cextern | Cglobl -> A.SB | Cauto -> A.SP | Cparam -> A.FP | _ -> bad () in
+      A.Mem (m base (Some { A.sym = s.name; static = c = Cstatic }) o)
+  | Const v -> A.Imm (sx v)
+  | Fconst f -> A.Fimm f
+  | Unary (Addr, l) -> (match naddr l with A.Mem a -> A.Addr a | _ -> bad ())
+  | Binary (Add, a, b) ->
+      let c, x = if is_const a then a, b else b, a in
       let v = match naddr c with A.Imm v -> v | _ -> 0L in
       (match naddr x with
        | A.Mem a -> A.Mem { a with off = sx (Int64.add a.off v) }
        | A.Addr a -> A.Addr { a with off = sx (Int64.add a.off v) }
        | A.Imm w -> A.Imm (sx (Int64.add w v))
        | o -> o)
-  | _ -> diag (Some n) "bad in naddr: %s" (opname n.op)
+  | _ -> bad ()
 
 let naddr_opt = Option.map naddr
 
@@ -119,33 +114,33 @@ let add_off (o : A.operand option) d =
   | o -> o
 
 (* the register of a node, as a second source (txt.c's raddr) *)
-let raddr (n : node option) (q : prog) =
+let raddr (n : expr option) (q : prog) =
   match Option.map naddr n with
   | Some (A.Imm 0L) when (bk ()).zero_reg <> None -> q.reg <- (bk ()).zero_reg
   | Some (A.Reg r) | Some (A.FReg r) -> q.reg <- Some r
   | _ -> ignore (diag n "bad in raddr")
 
-let gins a (f : node option) (t : node option) =
+let gins a (f : expr option) (t : expr option) =
   let q = nextpc () in
   q.as_ <- a;
   q.from <- naddr_opt f;
   q.to_ <- naddr_opt t;
   q
 
-let ins a (f : node) (t : node) = ignore (gins a (Some f) (Some t))
+let ins a (f : expr) (t : expr) = ignore (gins a (Some f) (Some t))
 
 (* a load's or a store's operand, and a move to itself *)
-let is_mem (n : node) = match n.op with ONAME | OINDREG | OIND -> true | _ -> false
-let samaddr (f : node) (t : node) = f.op = OREGISTER && t.op = OREGISTER && f.reg = t.reg
+let is_mem (n : expr) = match n.e with Name _ | Indreg _ | Unary (Ind, _) -> true | _ -> false
+let samaddr (f : expr) (t : expr) = match f.e, t.e with Reg a, Reg b -> a = b | _ -> false
 
 (* a comparison, both machines': a negative constant compared by CMN,
  * unless small says its negation overflows *)
-let gcmp cmp ~fd ~small (f1 : node option) f2 =
+let gcmp cmp ~fd ~small (f1 : expr option) f2 =
   let q = nextpc () in
   q.as_ <- cmp;
   q.from <- naddr_opt f1;
   (match f1, q.from with
-   | Some { op = OCONST; _ }, Some (A.Imm v) when not fd && Int64.compare v 0L < 0 && not (small v) ->
+   | Some { e = Const _; _ }, Some (A.Imm v) when not fd && Int64.compare v 0L < 0 && not (small v) ->
        q.as_ <- "CMN" ^ String.sub cmp 3 (String.length cmp - 3);
        q.from <- Some (A.Imm (Int64.neg v))
    | _ -> ());
@@ -156,21 +151,20 @@ let gcmp cmp ~fd ~small (f1 : node option) f2 =
 let grel o ~fd ~tr =
   (nextpc ()).as_ <-
     (match o with
-     | OEQ -> "BEQ" | ONE -> "BNE"
-     | OLT -> if fd && not tr then "BMI" else "BLT"
-     | OLE -> if fd && not tr then "BLS" else "BLE"
-     | OGE -> if fd && tr then "BPL" else "BGE"
-     | OGT -> if fd && tr then "BHI" else "BGT"
-     | OLO -> "BLO" | OLS -> "BLS" | OHS -> "BHS" | _ -> "BHI")
+     | Eq -> "BEQ" | Ne -> "BNE"
+     | Lt -> if fd && not tr then "BMI" else "BLT"
+     | Le -> if fd && not tr then "BLS" else "BLE"
+     | Ge -> if fd && tr then "BPL" else "BGE"
+     | Gt -> if fd && tr then "BHI" else "BGT"
+     | Lo -> "BLO" | Ls -> "BLS" | Hs -> "BHS" | _ -> "BHI")
 
-let gbranch (o : op) =
-  let q = nextpc () in
-  q.as_ <- (match o with ORETURN -> (bk ()).ret | OGOTO -> "B" | _ -> diag None "bad in gbranch");
-  q
+(* a branch, its target to patch; a return *)
+let gbranch () = let q = nextpc () in q.as_ <- "B"; q
+let greturn () = let q = nextpc () in q.as_ <- (bk ()).ret; q
 
 let patch (q : prog) target = q.to_ <- Some (A.Target target)
 
-let gpseudo a (s : sym) (n : node) =
+let gpseudo a (s : sym) (n : expr) =
   let q = nextpc () in
   q.as_ <- a;
   q.from <- Some (A.Mem { A.base = A.SB; name = Some (asm_name s); off = 0L; index = None });
@@ -182,21 +176,20 @@ let gpseudo a (s : sym) (n : node) =
 (* Nodes the generator makes (txt.c's ginit) *)
 (*****************************************************************************)
 
-let nodconst v = let n = const_node (ty Tlong) v in n.addable <- Aconst; n
-let nodfconst d = let n = node OCONST None None in n.ntype <- Some (ty Tdouble); n.addable <- Aconst; n.fconst <- d; n
+let nodconst v = { (const_node (ty Tlong) v) with addable = Aconst }
+let nodfconst d = { (mk ~t:(ty Tdouble) (Fconst d)) with addable = Aconst }
 
-let nodreg (nn : node) r =
-  let n = node OREGISTER None None in
-  n.nclass <- Cexreg; n.reg <- r; n.addable <- Areg; n.ntype <- nn.ntype; n.lineno <- nn.lineno;
-  n
+let nodreg (nn : expr) r = { e = Reg r; t = nn.t; line = nn.line; complex = 0; addable = Areg }
 
-let regnode () = let n = node OREGISTER None None in n.nclass <- Cexreg; n.reg <- (bk ()).regtmp; n.addable <- Areg; n.ntype <- Some (ty Tlong); n
+let regnode () = { (mk ~t:(ty Tlong) (Reg (bk ()).regtmp)) with addable = Areg }
+
+let reg_of (n : expr) = match n.e with Reg r | Indreg (r, _) -> r | _ -> diag (Some n) "not a register"
 
 (* .safe (temporaries), .rathole (a struct thrown away), .ret (where a
  * struct is returned): made again for each file *)
-let nodsafe : node option ref = ref None
-let nodrat : node option ref = ref None
-let nodret : node option ref = ref None
+let nodsafe : expr option ref = ref None
+let nodrat : expr option ref = ref None
+let nodret : expr option ref = ref None
 
 (*****************************************************************************)
 (* Registers (txt.c's regalloc...) *)
@@ -209,7 +202,7 @@ let cursafe = ref 0
 let curarg = ref 0
 let maxargsafe = ref 0
 
-let regret (nn : node) =
+let regret (nn : expr) =
   let r = if typefd (et nn) then (bk ()).fregret + (bk ()).nreg else (bk ()).regret in
   !regs.(r) <- !regs.(r) + 1;
   nodreg nn r
@@ -218,8 +211,10 @@ let tmpreg () =
   let rec go i = if i >= (bk ()).nreg then diag None "out of fixed registers" else if !regs.(i) = 0 then i else go (i + 1) in
   go ((bk ()).regret + 1)
 
-(* round robin from the last, as 5c: the listings depend on it *)
-let regalloc (tn : node) (o : node option) =
+(* a register for a value of tn's type: o's if o is one of that kind,
+ * else the next free, round robin from the last, as 5c: the listings
+ * depend on it *)
+let regalloc (tn : expr) (o : expr option) =
   let bk = bk () in
   let found i = !regs.(i) <- !regs.(i) + 1; incr lasti; if !lasti >= 5 then lasti := 0; nodreg tn i in
   let e = et tn in
@@ -229,59 +224,56 @@ let regalloc (tn : node) (o : node option) =
   in
   if (m ()).typeword e then
     match o with
-    | Some { op = OREGISTER; reg; _ } when reg >= 0 && reg < bk.nreg -> found reg
+    | Some { e = Reg reg; _ } when reg >= 0 && reg < bk.nreg -> found reg
     | _ -> (
         match search (bk.regret + 1) bk.nreg (!lasti + bk.regret + 1) (fun j -> !regs.(j) = 0 && !resvreg.(j) = 0) with
         | Some i -> found i
         | None -> diag (Some tn) "out of fixed registers")
   else if typefd e || typev e then
     match o with
-    | Some { op = OREGISTER; reg; _ } when reg >= bk.nreg && reg < bk.nreg + bk.nfreg -> found reg
+    | Some { e = Reg reg; _ } when reg >= bk.nreg && reg < bk.nreg + bk.nfreg -> found reg
     | _ -> (
         let start = if bk.float_from_last then !lasti + bk.nreg else bk.nreg in
         match search bk.nreg (bk.nreg + bk.nfreg) start (fun j -> !regs.(j) = 0) with
         | Some i -> found i
         | None -> diag (Some tn) "out of float registers")
-  else diag (Some tn) "unknown type in regalloc: %s" (show_type tn.ntype)
+  else diag (Some tn) "unknown type in regalloc: %s" (show_type (Some tn.t))
 
-let regialloc (tn : node) o = regalloc { tn with ntype = Some (ty Tind) } o
+let regialloc (tn : expr) o = regalloc { tn with t = ty Tind } o
 
-let regfree (n : node) =
-  if (n.op <> OREGISTER && n.op <> OINDREG) || n.reg < 0 || n.reg >= Array.length !regs || !regs.(n.reg) <= 0 then
-    ignore (diag (Some n) "error in regfree: %d" n.reg)
-  else !regs.(n.reg) <- !regs.(n.reg) - 1
+let regfree (n : expr) =
+  match n.e with
+  | (Reg r | Indreg (r, _)) when r >= 0 && r < Array.length !regs && !regs.(r) > 0 -> !regs.(r) <- !regs.(r) - 1
+  | _ -> ignore (diag (Some n) "error in regfree")
 
 (* a temporary on the stack, below the locals *)
-let regsalloc (nn : node) =
-  cursafe := Declare.align !cursafe (t nn) Aaut3;
+let regsalloc (nn : expr) =
+  cursafe := Declare.align !cursafe nn.t Aaut3;
   maxargsafe := Declare.maxround !maxargsafe (!cursafe + !curarg);
-  let n = dup (Option.get !nodsafe) in
-  n.xoffset <- - (!Declare.stkoff + !cursafe);
-  n.ntype <- nn.ntype; n.lineno <- nn.lineno;
-  n
+  let n = Option.get !nodsafe in
+  let e = match n.e with Name (s, c, _) -> Name (s, c, - (!Declare.stkoff + !cursafe)) | e -> e in
+  { n with e; t = nn.t; line = nn.line }
 
 (* an argument's place, made by f at its offset, the next one's after *)
-let argument (nn : node) f =
-  curarg := Declare.align !curarg (t nn) Aarg1;
+let argument (nn : expr) f =
+  curarg := Declare.align !curarg nn.t Aarg1;
   let n = f () in
-  curarg := Declare.align !curarg (t nn) Aarg2;
+  curarg := Declare.align !curarg nn.t Aarg2;
   maxargsafe := Declare.maxround !maxargsafe (!cursafe + !curarg);
   n
 
 (* the first argument, in a register *)
-let regaalloc1 (nn : node) = argument nn (fun () -> let r = (bk ()).regret in !regs.(r) <- !regs.(r) + 1; nodreg nn r)
+let regaalloc1 (nn : expr) = argument nn (fun () -> let r = (bk ()).regret in !regs.(r) <- !regs.(r) + 1; nodreg nn r)
 
 (* the others, above the return address *)
-let regaalloc (nn : node) =
-  argument nn (fun () ->
-    let n = dup nn in
-    n.op <- OINDREG; n.reg <- (bk ()).regsp; n.xoffset <- !curarg + (bk ()).word; n.complex <- 0; n.addable <- Aconst;
-    n)
+let regaalloc (nn : expr) =
+  argument nn (fun () -> { nn with e = Indreg ((bk ()).regsp, !curarg + (bk ()).word); complex = 0; addable = Aconst })
 
-let regind (n : node) (nn : node) =
-  if n.op <> OREGISTER then ignore (diag (Some n) "regind not OREGISTER");
-  n.op <- OINDREG;
-  n.ntype <- nn.ntype
+(* the register n as an indirection, at off, of nn's type *)
+let regind (n : expr) (nn : expr) off =
+  match n.e with
+  | Reg r -> { n with e = Indreg (r, off); t = nn.t }
+  | _ -> diag (Some n) "regind not OREGISTER"
 
 (*****************************************************************************)
 (* Data (swt.c's outstring, gextern) *)
@@ -311,19 +303,19 @@ let outstring (s : string) n =
     r
   end
 
-let gextern (s : sym) (a : node) o w =
+let gextern (s : sym) (a : expr) o w =
   let data v off w =
     let q = gpseudo "DATA" s v in
     q.from <- add_off q.from off;
     q.pseudo <- `Data w;
     (match q.to_ with Some (A.Mem m) -> q.to_ <- Some (A.Addr m) | _ -> ())
   in
-  if a.op = OCONST && typev (et a) then begin
-    (* little-endian: the low word first *)
-    data (nodconst (mask32 a.vconst)) o 4;
-    data (nodconst (mask32 (Int64.shift_right a.vconst 32))) (o + 4) 4
-  end
-  else data a o w
+  match a.e with
+  | Const v when typev (et a) ->
+      (* little-endian: the low word first *)
+      data (nodconst (mask32 v)) o 4;
+      data (nodconst (mask32 (Int64.shift_right v 32))) (o + 4) 4
+  | _ -> data a o w
 
 (*****************************************************************************)
 (* The end of a file: GLOBLs, and the output *)
@@ -335,19 +327,12 @@ let init () =
   regs := Array.make (bk.nreg + bk.nfreg) 0;
   List.iter (fun r -> !regs.(r) <- 1) bk.reserved;
   resvreg := Array.copy !regs;
-  let n = name_of (lookup ".safe") (Some (ty Tint)) Cauto 0 in
-  Check.complex (Some n);
-  nodsafe := Some n;
+  nodsafe := Some (Check.complex (name_of (lookup ".safe") (ty Tint) Cauto 0));
   let t = typ Tarray (Some (ty Tchar)) in
   let s = lookup ".rathole" in
   s.sclass <- Cglobl; s.typ <- Some t;
-  let n = name_of s (Some (ty Tind)) Cglobl 0 in
-  Check.complex (Some n);
-  n.ntype <- Some t;
-  nodrat := Some n;
-  let n = node OIND (Some (name_of (lookup ".ret") (Some (ty Tind)) Cparam 0)) None in
-  Check.complex (Some n);
-  nodret := Some n
+  nodrat := Some { (Check.complex (name_of s (ty Tind) Cglobl 0)) with t };
+  nodret := Some (Check.complex (mk (Unary (Ind, name_of (lookup ".ret") (ty Tind) Cparam 0))))
 
 (* the static data, in the symbols' hash order (txt.c's gclean) *)
 let gclean () =

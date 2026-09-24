@@ -12,16 +12,16 @@
 open Tree
 
 (* what 7c generates itself, rather than com64.c's calls (7c's machcap.c) *)
-let machcap (n : node option) =
+let machcap (n : expr option) =
   match n with
   | None -> true
   | Some n -> (
-      match n.op with
-      | OMUL | OLMUL | OASMUL | OASLMUL -> typechlv (et n)
-      | OADD | OAND | OOR | OSUB | OXOR | OASHL | OLSHR | OASHR | ONEG -> typechlv (et (l n))
-      | OCAST | OCOND | OCOMMA | OLIST | OANDAND | OOROR | ONOT | OASADD | OASSUB | OASAND | OASOR | OASXOR
-      | OASASHL | OASASHR | OASLSHR | OPOSTINC | OPOSTDEC | OPREINC | OPREDEC
-      | OEQ | ONE | OLE | OGT | OLT | OGE | OHI | OHS | OLO | OLS -> true
+      match n.e with
+      | Binary ((Mul | Lmul), _, _) | Assign (Some (Mul | Lmul), _, _) -> typechlv (et n)
+      | Binary ((Add | And | Or | Sub | Xor | Ashl | Lshr | Ashr), l, _) | Unary (Neg, l) -> typechlv (et l)
+      | Unary ((Cast | Not | Postinc | Postdec | Preinc | Predec), _) | Cond _ | Binary ((Comma | Andand | Oror), _, _)
+      | Assign (Some (Add | Sub | And | Or | Xor | Ashl | Ashr | Lshr), _, _) -> true
+      | Binary (o, _, _) -> is_rel o
       | _ -> false)
 
 let machine = {
@@ -48,7 +48,7 @@ let store_op = function
   | Tint -> "MOVW" | Tuint -> "MOVWU" | Tfloat -> "FMOVS" | Tdouble -> "FMOVD" | Tchar -> "MOVB" | Tuchar -> "MOVBU"
   | Tshort -> "MOVH" | Tushort -> "MOVHU" | t -> if ewidth t = 4 then "MOVW" else "MOV"
 
-let rec gmove (f : node) (t : node) =
+let rec gmove (f : expr) (t : expr) =
   let ft = et f and tt = et t in
   if is_mem f then begin
     let nod = regalloc f (Some t) in
@@ -58,7 +58,7 @@ let rec gmove (f : node) (t : node) =
   end
   else if is_mem t then begin
     (* a 0 stored from the zero register *)
-    if not (typefd ft) && Check.vconst (Some f) = 0 then ins (store_op tt) f t
+    if not (typefd ft) && Check.vconst f = 0 then ins (store_op tt) f t
     else begin
       let nod = if ft = tt then regalloc t (Some f) else regalloc t None in
       gmove f nod;
@@ -67,7 +67,7 @@ let rec gmove (f : node) (t : node) =
     end
   end
   else begin
-    let bad () = ignore (diag None "bad opcode in gmove %s -> %s" (show_type f.ntype) (show_type t.ntype)) in
+    let bad () = ignore (diag None "bad opcode in gmove %s -> %s" (show_type (Some f.t)) (show_type (Some t.t))) in
     let mv a =
       if (a = "MOV" || ((a = "MOVW" || a = "MOVWU") && ewidth ft = ewidth tt) || a = "FMOVS" || a = "FMOVD") && samaddr f t then ()
       else ins a f t
@@ -112,7 +112,7 @@ let rec gmove (f : node) (t : node) =
     | _ -> bad ()
   end
 
-let gmover (f : node) (t : node) =
+let gmover (f : expr) (t : expr) =
   let ft = et f and tt = et t in
   let a = match tt with Tshort -> Some "MOVH" | Tushort -> Some "MOVHU" | Tchar -> Some "MOVB" | Tuchar -> Some "MOVBU" | Tint -> Some "MOVW" | Tuint -> Some "MOVWU" | _ -> None in
   match a with
@@ -125,17 +125,17 @@ let gmover (f : node) (t : node) =
 
 let isv = function Tvlong | Tuvlong | Tind -> true | _ -> false
 
-let gopcode (o : op) tr (f1 : node option) (f2 : node option) (t : node option) =
+let gopcode (o : gop) tr (f1 : expr option) (f2 : expr option) (t : expr option) =
   (* a constant's width is its destination's *)
   let et =
     match f1 with
-    | Some ({ ntype = Some ty0; _ } as f1) ->
-        if f1.op = OCONST then
+    | Some f1 when f1.t != untyped ->
+        if is_const f1 then
           (match t, f2 with
-           | Some { ntype = Some tt; _ }, _ -> tt.etype
-           | _, Some { ntype = Some t2; _ } when ewidth t2.etype > ewidth ty0.etype -> t2.etype
-           | _ -> ty0.etype)
-        else ty0.etype
+           | Some tt, _ -> et tt
+           | _, Some t2 when ewidth (et t2) > ewidth (et f1) -> et t2
+           | _ -> et f1)
+        else et f1
     | _ -> Tlong
   in
   let w32 a64 = if isv et then a64 else a64 ^ "W" in
@@ -148,77 +148,75 @@ let gopcode (o : op) tr (f1 : node option) (f2 : node option) (t : node option) 
     q.to_ <- naddr_opt t
   in
   match o with
-  | OAS -> gmove (Option.get f1) (Option.get t)
-  | OEQ | ONE | OLT | OLE | OGE | OGT | OLO | OLS | OHS | OHI ->
+  | Op o when is_rel o ->
       let fd = typefd et in
       let small v = if isv et then v = Int64.min_int else mask32 v = 0x80000000L in
       gcmp (fl "FCMPS" "FCMPD" (w32 "CMP")) ~fd ~small f1 f2;
       grel o ~fd ~tr
-  | _ ->
-      let a =
-        match o with
-        | OASADD | OADD -> fl "FADDS" "FADDD" (w32 "ADD")
-        | OASSUB | OSUB -> fl "FSUBS" "FSUBD" (w32 "SUB")
-        | OASOR | OOR -> w32 "ORR" | OASAND | OAND -> w32 "AND" | OASXOR | OXOR -> w32 "EOR"
-        | OASLSHR | OLSHR -> w32 "LSR" | OASASHR | OASHR -> w32 "ASR" | OASASHL | OASHL -> w32 "LSL"
-        | OFUNC -> "BL"
-        | OASMUL | OMUL -> fl "FMULS" "FMULD" (w32 "MUL")
-        | OASDIV | ODIV -> fl "FDIVS" "FDIVD" (w32 "SDIV")
-        | OASMOD | OMOD -> w32 "REM"
-        | OASLMUL | OLMUL -> if isv et then "MUL" else "UMULL"
-        | OASLMOD | OLMOD -> w32 "UREM"
-        | OASLDIV | OLDIV -> w32 "UDIV"
-        | OCOM -> w32 "MVN" | ONEG -> w32 "NEG"
-        | OCASE -> "CASE"
-        | o -> diag None "bad in gopcode %s" (opname o)
-      in
-      emit a
+  | Op o ->
+      emit
+        (match o with
+         | Add -> fl "FADDS" "FADDD" (w32 "ADD")
+         | Sub -> fl "FSUBS" "FSUBD" (w32 "SUB")
+         | Or -> w32 "ORR" | And -> w32 "AND" | Xor -> w32 "EOR"
+         | Lshr -> w32 "LSR" | Ashr -> w32 "ASR" | Ashl -> w32 "LSL"
+         | Mul -> fl "FMULS" "FMULD" (w32 "MUL")
+         | Div -> fl "FDIVS" "FDIVD" (w32 "SDIV")
+         | Mod -> w32 "REM"
+         | Lmul -> if isv et then "MUL" else "UMULL"
+         | Lmod -> w32 "UREM"
+         | Ldiv -> w32 "UDIV"
+         | o -> diag None "bad in gopcode %s" (binop_name o))
+  | Gcall -> emit "BL"
+  | Gcom -> emit (w32 "MVN")
+  | Gneg -> emit (w32 "NEG")
+  | Gcase -> emit "CASE"
 
 (*****************************************************************************)
 (* Block copies and switches (7c's sugen, layout, swit) *)
 (*****************************************************************************)
 
 (* c words from f to t, two registers in turn (7c's layout); cn, the
- * loop's count, set on the way *)
-let rec layout (f : node) (t : node) c cv (cn : node option) =
-  if c > 3 then (layout f t 2 0 None; layout f t (c - 2) cv cn)
+ * loop's count, set on the way; f and t, past the words *)
+let rec layout (f : expr) (t : expr) c cv (cn : expr option) =
+  if c > 3 then (let f, t = layout f t 2 0 None in layout f t (c - 2) cv cn)
   else begin
     let t1 = regalloc (regnode ()) None and t2 = regalloc (regnode ()) None in
     let move = Gen.gmove in
-    if c > 0 then (move f t1; f.xoffset <- f.xoffset + 4);
+    let f = ref f and t = ref t in
+    let step x = x := plus !x 4 in
+    if c > 0 then (move !f t1; step f);
     Option.iter (fun cn -> move (nodconst (Int64.of_int cv)) cn) cn;
-    if c > 1 then (move f t2; f.xoffset <- f.xoffset + 4);
-    if c > 0 then (move t1 t; t.xoffset <- t.xoffset + 4);
-    if c > 2 then (move f t1; f.xoffset <- f.xoffset + 4);
-    if c > 1 then (move t2 t; t.xoffset <- t.xoffset + 4);
-    if c > 2 then (move t1 t; t.xoffset <- t.xoffset + 4);
+    if c > 1 then (move !f t2; step f);
+    if c > 0 then (move t1 !t; step t);
+    if c > 2 then (move !f t1; step f);
+    if c > 1 then (move t2 !t; step t);
+    if c > 2 then (move t1 !t; step t);
     regfree t1;
-    regfree t2
+    regfree t2;
+    !f, !t
   end
 
 (* the bytes past the words, then the words unrolled, or in a loop *)
-let sucopy (n : node) (nn : node) w =
-  let as_long (x : node) = let t0 = x.ntype in x.ntype <- Some (ty Tlong); let r = Gen.reglcgen x None in x.ntype <- t0; r in
+let sucopy (n : expr) (nn : expr) w =
+  let as_long (x : expr) = Gen.reglcgen { x with t = ty Tlong } None in
   let nod1, nod2 = if n.complex > nn.complex then (let a = as_long n in let b = as_long nn in a, b) else (let b = as_long nn in let a = as_long n in a, b) in
-  let w = ref w in
-  let m = !w mod 4 in
-  if m > 0 then begin
-    nod1.xoffset <- nod1.xoffset + !w - m;
-    nod2.xoffset <- nod2.xoffset + !w - m;
-    let nod3 = regalloc (regnode ()) None in
-    for _ = 1 to m do
-      ins "MOVB" nod1 nod3;
-      ins "MOVB" nod3 nod2;
-      nod1.xoffset <- nod1.xoffset + 1;
-      nod2.xoffset <- nod2.xoffset + 1;
-      decr w
-    done;
-    regfree nod3;
-    nod1.xoffset <- nod1.xoffset - !w;
-    nod2.xoffset <- nod2.xoffset - !w
-  end;
-  let w = !w / 4 in
-  if w <= 5 then layout nod1 nod2 w 0 None
+  let m = w mod 4 in
+  let f, t =
+    if m = 0 then nod1, nod2
+    else begin
+      let nod3 = regalloc (regnode ()) None in
+      for i = w - m to w - 1 do
+        ins "MOVB" (plus nod1 i) nod3;
+        ins "MOVB" nod3 (plus nod2 i)
+      done;
+      regfree nod3;
+      (* claude: the words from m on, as 7c's offsets end up *)
+      plus nod1 m, plus nod2 m
+    end
+  in
+  let w = w / 4 in
+  if w <= 5 then ignore (layout f t w 0 None)
   else begin
     (* unrolled 3 to 5 times, 2 for a small one: the least code *)
     let c = ref 0 and best = ref 100 in
@@ -227,14 +225,14 @@ let sucopy (n : node) (nn : node) w =
     done;
     let c = !c in
     let nod3 = regalloc (regnode ()) None in
-    layout nod1 nod2 (w mod c) (w / c) (Some nod3);
+    let f, t = layout f t (w mod c) (w / c) (Some nod3) in
     let pc1 = !pc in
-    layout nod1 nod2 c 0 None;
-    Gen.gopcode OSUB (Some (nodconst 1L)) None (Some nod3);
-    let bump (x : node) = x.op <- OREGISTER; let t0 = x.ntype in x.ntype <- Some (ty Tind); Gen.gopcode OADD (Some (nodconst (Int64.of_int (c * 4)))) None (Some x); x.ntype <- t0 in
+    ignore (layout f t c 0 None);
+    Gen.gopcode (Op Sub) (Some (nodconst 1L)) None (Some nod3);
+    let bump (x : expr) = Gen.gopcode (Op Add) (Some (nodconst (Int64.of_int (c * 4)))) None (Some { x with e = Reg (reg_of x); t = ty Tind }) in
     bump nod1;
     bump nod2;
-    Gen.gopcode OGT (Some (nodconst 0L)) (Some nod3) None;
+    Gen.gopcode (Op Gt) (Some (nodconst 0L)) (Some nod3) None;
     patch (p ()) pc1;
     regfree nod3
   end;
@@ -242,7 +240,7 @@ let sucopy (n : node) (nn : node) w =
   regfree nod2
 
 (* a switch's table: to the default if above the range, then CASE *)
-let table (n : node) tn range def = Gen.compare OHI range n; patch (p ()) def; Gen.gopcode OCASE (Some n) None (Some tn)
+let table (n : expr) tn range def = Gen.compare Hi range n; patch (p ()) def; Gen.gopcode Gcase (Some n) None (Some tn)
 
 let backend = {
   arch = A.Arm64; nreg = 32; nfreg = 32; regret = 0; fregret = 0; regsp = 31;
@@ -254,12 +252,12 @@ let backend = {
 
 (* an offset a load or store encodes: scaled by its size, 12 bits up,
  * or 9 bits signed (7c's usableoffset) *)
-let fits (n : node) o =
-  let s = min 16 (t n).width in
+let fits (n : expr) o =
+  let s = min 16 n.t.width in
   s > 0 && o mod s = 0 && o >= -256 && o < 4096 * s
 
 let hooks = {
   Gen.sucopy; table; fits;
-  neg = (fun f t -> Gen.op2 ONEG f t); mul32 = true;
+  neg = (fun f t -> Gen.gopcode Gneg (Some f) None (Some t)); mul32 = true;
   rsb = false; by_left = true; com64 = false; shifts = true; zero_arg = true; asop_load = true; indreg_ptr = true;
 }

@@ -1,0 +1,6 @@
+The corners the corpus may not reach, compiled by listing.sh beside it
+(make test-goken): a declaration's words, the lexer and the
+preprocessor, structure copies of 1 to 40 words, initializers (brace
+elision, designators, strings over arrays, partial automatic arrays,
+wide strings), vlong arithmetic (arm's calls to libc), floats from
+their point.

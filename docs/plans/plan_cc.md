@@ -298,20 +298,20 @@ with `reg.c` and `peep.c`. Where TinyCompiler saves:
 | `compiler/Obj.ml`, `CLI.ml` | 150 | objects, `-S`, the command |
 | **total** | **about 3,500** | a fifth of goken's (without the optimizers), a sixth with |
 
-*As built (2026-09-24, after the second compaction)*, with comments and blank lines (the `.mli`s,
-894 lines, apart):
+*As built (2026-09-24, the trees an ADT)*, with comments and blank lines (the `.mli`s,
+812 lines, apart):
 
 | module | lines | against the target |
 |---|---:|---|
 | `Pre.ml` | 329 | 200: `#include`'s search, `#pragma profile` |
 | `Lexer.ml` | 220 | 250 |
-| `Parser.mly` | 571 | 650 |
-| `Tree.ml`, `Declare.ml`, `Check.ml` | 1,872 | 700: declarations and initializers are dcl.c's 1,500 lines of C, and the typing must print 5c's trees |
-| `Gen.ml`, `Multiply.ml` | 1,257 | 900: com64.c, mul.c's search and its hints |
-| `Arm64.ml` | 265 | 300 |
-| `Arm.ml` | 227 | 350 |
-| `Emit.ml`, `CLI.ml`, `Main.ml` | 587 | 150: the registers and the frame's areas are here, not in Gen, and the listing's format |
-| **total** | **5,328** | a third of goken's without the optimizers, a quarter with |
+| `Parser.mly` | 574 | 650 |
+| `Tree.ml`, `Declare.ml`, `Check.ml` | 1,878 | 700: declarations and initializers are dcl.c's 1,500 lines of C |
+| `Gen.ml`, `Multiply.ml` | 1,188 | 900: com64.c, mul.c's search and its hints |
+| `Arm64.ml` | 263 | 300 |
+| `Arm.ml` | 229 | 350 |
+| `Emit.ml`, `CLI.ml`, `Main.ml` | 572 | 150: the registers and the frame's areas are here, not in Gen, and the listing's format |
+| **total** | **5,253** | a third of goken's without the optimizers, a quarter with |
 
 The modules differ from decision 1's list: `Type` is `Tree` (with the
 tree and the symbols) and `Declare` (dcl.c's declarations, scopes and
@@ -331,6 +331,21 @@ its branch shared by the machines. What stayed 5c's is what the output
 depends on: register allocation's order, the terms' sort, Plan 9's
 `%.17e` (which is not the shortest round trip: 17% of random doubles
 print differently, so the emulation stays).
+
+Then the trees became an OCaml ADT (the author: "let's use a real OCaml
+ADT, especially if this makes not only the code smaller but clearer"):
+expressions a record of attributes around a variant (`Binary`,
+`Assign`, `Call`...), statements, declarators and initializers types
+of their own, and the passes functions from trees to trees; the
+accessors of a node's sides (`Tree.l n`, 134 uses) and the tests of its
+op (80) are gone, the assignments to fields down from 331 to 116, and
+the listings the same at the first run. The `-x` dump is the ADT's own
+now, so `compiler/tests/front.sh`, which compared it with cck's, is
+retired; the listings cover what the front end decides, and
+`compiler/tests/c/` the corners the corpus may not reach. Two fixes on
+the way: a wide string initializing an array gives its runes (5c's
+nextinit; the port gave zeros), and com64's calls no longer consult
+arm's machcap, which is always false.
 
 ## Outside the compiler: the one-file variant
 

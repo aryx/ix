@@ -7,6 +7,8 @@ set -u
 export PATH=$HOME/goken/bin:$HOME/goken/ROOT/arch/boot-gcc/bin:$PATH
 IX=$(cd $(dirname $0)/../.. && pwd)/_build/default
 O=$1; W=$2; shift 2
+# the programs' paths absolute: the loop below changes directory
+[ $# -gt 0 ] && set -- $(realpath "$@")
 case $O in 5) OBJ=arm;; 7) OBJ=arm64;; esac
 rm -rf $W; mkdir -p $W
 same=0; diff=0; fail=0

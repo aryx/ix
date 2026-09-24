@@ -29,10 +29,9 @@ test-goken: all
 	./linker/tests/libc.sh 7 $(GOKEN_W)/libc7 $(HOME)/goken/tests/c/hello_libc/*.c
 	./tiny/TinyAssembler_test.sh
 	./tiny/TinyC_test.sh
-	./compiler/tests/front.sh 5 $(GOKEN_W)/front5 $(HOME)/goken/tests/c/hello_libc/*.c
-	./compiler/tests/front.sh 7 $(GOKEN_W)/front7 $(HOME)/goken/tests/c/hello_libc/*.c
-	./compiler/tests/listing.sh 5 $(GOKEN_W)/listing5 $(HOME)/goken/tests/c/hello_libc/*.c
-	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c
+	./compiler/tests/listing.sh 5 $(GOKEN_W)/listing5 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
+	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
+	./compiler/tests/fuzz.sh $(GOKEN_W)/fuzz 150
 
 clean:
 	dune clean

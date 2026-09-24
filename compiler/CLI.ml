@@ -42,9 +42,9 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
   Check.outstring := Emit.outstring;
   Declare.gextern := Emit.gextern;
   Emit.init ();
-  Declare.on_function := (fun f body ->
-    if dump then print caps (Tree.prtree (Some f) "func" ^ Tree.prtree (Some body) "body");
-    Gen.codgen body f);
+  Declare.on_function := (fun (f : Tree.sym) body ->
+    if dump then print caps (Tree.prtree f.name body);
+    Gen.codgen f body);
   match read_file caps file with
   | None -> Error (Printf.sprintf "cannot open %s" file)
   | Some text ->

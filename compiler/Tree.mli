@@ -1,13 +1,20 @@
-(* The compiler's data: C's types, the tree of an expression or a
- * statement, the symbols, and what the front end asks of a machine
- * (cc.h's Type, Node, Sym; sub.c's tables).
+(* The compiler's data: C's types, the trees the parser makes of
+ * expressions, statements, declarators and initializers, the symbols,
+ * and what the front end asks of a machine (cc.h's Type, Node, Sym;
+ * sub.c's tables).
  *
  * A type's kind is a variant, [etype]; the tables that say which kinds
- * an operator takes ([tasign], [tadd]...) are functions from the left
- * kind to a bit set of the right ones. 5c's layout is kept where it is
- * the output's: the listing prints the same numbers, and a declaration's
- * words are parsed as a set of bits (Declare's [typebitor]). The
- * records are mutable, as 5c's: the passes rewrite the tree in place.
+ * an operator takes ([tasign], [tadd]...) are predicates on the left and
+ * right kinds, and the usual conversions a rule ([arith_tab]).
+ *
+ * The trees are ADTs, where 5c's are one Node with an op, a left and a
+ * right: an [expr] is its [kind] ([Binary], [Assign], [Call]...) with
+ * what the passes learn of it (its type, its complexity, its
+ * addressability); the passes (Check, Gen's xcom) return new trees
+ * rather than rewrite them in place. Statements, declarators and
+ * initializers have their own types ([stmt], [decl], [init]); in 5c they
+ * are Nodes too. Symbols and types stay mutable records: declarations
+ * complete them as they come.
  *
  * One file is compiled per run, and the state is global: [lineno], the
  * symbol table [hash], the machine [mach].
@@ -15,8 +22,8 @@
  * References: Ken Thompson, "Plan 9 C Compilers" (in principia's
  * compilers/docs/compiler.ms; first in Proc. Summer 1990 UKUUG
  * Conference), its section "Implementation": "four machine-independent
- * passes, four machine-dependent passes, and an output pass", which this
- * tree carries from one to the next; D. E. Knuth, The Art of Computer
+ * passes, four machine-dependent passes, and an output pass", which these
+ * trees carry from one to the next; D. E. Knuth, The Art of Computer
  * Programming, vol. 3, section 6.4, for [lookup]'s table, chained
  * buckets with a cheap hash. *)
 
@@ -45,12 +52,12 @@ val typesu : etype -> bool
  * (sub.c's tables) *)
 val tasign : etype -> etype -> bool
 val tasadd : etype -> etype -> bool
-val tcast : etype -> etype -> bool
 val tadd : etype -> etype -> bool
 val tsub : etype -> etype -> bool
 val tmul : etype -> etype -> bool
 val tand : etype -> etype -> bool
 val trel : etype -> etype -> bool
+val tcast : etype -> etype -> bool
 val tfunct : 'a -> etype -> bool
 val tindir : 'a -> etype -> bool
 val tdots : 'a -> etype -> bool
@@ -72,17 +79,20 @@ val cname : cls -> string
 val gconstnt : int
 val gvolatile : int
 
-type op =
-  | OXXX | OADD | OADDR | OAND | OANDAND | OARRAY | OAS | OASI | OASADD | OASAND | OASASHL | OASASHR | OASDIV
-  | OASHL | OASHR | OASLDIV | OASLMOD | OASLMUL | OASLSHR | OASMOD | OASMUL | OASOR | OASSUB | OASXOR | OBIT
-  | OBREAK | OCASE | OCAST | OCOMMA | OCOND | OCONST | OCONTINUE | ODIV | ODOT | ODOTDOT | ODWHILE | OENUM
-  | OEQ | OFOR | OFUNC | OGE | OGOTO | OGT | OHI | OHS | OIF | OIND | OINDREG | OINIT | OLABEL | OLDIV | OLE
-  | OLIST | OLMOD | OLMUL | OLO | OLS | OLSHR | OLT | OMOD | OMUL | ONAME | ONE | ONOT | OOR | OOROR
-  | OPOSTDEC | OPOSTINC | OPREDEC | OPREINC | OPROTO | OREGISTER | ORETURN | OSET | OSIGN | OSIZE | OSTRING
-  | OLSTRING | OSTRUCT | OSUB | OSWITCH | OUNION | OUSED | OWHILE | OXOR | ONEG | OCOM | OPOS | OELEM
-  | OTST | OINDEX | OFAS | OREGPAIR | OEXREG
+(* the operators; L and Lo, Ls, Hi, Hs are the unsigned ones *)
+type binop =
+  | Add | Sub | Mul | Div | Mod | Lmul | Ldiv | Lmod
+  | And | Or | Xor | Ashl | Ashr | Lshr
+  | Eq | Ne | Lt | Le | Gt | Ge | Lo | Ls | Hi | Hs
+  | Andand | Oror | Comma
 
-val opname : op -> string
+type unop = Ind | Addr | Neg | Com | Not | Pos | Cast | Preinc | Predec | Postinc | Postdec
+
+val binop_name : binop -> string
+val unop_name : unop -> string
+
+(* Eq ... Hs *)
+val is_rel : binop -> bool
 
 type sym = {
   name : string;
@@ -93,7 +103,7 @@ type sym = {
   mutable soffset : int;
   mutable svconst : int64;
   mutable sfconst : float;
-  mutable label : node option;
+  mutable label : label option;
   mutable lexical : int;              (* the token: a name or a keyword *)
   mutable block : int;
   mutable sueblock : int;
@@ -112,32 +122,78 @@ and typ = {
   mutable garb : int;
 }
 
-(* how a node can be an instruction's operand as it is; the others
- * are computed into a register (sgen.c's addable numbers) *)
-and addr =
-  | Anone
-  | Alvalue                           (* the typechecker's: an l-value *)
-  | Aaddr_name | Aaddr_reg            (* $name, $offset(reg) *)
-  | Aname | Areg | Aindreg | Aconst   (* name, stack slot; reg; offset(reg); $c *)
+(* a function's label: defined, and where *)
+and label = { lsym : sym; mutable defined : bool; mutable lpc : int }
 
-and node = {
-  mutable left : node option;
-  mutable right : node option;
-  mutable pc : int;
-  mutable reg : int;
-  mutable xoffset : int;
-  mutable fconst : float;
-  mutable vconst : int64;
-  mutable cstring : string;
-  mutable nsym : sym option;
-  mutable ntype : typ option;
-  mutable lineno : int;
-  mutable op : op;
-  mutable nclass : cls;
-  mutable complex : int;
-  mutable addable : addr;
-  mutable ngarb : int;
+(* how an expression can be an instruction's operand as it is; the
+ * others are computed into a register (sgen.c's addable) *)
+type addr =
+  | Anone
+  | Aaddr_name | Aaddr_reg            (* $name, $offset(reg) *)
+  | Aname | Areg | Aindreg | Aconst   (* name or stack slot; reg; offset(reg); $c *)
+
+(* an expression: its kind, and what the passes learn of it *)
+type expr = {
+  e : kind;
+  t : typ;                            (* untyped until typed *)
+  line : int;
+  complex : int;                      (* the registers it needs (Sethi-Ullman) *)
+  addable : addr;
 }
+
+and kind =
+  | Name of sym * cls * int           (* a symbol, its class, an offset *)
+  | Const of int64
+  | Fconst of float
+  | Str of string                     (* a literal, before typing *)
+  | Lstr of string                    (* L"...": its runes, 4 bytes each *)
+  | Reg of int
+  | Indreg of int * int               (* offset(reg) *)
+  | Unary of unop * expr
+  | Binary of binop * expr * expr
+  | Assign of binop option * expr * expr   (* x = y, x op= y *)
+  | Cond of expr * expr * expr
+  | Call of expr * expr list
+  | Elem of expr * sym                (* x.m, before typing *)
+  | Dot of expr * int                 (* a member, at its offset, of a structure that is no l-value *)
+  | Sizeof of expr
+  | Sizeof_type of typ
+  | Typed of expr                     (* an initializer's, typed already: not again *)
+
+type stmt =
+  | Expr of expr
+  | Block of stmt list
+  | If of expr * stmt * stmt option
+  | While of expr * stmt
+  | Dowhile of stmt * expr
+  | For of stmt * expr option * stmt * stmt   (* its start, test, step and body *)
+  | Switch of expr * stmt
+  | Case of expr option               (* default: None *)
+  | Label of label
+  | Goto of label
+  | Break
+  | Continue
+  | Return of expr option * typ       (* the function's result *)
+  | Used of expr list
+  | Set of expr list
+
+(* a declarator: the type around a name *)
+type decl =
+  | Dnone                             (* abstract *)
+  | Dname of sym
+  | Dptr of int * decl                (* its qualifiers, as garb *)
+  | Dfunc of decl * param list
+  | Darray of decl * expr option
+  | Dbit of decl * expr
+
+and param = Pname of sym | Proto of typ * decl | Pdots
+
+(* an initializer, whose designators are items of the list *)
+type init =
+  | Iexpr of expr
+  | Ilist of init list
+  | Iindex of expr                    (* [e] = *)
+  | Ielem of sym                      (* .m = *)
 
 (* the machine, as the front end sees it: widths and alignment
  * (goken's ewidth, align, maxround in each back end's swt.c and gc.h) *)
@@ -145,91 +201,85 @@ type machine = {
   thechar : char;
   sz_ind : int;
   maxalign : int;                     (* SZ_LONG on arm, SZ_VLONG on arm64 *)
-  typecmplx : etype -> bool;             (* returned through a pointer *)
-  typeword : etype -> bool;              (* passed in a register *)
+  typecmplx : etype -> bool;          (* returned through a pointer *)
+  typeword : etype -> bool;           (* passed in a register *)
   typeswitch : etype -> bool;
-  machcap : node option -> bool;      (* what the back end does itself *)
+  machcap : expr option -> bool;      (* what the back end does itself *)
 }
 
 val mach : machine option ref
-
 val m : unit -> machine
 
+(* the machine's widths: a pointer's is its *)
 val ewidth : etype -> int
 
-(* a constant truncated and extended as a value of the type *)
 (* a conversion that makes no code (txt.c's ncast) *)
 val ncast : etype -> etype -> bool
 
+(* a constant truncated and extended as a value of the type *)
 val convvtox : int64 -> etype -> int64
 
+(* the line being read, and the one diagnosed *)
 val lineno : int ref
-
 val nearln : int ref
 
-(* a node, at the current line *)
-val node : op -> node option -> node option -> node
-
-(* a node, at the line being diagnosed *)
-val node1 : op -> node option -> node option -> node
-
-(* a name of s, of type t and class c, at off *)
-val name_of : sym -> typ option -> cls -> int -> node
-
-(* s as it is declared now *)
-val name_node : sym -> node
-
-(* a constant of type t *)
-val const_node : typ -> int64 -> node
-
-val copy_into : node -> node -> unit
-
-val dup : node -> node
-
 val typ : etype -> typ option -> typ
-
 val copytyp : typ -> typ
 
-val ty : etype -> typ
+(* an expression's type before typing, or an undeclared name's *)
+val untyped : typ
 
+(* the basic types, one of each: made by init_types *)
+val ty : etype -> typ
 val init_types : unit -> unit
 
-val l : node -> node
+(* an expression, untyped unless t, at the line being read unless line *)
+val mk : ?t:typ -> ?line:int -> kind -> expr
 
-val r : node -> node
+(* a name of s, of type t and class c, at off *)
+val name_of : sym -> typ -> cls -> int -> expr
 
-val t : node -> typ
+(* s as it is declared now *)
+val name_node : sym -> expr
 
-val et : node -> etype
+(* a constant of type t *)
+val const_node : typ -> int64 -> expr
 
+val et : expr -> etype
+
+(* a type's link, sure to be there: a pointer's, an array's... *)
 val link : typ -> typ
 
-val sym : node -> sym
-
+(* the symbol table, and a name's symbol, made if new *)
 val nhash : int
-
 val hash : sym list array
-
-(* the symbol of a name, made if new *)
 val lookup : string -> sym
 
+(* an error, which stops the run: at a line, at an expression's (or the
+ * line diagnosed) *)
 exception Error of string
-
 val error_at : int -> ('a, unit, string, 'b) format4 -> 'a
+val diag : expr option -> ('a, unit, string, 'b) format4 -> 'a
 
-(* an error at n's line (or the line diagnosed): Error, which stops the run *)
-val diag : node option -> ('a, unit, string, 'b) format4 -> 'a
-
+(* a structure known only by its tag given its elements *)
 val snap : typ -> unit
 
+(* the same type, to dcl.c's depth; of two types there *)
 val sametype : typ option -> typ option -> bool
+val same : typ -> typ -> bool
 
 val show_type : typ option -> string
 
 (* an operand as it is, needing no instruction *)
-val addressable : node -> bool
+val addressable : expr -> bool
 
-val fnname : node option -> string
+val is_const : expr -> bool
 
-(* the tree, as 5c's -x prints it *)
-val prtree : node option -> string -> string
+(* the offset of a name or offset(reg) moved by d *)
+val plus : expr -> int -> expr
+
+(* List.map, left to right: the passes have effects *)
+val map_lr : ('a -> 'b) -> 'a list -> 'b list
+
+(* the -x dump of a function's tree *)
+val prtree : string -> stmt -> string

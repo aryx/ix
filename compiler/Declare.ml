@@ -11,11 +11,11 @@
 
 open Tree
 
-(* the back end's, set by Gen: an initializer's data (swt.c's gextern) *)
 (* a function's name and its body, parsed: to the code generator *)
-let on_function : (node -> node -> unit) ref = ref (fun _ _ -> ())
+let on_function : (sym -> stmt -> unit) ref = ref (fun _ _ -> ())
 
-let gextern : (sym -> node -> int -> int -> unit) ref = ref (fun _ _ _ _ -> ())
+(* the back end's, set by Gen: an initializer's data (swt.c's gextern) *)
+let gextern : (sym -> expr -> int -> int -> unit) ref = ref (fun _ _ _ _ -> ())
 
 (*****************************************************************************)
 (* The state of the declarations (cc.h's globals) *)
@@ -34,7 +34,6 @@ let taggen = ref 0
 let firstarg : sym option ref = ref None
 let firstargtype : typ option ref = ref None
 let thisfn : typ option ref = ref None
-let initlist : node option ref = ref None
 let en_tenum : typ option ref = ref None
 let en_cenum : typ option ref = ref None
 let en_lastenum = ref 0L
@@ -44,13 +43,13 @@ let en_floatenum = ref 0.
  * declarations its names hid, the tags; a function's labels at its end *)
 type undo =
   | Mark of int * int                 (* the offset of the autos, the block *)
-  | Name of sym * typ option * cls * int * int * bool   (* its type, class, offset, block, used *)
+  | Hid of sym * typ option * cls * int * int * bool   (* its type, class, offset, block, used *)
   | Tag of sym * typ option * int
 
 let dclstack : undo list ref = ref []
 let labels : sym list ref = ref []
 
-let push1 (s : sym) = dclstack := Name (s, s.typ, s.sclass, s.soffset, s.block, s.aused) :: !dclstack
+let push1 (s : sym) = dclstack := Hid (s, s.typ, s.sclass, s.soffset, s.block, s.aused) :: !dclstack
 
 (*****************************************************************************)
 (* Alignment, by the machine (each back end's swt.c) *)
@@ -146,75 +145,59 @@ let mkstatic (s : sym) =
     s1
   end
 
-(* declare the names of n, whose types are around them: t of class c,
- * given to f (xdecl, adecl, pdecl, edecl; or none) *)
-let rec dodecl (f : (cls -> typ -> sym option -> unit) option) c (t : typ) (n : node option) : node option =
+(* declare the name of d, whose type is around it: t of class c, given
+ * to f (xdecl, adecl, pdecl, edecl; or none); the symbol declared *)
+let rec dodecl (f : (cls -> typ -> sym option -> unit) option) c (t : typ) (d : decl) : sym option =
   nearln := !lineno;
   lastfield := 0;
-  let rec loop (t : typ) (n : node option) =
-    match n with
-    | None -> lastdcl := Some t; n
-    | Some nn -> (
-        match nn.op with
-        | OARRAY ->
-            let t = typ Tarray (Some t) in
-            t.width <- 0;
-            (match nn.right with
-             | Some n1 ->
-                 Check.complex (Some n1);
-                 let v = if n1.op = OCONST then Int64.to_int n1.vconst else -1 in
-                 let v = if v <= 0 then (ignore (diag n "array size must be a positive constant"); 1) else v in
-                 t.width <- v * (link t).width
-             | None -> ());
-            loop t nn.left
-        | OIND -> let t = typ Tind (Some t) in t.garb <- nn.ngarb; loop t nn.left
-        | OFUNC -> let t = typ Tfunc (Some t) in t.down <- fnproto nn; loop t nn.left
-        | OBIT -> diag n "bitfields are not in the subset"
-        | ONAME ->
-            (match f with
-             | None -> ()
-             | Some f ->
-                 let s = sym nn in
-                 f c t (Some s);
-                 let s = if s.sclass = Clocal then mkstatic s else s in
-                 nn.nsym <- Some s; nn.ntype <- s.typ; nn.xoffset <- s.soffset; nn.nclass <- s.sclass;
-                 
-                 );
-            lastdcl := Some t;
-            n
-        | o -> diag n "unknown declarator: %s" (opname o))
+  let rec loop (t : typ) = function
+    | Dnone -> lastdcl := Some t; None
+    | Darray (d, size) ->
+        let t = typ Tarray (Some t) in
+        t.width <- 0;
+        Option.iter (fun n ->
+          let n = Check.complex n in
+          let v = match n.e with Const v -> Int64.to_int v | _ -> -1 in
+          let v = if v <= 0 then (ignore (diag (Some n) "array size must be a positive constant"); 1) else v in
+          t.width <- v * (link t).width) size;
+        loop t d
+    | Dptr (g, d) -> let t = typ Tind (Some t) in t.garb <- g; loop t d
+    | Dfunc (d, ps) -> let t = typ Tfunc (Some t) in t.down <- fnproto ps; loop t d
+    | Dbit _ -> diag None "bitfields are not in the subset"
+    | Dname s ->
+        let s = match f with None -> s | Some f -> f c t (Some s); if s.sclass = Clocal then mkstatic s else s in
+        lastdcl := Some t;
+        Some s
   in
-  loop t n
+  loop t d
+
+(* whether the parameters have prototypes, and plain names *)
+and anyproto (ps : param list) =
+  List.exists (function Pname _ -> false | _ -> true) ps, List.exists (function Pname _ -> true | _ -> false) ps
 
 (* the arguments' types, from a prototype (dcl.c's fnproto) *)
-(* whether the parameters have prototypes, and plain names *)
-and anyproto (n : node option) =
-  match n with
-  | None -> false, false
-  | Some ({ op = OLIST; _ } as n) -> let a, b = anyproto n.left and c, d = anyproto n.right in a || c, b || d
-  | Some { op = ODOTDOT | OPROTO; _ } -> true, false
-  | Some _ -> false, true
+and fnproto (ps : param list) =
+  match anyproto ps with
+  | true, false -> protos ps
+  | ansi, old -> if ansi && old then ignore (diag None "mixed ansi/old function declaration"); None
 
-and fnproto (n : node) =
-  match anyproto n.right with
-  | true, false -> fnproto1 n.right
-  | ansi, old -> if ansi && old then ignore (diag (Some n) "mixed ansi/old function declaration"); None
-
-and fnproto1 (n : node option) : typ option =
-  match n with
-  | None -> None
-  | Some ({ op = OLIST; _ } as n) ->
-      let t = fnproto1 n.left in
-      (match t with Some t -> t.down <- fnproto1 n.right | None -> ());
-      t
-  | Some ({ op = OPROTO; _ } as n) ->
-      lastdcl := None;
-      ignore (dodecl None Cxxx (Tree.t n) n.left);
-      (* a copy: the prototype's list is its own *)
-      Some (match !lastdcl with Some ld -> copytyp (paramconv ld true) | None -> typ Txxx None)
-  | Some ({ op = ONAME; _ } as n) -> ignore (diag (Some n) "incomplete argument prototype"); Some (typ Tint None)
-  | Some { op = ODOTDOT; _ } -> Some (typ Tdot None)
-  | Some n -> diag (Some n) "unknown op in fnproto"
+(* the parameters' types, chained by down *)
+and protos (ps : param list) : typ option =
+  match ps with
+  | [] -> None
+  | p :: rest ->
+      let t =
+        match p with
+        | Proto (pt, d) ->
+            lastdcl := None;
+            ignore (dodecl None Cxxx pt d);
+            (* a copy: the prototype's list is its own *)
+            (match !lastdcl with Some ld -> copytyp (paramconv ld true) | None -> typ Txxx None)
+        | Pname _ -> ignore (diag None "incomplete argument prototype"); typ Tint None
+        | Pdots -> typ Tdot None
+      in
+      t.down <- protos rest;
+      Some t
 
 and paramconv (t : typ) f =
   if t.etype = Tarray then (let t = typ Tind t.link in t.width <- (ty Tind).width; t)
@@ -354,15 +337,15 @@ let dotag (s : sym) et bn =
 let maxtype (t1 : typ option) (t2 : typ option) =
   match t1, t2 with None, _ -> t2 | _, None -> t1 | Some a, Some b' -> if a.etype > b'.etype then t1 else t2
 
-let doenum (s : sym) (n : node option) =
-  (match n with
-   | Some n ->
-       Check.complex (Some n);
-       if n.op <> OCONST then ignore (diag (Some n) "enum not a constant: %s" s.name);
-       en_cenum := n.ntype;
-       en_tenum := maxtype !en_cenum !en_tenum;
-       if not (typefd ((Option.get !en_cenum).etype)) then en_lastenum := n.vconst else en_floatenum := n.fconst
-   | None -> ());
+let doenum (s : sym) (n : expr option) =
+  Option.iter (fun n ->
+    let n = Check.complex n in
+    en_cenum := Some n.t;
+    en_tenum := maxtype !en_cenum !en_tenum;
+    match n.e with
+    | Const v -> en_lastenum := v
+    | Fconst f -> en_floatenum := f
+    | _ -> ignore (diag (Some n) "enum not a constant: %s" s.name)) n;
   if !dclstack <> [] then push1 s;
   xdecl Cxxx (ty Tenum) (Some s);
   if !en_cenum = None then (en_tenum := Some (ty Tint); en_cenum := Some (ty Tint); en_lastenum := 0L);
@@ -381,9 +364,9 @@ let markdcl () =
   autobn := !blockno
 
 (* a block's declarations undone, to its mark (and at the function's,
- * the bottom one, its labels); the volatiles' USED, to be kept *)
-let revertdcl () : node option =
-  let used = ref None in
+ * the bottom one, its labels); the volatiles, to be USED *)
+let revertdcl () : expr list =
+  let used = ref [] in
   let rec go () =
     match !dclstack with
     | [] -> ignore (diag None "pop off dcl stack")
@@ -393,11 +376,9 @@ let revertdcl () : node option =
         | Mark (o, bn) ->
             autoffset := o; autobn := bn;
             if rest = [] then (List.iter (fun (s : sym) -> s.label <- None) !labels; labels := [])
-        | Name (s, t, c, o, bl, aused) ->
+        | Hid (s, t, c, o, bl, aused) ->
             (match s.typ with
-             | Some tt when tt.garb land gvolatile <> 0 ->
-                 let n1 = node OUSED (Some (node OADDR (Some (name_node s)) None)) None in
-                 used := (match !used with None -> Some n1 | Some x -> Some (node OLIST (Some n1) (Some x)))
+             | Some tt when tt.garb land gvolatile <> 0 -> used := mk (Unary (Addr, name_node s)) :: !used
              | _ -> ());
             s.typ <- t; s.sclass <- c; s.soffset <- o; s.block <- bl; s.aused <- aused;
             go ()
@@ -406,273 +387,261 @@ let revertdcl () : node option =
   go ();
   !used
 
-let rec walkparam (n : node option) ~declared =
-  match n with
-  | Some { op = OPROTO; left = None; ntype = Some t; _ } when t == ty Tvoid -> ()
-  | None -> ()
-  | Some ({ op = OLIST; _ } as n) -> walkparam n.left ~declared; walkparam n.right ~declared
-  | Some ({ op = OPROTO; _ } as n) ->
-      let rec name (n1 : node option) = match n1 with None -> None | Some ({ op = ONAME; _ } as x) -> Some x | Some x -> name x.left in
-      (match name (Some n) with
-       | Some n1 ->
-           if not declared then (let s = sym n1 in push1 s; s.soffset <- -1)
-           else ignore (dodecl (Some pdecl) Cparam (Tree.t n) n.left)
-       | None ->
-           if declared then begin
-             ignore (dodecl None Cparam (Tree.t n) n.left);
-             pdecl Cparam (Option.get !lastdcl) None
-           end)
-  | Some { op = ODOTDOT; _ } -> ()
-  | Some ({ op = ONAME; _ } as n) ->
-      let s = sym n in
-      if not declared then (push1 s; s.soffset <- -1)
-      else if s.soffset <> -1 then param (Some s) (Option.get s.typ)
-      else ignore (dodecl (Some pdecl) Cxxx (ty Tint) (Some n))
-  | Some n -> ignore (diag (Some n) "argument not a name/prototype")
+let rec decl_name = function
+  | Dname s -> Some s
+  | Dptr (_, d) | Dfunc (d, _) | Darray (d, _) | Dbit (d, _) -> decl_name d
+  | Dnone -> None
+
+(* the parameters: hidden, or once declared, given their offsets *)
+let walkparam (ps : param list) ~declared =
+  List.iter (function
+    | Proto (t, Dnone) when t == ty Tvoid -> ()
+    | Proto (t, d) -> (
+        match decl_name d with
+        | Some s -> if not declared then (push1 s; s.soffset <- -1) else ignore (dodecl (Some pdecl) Cparam t d)
+        | None -> if declared then (ignore (dodecl None Cparam t d); pdecl Cparam (Option.get !lastdcl) None))
+    | Pdots -> ()
+    | Pname s ->
+        if not declared then (push1 s; s.soffset <- -1)
+        else if s.soffset <> -1 then param (Some s) (Option.get s.typ)
+        else ignore (dodecl (Some pdecl) Cxxx (ty Tint) (Dname s))) ps
 
 (* the parameters' offsets; ~declared, after their old-style declarations *)
-let argmark (n : node) ~declared =
+let argmark (d : decl) ~declared =
   autoffset := align 0 (link (Option.get !thisfn)) Aarg0;
   stkoff := 0;
-  let rec go (n : node) =
-    match n.left with
-    | None -> ()
-    | Some l ->
-        if n.op = OFUNC && l.op = ONAME then begin
-          walkparam n.right ~declared;
-          if declared && anyproto n.right = (false, true) then ignore (diag (Some n) "old-style parameters are not in the subset")
-        end
-        else go l
+  (* the function's own: the parameters of the Dfunc around its name *)
+  let rec go = function
+    | Dfunc (Dname _, ps) ->
+        walkparam ps ~declared;
+        if declared && anyproto ps = (false, true) then ignore (diag None "old-style parameters are not in the subset")
+    | Dptr (_, d) | Dfunc (d, _) | Darray (d, _) | Dbit (d, _) -> go d
+    | Dname _ | Dnone -> ()
   in
-  go n;
+  go d;
   autoffset := 0;
   stkoff := 0
 
-(* a label, declared (f) or used, forgotten at the function's end
+(* a label, defined (f) or used, forgotten at the function's end
  * (dcl.c's dcllabel) *)
 let dcllabel (s : sym) f =
   match s.label with
-  | Some n ->
-      if f then (if n.complex <> 0 then ignore (diag None "label reused: %s" s.name); n.complex <- 1) else n.addable <- Alvalue;
-      n
+  | Some l ->
+      if f then (if l.defined then ignore (diag None "label reused: %s" s.name); l.defined <- true);
+      l
   | None ->
       labels := s :: !labels;
-      let n = node OXXX None None in
-      n.nsym <- Some s;
-      (* defined: complex 1; used: addable, which -x prints as 5c's <1> *)
-      n.complex <- (if f then 1 else 0);
-      if not f then n.addable <- Alvalue;
-      s.label <- Some n;
-      n
+      let l = { lsym = s; defined = f; lpc = 0 } in
+      s.label <- Some l;
+      l
 
 (*****************************************************************************)
 (* Initializers (dcl.c's doinit, init1) *)
 (*****************************************************************************)
 
-let peekinit () =
-  let rec go (a : node option) = match a with Some ({ op = OLIST; _ } as a) -> go a.left | a -> a in
-  go !initlist
+(* what init1 takes from, the next first: the initializers; a string
+ * spread over an array's elements; an expression typed already *)
+type item = I of init | Chars of chars | Typed of expr
+and chars = { mutable rest : string; mutable left : int; elt : typ; wide : bool }
 
-let nextinit () : node option =
+let initlist : item list ref = ref []
+
+let nextinit () : item option =
   match !initlist with
-  | None -> None
-  | Some a0 ->
-      let a, n = if a0.op = OLIST then Tree.l a0, a0.right else a0, None in
-      if a.op = OUSED then begin
-        let a = Tree.l a in
-        let b = node OCONST None None in
-        b.ntype <- (Tree.t a).link;
-        if a.op = OSTRING then begin
-          b.vconst <- convvtox (Int64.of_int (if a.cstring = "" then 0 else Char.code a.cstring.[0])) Tchar;
-          a.cstring <- (if a.cstring = "" then "" else String.sub a.cstring 1 (String.length a.cstring - 1))
-        end;
-        (Tree.t a).width <- (Tree.t a).width - (Option.get b.ntype).width;
-        if (Tree.t a).width <= 0 then initlist := n;
-        Some b
-      end
-      else (initlist := n; Some a)
+  | [] -> None
+  | Chars c :: rest ->
+      (* the string's next character, the NUL past its end *)
+      let n = if c.wide then 4 else 1 in
+      let v =
+        if String.length c.rest < n then 0L
+        else if c.wide then convvtox (Int64.of_int32 (String.get_int32_le c.rest 0)) Tuint
+        else convvtox (Int64.of_int (Char.code c.rest.[0])) Tchar
+      in
+      if String.length c.rest >= n then c.rest <- String.sub c.rest n (String.length c.rest - n);
+      c.left <- c.left - c.elt.width;
+      if c.left <= 0 then initlist := rest;
+      Some (I (Iexpr (const_node c.elt v)))
+  | a :: rest -> initlist := rest; Some a
 
-let newlist (l : node option) (r : node option) = match l, r with _, None -> l | None, _ -> r | _ -> Some (node OLIST l r)
+let rec doinit (s : sym) (t : typ option) o (a : init) : expr list = doitem s t o (I a)
 
-let rec doinit (s : sym) (t : typ option) o (a : node) : node option =
+and doitem (s : sym) (t : typ option) o (a : item) : expr list =
   match t with
-  | None -> None
+  | None -> []
   | Some t ->
       if s.sclass = Cextern then s.sclass <- Cglobl;
       let saved = !initlist in
-      initlist := Some (if a.op = OINIT then Tree.l a else a);
+      initlist := (match a with I (Ilist l) -> List.map (fun i -> I i) l | a -> [ a ]);
       let r = init1 s t o false in
-      if !initlist <> None then ignore (diag !initlist "more initializers than structure: %s" s.name);
+      (match !initlist with [] -> () | _ -> ignore (diag None "more initializers than structure: %s" s.name));
       initlist := saved;
       r
 
-and isstruct (a : node) (t : typ) =
-  match a.op with
-  | ODOTDOT -> (match a.left with Some n when n.ntype <> None && sametype n.ntype (Some t) -> true | _ -> false)
-  | OSTRING | OLSTRING | OCONST | OINIT | OELEM -> false
-  | _ ->
-      let n = dup a in
-      a.op <- ODOTDOT; a.left <- Some n; a.right <- None;
-      if Check.tcom n then false else sametype n.ntype (Some t)
+(* a structure initialized by an expression of its type (the expression
+ * typed on the way, once) *)
+and isstruct (t : typ) =
+  match !initlist with
+  | Typed n :: _ -> same n.t t
+  | I (Iexpr ({ e = Str _ | Lstr _ | Const _ | Fconst _; _ })) :: _ -> false
+  | I (Iexpr x) :: rest -> let n = Check.tcom x in initlist := Typed n :: rest; same n.t t
+  | _ -> false
 
-and init1 (s : sym) (t : typ) o exflag : node option =
-  match peekinit () with
-  | None -> None
-  | Some a when exflag && a.op = OINIT -> doinit s (Some t) o (Option.get (nextinit ()))
-  | Some a ->
+and init1 (s : sym) (t : typ) o exflag : expr list =
+  match !initlist with
+  | [] -> []
+  | I (Ilist _) :: _ when exflag -> (match nextinit () with Some a -> doitem s (Some t) o a | None -> [])
+  | a :: _ ->
       let single () =
-        if a.op = OARRAY || a.op = OELEM then None
-        else
-          match nextinit () with
-          | None -> None
-          | Some a ->
-              if s.sclass = Cauto then begin
-                Some (node OASI (Some (name_of s (Some t) s.sclass (s.soffset + o))) (Some a))
-              end
-              else begin
-                Check.complex (Some a);
-                if a.ntype = None then None
-                else if a.op = OCONST then begin
-                  if Check.vconst (Some a) <> 0 && t.etype = Tind && et a <> Tind then ignore (diag (Some a) "initialize pointer to an integer: %s" s.name);
-                  if not (sametype a.ntype (Some t)) then begin
-                    let nod = node OCAST (Some (dup a)) None in
-                    nod.ntype <- Some t; nod.lineno <- a.lineno;
-                    Check.complex (Some nod);
-                    if nod.ntype <> None then copy_into a nod
-                  end;
-                  if a.op <> OCONST then ignore (diag (Some a) "initializer is not a constant: %s" s.name);
-                  if Check.vconst (Some a) = 0 then None else (!gextern s a o t.width; None)
-                end
+        match a with
+        | I (Iindex _ | Ielem _) -> []
+        | _ -> (
+            match nextinit () with
+            | None -> []
+            | Some it ->
+                let a = match it with I (Iexpr a) -> a | Typed a -> mk ~t:a.t ~line:a.line (Typed a) | _ -> diag None "initializer is not an expression: %s" s.name in
+                if s.sclass = Cauto then [ mk (Assign (None, name_of s t s.sclass (s.soffset + o), a)) ]
                 else begin
-                  let rec uncast (a : node) = if a.op = OCAST then uncast (Tree.l a) else a in
-                  let a = uncast a in
-                  if t.etype = Tind then begin
-                    if not (sametype (Some t) a.ntype) then ignore (diag (Some a) "initialization of incompatible pointers: %s" s.name);
-                    !gextern s (if a.op = OADDR then Tree.l a else a) o t.width; None
-                  end
-                  else if a.op = OADDR then (!gextern s (Tree.l a) o t.width; None)
-                  else diag (Some a) "initializer is not a constant: %s" s.name
-                end
-              end
+                  let a = Check.complex a in
+                  match a.e with
+                  | Const _ | Fconst _ ->
+                      if Check.vconst a <> 0 && t.etype = Tind && et a <> Tind then ignore (diag (Some a) "initialize pointer to an integer: %s" s.name);
+                      let a = if same a.t t then a else Check.complex (mk ~t ~line:a.line (Unary (Cast, a))) in
+                      if not (is_const a) then ignore (diag (Some a) "initializer is not a constant: %s" s.name);
+                      if Check.vconst a <> 0 then !gextern s a o t.width;
+                      []
+                  | _ ->
+                      let rec uncast (a : expr) = match a.e with Unary (Cast, x) -> uncast x | _ -> a in
+                      let a = uncast a in
+                      let addr = match a.e with Unary (Addr, x) -> Some x | _ -> None in
+                      if t.etype = Tind then begin
+                        if not (same t a.t) then ignore (diag (Some a) "initialization of incompatible pointers: %s" s.name);
+                        !gextern s (Option.value addr ~default:a) o t.width; []
+                      end
+                      else match addr with Some x -> !gextern s x o t.width; [] | None -> diag (Some a) "initializer is not a constant: %s" s.name
+                end)
       in
       let e = t.etype in
-      if typei (e) || typefd (e) || e = Tind then single ()
+      if typei e || typefd e || e = Tind then single ()
       else if e = Tarray then begin
         let w = (link t).width in
-        if (a.op = OSTRING || a.op = OLSTRING) && typei ((link t).etype) then begin
-          let a = Option.get (nextinit ()) in
-          let mw = t.width / w in
-          let so = (Tree.t a).width / (link (Tree.t a)).width in
-          if mw <> 0 && so > mw then begin
-            if so <> mw + 1 then ignore (diag (Some a) "string initialization larger than array");
-            (Tree.t a).width <- (Tree.t a).width - (link (Tree.t a)).width
-          end;
-          doinit s (Some t) o (node OUSED (Some a) None)
-        end
-        else begin
-          let mw = ref (- w) and l = ref None and e = ref 0 in
-          let rec go () =
-            match peekinit () with
-            | None -> ()
-            | Some a when a.op = OELEM && (link t).etype <> Tstruct -> ()
-            | Some a ->
-                let stop =
-                  if a.op = OARRAY then begin
-                    if !e <> 0 && exflag then true
-                    else begin
-                      let a = Option.get (nextinit ()) in
-                      let r = Tree.l a in
-                      Check.complex (Some r);
-                      if r.op <> OCONST then ignore (diag (Some r) "initializer subscript must be constant");
-                      e := Int64.to_int r.vconst;
-                      if t.width <> 0 && (!e < 0 || !e * w >= t.width) then ignore (diag (Some a) "initialization index out of range: %d" !e);
-                      false
+        match a with
+        | I (Iexpr ({ e = (Str chars | Lstr chars) as k; _ } as str)) when typei (link t).etype ->
+            ignore (nextinit ());
+            let mw = t.width / w and ew = (link str.t).width in
+            let so = str.t.width / ew in
+            if mw <> 0 && so > mw then begin
+              if so <> mw + 1 then ignore (diag (Some str) "string initialization larger than array");
+              str.t.width <- str.t.width - ew
+            end;
+            let wide = match k with Lstr _ -> true | _ -> false in
+            doitem s (Some t) o (Chars { rest = chars; left = str.t.width; elt = link str.t; wide })
+        | _ ->
+            let mw = ref (- w) and l = ref [] and e = ref 0 in
+            let rec go () =
+              match !initlist with
+              | [] -> ()
+              | I (Ielem _) :: _ when (link t).etype <> Tstruct -> ()
+              | a :: _ ->
+                  let stop =
+                    match a with
+                    | I (Iindex _) when !e <> 0 && exflag -> true
+                    | I (Iindex _) ->
+                        let r = match nextinit () with Some (I (Iindex r)) -> Check.complex r | _ -> assert false in
+                        (match r.e with Const v -> e := Int64.to_int v | _ -> ignore (diag (Some r) "initializer subscript must be constant"));
+                        if t.width <> 0 && (!e < 0 || !e * w >= t.width) then ignore (diag (Some r) "initialization index out of range: %d" !e);
+                        false
+                    | _ -> false
+                  in
+                  if not stop then begin
+                    let so = !e * w in
+                    if so > !mw then mw := so;
+                    if not (t.width <> 0 && !mw >= t.width) then begin
+                      l := !l @ init1 s (link t) (o + so) true;
+                      incr e;
+                      go ()
                     end
                   end
-                  else false
-                in
-                if not stop then begin
-                  let so = !e * w in
-                  if so > !mw then mw := so;
-                  if not (t.width <> 0 && !mw >= t.width) then begin
-                    l := newlist !l (init1 s (link t) (o + so) true);
-                    incr e;
-                    go ()
-                  end
-                end
-          in
-          go ();
-          if t.width = 0 then t.width <- !mw + w;
-          !l
-        end
+            in
+            go ();
+            if t.width = 0 then t.width <- !mw + w;
+            !l
       end
-      else if typesu (e) then begin
-        if isstruct a t then single ()
+      else if typesu e then begin
+        if isstruct t then single ()
         else begin
           if t.width <= 0 then ignore (diag None "incomplete structure: %s" s.name);
-          let l = ref None in
+          let l = ref [] in
+          (* the elements in order, or from the one a designator names *)
           let rec again () =
-            let rec els (t1 : typ option) (a : node option) =
-              match t1, a with
-              | Some t1, Some a ->
-                  if a.op = OARRAY && t1.etype <> Tarray then Some a
-                  else if a.op = OELEM && (match t1.tsym, a.nsym with Some x, Some y -> x != y | _ -> true) then els t1.down (Some a)
-                  else begin
-                    if a.op = OELEM then ignore (nextinit ());
-                    l := newlist !l (init1 s t1 (o + t1.offset) true);
-                    match peekinit () with
-                    | None -> None
-                    | Some a when a.op = OELEM -> again ()
-                    | a -> els t1.down a
-                  end
-              | _, a -> a
+            let rec els (t1 : typ option) =
+              match t1, !initlist with
+              | Some t1, a :: _ ->
+                  (match a with
+                   | I (Iindex _) when t1.etype <> Tarray -> Some a
+                   | I (Ielem m) when (match t1.tsym with Some x -> x != m | None -> true) -> els t1.down
+                   | _ ->
+                       (match a with I (Ielem _) -> ignore (nextinit ()) | _ -> ());
+                       l := !l @ init1 s t1 (o + t1.offset) true;
+                       match !initlist with
+                       | [] -> None
+                       | I (Ielem _) :: _ -> again ()
+                       | _ -> els t1.down)
+              | _, a :: _ -> Some a
+              | _, [] -> None
             in
-            els t.link (peekinit ())
+            els t.link
           in
-          (match again () with Some a when a.op = OELEM -> ignore (diag (Some a) "structure element not found") | _ -> ());
+          (match again () with Some (I (Ielem _)) -> ignore (diag None "structure element not found") | _ -> ());
           !l
         end
       end
       else diag None "unknown type in initialization: %s" (show_type (Some t))
 
-let rec symadjust (s : sym) (n : node) del =
-  match n.op with
-  | ONAME -> if n.nsym == Some s || (match n.nsym with Some x -> x == s | None -> false) then n.xoffset <- n.xoffset - del
-  | OCONST | OSTRING | OLSTRING | OINDREG | OREGISTER -> ()
-  | _ -> Option.iter (fun l -> symadjust s l del) n.left; Option.iter (fun r -> symadjust s r del) n.right
+let rec symadjust (s : sym) del (n : expr) : expr =
+  let f = symadjust s del in
+  match n.e with
+  | Name (s', c, o) when s' == s -> { n with e = Name (s', c, o - del) }
+  | Unary (o, a) -> { n with e = Unary (o, f a) }
+  | Binary (o, a, b) -> { n with e = Binary (o, f a, f b) }
+  | Assign (o, a, b) -> { n with e = Assign (o, f a, f b) }
+  | Cond (a, b, c) -> { n with e = Cond (f a, f b, f c) }
+  | Call (a, args) -> { n with e = Call (f a, List.map f args) }
+  | Elem (a, m) -> { n with e = Elem (f a, m) }
+  | Dot (a, o) -> { n with e = Dot (f a, o) }
+  | Sizeof a -> { n with e = Sizeof (f a) }
+  | _ -> n
 
 (* an automatic array's initialization: zeroed first when partial
  * (dcl.c's contig) *)
-let contig (s : sym) (n : node option) v =
-  match n with
-  | None -> None
-  | Some nn ->
+let contig (s : sym) (inits : expr list) v : stmt list =
+  match inits with
+  | [] -> []
+  | first :: _ ->
       let w = (Option.get s.typ).width in
-      if v <> w then begin
-        if v <> 0 then ignore (diag n "automatic adjustable array: %s" s.name);
-        let v = s.soffset in
-        autoffset := align !autoffset (Option.get s.typ) Aaut3;
-        s.soffset <- - !autoffset;
-        stkoff := maxround !stkoff !autoffset;
-        symadjust s nn (v - s.soffset)
-      end;
+      let inits =
+        if v = w then inits
+        else begin
+          if v <> 0 then ignore (diag None "automatic adjustable array: %s" s.name);
+          let v = s.soffset in
+          autoffset := align !autoffset (Option.get s.typ) Aaut3;
+          s.soffset <- - !autoffset;
+          stkoff := maxround !stkoff !autoffset;
+          List.map (symadjust s (v - s.soffset)) inits
+        end
+      in
       let pw = ewidth Tind in
-      if w <= pw || nn.op = OLIST || (nn.op = OASI && (match (Tree.l nn).ntype with Some lt -> lt.width = w | None -> false)) then n
+      let all = List.map (fun e -> Expr e) inits in
+      let covers = match inits with [ { e = Assign (_, l, _); _ } ] -> l.t.width = w | [ _ ] -> false | _ -> true in
+      if w <= pw || covers then all
       else begin
+        (* the array's first word a pointer past its end, down to it *)
         let w = ref w in
         while !w land (pw - 1) <> 0 do incr w done;
-        let rec name (q : node) = if q.op = ONAME then q else name (Tree.l q) in
-        let q = name nn in
+        let rec name (q : expr) = match q.e with Name _ -> q | Assign (_, a, _) | Unary (_, a) | Binary (_, a, _) -> name a | _ -> q in
+        let q = name first in
         let zt = if ewidth Tind > ewidth Tlong then ty Tvlong else ty Tlong in
-        let p = dup q in
-        p.ntype <- Some (typ Tind (Some zt)); p.xoffset <- s.soffset;
-        let r = node OPOSTDEC (Some (dup p)) None in
-        let q1 = node OIND (Some (dup p)) None in
-        let r = node OLIST (Some r) (Some (node OAS (Some q1) (Some (const_node zt 0L)))) in
-        let r = node ODWHILE (Some (dup p)) (Some r) in
-        let q2 = dup p in
-        q2.ntype <- (Tree.t q2).link; q2.xoffset <- q2.xoffset + !w;
-        let q2 = node OADDR (Some q2) None in
-        let q2 = node OASI (Some p) (Some q2) in
-        Some (node OLIST (Some (node OLIST (Some q2) (Some r))) n)
+        let p = { q with t = typ Tind (Some zt); e = (match q.e with Name (s', c, _) -> Name (s', c, s.soffset) | e -> e) } in
+        let clear = Dowhile (Block [ Expr (mk (Unary (Postdec, p))); Expr (mk (Assign (None, mk (Unary (Ind, p)), const_node zt 0L))) ], p) in
+        let past = mk (Unary (Addr, plus { p with t = link p.t } !w)) in
+        Expr (mk (Assign (None, p, past))) :: clear :: all
       end

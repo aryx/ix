@@ -32,51 +32,42 @@
  * code generator [boolgen] expands, by Thompson's account "with
  * extensive use of De Morgan's rule". *)
 
-(* what 5c and 7c do differently, beyond the instructions *)
+(* what differs between 5c's and 7c's generators, beyond the
+ * instructions: set by the machine's module *)
 type hooks = {
-  sucopy : Tree.node -> Tree.node -> int -> unit;
-  table :
-    Tree.node -> Tree.node -> Tree.node -> int -> unit;
-  fits : Tree.node -> int -> bool;
-  neg : Tree.node -> Tree.node -> unit;
-  mul32 : bool;
-  rsb : bool;
-  by_left : bool;
-  com64 : bool;
-  shifts : bool;
-  zero_arg : bool;
-  asop_load : bool;
-  indreg_ptr : bool;
+  sucopy : Tree.expr -> Tree.expr -> int -> unit;       (* a structure's copy *)
+  table : Tree.expr -> Tree.expr -> Tree.expr -> int -> unit;  (* a switch's table: the value, a register, its range, the default *)
+  fits : Tree.expr -> int -> bool;         (* an offset folded into n's load or store *)
+  neg : Tree.expr -> Tree.expr -> unit;         (* to = -from *)
+  mul32 : bool;                       (* a multiplier held in 32 bits (7c's mulcon) *)
+  rsb : bool;                         (* c - x as a reverse subtract (5c) *)
+  by_left : bool;                     (* x op y's registers typed as x, so shifts work (7c) *)
+  com64 : bool;                       (* vlong operators as calls (5c) *)
+  shifts : bool;                      (* shift-and-mask simplified, a constant compared on the right (7c) *)
+  zero_arg : bool;                    (* a 0 argument stored as it is (7c) *)
+  asop_load : bool;                   (* x op= y: y into the result's register, x loaded after (7c) *)
+  indreg_ptr : bool;                  (* a register's address computed as a pointer (7c) *)
 }
 
 val hooks : hooks option ref
 
-(* the addressability and complexity of the tree *)
-val xcom : Tree.node -> unit
+(* the addressability and complexity of the tree: a new tree *)
+val xcom : Tree.expr -> Tree.expr
 
-val gmove : Tree.node -> Tree.node -> unit
+(* what the machines' modules build with: a move, an operation, a
+ * comparison and its branch, a switch's table *)
+val gmove : Tree.expr -> Tree.expr -> unit
+val gopcode : Emit.gop -> Tree.expr option -> Tree.expr option -> Tree.expr option -> unit
+val op2 : Tree.binop -> Tree.expr -> Tree.expr -> unit
+val op3 : Tree.binop -> Tree.expr -> Tree.expr -> Tree.expr -> unit
+val compare : ?tr:bool -> Tree.binop -> Tree.expr -> Tree.expr -> unit
+val gcase : Tree.expr -> Tree.expr -> unit
+val iconst : int -> Tree.expr
 
-val gopcode :
-  Tree.op ->
-  Tree.node option ->
-  Tree.node option -> Tree.node option -> unit
+(* the address of n in a register, as an indirection; of nn as a
+ * long's *)
+val reglcgen : Tree.expr -> Tree.expr option -> Tree.expr
+val reglpcgen : Tree.expr -> bool -> Tree.expr
 
-val op2 : Tree.op -> Tree.node -> Tree.node -> unit
-
-val op3 :
-  Tree.op ->
-  Tree.node -> Tree.node -> Tree.node -> unit
-
-val compare :
-  ?tr:bool -> Tree.op -> Tree.node -> Tree.node -> unit
-
-val iconst : int -> Tree.node
-
-val reglcgen : Tree.node -> Tree.node option -> Tree.node
-
-val reglpcgen : Tree.node -> bool -> Tree.node
-
-type case = { cval : int64; cdef : bool; clabel : int; cisv : bool; }
-
-(* a function's code: its name's node and its body *)
-val codgen : Tree.node -> Tree.node -> unit
+(* a function's code: its name and its body *)
+val codgen : Tree.sym -> Tree.stmt -> unit

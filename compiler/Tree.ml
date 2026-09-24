@@ -92,31 +92,29 @@ let gnames = [| "GXXX"; "CONST"; "VOLATILE"; "CONST-VOLATILE" |]
 (* The tree *)
 (*****************************************************************************)
 
-type op =
-  | OXXX | OADD | OADDR | OAND | OANDAND | OARRAY | OAS | OASI | OASADD | OASAND | OASASHL | OASASHR | OASDIV
-  | OASHL | OASHR | OASLDIV | OASLMOD | OASLMUL | OASLSHR | OASMOD | OASMUL | OASOR | OASSUB | OASXOR | OBIT
-  | OBREAK | OCASE | OCAST | OCOMMA | OCOND | OCONST | OCONTINUE | ODIV | ODOT | ODOTDOT | ODWHILE | OENUM
-  | OEQ | OFOR | OFUNC | OGE | OGOTO | OGT | OHI | OHS | OIF | OIND | OINDREG | OINIT | OLABEL | OLDIV | OLE
-  | OLIST | OLMOD | OLMUL | OLO | OLS | OLSHR | OLT | OMOD | OMUL | ONAME | ONE | ONOT | OOR | OOROR
-  | OPOSTDEC | OPOSTINC | OPREDEC | OPREINC | OPROTO | OREGISTER | ORETURN | OSET | OSIGN | OSIZE | OSTRING
-  | OLSTRING | OSTRUCT | OSUB | OSWITCH | OUNION | OUSED | OWHILE | OXOR | ONEG | OCOM | OPOS | OELEM
-  | OTST | OINDEX | OFAS | OREGPAIR | OEXREG
+(*****************************************************************************)
+(* The trees: expressions, statements, declarators, initializers *)
+(*****************************************************************************)
 
-let opnames = [ OXXX, "OXXX"; OADD, "ADD"; OADDR, "ADDR"; OAND, "AND"; OANDAND, "ANDAND"; OARRAY, "ARRAY"; OAS, "AS";
-  OASI, "ASI"; OASADD, "ASADD"; OASAND, "ASAND"; OASASHL, "ASASHL"; OASASHR, "ASASHR"; OASDIV, "ASDIV";
-  OASHL, "ASHL"; OASHR, "ASHR"; OASLDIV, "ASLDIV"; OASLMOD, "ASLMOD"; OASLMUL, "ASLMUL"; OASLSHR, "ASLSHR";
-  OASMOD, "ASMOD"; OASMUL, "ASMUL"; OASOR, "ASOR"; OASSUB, "ASSUB"; OASXOR, "ASXOR"; OBIT, "BIT"; OBREAK, "BREAK";
-  OCASE, "CASE"; OCAST, "CAST"; OCOMMA, "COMMA"; OCOND, "COND"; OCONST, "CONST"; OCONTINUE, "CONTINUE"; ODIV, "DIV";
-  ODOT, "DOT"; ODOTDOT, "DOTDOT"; ODWHILE, "DWHILE"; OENUM, "ENUM"; OEQ, "EQ"; OFOR, "FOR"; OFUNC, "FUNC"; OGE, "GE";
-  OGOTO, "GOTO"; OGT, "GT"; OHI, "HI"; OHS, "HS"; OIF, "IF"; OIND, "IND"; OINDREG, "INDREG"; OINIT, "INIT";
-  OLABEL, "LABEL"; OLDIV, "LDIV"; OLE, "LE"; OLIST, "LIST"; OLMOD, "LMOD"; OLMUL, "LMUL"; OLO, "LO"; OLS, "LS";
-  OLSHR, "LSHR"; OLT, "LT"; OMOD, "MOD"; OMUL, "MUL"; ONAME, "NAME"; ONE, "NE"; ONOT, "NOT"; OOR, "OR";
-  OOROR, "OROR"; OPOSTDEC, "POSTDEC"; OPOSTINC, "POSTINC"; OPREDEC, "PREDEC"; OPREINC, "PREINC"; OPROTO, "PROTO";
-  OREGISTER, "REGISTER"; ORETURN, "RETURN"; OSET, "SET"; OSIGN, "SIGN"; OSIZE, "SIZE"; OSTRING, "STRING";
-  OLSTRING, "LSTRING"; OSTRUCT, "STRUCT"; OSUB, "SUB"; OSWITCH, "SWITCH"; OUNION, "UNION"; OUSED, "USED";
-  OWHILE, "WHILE"; OXOR, "XOR"; ONEG, "NEG"; OCOM, "COM"; OPOS, "POS"; OELEM, "ELEM"; OTST, "TST"; OINDEX, "INDEX";
-  OFAS, "FAS"; OREGPAIR, "REGPAIR"; OEXREG, "EXREG" ]
-let opname o = List.assoc o opnames
+(* the operators; L and Lo, Ls, Hi, Hs are the unsigned ones *)
+type binop =
+  | Add | Sub | Mul | Div | Mod | Lmul | Ldiv | Lmod
+  | And | Or | Xor | Ashl | Ashr | Lshr
+  | Eq | Ne | Lt | Le | Gt | Ge | Lo | Ls | Hi | Hs
+  | Andand | Oror | Comma
+
+type unop = Ind | Addr | Neg | Com | Not | Pos | Cast | Preinc | Predec | Postinc | Postdec
+
+let binops = [ Add, "ADD"; Sub, "SUB"; Mul, "MUL"; Div, "DIV"; Mod, "MOD"; Lmul, "LMUL"; Ldiv, "LDIV"; Lmod, "LMOD";
+  And, "AND"; Or, "OR"; Xor, "XOR"; Ashl, "ASHL"; Ashr, "ASHR"; Lshr, "LSHR"; Eq, "EQ"; Ne, "NE"; Lt, "LT"; Le, "LE";
+  Gt, "GT"; Ge, "GE"; Lo, "LO"; Ls, "LS"; Hi, "HI"; Hs, "HS"; Andand, "ANDAND"; Oror, "OROR"; Comma, "COMMA" ]
+let unops = [ Ind, "IND"; Addr, "ADDR"; Neg, "NEG"; Com, "COM"; Not, "NOT"; Pos, "POS"; Cast, "CAST"; Preinc, "PREINC";
+  Predec, "PREDEC"; Postinc, "POSTINC"; Postdec, "POSTDEC" ]
+let binop_name o = List.assoc o binops
+let unop_name o = List.assoc o unops
+
+let relations = [ Eq; Ne; Lt; Le; Gt; Ge; Lo; Ls; Hi; Hs ]
+let is_rel o = List.mem o relations
 
 type sym = {
   name : string;
@@ -127,7 +125,7 @@ type sym = {
   mutable soffset : int;
   mutable svconst : int64;
   mutable sfconst : float;
-  mutable label : node option;
+  mutable label : label option;
   mutable lexical : int;              (* the token: a name or a keyword *)
   mutable block : int;
   mutable sueblock : int;
@@ -146,32 +144,78 @@ and typ = {
   mutable garb : int;
 }
 
-(* how a node can be an instruction's operand as it is; the others
- * are computed into a register (sgen.c's addable numbers) *)
-and addr =
-  | Anone
-  | Alvalue                           (* the typechecker's: an l-value *)
-  | Aaddr_name | Aaddr_reg            (* $name, $offset(reg) *)
-  | Aname | Areg | Aindreg | Aconst   (* name, stack slot; reg; offset(reg); $c *)
+(* a function's label: defined, and where *)
+and label = { lsym : sym; mutable defined : bool; mutable lpc : int }
 
-and node = {
-  mutable left : node option;
-  mutable right : node option;
-  mutable pc : int;
-  mutable reg : int;
-  mutable xoffset : int;
-  mutable fconst : float;
-  mutable vconst : int64;
-  mutable cstring : string;
-  mutable nsym : sym option;
-  mutable ntype : typ option;
-  mutable lineno : int;
-  mutable op : op;
-  mutable nclass : cls;
-  mutable complex : int;
-  mutable addable : addr;
-  mutable ngarb : int;
+(* how an expression can be an instruction's operand as it is; the
+ * others are computed into a register (sgen.c's addable) *)
+type addr =
+  | Anone
+  | Aaddr_name | Aaddr_reg            (* $name, $offset(reg) *)
+  | Aname | Areg | Aindreg | Aconst   (* name or stack slot; reg; offset(reg); $c *)
+
+(* an expression: its kind, and what the passes learn of it *)
+type expr = {
+  e : kind;
+  t : typ;                            (* untyped until typed *)
+  line : int;
+  complex : int;                      (* the registers it needs (Sethi-Ullman) *)
+  addable : addr;
 }
+
+and kind =
+  | Name of sym * cls * int           (* a symbol, its class, an offset *)
+  | Const of int64
+  | Fconst of float
+  | Str of string                     (* a literal, before typing *)
+  | Lstr of string                    (* L"...": its runes, 4 bytes each *)
+  | Reg of int
+  | Indreg of int * int               (* offset(reg) *)
+  | Unary of unop * expr
+  | Binary of binop * expr * expr
+  | Assign of binop option * expr * expr   (* x = y, x op= y *)
+  | Cond of expr * expr * expr
+  | Call of expr * expr list
+  | Elem of expr * sym                (* x.m, before typing *)
+  | Dot of expr * int                 (* a member, at its offset, of a structure that is no l-value *)
+  | Sizeof of expr
+  | Sizeof_type of typ
+  | Typed of expr                     (* an initializer's, typed already: not again *)
+
+type stmt =
+  | Expr of expr
+  | Block of stmt list
+  | If of expr * stmt * stmt option
+  | While of expr * stmt
+  | Dowhile of stmt * expr
+  | For of stmt * expr option * stmt * stmt   (* its start, test, step and body *)
+  | Switch of expr * stmt
+  | Case of expr option               (* default: None *)
+  | Label of label
+  | Goto of label
+  | Break
+  | Continue
+  | Return of expr option * typ       (* the function's result *)
+  | Used of expr list
+  | Set of expr list
+
+(* a declarator: the type around a name *)
+type decl =
+  | Dnone                             (* abstract *)
+  | Dname of sym
+  | Dptr of int * decl                (* its qualifiers, as garb *)
+  | Dfunc of decl * param list
+  | Darray of decl * expr option
+  | Dbit of decl * expr
+
+and param = Pname of sym | Proto of typ * decl | Pdots
+
+(* an initializer, whose designators are items of the list *)
+type init =
+  | Iexpr of expr
+  | Ilist of init list
+  | Iindex of expr                    (* [e] = *)
+  | Ielem of sym                      (* .m = *)
 
 (* the machine, as the front end sees it: widths and alignment
  * (goken's ewidth, align, maxround in each back end's swt.c and gc.h) *)
@@ -179,10 +223,10 @@ type machine = {
   thechar : char;
   sz_ind : int;
   maxalign : int;                     (* SZ_LONG on arm, SZ_VLONG on arm64 *)
-  typecmplx : etype -> bool;             (* returned through a pointer *)
-  typeword : etype -> bool;              (* passed in a register *)
+  typecmplx : etype -> bool;          (* returned through a pointer *)
+  typeword : etype -> bool;           (* passed in a register *)
   typeswitch : etype -> bool;
-  machcap : node option -> bool;      (* what the back end does itself *)
+  machcap : expr option -> bool;      (* what the back end does itself *)
 }
 
 let mach : machine option ref = ref None
@@ -213,39 +257,19 @@ let convvtox (c : int64) et =
     if (not (typeu (et))) && Int64.logand c (Int64.shift_left 1L (n - 1)) <> 0L then Int64.logor c (Int64.shift_left (-1L) n) else c
 
 (*****************************************************************************)
-(* Constructors (sub.c) *)
+(* Constructors *)
 (*****************************************************************************)
 
 let lineno = ref 1
 let nearln = ref 0
 
-let mk op l r =
-  let lineno = match l, r with Some l, _ when op <> OGOTO -> l.lineno | _, Some r -> r.lineno | _ -> !lineno in
-  { left = l; right = r; pc = 0; reg = 0; xoffset = 0; fconst = 0.; vconst = 0L; cstring = ""; nsym = None; ntype = None;
-    lineno; op; nclass = Cxxx; complex = 0; addable = Anone; ngarb = 0 }
-
-let node op l r = mk op l r
-(* new1: at the line being diagnosed *)
-let node1 op l r = let n = mk op l r in n.lineno <- !nearln; n
-
-(* a name of s, of type t and class c, at off *)
-let name_of (s : sym) t c off = let n = node ONAME None None in n.nsym <- Some s; n.ntype <- t; n.nclass <- c; n.xoffset <- off; n
-
-(* s as it is declared now *)
-let name_node (s : sym) = name_of s s.typ s.sclass s.soffset
-
-(* *n = *m *)
-let copy_into (n : node) (m : node) =
-  n.left <- m.left; n.right <- m.right; n.pc <- m.pc; n.reg <- m.reg; n.xoffset <- m.xoffset; n.fconst <- m.fconst;
-  n.vconst <- m.vconst; n.cstring <- m.cstring; n.nsym <- m.nsym; n.ntype <- m.ntype; n.lineno <- m.lineno;
-  n.op <- m.op; n.nclass <- m.nclass; n.complex <- m.complex; n.addable <- m.addable; n.ngarb <- m.ngarb
-
-let dup (m : node) = { m with op = m.op }
-
 let typ et d =
   { tsym = None; tag = None; link = d; down = None; width = ewidth et; offset = 0; etype = et; garb = 0 }
 
 let copytyp (t : typ) = { t with etype = t.etype }
+
+(* an expression's type before typing, or an undeclared name's *)
+let untyped = typ Txxx None
 
 (* the basic types, one of each (lex.c's cinit) *)
 let types : (etype, typ) Hashtbl.t = Hashtbl.create 16
@@ -258,16 +282,20 @@ let init_types () =
   set Tfunc (typ Tfunc (Some (ty Tint)));
   set Tind (typ Tind (Some (ty Tvoid)))
 
+let mk ?(t = untyped) ?(line = !lineno) e = { e; t; line; complex = 0; addable = Anone }
+
+(* a name of s, of type t and class c, at off *)
+let name_of (s : sym) t c off = mk ~t (Name (s, c, off))
+
+(* s as it is declared now *)
+let name_node (s : sym) = name_of s (Option.value s.typ ~default:untyped) s.sclass s.soffset
+
 (* a constant of type t *)
-let const_node t v = let n = node OCONST None None in n.ntype <- Some t; n.vconst <- v; n
+let const_node t v = mk ~t (Const v)
 
 (* the accessors, where a C pointer is sure not to be nil *)
-let l n = Option.get n.left
-let r n = Option.get n.right
-let t n = Option.get n.ntype
-let et n = match n.ntype with Some t -> t.etype | None -> Txxx
+let et (x : expr) = x.t.etype
 let link t = Option.get t.link
-let sym n = Option.get n.nsym
 
 (*****************************************************************************)
 (* Symbols (lex.c's lookup, and its hash) *)
@@ -295,9 +323,8 @@ let lookup name =
 
 exception Error of string
 
-let errors = ref 0
-let error_at line fmt = Printf.ksprintf (fun s -> incr errors; raise (Error (Printf.sprintf "%d: %s" line s))) fmt
-let diag (n : node option) fmt = error_at (match n with Some n -> n.lineno | None -> !nearln) fmt
+let error_at line fmt = Printf.ksprintf (fun s -> raise (Error (Printf.sprintf "%d: %s" line s))) fmt
+let diag (n : expr option) fmt = error_at (match n with Some n -> n.line | None -> !nearln) fmt
 
 (*****************************************************************************)
 (* The same type (dcl.c's sametype) *)
@@ -404,48 +431,71 @@ let rec show_type (t : typ option) =
   go t;
   Buffer.contents b
 
-(* 5c's number, which -x prints *)
-let addr_code = function
-  | Anone -> 0 | Alvalue -> 1 | Aaddr_name -> 2 | Aaddr_reg -> 3 | Aname -> 10 | Areg -> 11 | Aindreg -> 12 | Aconst -> 20
-
 (* an operand as it is: no instruction to compute it *)
-let addressable (n : node) = match n.addable with Aname | Areg | Aindreg | Aconst -> true | _ -> false
+let addressable (n : expr) = match n.addable with Aname | Areg | Aindreg | Aconst -> true | _ -> false
 
-let fnname (n : node option) =
-  match n with Some ({ op = ONAME | ODOT | OELEM; nsym = Some s; _ }) -> s.name | _ -> "<indirect>"
+let same (a : typ) (b : typ) = sametype (Some a) (Some b)
 
-let prtree (n : node option) title =
-  let b = Buffer.create 256 in
-  Buffer.add_string b (Printf.sprintf " == %s ==\n" title);
-  let rec go (n : node option) d f =
-    if f then for _ = 1 to d do Buffer.add_string b "   " done;
-    match n with
-    | None -> Buffer.add_string b "Z\n"
-    | Some ({ op = OLIST; _ } as n) -> go n.left d false; go n.right d true
-    | Some n ->
-        let d = d + 1 in
-        Buffer.add_string b (opname n.op);
-        let kids =
-          match n.op with
-          | ONAME -> Buffer.add_string b (Printf.sprintf " \"%s\" %d" (fnname (Some n)) (n.xoffset land 0xffffffff)); false
-          | OINDREG -> Buffer.add_string b (Printf.sprintf " %d(R%d)" n.xoffset n.reg); false
-          | OREGISTER -> Buffer.add_string b (if n.xoffset <> 0 then Printf.sprintf " %d+R%d" n.xoffset n.reg else Printf.sprintf " R%d" n.reg); false
-          | OSTRING ->
-              (* %s: up to a NUL *)
-              let s = match String.index_opt n.cstring '\000' with Some i -> String.sub n.cstring 0 i | None -> n.cstring in
-              Buffer.add_string b (Printf.sprintf " \"%s\"" s); false
-          | OLSTRING -> Buffer.add_string b " \"...\""; false
-          | ODOT | OELEM -> Buffer.add_string b (Printf.sprintf " \"%s\"" (fnname (Some n))); true
-          | OCONST ->
-              Buffer.add_string b (if typefd (et n) then Printf.sprintf " \"%.8e\"" n.fconst else Printf.sprintf " \"%Ld\"" n.vconst); false
-          | _ -> true
-        in
-        if n.addable <> Anone then Buffer.add_string b (Printf.sprintf " <%d>" (addr_code n.addable));
-        if n.ntype <> None then Buffer.add_string b (" " ^ show_type n.ntype);
-        if n.complex <> 0 then Buffer.add_string b (Printf.sprintf " (%d)" n.complex);
-        Buffer.add_string b (Printf.sprintf " %d\n" n.lineno);
-        if kids then (go n.left d true; go n.right d true)
+(* the -x dump: a function's tree, one node per line, indented *)
+let rec show_expr (x : expr) =
+  let sub = List.map show_expr in
+  let node name args = "(" ^ String.concat " " (name :: args) ^ ")" in
+  let s =
+    match x.e with
+    | Name (s, _, o) -> if o <> 0 then Printf.sprintf "%s%+d" s.name o else s.name
+    | Const v -> Int64.to_string v
+    | Fconst f -> Printf.sprintf "%g" f
+    | Str s | Lstr s -> Printf.sprintf "%S" s
+    | Reg r -> Printf.sprintf "R%d" r
+    | Indreg (r, o) -> Printf.sprintf "%d(R%d)" o r
+    | Unary (o, a) -> node (unop_name o) (sub [ a ])
+    | Binary (o, a, b) -> node (binop_name o) (sub [ a; b ])
+    | Assign (o, a, b) -> node (match o with Some o -> "AS" ^ binop_name o | None -> "AS") (sub [ a; b ])
+    | Cond (a, b, c) -> node "COND" (sub [ a; b; c ])
+    | Call (f, args) -> node "FUNC" (sub (f :: args))
+    | Elem (a, s) -> node "ELEM" (sub [ a ] @ [ s.name ])
+    | Dot (a, o) -> node "DOT" (sub [ a ] @ [ string_of_int o ])
+    | Sizeof a -> node "SIZE" (sub [ a ])
+    | Sizeof_type t -> node "SIZE" [ show_type (Some t) ]
+    | Typed a -> show_expr a
   in
-  go n 0 false;
-  Buffer.add_string b "\n";
+  if x.t == untyped then s else s ^ ":" ^ tname x.t.etype
+
+let prtree (title : string) (s : stmt) =
+  let b = Buffer.create 256 in
+  let line d fmt = Printf.ksprintf (fun s -> Buffer.add_string b (String.make (2 * d) ' ' ^ s ^ "\n")) fmt in
+  let rec go d = function
+    | Expr x -> line d "%s" (show_expr x)
+    | Block l -> List.iter (go d) l
+    | If (c, a, b) -> line d "IF %s" (show_expr c); go (d + 1) a; Option.iter (fun b -> line d "ELSE"; go (d + 1) b) b
+    | While (c, s) -> line d "WHILE %s" (show_expr c); go (d + 1) s
+    | Dowhile (s, c) -> line d "DO"; go (d + 1) s; line d "WHILE %s" (show_expr c)
+    | For (i, c, st, s) ->
+        line d "FOR %s" (match c with Some c -> show_expr c | None -> "");
+        go (d + 1) i; go (d + 1) st; go (d + 1) s
+    | Switch (x, s) -> line d "SWITCH %s" (show_expr x); go (d + 1) s
+    | Case (Some x) -> line d "CASE %s" (show_expr x)
+    | Case None -> line d "DEFAULT"
+    | Label l -> line d "%s:" l.lsym.name
+    | Goto l -> line d "GOTO %s" l.lsym.name
+    | Break -> line d "BREAK"
+    | Continue -> line d "CONTINUE"
+    | Return (x, _) -> line d "RETURN %s" (match x with Some x -> show_expr x | None -> "")
+    | Used l -> line d "USED %s" (String.concat " " (List.map show_expr l))
+    | Set l -> line d "SET %s" (String.concat " " (List.map show_expr l))
+  in
+  line 0 "== %s ==" title;
+  go 0 s;
   Buffer.contents b
+
+(* the offset of a name or offset(reg) moved by d *)
+let plus (x : expr) d =
+  match x.e with
+  | Name (s, c, o) -> { x with e = Name (s, c, o + d) }
+  | Indreg (r, o) -> { x with e = Indreg (r, o + d) }
+  | _ -> x
+
+let is_const (x : expr) = match x.e with Const _ | Fconst _ -> true | _ -> false
+
+(* List.map, left to right: the passes have effects *)
+let rec map_lr f = function [] -> [] | x :: r -> let y = f x in y :: map_lr f r

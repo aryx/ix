@@ -130,7 +130,9 @@ principia's 5c (`compiler/Emit.ml`, `e17`).
 `prtree` prints an `L"..."` string with `%S` on 4-byte runes, which
 comes out as `"\072\z\z\z..."`, and an offset as an unsigned 32-bit
 number (`4294967288` for `-8`). Debug output only.
-`compiler/tests/strip_x.py` normalizes the first.
+`compiler/tests/strip_x.py` normalized the first, while tinycc's `-x`
+printed 5c's trees (until 2026-09-24, when the trees became an OCaml
+ADT and `-x` its own dump; the script is in the history).
 
 ## The sources
 
@@ -226,7 +228,7 @@ pipe, a missing program's stage exits with the `$status` it inherited
 
 The runners that compare ix with its reference, case by case or file
 by file: TinyMk's, TinyRc's and TinyEd's `differential.sh` and
-fuzzers, against 9base; `compiler/tests/front.sh` (trees),
+fuzzers, against 9base; `compiler/tests/front.sh` (trees, while they were 5c's),
 `compiler/tests/listing.sh` (listings), `linker/tests/libc.sh`
 (executables, and running them) and `linker/tests/fuzz.py`, against
 goken; `tiny/TinyC_fuzz.py`, against 7c; and reading the C while

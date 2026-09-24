@@ -13,8 +13,6 @@
  * implemented as pushdowns. Thus there is no separate pass for
  * preprocessing." *)
 
-type input = { text : string; mutable pos : int; }
-
 val includes : string list ref
 
 (* the character put back, if any *)

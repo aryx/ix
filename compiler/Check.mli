@@ -1,14 +1,17 @@
-(* The machine-independent passes over a function's trees (com.c,
- * sub.c, scon.c, acom.c): the typing [tcom], which inserts the
- * conversions and checks the operands against Tree's tables; then
- * [complex] runs the rewrites of comma expressions, the simplifications
- * and constant folding (ccom, evconst), the arithmetic rewrites (acom),
- * and hands the tree to the generator's [xcom].
+(* The machine-independent passes over an expression (com.c, sub.c,
+ * scon.c, acom.c), each a function from a tree to a tree: the typing
+ * [tcom], which inserts the conversions and checks the operands against
+ * Tree's tables; the rewrites of comma expressions, the simplifications
+ * and constant folding (ccom, evconst), the arithmetic rewrites (acom);
+ * then the generator's [xcom]. [complex] is all of them.
  *
  * Plan 9's C, not ANSI's: unsigned char and short promote to unsigned
  * int, and double op float is computed as float (cck's table); the
  * listing depends on both. acom sorts its terms as 5c's qsort does on
  * glibc (a merge sort), so equal terms keep 5c's order.
+ *
+ * The passes have effects: the typing writes the strings' data, in the
+ * order the expressions come, as 5c.
  *
  * References: Ken Thompson, "Plan 9 C Compilers", sections "Typing"
  * ("Implicit operations on the tree are added, such as type promotions
@@ -19,36 +22,28 @@
 
 (* what the front end asks of the back end, set by Gen *)
 val outstring : (string -> int -> int) ref
-
-val xcom : (Tree.node -> unit) ref
+val xcom : (Tree.expr -> Tree.expr) ref
 
 (* the value of a small integral constant, or -159 *)
-val vconst : Tree.node option -> int
+val vconst : Tree.expr -> int
 
 (* log2 of a power-of-two constant, or -1 *)
-val vlog : Tree.node -> int
+val vlog : Tree.expr -> int
 
-val nocast : Tree.typ option -> Tree.typ option -> bool
+(* a conversion that makes no code *)
+val nocast : Tree.typ -> Tree.typ -> bool
 
-val tcompat :
-  Tree.node ->
-  Tree.typ option ->
-  Tree.typ option -> (Tree.etype -> Tree.etype -> bool) -> bool
+(* an error unless the operator's table takes the operands' types *)
+val tcompat : Tree.expr -> Tree.typ -> Tree.typ -> (Tree.etype -> Tree.etype -> bool) -> unit
 
-val relindex : Tree.op -> int
+(* a relation with its operands swapped, and negated *)
+val invrel : Tree.binop -> Tree.binop
+val comrel : Tree.binop -> Tree.binop
 
-val relindex_opt : Tree.op -> int option
+(* the typing of n, its conversions made nodes; ~addr (the default): an
+ * array or a function used is its address *)
+val tcom : ?addr:bool -> Tree.expr -> Tree.expr
 
-val invrel : Tree.op array
-
-val comrel : Tree.op array
-
-val invert : Tree.node option -> Tree.node option
-
-(* the typing of n, its conversions inserted; true if in error *)
-val tcom : Tree.node -> bool
-
-type term = { mutable mult : int64; mutable tnode : Tree.node option; }
-
-(* the passes after the typing, then Gen's xcom *)
-val complex : Tree.node option -> unit
+(* all the passes, then Gen's xcom; ~ret: a function's result,
+ * converted to its type *)
+val complex : ?ret:Tree.typ -> Tree.expr -> Tree.expr

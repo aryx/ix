@@ -119,9 +119,14 @@ type-name token for a typedef's.
 **The parser** reads declarations with C's declarators, the part of C
 where the syntax is inside out: `int (*f[4])(char*)` is an array of four
 pointers to functions from `char*` to `int`, read from the name
-outwards. It makes a tree whose nodes are 5c's: an operator (`OADD`,
-`OIND` for `*p`, `ODOT`, `OFUNC` for a call...), a left and a right,
-and a type.
+outwards. It makes trees, OCaml variants (`Tree`): an expression is
+its kind (`Binary (Add, l, r)`, `Unary (Ind, p)` for `*p`, `Assign`,
+`Call (f, args)`, `Elem (x, m)` for `x.m`...) with its type and what
+the code generator will learn of it; statements (`If`, `For`,
+`Switch`, `Case`...), declarators (`Dptr`, `Dfunc`, `Darray` around a
+`Dname`) and initializers have their own types. 5c's are one kind of
+node, an operator with a left and a right, for all four; the passes
+here return new trees where 5c's rewrite them in place.
 
 ## 4. Types, and the tree made explicit
 
@@ -137,7 +142,8 @@ Constant expressions are folded.
 - **addable**: how the node can be an operand as it is: a constant, a
   name (`x(SB)`), a stack slot (`x-8(SP)`), an address in a register
   plus an offset. A node that is addable needs no instruction to be
-  used.
+  used. It is a variant (`Aconst`, `Aname`, `Areg`, `Aindreg`...),
+  where 5c's is a number (20, 10, 11, 12...).
 - **complex**: how many registers the node needs to be computed
   (Sethi and Ullman's number): 0 for addable, and for `a op b` the
   larger of the two sides', plus one when they are equal. The code
@@ -264,7 +270,7 @@ sits beside the compiled ones.
 | back ends | one per machine, 3,600 to 3,900 lines each, plus 2,700 of optimizer | one, arm, mostly unwritten | one, with a record per machine |
 | objects | Plan 9's | xix's | TinyAsm's |
 | optimizer | registers, peephole | none | none (`-O0`) |
-| lines | about 22,000 (16,700 without the optimizers) | 5,553 | 5,328 (the target was 3,500) |
+| lines | about 22,000 (16,700 without the optimizers) | 5,553 | 5,253 (the target was 3,500) |
 
 ## 11. How it is tested
 
@@ -273,6 +279,9 @@ sits beside the compiled ones.
 - **The executables**: goken's libc and programs, compiled and linked
   by ix only, against goken's, byte for byte, and run.
 - **A fuzzer**: random C of the subset through both compilers.
+- **The corners** the corpus may not reach (`compiler/tests/c/`):
+  declaration words, the lexer, structure copies, initializers,
+  vlongs.
 
 ## 12. Exercises
 

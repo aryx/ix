@@ -1846,3 +1846,19 @@ Claude finished option 1 in four commits: .mli files with checked references, co
 **Yoann:**
 
 > ideally the final code is also more readable and elegant, with variants/adts usually more readable in OCaml
+
+**Claude (summary):**
+
+Claude refactored the compiler with variants and cleaner patterns across 8 commits, reducing lines from 5,391 to 5,328.
+This one-percent reduction resulted from byte-for-byte matching with 5c, which constrains which algorithms and code representations can change.
+Claude identified that converting the tree to a real OCaml ADT would eliminate the Option.get noise from mutable record updates.
+An ADT design could save a few hundred lines in Check, Gen, and dependent passes by making the tree immutable.
+But this requires rewriting the core tree structure, not just refactoring existing code, though it would make the codebase clearer overall.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 05:31
+
+**Yoann:**
+
+> let's use a real OCaml ADT, especially if this makes not only the code smaller but clearer. Regarding Option.get, I dunno if using let* could maybe help sometimes.
