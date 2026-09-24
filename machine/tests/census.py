@@ -16,9 +16,13 @@
 # operands' shapes: register, immediate, shifted, pre/post-indexed).
 #
 # Usage: census.py 5|7 program...
+#        census.py --logs 5|7 qemu-log...   (logs of a whole system's
+#        boot, qemu-system-* -d in_asm: kernel and user code alike)
 
 import collections, os, re, subprocess, sys, tempfile
 
+logs_only = sys.argv[1] == "--logs"
+if logs_only: sys.argv.pop(1)
 arch, progs = sys.argv[1], sys.argv[2:]
 qemu = {"5": "qemu-arm", "7": "qemu-aarch64"}[arch]
 objdump = {"5": ["objdump", "-m", "arm"], "7": ["objdump", "-m", "aarch64"]}[arch]
@@ -26,15 +30,17 @@ words = collections.Counter()   # word -> in how many programs
 syscalls = collections.Counter()
 tmp = tempfile.mkdtemp()
 for p in progs:
-    log = os.path.join(tmp, "log")
-    subprocess.run([qemu, "-d", "in_asm", "-D", log, p, "one", "two"], cwd=tmp, stdin=subprocess.DEVNULL,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    log = p if logs_only else os.path.join(tmp, "log")
+    if not logs_only:
+        subprocess.run([qemu, "-d", "in_asm", "-D", log, p, "one", "two"], cwd=tmp, stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
     seen = set()
     for line in open(log):
         if line.startswith("OBJD-T: "):
             hx = line[8:].strip()
             for i in range(0, len(hx), 8): seen.add(hx[i:i + 8])
     for w in seen: words[w] += 1
+    if logs_only: continue
     st = subprocess.run(["strace", "-f", "-qq", "-e", "trace=all", "-o", os.path.join(tmp, "st"), p, "one", "two"],
                         cwd=tmp, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
     for line in open(os.path.join(tmp, "st")):

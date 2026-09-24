@@ -36,6 +36,14 @@ they are quoted in a `.mli`.
 - **Plan 9 on the Pi** (Richard Miller's `bcm` port, 2012-13; from
   memory): the origin of principia's 9pi; 9front carries it on, and
   adds a 64-bit kernel for the Pi3 and Pi4 (`bcm64`, from memory).
+- **xv6** (Cox, Kaashoek and Morris, MIT, 2006-; from memory): Unix V6
+  rewritten for teaching, x86 then RISC-V; its Pi ports, gathered with
+  git history in xv6-multiarch (`~/xv6`, `docs/provenance.md`,
+  checked): Zhiyi Huang's for the Pi1 and Pi2 (arm-pi1, arm-pi2),
+  inaciose's (arm, arm-pi1-bis), patha454's four-core AArch32 port for
+  the Pi3 (arm-pi3), and k-mrm's AArch64 port for the Pi4 (arm64-pi4)
+  -- all booting under QEMU with `usertests` passing, TinyRaspberryPi's
+  acceptance tests.
 - **Linux** (Raspberry Pi OS): the Pi's usual system, and a device-tree
   kernel -- heavier to emulate than 9pi, which needs no device tree.
 - Teaching: Cambridge's "Baking Pi" bare-metal course (2012; from

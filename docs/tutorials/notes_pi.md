@@ -1,7 +1,8 @@
 # A Raspberry Pi emulator, from scratch: a tutorial for `raspberry/`
 
 What a system emulator adds to a user-mode one, and how to build a
-Raspberry Pi good enough to boot principia's kernel, 9pi: the machine
+Raspberry Pi good enough to boot principia's kernel, 9pi, and xv6's
+six Pi ports: the machine
 as a CPU, RAM and devices at addresses; ARM's privileged state (modes,
 banked registers, exceptions); the coprocessor that controls the MMU,
 and the page tables it walks; the devices a kernel needs and nothing
@@ -173,15 +174,52 @@ Cortex-A53) keeps the Pi2's devices at 0x3F000000 and a local
 interrupt controller at 0x40000000; the Pi4 (BCM2711, Cortex-A72) has
 a GIC-400 and its peripherals at 0xFE000000 (from memory).
 
-## 7. How TinyRaspberryPi will be tested
+## 7. xv6 on the Pis
 
-The same kernel image under QEMU and under TinyRaspberryPi: the
-console output compared line by line; QEMU's instruction trace
+xv6 (MIT's teaching Unix, a rewrite of Unix V6 for x86 and then
+RISC-V) has six Raspberry Pi ports in xv6-multiarch (`~/xv6/forks`),
+each booting under QEMU to a shell and passing its `usertests`. Their
+needs overlap 9pi's, with differences worth knowing:
+
+- **The console is the PL011** (UART0, +0x201000), not the mini UART:
+  QEMU's raspi1ap gives the mini UART no backend.
+- **The file system is a ramdisk linked into the kernel**: no SD card.
+- **Two MMU formats on 32 bits.** arm-pi1 turns the MMU on without
+  SCTLR's XP bit: ARMv6's *legacy* descriptors (subpages, ARMv5's
+  access bits); the ARMv7 ports set it, and xv6 `arm` also splits the
+  address space between two tables (TTBCR.N = 4: user addresses below
+  256 MB through TTBR0, the kernel's through TTBR1).
+- **A 64-bit stub for a 32-bit kernel.** On raspi3b, QEMU starts the
+  core in AArch64 at EL2; arm-pi3's `armstub64` clears HCR_EL2.RW (the
+  level below runs AArch32), puts AArch32 SVC in SPSR_EL2 and the
+  kernel's address in ELR_EL2, and `eret`s: from then on the core
+  decodes AArch32. The 32-bit registers are the low halves of x0-x14:
+  one core, two instruction sets.
+- **Several cores.** arm-pi3 and arm64-pi4 start four: the secondary
+  cores wait, polling a *spin table* (addresses 0xe0, 0xe8, 0xf0) for
+  an entry point, and `sev` wakes them; locks are `ldrex/strex` (arm32)
+  or `ldaxr/stlxr` (AArch64), exclusive accesses that fail if another
+  core wrote in between.
+- **The Pi4** replaces the BCM2835 interrupt controller by an ARM
+  **GIC-400** (a distributor for shared interrupts, a CPU interface per
+  core, private interrupts per core such as the timer's PPI 27) and the
+  system timer by the **generic timer** (system registers CNTV_CTL,
+  CNTV_TVAL, counting at CNTFRQ).
+- **Where QEMU loads a kernel**: a raw image at 0x10000 (raspi1ap,
+  raspi2b), 0x80000 (raspi3b, raspi4b) -- not the 0x8000 of the real
+  firmware; the ports' QEMU builds are linked for it.
+
+## 8. How TinyRaspberryPi will be tested
+
+xv6's ports' own tests, unchanged, with TinyRaspberryPi in QEMU's
+place: boot, a shell prompt, `ls`, `usertests` to "ALL TESTS PASSED".
+For 9pi, the same kernel image under QEMU and under TinyRaspberryPi:
+the console output compared line by line; QEMU's instruction trace
 (`-d in_asm,cpu`) against TinyRaspberryPi's `-t` for the first
 divergence; each device's registers checked against what 9pi's driver
 expects of them.
 
-## 8. Exercises
+## 9. Exercises
 
 - A second core (the Pi2): what must be shared, what per core; the
   ARM-local mailboxes that start the other cores.

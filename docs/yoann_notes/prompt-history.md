@@ -3224,3 +3224,23 @@ He confirmed the user-mode-first plan (arm32/arm64 then Pi1 and Pi4) remained vi
 **Yoann:**
 
 > yes! and the tutorial and related-work document too, with both the arm/arm64 and then the pi1/pi4 as separate documents maybe
+
+**Claude (summary):**
+
+Claude measured instruction census (89 arm32 mnemonics, 45 arm64, ~27 Linux syscalls each) and wrote six documents: plans and tutorials. Claude deferred Pi4 because qemu 8.2 lacked raspi4b support and principia had no arm64 Pi kernel, making Pi3 the target. Claude proposed three kernel options for Pi3: 9front's bcm64, Linux, or eventually a custom TinyKernel, leaving the choice to Yoann. Claude made Plan 9 system calls optional as a late phase, defaulting the core design to Linux ELF format and syscalls.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 18:47
+
+**Yoann:**
+
+> actually I've installed a more recent qemu somewhere with pi4 support. Actually study ~/xv6/ and ideally we also want to run the different xv6 Pi kernels twith TinyRaspberrPi
+
+------------------------------------------------------------------------
+
+## 2026-09-24 18:47
+
+**Yoann:**
+
+> so might want to adjsut the plan to support 9pi, 9pi2, but also possibly the Pi1 and Pi4 (and maybe more) under ~/xv6/
