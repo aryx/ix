@@ -1,0 +1,6 @@
+; claude: what several programs share (docs/README.md's principle 9)
+(library
+ (name ix_core)
+ (wrapped false)
+ (modules Files Procs Console)
+ (libraries unix caps))

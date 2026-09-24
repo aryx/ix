@@ -28,8 +28,7 @@ let arm64 = { decode = Arm64.decode; show = Arm64.show; prepare = Arm64.prepare;
 
 type caps = < Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
 
-let print (_ : < Cap.stdout; .. >) s = print_string s
-let eprint (_ : < Cap.stderr; .. >) s = prerr_string s; flush stderr
+let print = Console.print and eprint = Console.eprint
 
 let link (m : _ machine) caps ~verbose arch format entry out files =
   let t = Link.create arch ~text_start:0 in

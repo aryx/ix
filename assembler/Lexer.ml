@@ -52,7 +52,7 @@ let preprocess caps (dir : string) (text : string) : string =
       let f = String.trim (String.sub t 8 (String.length t - 8)) in
       let f = String.sub f 1 (String.length f - 2) in
       let path = Filename.concat dir f in
-      let inc = Asm.read_file caps path in
+      let inc = Files.read caps path in
       (* its #defines, kept for the lines after *)
       String.split_on_char '\n' inc |> List.iter (fun l ->
         match String.split_on_char ' ' (String.trim (String.map (fun c -> if c = '\t' then ' ' else c) l)) |> List.filter (( <> ) "") with

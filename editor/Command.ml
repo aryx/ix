@@ -351,8 +351,7 @@ let callunix t =
       try CapUnix.execv t.caps (Filename.concat d "rc") [| "rc"; "-c"; Buffer.contents b |] with _ -> ()) path;
     Unix._exit 1
   end;
-  let rec wait () = try ignore (CapUnix.waitpid t.caps [] pid) with Unix.Unix_error (Unix.EINTR, _, _) -> wait () in
-  wait ();
+  ignore (Procs.waitpid t.caps pid);
   if t.verbose then Out.putst "!"
 
 (* the loop, until the end of its input *)

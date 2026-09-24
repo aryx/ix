@@ -62,8 +62,9 @@ plan restates only where it differs.
    fundamental enough to do real work, checked on a real input, and
    not too big.
    Code that several programs really share may go into an intermediate
-   library: a top-level `lib_core/` for the programs (condition codes,
-   a regex engine...), or a `tiny/TinyLibXxx.ml` for the one-file
+   library: the top-level `lib_core/` for the programs (now whole
+   files, children and pipes, and the console, through the
+   capabilities), or a `tiny/TinyLibXxx.ml` for the one-file
    variants, which are then one file plus the libraries they name.
    Factor what is duplicated in fact, not in advance.
 10. **Honest, and counted**: lines per module against the twins in the

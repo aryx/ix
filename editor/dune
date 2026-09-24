@@ -1,7 +1,7 @@
 (library
  (name ix_ed)
  (modules Regex Text Input Out Address Command CLI)
- (libraries unix caps))
+ (libraries ix_core unix caps))
 
 (executable
  (name Main)

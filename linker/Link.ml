@@ -177,7 +177,7 @@ let make_library caps out files =
     let names = List.filter_map (fun (k, n) ->
       if k = `T && Hashtbl.mem texts n then None else (if k = `T then Hashtbl.replace texts n (); Some n)) (defined_names o) in
     (o, List.sort_uniq compare names)) files in
-  Asm.write_file caps out (Marshal.to_string (lib_version, lib) [])
+  Files.write caps out (Marshal.to_string (lib_version, lib) [])
 
 let load caps t ~decode ?(needs = fun _ -> []) files =
   let add_object = add_object ~decode in
@@ -186,7 +186,7 @@ let load caps t ~decode ?(needs = fun _ -> []) files =
   let libs = ref [] in
   List.iter (fun f ->
     if Filename.check_suffix f ".a" then begin
-      let v, (lib : library) = Marshal.from_string (Asm.read_file caps f) 0 in
+      let v, (lib : library) = Marshal.from_string (Files.read caps f) 0 in
       if v <> lib_version then error "%s: a library of another version" f;
       libs := !libs @ [ lib ]
     end

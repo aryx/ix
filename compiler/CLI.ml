@@ -11,13 +11,7 @@
 
 type caps = < Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
 
-let print (_ : < Cap.stdout; .. >) s = print_string s
-let eprint (_ : < Cap.stderr; .. >) s = prerr_string s; flush stderr
-
-let read_file (caps : < Cap.open_in; .. >) file =
-  match CapStdlib.open_in caps file with
-  | ic -> Some (Fun.protect ~finally:(fun () -> close_in ic) (fun () -> really_input_string ic (in_channel_length ic)))
-  | exception Sys_error _ -> None
+let print = Console.print and eprint = Console.eprint
 
 (* a front end's state is global: one file per run; the tokens are
  * read by Lexer, from its input stack, not a lexbuf *)
@@ -37,7 +31,7 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
   (* "." is the source's directory; <...> skips it *)
   let dir = if String.contains file '/' then Filename.dirname file else "." in
   Pre.includes := dir :: incs;
-  Pre.read_file := read_file caps;
+  Pre.read_file := Files.read_opt caps;
   Check.xcom := Gen.xcom;
   Check.outstring := Emit.outstring;
   Declare.gextern := Emit.gextern;
@@ -45,7 +39,7 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
   Declare.on_function := (fun (f : Tree.sym) body ->
     if dump then print caps (Tree.prtree f.name body);
     Gen.codgen f body);
-  match read_file caps file with
+  match Files.read_opt caps file with
   | None -> Error (Printf.sprintf "cannot open %s" file)
   | Some text ->
       Pre.push text;

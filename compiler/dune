@@ -1,7 +1,7 @@
 (library
  (name ix_cc)
  (modules Tree Pre Lexer Parser Declare Check Emit Multiply Gen Arm Arm64 CLI)
- (libraries ix_asm caps))
+ (libraries ix_core ix_asm caps))
 
 (ocamlyacc Parser)
 

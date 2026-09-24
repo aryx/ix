@@ -79,8 +79,8 @@ val start : < caps; .. > -> shell:string list -> env:string array -> args:string
  * backwards, and nothing says "" can't be a reason *)
 type ended = Succeeded | Exit_status of string
 
-(* [wait caps]: a child that ended, and how *)
-val wait : < caps; .. > -> int * ended
+(* [wait caps]: a child that ended, and how; None if there is none *)
+val wait : < caps; .. > -> (int * ended) option
 
 (* [output caps ~shell ~env ~stdin cmd]: run [cmd] (on the standard input
  * or with -c), wait for it, and return what it printed and whether it

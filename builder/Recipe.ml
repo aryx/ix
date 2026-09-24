@@ -146,12 +146,6 @@ let resolve (cmd : string) (env : string array) : string =
     String.split_on_char ':' path |> List.map (fun d -> Filename.concat d cmd)
     |> List.find_opt Sys.file_exists |> Option.value ~default:cmd
 
-let rec write_all fd s off =
-  if off < String.length s then
-    match Unix.write_substring fd s off (String.length s - off) with
-    | k -> write_all fd s (off + k)
-    | exception Unix.Unix_error (Unix.EPIPE, _, _) -> ()   (* it did not read it all *)
-
 let spawn caps ~shell ~env ~args ~stdin ~stdout =
   let argv = Array.of_list (shell @ shell_flags shell @ args) in
   let prog = resolve (List.hd shell) env in
@@ -168,7 +162,7 @@ let start caps ~shell ~env ~args script =
   let rd, wr = Unix.pipe ~cloexec:true () in
   let pid = spawn caps ~shell ~env ~args ~stdin:(Some rd) ~stdout:None in
   Unix.close rd;
-  write_all wr script 0;
+  Procs.write_all wr script;
   Unix.close wr;
   pid
 
@@ -180,10 +174,7 @@ let describe (st : Unix.process_status) : ended =
   | Unix.WEXITED n -> Exit_status (Printf.sprintf "exit(%d)" n)
   | Unix.WSIGNALED n | Unix.WSTOPPED n -> Exit_status (Printf.sprintf "signal %d" n)
 
-let rec wait caps =
-  match CapUnix.wait caps () with
-  | pid, st -> pid, describe st
-  | exception Unix.Unix_error (Unix.EINTR, _, _) -> wait caps
+let wait caps = Option.map (fun (pid, st) -> pid, describe st) (Procs.wait_any caps)
 
 let output caps ~shell ~env ~stdin cmd =
   let out_r, out_w = Unix.pipe ~cloexec:true () in
@@ -196,20 +187,7 @@ let output caps ~shell ~env ~stdin cmd =
     end else spawn caps ~shell ~env ~args:[ "-c"; cmd ] ~stdin:None ~stdout:(Some out_w), None
   in
   Unix.close out_w;
-  Option.iter (fun fd -> write_all fd cmd 0; Unix.close fd) in_w;
-  let b = Buffer.create 1024 and chunk = Bytes.create 4096 in
-  let rec read () =
-    match Unix.read out_r chunk 0 4096 with
-    | 0 -> ()
-    | k -> Buffer.add_subbytes b chunk 0 k; read ()
-    | exception Unix.Unix_error (Unix.EINTR, _, _) -> read ()
-  in
-  read ();
+  Option.iter (fun fd -> Procs.write_all fd cmd; Unix.close fd) in_w;
+  let out = Procs.read_all out_r in
   Unix.close out_r;
-  let rec reap () =
-    match CapUnix.waitpid caps [] pid with
-    | _, st -> st
-    | exception Unix.Unix_error (Unix.EINTR, _, _) -> reap ()
-  in
-  let st = reap () in
-  Buffer.contents b, st = Unix.WEXITED 0
+  out, Procs.waitpid caps pid = Unix.WEXITED 0

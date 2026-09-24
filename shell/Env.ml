@@ -46,17 +46,13 @@ let flag t c = Hashtbl.mem t.flags c
 let set_flag t c on = if on then Hashtbl.replace t.flags c () else Hashtbl.remove t.flags c
 
 let import t (env : string array) =
-  env |> Array.iter (fun kv ->
-    match String.index_opt kv '=' with
-    | None -> ()
-    | Some i ->
-        let name = String.sub kv 0 i and v = String.sub kv (i + 1) (String.length kv - i - 1) in
-        if String.length name > 3 && String.sub name 0 3 = "fn#" then
-          (* the function's body, as whatis prints it *)
-          match Parser.parse_string v with
-          | c -> set_fn t (String.sub name 3 (String.length name - 3)) (Some c)
-          | exception _ -> ()
-        else set t name (String.split_on_char '\001' v))
+  Procs.split_env env |> List.iter (fun (name, v) ->
+    if String.length name > 3 && String.sub name 0 3 = "fn#" then
+      (* the function's body, as whatis prints it *)
+      match Parser.parse_string v with
+      | c -> set_fn t (String.sub name 3 (String.length name - 3)) (Some c)
+      | exception _ -> ()
+    else set t name (String.split_on_char '\001' v))
 
 let export t : string array =
   let vars =

@@ -108,10 +108,6 @@ val register : arch -> string -> operand option
 val save : < Cap.open_out; .. > -> string -> obj -> unit
 val load : < Cap.open_in; .. > -> string -> obj
 
-(* a whole file, read or written (the executables are 0o755) *)
-val read_file : < Cap.open_in; .. > -> string -> string
-val write_file : < Cap.open_out; .. > -> ?perm:int -> string -> string -> unit
-
 (* an instruction, as the assembler would read it back (for errors,
  * listings, and the round-trip law) *)
 val show_item : item -> string

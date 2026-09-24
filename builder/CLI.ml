@@ -24,24 +24,17 @@ let hashfile = ".mkhash"
 let out = Buffer.create 4096
 let print (_ : < Cap.stdout; .. >) s = Buffer.add_string out s
 let flush_out (_ : < Cap.stdout; .. >) = print_string (Buffer.contents out); Buffer.clear out; flush stdout
-let eprint (_ : < Cap.stderr; .. >) s = prerr_string s; flush stderr
+let eprint = Console.eprint
 
+(* None if it does not exist; an error if it cannot be read *)
 let read_file (caps : < Cap.open_in; .. >) (file : string) : string option =
-  if not (Sys.file_exists file) then None
-  else
-    let ic = CapStdlib.open_in caps file in
-    let s = really_input_string ic (in_channel_length ic) in
-    close_in ic;
-    Some s
+  if Sys.file_exists file then Some (Files.read caps file) else None
 
 (* modification times are read through the capability to read files *)
 let stat (_ : < Cap.open_in; .. >) (name : string) : float =
   match Unix.stat name with st -> st.Unix.st_mtime | exception Unix.Unix_error _ -> 0.
 
-let write_file (_ : < Cap.open_out; .. >) (file : string) (s : string) : unit =
-  let oc = open_out_bin file in
-  output_string oc s;
-  close_out oc
+let write_file caps file s = Files.write caps ~perm:0o666 file s
 
 (* file.c's touch(): update the time, or create the file; for an
  * archive member, its date in the archive's header *)
@@ -108,12 +101,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
   try
     let rest = options args in
     let assigns, targets = List.partition (fun a -> String.contains a '=') rest in
-    let env =
-      CapUnix.environment caps () |> Array.to_list |> List.filter_map (fun kv ->
-        match String.index_opt kv '=' with
-        | Some i -> Some (String.sub kv 0 i, String.sub kv (i + 1) (String.length kv - i - 1))
-        | None -> None)
-    in
+    let env = Procs.split_env (CapUnix.environment caps ()) in
     let pid = Unix.getpid () in
     let mk = Mkfile.create ~env ~default_shell:[ "sh" ] in
     let io : Mkfile.io = {
@@ -171,10 +159,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
         flush_out caps;
         Recipe.start caps ~shell:j.rule.shell ~env:(Recipe.environment ~shell:j.rule.shell env)
           ~args:(if j.rule.attrs.noerror then [] else [ "-e" ]) j.rule.recipe);
-      wait = (fun () ->
-        match Recipe.wait caps with
-        | r -> Some r
-        | exception Unix.Unix_error (Unix.ECHILD, _, _) -> None);
+      wait = (fun () -> Recipe.wait caps);
       stat = time ~force:true;
       exists = Sys.file_exists;
       touch = touch caps;

@@ -90,7 +90,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
       let text =
         match !main_file with
         | None -> rcmain
-        | Some f -> In_channel.with_open_bin f In_channel.input_all
+        | Some f -> Files.read caps f
       in
       let finish status =
         (* sigexit, if defined, runs once on the way out *)
