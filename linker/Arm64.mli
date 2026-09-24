@@ -9,19 +9,26 @@
  * ones, rotated, in an element of 2 to 64 bits, repeated -- the 5,334
  * values the encoder tabulates, as 7l's bits.c does. *)
 
+(* the machine's opcodes (7.out.h) *)
+type op
+
+(* an opcode from its name, and back *)
+val decode : string -> op option
+val show : op -> string
+
 (* frames rounded, negative ADD and SUB, float constants into the data
  * (7l's ldobj) *)
-val prepare : Link.t -> unit
+val prepare : op Link.t -> unit
 
 (* the code in its flow's order (7l's follow) *)
-val follow : Link.t -> unit
+val follow : op Link.t -> unit
 
 (* prologues and RETURN (7l's noops; xix's Rewrite7) *)
-val rewrite : Link.t -> unit
+val rewrite : op Link.t -> unit
 
 (* each instruction's pc, the literal pool, t.text_size, t.data_start
  * (7l's span; xix's Layout7) *)
-val layout : Link.t -> unit
+val layout : op Link.t -> unit
 
 (* the text's bytes (7l's asmout; xix's Codegen7) *)
-val encode : Link.t -> Bytes.t
+val encode : op Link.t -> Bytes.t

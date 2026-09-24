@@ -13,6 +13,71 @@ open Link
 module A = Asm
 
 (*****************************************************************************)
+(* Opcodes (5.out.h; 5a's lex.c) *)
+(*****************************************************************************)
+
+(* the data-processing operations, and those that only set the flags *)
+type alu = And | Eor | Sub | Rsb | Add | Adc | Sbc | Rsc | Orr | Bic
+type test = Tst | Teq | Cmp | Cmn
+
+(* a load's or store's width; u: zero-extended *)
+type width = B8 | B8u | H16 | H16u | W32
+type prec = F | D
+type farith = Fadd | Fsub | Fmul | Fdiv
+
+(* bool: the unsigned forms (MULU, DIVU, MODU); Mull's second, MULAL's
+ * accumulating; a conversion's prec is its result's *)
+(* old: the mnemonic's string, matched with catch-alls ending in "bad
+ * data-processing op", its letters looked at (op.[0], op.[3]) *)
+type op =
+  | Alu of alu | Test of test | Mov of width | Mvn | Shift of A.shift_kind
+  | Mul of bool | Mula | Mull of bool * bool | Div of bool | Mod of bool
+  | Swi | Movm | Case | Word | Ret
+  | Fmov of prec | Farith of farith * prec | Fcmp of prec | Fcvt of prec | Itof of prec | Ftoi of prec
+
+type prog = op Link.prog
+
+let show op =
+  let p = function F -> "F" | D -> "D" and u b = if b then "U" else "" in
+  match op with
+  | Alu a -> (match a with And -> "AND" | Eor -> "EOR" | Sub -> "SUB" | Rsb -> "RSB" | Add -> "ADD" | Adc -> "ADC"
+                         | Sbc -> "SBC" | Rsc -> "RSC" | Orr -> "ORR" | Bic -> "BIC")
+  | Test t -> (match t with Tst -> "TST" | Teq -> "TEQ" | Cmp -> "CMP" | Cmn -> "CMN")
+  | Mov w -> (match w with B8 -> "MOVB" | B8u -> "MOVBU" | H16 -> "MOVH" | H16u -> "MOVHU" | W32 -> "MOVW")
+  | Mvn -> "MVN"
+  | Shift k -> (match k with Lsl -> "SLL" | Lsr -> "SRL" | Asr -> "SRA" | Ror -> "SRR")
+  | Mul un -> "MUL" ^ u un
+  | Mula -> "MULA"
+  | Mull (un, acc) -> "MUL" ^ (if acc then "AL" else "L") ^ u un
+  | Div un -> "DIV" ^ u un
+  | Mod un -> "MOD" ^ u un
+  | Swi -> "SWI" | Movm -> "MOVM" | Case -> "CASE" | Word -> "WORD" | Ret -> "RET"
+  | Fmov pr -> "MOV" ^ p pr
+  | Farith (f, pr) -> (match f with Fadd -> "ADD" | Fsub -> "SUB" | Fmul -> "MUL" | Fdiv -> "DIV") ^ p pr
+  | Fcmp pr -> "CMP" ^ p pr
+  | Fcvt D -> "MOVFD"
+  | Fcvt F -> "MOVDF"
+  | Itof pr -> "MOVW" ^ p pr
+  | Ftoi pr -> "MOV" ^ p pr ^ "W"
+
+(* the opcodes, each once: show's inverse is a table of them *)
+let decode =
+  let each l f = List.concat_map f l and both = [ false; true ] and precs = [ F; D ] in
+  let ops = List.concat [
+    List.map (fun a -> Alu a) [ And; Eor; Sub; Rsb; Add; Adc; Sbc; Rsc; Orr; Bic ];
+    List.map (fun t -> Test t) [ Tst; Teq; Cmp; Cmn ];
+    List.map (fun w -> Mov w) [ B8; B8u; H16; H16u; W32 ];
+    List.map (fun k -> Shift k) [ A.Lsl; Lsr; Asr ];
+    List.map (fun b -> Mul b) both; List.map (fun b -> Div b) both; List.map (fun b -> Mod b) both;
+    each both (fun un -> List.map (fun acc -> Mull (un, acc)) both);
+    [ Mvn; Mula; Swi; Movm; Case; Word; Ret ];
+    each precs (fun pr -> [ Fmov pr; Fcmp pr; Fcvt pr; Itof pr; Ftoi pr ]);
+    each [ Fadd; Fsub; Fmul; Fdiv ] (fun f -> List.map (fun pr -> Farith (f, pr)) precs) ] in
+  let t = Hashtbl.create 128 in
+  List.iter (fun op -> Hashtbl.replace t (show op) op) ops;
+  Hashtbl.find_opt t
+
+(*****************************************************************************)
 (* Registers, conditions, suffixes (5l's l.h, 5.out.h; 5a's lex.c) *)
 (*****************************************************************************)
 
@@ -22,10 +87,8 @@ let big = 4092        (* R12 is the data's start + BIG: 5l's setR12 *)
 let c_sbit = 1 lsl 4 and c_pbit = 1 lsl 5 and c_wbit = 1 lsl 6 and c_ubit = 1 lsl 7
 let always = 14
 
-let conditions = [ "EQ"; "NE"; "HS"; "LO"; "MI"; "PL"; "VS"; "VC"; "HI"; "LS"; "GE"; "LT"; "GT"; "LE"; "AL" ]
-let condition s = match s with "CS" -> Some 2 | "CC" -> Some 3 | _ ->
-  let rec find i = function [] -> None | c :: _ when c = s -> Some i | _ :: rest -> find (i + 1) rest in
-  find 0 conditions
+(* a condition suffix's code, AL's always *)
+let condition s = if s = "AL" then Some always else Option.map cond_bits (cond_of_string s)
 
 (* 5a's suffixes: a condition replaces the low 4 bits, the rest are ORed *)
 let scond (p : prog) =
@@ -40,25 +103,24 @@ let scond (p : prog) =
           | "IAW" -> c_wbit lor c_ubit | "DAW" -> c_wbit
           | _ -> let f, l = p.where in error "%s:%d: unknown suffix .%s" f l s)) always p.suffixes
 
-let branches = [ "B"; "BL"; "BEQ"; "BNE"; "BHS"; "BLO"; "BMI"; "BPL"; "BVS"; "BVC"; "BHI"; "BLS"; "BGE"; "BLT"; "BGT"; "BLE"; "BCASE" ]
-
 (* an instruction as 5l sees it: opcode, condition, from, middle register, to *)
-type view = { as_ : string; sc : int; from : A.operand option; reg : int option; to_ : A.operand option }
+type view = { op : op Link.op; sc : int; from : A.operand option; reg : int option; to_ : A.operand option }
 
 let view (p : prog) : view =
-  let as_ = p.op in
+  let op = p.op in
   let sc = scond p in
   (* a branch to a name is to its TEXT (resolved), a C_BRANCH *)
-  let args = List.map (function A.Mem { base = SB; _ } when List.mem as_ branches && p.target <> None -> A.Target 0 | a -> a) p.args in
-  let v from reg to_ = { as_; sc; from; reg; to_ } in
-  match as_, args with
-  | ("CMP" | "CMN" | "TST" | "TEQ"), [ a; A.Reg r ] | ("CMPF" | "CMPD"), [ a; A.FReg r ] -> v (Some a) (Some r) None
-  | "CASE", [ a ] -> v (Some a) None None
+  let branch = match op with B | Bl | Bcond _ | Bcase -> true | Func | Nop | Ins _ -> false in
+  let args = List.map (function A.Mem { base = SB; _ } when branch && p.target <> None -> A.Target 0 | a -> a) p.args in
+  let v from reg to_ = { op; sc; from; reg; to_ } in
+  match op, args with
+  | Ins (Test _), [ a; A.Reg r ] | Ins (Fcmp _), [ a; A.FReg r ] -> v (Some a) (Some r) None
+  | Ins Case, [ a ] -> v (Some a) None None
   | _, [ a ] -> v None None (Some a)
   | _, [ a; b ] -> v (Some a) None (Some b)
   | _, [ a; (A.Reg r | A.FReg r); c ] -> v (Some a) (Some r) (Some c)
   | _, [] -> v None None None
-  | _ -> let f, l = p.where in error "%s:%d: %s: bad operands" f l as_
+  | _ -> let f, l = p.where in error "%s:%d: %s: bad operands" f l (show_op show op)
 
 (*****************************************************************************)
 (* Operand classes (5l's m.h C_xxx, span.c's aclass, cmp) *)
@@ -129,7 +191,7 @@ let immfloat t = t land 0xc03 = 0
 (* 5a keeps constants in 32 bits, sign-extended *)
 let sx32 n = let v = Int64.to_int n land 0xffffffff in if v land 0x80000000 <> 0 then v - 0x100000000 else v
 
-type ctx = { t : Link.t; mutable autosize : int }
+type ctx = { t : op Link.t; mutable autosize : int }
 
 let sym ctx (p : prog) n = let s = sym_of ctx.t p.version n in
   if s.kind = Undefined then (let f, l = p.where in error "%s:%d: undefined: %s" f l n.A.sym);
@@ -187,7 +249,7 @@ let aclass ctx (p : prog) (a : A.operand option) : cls * int =
 
 let lfrom = 1 and lto = 2 and lpool = 4 and v4 = 8
 
-type rule = { op : string; a1 : cls; a2 : cls; a3 : cls; case : int; size : int; param : int; flag : int }
+type rule = { op : op Link.op; a1 : cls; a2 : cls; a3 : cls; case : int; size : int; param : int; flag : int }
 
 (* the rules of the subset; floating point, the PSR, SWP and RFE, and
  * dynamic modules (C_ADDR) are out *)
@@ -195,84 +257,84 @@ let rules =
   let r op a1 a2 a3 case size ?(param = 0) ?(flag = 0) () = { op; a1; a2; a3; case; size; param; flag } in
   let sb = reg_sb and sp = reg_sp in
   let mem_rules = List.concat_map (fun op ->
-      [ r op SEXT NONE REG 21 4 ~param:sb (); r op SAUTO NONE REG 21 4 ~param:sp (); r op SOREG NONE REG 21 4 ();
-        r op LEXT NONE REG 31 8 ~param:sb ~flag:lfrom (); r op LAUTO NONE REG 31 8 ~param:sp ~flag:lfrom ();
-        r op LOREG NONE REG 31 8 ~flag:lfrom () ]) [ "MOVW"; "MOVBU" ]
+      [ r (Ins op) SEXT NONE REG 21 4 ~param:sb (); r (Ins op) SAUTO NONE REG 21 4 ~param:sp (); r (Ins op) SOREG NONE REG 21 4 ();
+        r (Ins op) LEXT NONE REG 31 8 ~param:sb ~flag:lfrom (); r (Ins op) LAUTO NONE REG 31 8 ~param:sp ~flag:lfrom ();
+        r (Ins op) LOREG NONE REG 31 8 ~flag:lfrom () ]) [ Mov W32; Mov B8u ]
     @ List.concat_map (fun op ->
-      [ r op REG NONE SEXT 20 4 ~param:sb (); r op REG NONE SAUTO 20 4 ~param:sp (); r op REG NONE SOREG 20 4 ();
-        r op REG NONE LEXT 30 8 ~param:sb ~flag:lto (); r op REG NONE LAUTO 30 8 ~param:sp ~flag:lto ();
-        r op REG NONE LOREG 30 8 ~flag:lto () ]) [ "MOVW"; "MOVBU"; "MOVB" ]
+      [ r (Ins op) REG NONE SEXT 20 4 ~param:sb (); r (Ins op) REG NONE SAUTO 20 4 ~param:sp (); r (Ins op) REG NONE SOREG 20 4 ();
+        r (Ins op) REG NONE LEXT 30 8 ~param:sb ~flag:lto (); r (Ins op) REG NONE LAUTO 30 8 ~param:sp ~flag:lto ();
+        r (Ins op) REG NONE LOREG 30 8 ~flag:lto () ]) [ Mov W32; Mov B8u; Mov B8 ]
     @ List.concat_map (fun op ->
-      [ r op SEXT NONE REG 22 12 ~param:sb (); r op SAUTO NONE REG 22 12 ~param:sp (); r op SOREG NONE REG 22 12 ();
-        r op LEXT NONE REG 32 16 ~param:sb ~flag:lfrom (); r op LAUTO NONE REG 32 16 ~param:sp ~flag:lfrom ();
-        r op LOREG NONE REG 32 16 ~flag:lfrom ();
-        r op HEXT NONE REG 71 4 ~param:sb ~flag:v4 (); r op HAUTO NONE REG 71 4 ~param:sp ~flag:v4 ();
-        r op HOREG NONE REG 71 4 ~flag:v4 ();
-        r op LEXT NONE REG 73 8 ~param:sb ~flag:(lfrom lor v4) (); r op LAUTO NONE REG 73 8 ~param:sp ~flag:(lfrom lor v4) ();
-        r op LOREG NONE REG 73 8 ~flag:(lfrom lor v4) () ]) [ "MOVH"; "MOVHU"; "MOVB" ]
+      [ r (Ins op) SEXT NONE REG 22 12 ~param:sb (); r (Ins op) SAUTO NONE REG 22 12 ~param:sp (); r (Ins op) SOREG NONE REG 22 12 ();
+        r (Ins op) LEXT NONE REG 32 16 ~param:sb ~flag:lfrom (); r (Ins op) LAUTO NONE REG 32 16 ~param:sp ~flag:lfrom ();
+        r (Ins op) LOREG NONE REG 32 16 ~flag:lfrom ();
+        r (Ins op) HEXT NONE REG 71 4 ~param:sb ~flag:v4 (); r (Ins op) HAUTO NONE REG 71 4 ~param:sp ~flag:v4 ();
+        r (Ins op) HOREG NONE REG 71 4 ~flag:v4 ();
+        r (Ins op) LEXT NONE REG 73 8 ~param:sb ~flag:(lfrom lor v4) (); r (Ins op) LAUTO NONE REG 73 8 ~param:sp ~flag:(lfrom lor v4) ();
+        r (Ins op) LOREG NONE REG 73 8 ~flag:(lfrom lor v4) () ]) [ Mov H16; Mov H16u; Mov B8 ]
     @ List.concat_map (fun op ->
-      [ r op REG NONE SEXT 23 12 ~param:sb (); r op REG NONE SAUTO 23 12 ~param:sp (); r op REG NONE SOREG 23 12 ();
-        r op REG NONE LEXT 33 24 ~param:sb ~flag:lto (); r op REG NONE LAUTO 33 24 ~param:sp ~flag:lto ();
-        r op REG NONE LOREG 33 24 ~flag:lto ();
-        r op REG NONE HEXT 70 4 ~param:sb ~flag:v4 (); r op REG NONE HAUTO 70 4 ~param:sp ~flag:v4 ();
-        r op REG NONE HOREG 70 4 ~flag:v4 ();
-        r op REG NONE LEXT 72 8 ~param:sb ~flag:(lto lor v4) (); r op REG NONE LAUTO 72 8 ~param:sp ~flag:(lto lor v4) ();
-        r op REG NONE LOREG 72 8 ~flag:(lto lor v4) () ]) [ "MOVH"; "MOVHU" ]
+      [ r (Ins op) REG NONE SEXT 23 12 ~param:sb (); r (Ins op) REG NONE SAUTO 23 12 ~param:sp (); r (Ins op) REG NONE SOREG 23 12 ();
+        r (Ins op) REG NONE LEXT 33 24 ~param:sb ~flag:lto (); r (Ins op) REG NONE LAUTO 33 24 ~param:sp ~flag:lto ();
+        r (Ins op) REG NONE LOREG 33 24 ~flag:lto ();
+        r (Ins op) REG NONE HEXT 70 4 ~param:sb ~flag:v4 (); r (Ins op) REG NONE HAUTO 70 4 ~param:sp ~flag:v4 ();
+        r (Ins op) REG NONE HOREG 70 4 ~flag:v4 ();
+        r (Ins op) REG NONE LEXT 72 8 ~param:sb ~flag:(lto lor v4) (); r (Ins op) REG NONE LAUTO 72 8 ~param:sp ~flag:(lto lor v4) ();
+        r (Ins op) REG NONE LOREG 72 8 ~flag:(lto lor v4) () ]) [ Mov H16; Mov H16u ]
   in
   (* FPA's: 5c's floating point, which goken's libc has (though no
    * machine runs it now) *)
   let float_rules =
-    [ r "MOVF" FREG NONE FEXT 50 4 ~param:sb (); r "MOVF" FREG NONE FAUTO 50 4 ~param:sp (); r "MOVF" FREG NONE FOREG 50 4 ();
-      r "MOVF" FEXT NONE FREG 51 4 ~param:sb (); r "MOVF" FAUTO NONE FREG 51 4 ~param:sp (); r "MOVF" FOREG NONE FREG 51 4 ();
-      r "MOVF" FREG NONE LEXT 52 12 ~param:sb ~flag:lto (); r "MOVF" FREG NONE LAUTO 52 12 ~param:sp ~flag:lto ();
-      r "MOVF" FREG NONE LOREG 52 12 ~flag:lto ();
-      r "MOVF" LEXT NONE FREG 53 12 ~param:sb ~flag:lfrom (); r "MOVF" LAUTO NONE FREG 53 12 ~param:sp ~flag:lfrom ();
-      r "MOVF" LOREG NONE FREG 53 12 ~flag:lfrom ();
-      r "ADDF" FREG NONE FREG 54 4 (); r "ADDF" FREG REG FREG 54 4 (); r "ADDF" FCON NONE FREG 54 4 ();
-      r "ADDF" FCON REG FREG 54 4 (); r "MOVF" FCON NONE FREG 54 4 (); r "MOVF" FREG NONE FREG 54 4 ();
-      r "CMPF" FREG REG NONE 54 4 (); r "CMPF" FCON REG NONE 54 4 ();
-      r "MOVFW" FREG NONE REG 55 4 (); r "MOVFW" REG NONE FREG 55 4 () ]
+    [ r (Ins (Fmov F)) FREG NONE FEXT 50 4 ~param:sb (); r (Ins (Fmov F)) FREG NONE FAUTO 50 4 ~param:sp (); r (Ins (Fmov F)) FREG NONE FOREG 50 4 ();
+      r (Ins (Fmov F)) FEXT NONE FREG 51 4 ~param:sb (); r (Ins (Fmov F)) FAUTO NONE FREG 51 4 ~param:sp (); r (Ins (Fmov F)) FOREG NONE FREG 51 4 ();
+      r (Ins (Fmov F)) FREG NONE LEXT 52 12 ~param:sb ~flag:lto (); r (Ins (Fmov F)) FREG NONE LAUTO 52 12 ~param:sp ~flag:lto ();
+      r (Ins (Fmov F)) FREG NONE LOREG 52 12 ~flag:lto ();
+      r (Ins (Fmov F)) LEXT NONE FREG 53 12 ~param:sb ~flag:lfrom (); r (Ins (Fmov F)) LAUTO NONE FREG 53 12 ~param:sp ~flag:lfrom ();
+      r (Ins (Fmov F)) LOREG NONE FREG 53 12 ~flag:lfrom ();
+      r (Ins (Farith (Fadd, F))) FREG NONE FREG 54 4 (); r (Ins (Farith (Fadd, F))) FREG REG FREG 54 4 (); r (Ins (Farith (Fadd, F))) FCON NONE FREG 54 4 ();
+      r (Ins (Farith (Fadd, F))) FCON REG FREG 54 4 (); r (Ins (Fmov F)) FCON NONE FREG 54 4 (); r (Ins (Fmov F)) FREG NONE FREG 54 4 ();
+      r (Ins (Fcmp F)) FREG REG NONE 54 4 (); r (Ins (Fcmp F)) FCON REG NONE 54 4 ();
+      r (Ins (Ftoi F)) FREG NONE REG 55 4 (); r (Ins (Ftoi F)) REG NONE FREG 55 4 () ]
   in
-  [ r "WORD" NONE NONE LCON 11 4 (); r "WORD" NONE NONE LEXT 11 4 ();
-    r "ADD" REG REG REG 1 4 (); r "ADD" REG NONE REG 1 4 (); r "MOVW" REG NONE REG 1 4 (); r "MVN" REG NONE REG 1 4 ();
-    r "CMP" REG REG NONE 1 4 ();
-    r "ADD" RCON REG REG 2 4 (); r "ADD" RCON NONE REG 2 4 (); r "MOVW" RCON NONE REG 2 4 (); r "MVN" RCON NONE REG 2 4 ();
-    r "CMP" RCON REG NONE 2 4 ();
-    r "ADD" SHIFT REG REG 3 4 (); r "ADD" SHIFT NONE REG 3 4 (); r "MVN" SHIFT NONE REG 3 4 (); r "CMP" SHIFT REG NONE 3 4 ();
-    r "SLL" RCON REG REG 8 4 (); r "SLL" RCON NONE REG 8 4 (); r "SLL" REG NONE REG 9 4 (); r "SLL" REG REG REG 9 4 ();
-    r "MOVB" REG NONE REG 14 8 (); r "MOVBU" REG NONE REG 58 4 (); r "MOVH" REG NONE REG 14 8 (); r "MOVHU" REG NONE REG 14 8 ();
-    r "MUL" REG REG REG 15 4 (); r "MUL" REG NONE REG 15 4 ();
-    r "ADD" NCON REG REG 13 8 (); r "ADD" NCON NONE REG 13 8 (); r "MVN" NCON NONE REG 13 8 (); r "CMP" NCON REG NONE 13 8 ();
-    r "ADD" LCON REG REG 13 8 ~flag:lfrom (); r "ADD" LCON NONE REG 13 8 ~flag:lfrom ();
-    r "MVN" LCON NONE REG 13 8 ~flag:lfrom (); r "CMP" LCON REG NONE 13 8 ~flag:lfrom ();
-    r "MOVW" NCON NONE REG 12 4 (); r "MOVW" LCON NONE REG 12 4 ~flag:lfrom ();
-    r "B" NONE NONE BRANCH 5 4 ~flag:lpool (); r "BL" NONE NONE BRANCH 5 4 (); r "BEQ" NONE NONE BRANCH 5 4 ();
-    r "B" NONE NONE ROREG 6 4 ~flag:lpool (); r "BL" NONE NONE ROREG 7 8 ();
-    r "MOVW" RECON NONE REG 4 4 ~param:reg_sb (); r "MOVW" RACON NONE REG 4 4 ~param:reg_sp ();
-    r "MOVW" LACON NONE REG 34 8 ~param:reg_sp ~flag:lfrom ();
-    r "SWI" NONE NONE NONE 10 4 (); r "SWI" NONE NONE LCON 10 4 (); r "SWI" NONE NONE LOREG 10 4 ();
-    r "DIV" REG REG REG 16 4 (); r "DIV" REG NONE REG 16 4 ();
-    r "MULL" REG REG REGREG 17 4 ();
-    r "MOVM" LCON NONE SOREG 38 4 (); r "MOVM" SOREG NONE LCON 39 4 ();
-    r "MOVW" SHIFT NONE REG 59 4 (); r "MOVBU" SHIFT NONE REG 59 4 (); r "MOVB" SHIFT NONE REG 60 4 ();
-    r "MOVW" REG NONE SHIFT 61 4 (); r "MOVB" REG NONE SHIFT 61 4 (); r "MOVBU" REG NONE SHIFT 61 4 ();
-    r "CASE" REG NONE NONE 62 4 (); r "BCASE" NONE NONE BRANCH 63 4 () ]
+  [ r (Ins Word) NONE NONE LCON 11 4 (); r (Ins Word) NONE NONE LEXT 11 4 ();
+    r (Ins (Alu Add)) REG REG REG 1 4 (); r (Ins (Alu Add)) REG NONE REG 1 4 (); r (Ins (Mov W32)) REG NONE REG 1 4 (); r (Ins Mvn) REG NONE REG 1 4 ();
+    r (Ins (Test Cmp)) REG REG NONE 1 4 ();
+    r (Ins (Alu Add)) RCON REG REG 2 4 (); r (Ins (Alu Add)) RCON NONE REG 2 4 (); r (Ins (Mov W32)) RCON NONE REG 2 4 (); r (Ins Mvn) RCON NONE REG 2 4 ();
+    r (Ins (Test Cmp)) RCON REG NONE 2 4 ();
+    r (Ins (Alu Add)) SHIFT REG REG 3 4 (); r (Ins (Alu Add)) SHIFT NONE REG 3 4 (); r (Ins Mvn) SHIFT NONE REG 3 4 (); r (Ins (Test Cmp)) SHIFT REG NONE 3 4 ();
+    r (Ins (Shift Lsl)) RCON REG REG 8 4 (); r (Ins (Shift Lsl)) RCON NONE REG 8 4 (); r (Ins (Shift Lsl)) REG NONE REG 9 4 (); r (Ins (Shift Lsl)) REG REG REG 9 4 ();
+    r (Ins (Mov B8)) REG NONE REG 14 8 (); r (Ins (Mov B8u)) REG NONE REG 58 4 (); r (Ins (Mov H16)) REG NONE REG 14 8 (); r (Ins (Mov H16u)) REG NONE REG 14 8 ();
+    r (Ins (Mul false)) REG REG REG 15 4 (); r (Ins (Mul false)) REG NONE REG 15 4 ();
+    r (Ins (Alu Add)) NCON REG REG 13 8 (); r (Ins (Alu Add)) NCON NONE REG 13 8 (); r (Ins Mvn) NCON NONE REG 13 8 (); r (Ins (Test Cmp)) NCON REG NONE 13 8 ();
+    r (Ins (Alu Add)) LCON REG REG 13 8 ~flag:lfrom (); r (Ins (Alu Add)) LCON NONE REG 13 8 ~flag:lfrom ();
+    r (Ins Mvn) LCON NONE REG 13 8 ~flag:lfrom (); r (Ins (Test Cmp)) LCON REG NONE 13 8 ~flag:lfrom ();
+    r (Ins (Mov W32)) NCON NONE REG 12 4 (); r (Ins (Mov W32)) LCON NONE REG 12 4 ~flag:lfrom ();
+    r B NONE NONE BRANCH 5 4 ~flag:lpool (); r Bl NONE NONE BRANCH 5 4 (); r (Bcond EQ) NONE NONE BRANCH 5 4 ();
+    r B NONE NONE ROREG 6 4 ~flag:lpool (); r Bl NONE NONE ROREG 7 8 ();
+    r (Ins (Mov W32)) RECON NONE REG 4 4 ~param:reg_sb (); r (Ins (Mov W32)) RACON NONE REG 4 4 ~param:reg_sp ();
+    r (Ins (Mov W32)) LACON NONE REG 34 8 ~param:reg_sp ~flag:lfrom ();
+    r (Ins Swi) NONE NONE NONE 10 4 (); r (Ins Swi) NONE NONE LCON 10 4 (); r (Ins Swi) NONE NONE LOREG 10 4 ();
+    r (Ins (Div false)) REG REG REG 16 4 (); r (Ins (Div false)) REG NONE REG 16 4 ();
+    r (Ins (Mull (false, false))) REG REG REGREG 17 4 ();
+    r (Ins Movm) LCON NONE SOREG 38 4 (); r (Ins Movm) SOREG NONE LCON 39 4 ();
+    r (Ins (Mov W32)) SHIFT NONE REG 59 4 (); r (Ins (Mov B8u)) SHIFT NONE REG 59 4 (); r (Ins (Mov B8)) SHIFT NONE REG 60 4 ();
+    r (Ins (Mov W32)) REG NONE SHIFT 61 4 (); r (Ins (Mov B8)) REG NONE SHIFT 61 4 (); r (Ins (Mov B8u)) REG NONE SHIFT 61 4 ();
+    r (Ins Case) REG NONE NONE 62 4 (); r Bcase NONE NONE BRANCH 63 4 () ]
   @ mem_rules @ float_rules
 
 (* the opcodes that share a representative's rules (5l's buildop) *)
-let representative = function
-  | "SUB" | "AND" | "EOR" | "ORR" | "ADC" | "SBC" | "RSC" | "RSB" | "BIC" -> "ADD"
-  | "TST" | "TEQ" | "CMN" -> "CMP"
-  | "SRL" | "SRA" -> "SLL"
-  | "MULU" -> "MUL"
-  | "BNE" | "BHS" | "BLO" | "BMI" | "BPL" | "BVS" | "BVC" | "BHI" | "BLS" | "BGE" | "BLT" | "BGT" | "BLE" -> "BEQ"
-  | "MOD" | "MODU" | "DIVU" -> "DIV"
-  | "MULA" | "MULAL" | "MULLU" | "MULALU" -> "MULL"
-  | "ADDD" | "SUBF" | "SUBD" | "MULF" | "MULD" | "DIVF" | "DIVD" | "MOVFD" | "MOVDF" -> "ADDF"
-  | "CMPD" -> "CMPF"
-  | "MOVD" -> "MOVF"
-  | "MOVWF" | "MOVWD" | "MOVDW" -> "MOVFW"
-  | op -> op
+let representative : op Link.op -> op Link.op = function
+  | Ins (Alu _) -> Ins (Alu Add)
+  | Ins (Test _) -> Ins (Test Cmp)
+  | Ins (Shift _) -> Ins (Shift Lsl)
+  | Ins (Mul _) -> Ins (Mul false)
+  | Bcond _ -> Bcond EQ
+  | Ins (Div _ | Mod _) -> Ins (Div false)
+  | Ins (Mula | Mull _) -> Ins (Mull (false, false))
+  | Ins (Farith _ | Fcvt _) -> Ins (Farith (Fadd, F))
+  | Ins (Fcmp _) -> Ins (Fcmp F)
+  | Ins (Fmov _) -> Ins (Fmov F)
+  | Ins (Itof _ | Ftoi _) -> Ins (Ftoi F)
+  | Ins (Mov _ | Mvn | Swi | Movm | Case | Word | Ret) | Func | Nop | B | Bl | Bcase as op -> op
 
 (* sorted as 5l's ocmp: by opcode, the ARMv4 rules first, then by classes *)
 let table =
@@ -287,9 +349,9 @@ let rule ctx (p : prog) : rule =
     let v = view p in
     let a1 = fst (aclass ctx p v.from) and a3 = fst (aclass ctx p v.to_) in
     let a2 = if v.reg <> None then REG else NONE in
-    let r = representative v.as_ in
+    let r = representative v.op in
     let rec find i =
-      if i >= Array.length table then (let f, l = p.where in error "%s:%d: illegal combination: %s" f l (A.show_item (Ins { op = p.op; suffixes = p.suffixes; args = p.args })))
+      if i >= Array.length table then (let f, l = p.where in error "%s:%d: illegal combination: %s" f l (Link.show show p))
       else let o = table.(i) in if o.op = r && o.a2 = a2 && cmp o.a1 a1 && cmp o.a3 a3 then i else find (i + 1)
     in
     p.rule <- find 0
@@ -304,32 +366,26 @@ let rule ctx (p : prog) : rule =
  * BCS is BHS; not so the B that a conditional RET becomes, later. A
  * float constant that is no FPA immediate is in the data, in a symbol
  * named by its bits *)
-let prepare (t : Link.t) =
+let prepare (t : op Link.t) =
   List.iter (fun (p : prog) ->
     (* a constant is 32 bits, sign-extended, as 5l reads it from 5a's
      * object: $0x80000000 is $-2147483648 *)
     p.args <- List.map (function A.Imm n -> A.Imm (Int64.of_int (sx32 n)) | a -> a) p.args;
     match p.op, p.args with
-    | "TEXT", _ -> p.frame <- rnd p.frame 4
-    | ("MOVF" | "MOVD"), A.Fimm x :: rest when chip_float x = None ->
-        p.args <- float_constant t x ~single:(p.op = "MOVF") :: rest
+    | Func, _ -> p.frame <- rnd p.frame 4
+    | Ins (Fmov pr), A.Fimm x :: rest when chip_float x = None ->
+        p.args <- float_constant t x ~single:(pr = F) :: rest
     | _ -> ()) t.progs;
   List.iter (fun (p : prog) ->
     match p.op, List.partition (fun s -> condition s <> None) p.suffixes with
-    | "B", (c :: _, rest) ->
-        p.op <- (match Option.get (condition c) with 14 -> "B" | c -> "B" ^ List.nth conditions c);
+    | B, (c :: _, rest) ->
+        p.op <- (match cond_of_string c with Some c -> Bcond c | None -> B);
         p.suffixes <- rest
-    | ("BCS" | "BCC"), _ -> p.op <- (if p.op = "BCS" then "BHS" else "BLO")
     | _ -> ()) t.progs
 
-let invert = function
-  | "BEQ" -> "BNE" | "BNE" -> "BEQ" | "BHS" -> "BLO" | "BLO" -> "BHS" | "BMI" -> "BPL" | "BPL" -> "BMI"
-  | "BVS" -> "BVC" | "BVC" -> "BVS" | "BHI" -> "BLS" | "BLS" -> "BHI" | "BGE" -> "BLT" | "BLT" -> "BGE"
-  | "BGT" -> "BLE" | "BLE" -> "BGT" | op -> error "unknown relation: %s" op
-
 (* 5l's follow: B and an unconditional RET end the flow *)
-let follow (t : Link.t) =
-  Link.follow t ~ends:(fun p -> p.op = "B" || (p.op = "RET" && not (List.exists (fun s -> condition s <> None) p.suffixes))) ~invert
+let follow (t : op Link.t) =
+  Link.follow t ~ends:(fun p -> p.op = B || (p.op = Ins Ret && not (List.exists (fun s -> condition s <> None) p.suffixes)))
 
 (*****************************************************************************)
 (* Rewriting: frames, RET, DIV and MOD (5l's noops; xix's Rewrite5) *)
@@ -340,62 +396,63 @@ let imm n = A.Imm (Int64.of_int n)
 let prog_like (p : prog) op suffixes args = { p with op; suffixes; args; target = None; rule = -1; frame = 0; leaf = false }
 let become (p : prog) op suffixes args = p.op <- op; p.suffixes <- suffixes; p.args <- args; p.target <- None; p.rule <- -1
 
-let divisions = [ "DIV"; "DIVU"; "MOD"; "MODU" ]
+let division (p : prog) = match p.op with Ins (Div _ | Mod _) -> true | _ -> false
 
 (* the names a program needs besides its own: arm divides by calls *)
 let needs (progs : prog list) =
-  if List.exists (fun (p : prog) -> List.mem p.op divisions) progs then [ "_div"; "_divu"; "_mod"; "_modu" ] else []
+  if List.exists division progs then [ "_div"; "_divu"; "_mod"; "_modu" ] else []
 
-let rewrite (t : Link.t) =
+let rewrite (t : op Link.t) =
   let texts = Hashtbl.create 64 in
   let cur = ref None in
   List.iter (fun (p : prog) ->
     match p.op with
-    | "TEXT" ->
+    | Func ->
         p.leaf <- true;
         cur := Some p;
         (match p.args with A.Mem { name = Some n; _ } :: _ -> Hashtbl.replace texts (sym_of t p.version n).name p | _ -> ())
-    | op when op = "BL" || List.mem op divisions -> Option.iter (fun c -> c.leaf <- false) !cur
+    | _ when p.op = Bl || division p -> Option.iter (fun c -> c.leaf <- false) !cur
     | _ -> ()) t.progs;
   let autosize = ref 0 and leaf = ref true in
   t.progs <- List.concat_map (fun (p : prog) ->
     match p.op with
-    | "TEXT" ->
+    | Func ->
         if p.frame <= 0 && p.leaf then p.frame <- -4;
         autosize := p.frame + 4;
         if !autosize = 0 && not p.leaf then p.leaf <- true;
         leaf := p.leaf;
         if p.leaf && !autosize = 0 then [ p ]
-        else [ p; prog_like p "MOVW" [ "W" ] [ A.Reg reg_link; mem reg_sp ~off:(- !autosize) ] ]
+        else [ p; prog_like p (Ins (Mov W32)) [ "W" ] [ A.Reg reg_link; mem reg_sp ~off:(- !autosize) ] ]
     (* in place, as the branches to it stay *)
-    | "RET" ->
+    | Ins Ret ->
         let conds = List.filter (fun s -> condition s <> None) p.suffixes in
-        if !leaf && !autosize = 0 then become p "B" conds [ mem reg_link ]
-        else become p "MOVW" (conds @ [ "P" ]) [ mem reg_sp ~off:!autosize; A.Reg reg_pc ];
+        if !leaf && !autosize = 0 then become p B conds [ mem reg_link ]
+        else become p (Ins (Mov W32)) (conds @ [ "P" ]) [ mem reg_sp ~off:!autosize; A.Reg reg_pc ];
         [ p ]
-    | op when List.mem op divisions -> (
+    | Ins (Div _ | Mod _ as op) -> (
         match p.args with
         | [ A.Reg a; A.Reg _; A.Reg d ] | [ A.Reg a; A.Reg d ] ->
             (* the dividend: the middle register, else the destination *)
             let b' = match p.args with [ _; A.Reg m; _ ] -> m | _ -> d in
-            let callee = match Hashtbl.find_opt texts ("_" ^ String.lowercase_ascii op) with
-              | Some q -> q | None -> let f, l = p.where in error "%s:%d: no _%s to call" f l (String.lowercase_ascii op) in
-            let bl = prog_like p "BL" [] [ A.Target 0 ] in
+            let name = "_" ^ String.lowercase_ascii (show op) in
+            let callee = match Hashtbl.find_opt texts name with
+              | Some q -> q | None -> let f, l = p.where in error "%s:%d: no %s to call" f l name in
+            let bl = prog_like p Bl [] [ A.Target 0 ] in
             bl.target <- Some callee;
             let rest =
-              [ prog_like p "MOVW" [] [ A.Reg a; mem reg_sp ~off:4 ];
-              prog_like p "MOVW" [] [ A.Reg b'; A.Reg reg_tmp ];
+              [ prog_like p (Ins (Mov W32)) [] [ A.Reg a; mem reg_sp ~off:4 ];
+              prog_like p (Ins (Mov W32)) [] [ A.Reg b'; A.Reg reg_tmp ];
               bl;
-              prog_like p "MOVW" [] [ A.Reg reg_tmp; A.Reg d ];
-              prog_like p "ADD" [] [ imm 8; A.Reg reg_sp ] ] in
-            become p "SUB" [] [ imm 8; A.Reg reg_sp ];
+              prog_like p (Ins (Mov W32)) [] [ A.Reg reg_tmp; A.Reg d ];
+              prog_like p (Ins (Alu Add)) [] [ imm 8; A.Reg reg_sp ] ] in
+            become p (Ins (Alu Sub)) [] [ imm 8; A.Reg reg_sp ];
             p :: rest
         | _ -> [ p ])
     (* 5l's ldobj: an ADD or SUB of a negative constant is the other *)
-    | ("ADD" | "SUB") as op -> (
+    | Ins (Alu (Add | Sub as a)) -> (
         match p.args with
         | A.Imm n :: rest when sx32 n < 0 ->
-            p.op <- (if op = "ADD" then "SUB" else "ADD");
+            p.op <- Ins (Alu (if a = Add then Sub else Add));
             p.args <- imm (- (sx32 n)) :: rest;
             [ p ]
         | _ -> [ p ])
@@ -406,7 +463,7 @@ let rewrite (t : Link.t) =
  * checkpool; xix's Layout5) *)
 (*****************************************************************************)
 
-let layout (t : Link.t) =
+let layout (t : op Link.t) =
   let ctx = { t; autosize = 0 } in
   let pool = ref [] (* (key, word), newest first *) and pool_start = ref 0 in
   let pool_size () = 4 * List.length !pool in
@@ -421,7 +478,7 @@ let layout (t : Link.t) =
       pool := [];
       pool_start := 0;
       if skip then begin
-        let b = prog_like p "B" [] [ A.Target 0 ] in
+        let b = prog_like p B [] [ A.Target 0 ] in
         b.target <- (match rest with q :: _ -> Some q | [] -> Some b);
         if rest = [] then b.target <- Some b;
         b.args <- [ A.Target 0 ];
@@ -444,7 +501,7 @@ let layout (t : Link.t) =
     match List.assoc_opt key !pool with
     | Some w -> p.target <- Some w
     | None ->
-        let w = prog_like p "WORD" [] [ fst key ] in
+        let w = prog_like p (Ins Word) [] [ fst key ] in
         if !pool = [] then pool_start := p.pc;
         pool := (key, w) :: !pool;
         p.target <- Some w
@@ -455,7 +512,7 @@ let layout (t : Link.t) =
     | (p : prog) :: rest ->
         p.pc <- !pc;
         out := p :: !out;
-        if p.op = "TEXT" then begin
+        if p.op = Func then begin
           ctx.autosize <- p.frame + 4;
           (match p.args with A.Mem { name = Some n; _ } :: _ -> (sym_of t p.version n).value <- !pc | _ -> ());
           go rest
@@ -468,7 +525,7 @@ let layout (t : Link.t) =
           else if r.flag land (lfrom lor lto lor lpool) = lto then add_pool p v.to_;
           let rest = if r.flag land lpool <> 0 && v.sc land 15 = always then flush p rest false else rest in
           let rest =
-            if v.as_ = "MOVW" && v.to_ = Some (A.Reg reg_pc) && v.sc land 15 = always then flush p rest false else rest
+            if v.op = Ins (Mov W32) && v.to_ = Some (A.Reg reg_pc) && v.sc land 15 = always then flush p rest false else rest
           in
           let rest =
             if !pool <> [] && (rest = [] || pool_size () >= 0xffc || immaddr (p.pc + 4 + 4 + pool_size () - !pool_start + 8) = 0)
@@ -490,50 +547,47 @@ let layout (t : Link.t) =
 (*****************************************************************************)
 
 (* the data-processing opcodes, bits 21-24 (5l's oprrr) *)
-let oprrr as_ sc =
+let oprrr (op : op) sc =
   let o = ((sc land 15) lsl 28) lor (if sc land c_sbit <> 0 then 1 lsl 20 else 0) in
-  o lor (match as_ with
-    | "AND" -> 0x0 lsl 21 | "EOR" -> 0x1 lsl 21 | "SUB" -> 0x2 lsl 21 | "RSB" -> 0x3 lsl 21
-    | "ADD" -> 0x4 lsl 21 | "ADC" -> 0x5 lsl 21 | "SBC" -> 0x6 lsl 21 | "RSC" -> 0x7 lsl 21
-    | "TST" -> (0x8 lsl 21) lor (1 lsl 20) | "TEQ" -> (0x9 lsl 21) lor (1 lsl 20)
-    | "CMP" -> (0xa lsl 21) lor (1 lsl 20) | "CMN" -> (0xb lsl 21) lor (1 lsl 20)
-    | "ORR" -> 0xc lsl 21 | "MOVW" -> 0xd lsl 21 | "BIC" -> 0xe lsl 21 | "MVN" -> 0xf lsl 21
-    | "SLL" -> 0xd lsl 21 | "SRL" -> (0xd lsl 21) lor (1 lsl 5) | "SRA" -> (0xd lsl 21) lor (2 lsl 5)
-    | "MUL" | "MULU" -> 0x9 lsl 4
-    | "SWI" -> 0xf lsl 24
-    | "MULA" -> (0x1 lsl 21) lor (0x9 lsl 4) | "MULLU" -> (0x4 lsl 21) lor (0x9 lsl 4)
-    | "MULL" -> (0x6 lsl 21) lor (0x9 lsl 4) | "MULALU" -> (0x5 lsl 21) lor (0x9 lsl 4)
-    | "MULAL" -> (0x7 lsl 21) lor (0x9 lsl 4)
-    | "ADDD" | "ADDF" | "MULD" | "MULF" | "SUBD" | "SUBF" | "DIVD" | "DIVF" as op ->
-        let n = match op.[0] with 'A' -> 0 | 'M' -> 1 | 'S' -> 2 | _ -> 4 in
-        (0xe lsl 24) lor (n lsl 20) lor (1 lsl 8) lor (if op.[3] = 'D' then 1 lsl 7 else 0)
-    | "CMPD" | "CMPF" -> (0xe lsl 24) lor (0x9 lsl 20) lor (0xf lsl 12) lor (1 lsl 8) lor (1 lsl 4)
-    | "MOVF" | "MOVDF" -> (0xe lsl 24) lor (1 lsl 15) lor (1 lsl 8)
-    | "MOVD" | "MOVFD" -> (0xe lsl 24) lor (1 lsl 15) lor (1 lsl 8) lor (1 lsl 7)
-    | "MOVWF" -> (0xe lsl 24) lor (1 lsl 8) lor (1 lsl 4)
-    | "MOVWD" -> (0xe lsl 24) lor (1 lsl 8) lor (1 lsl 4) lor (1 lsl 7)
-    | "MOVFW" -> (0xe lsl 24) lor (1 lsl 20) lor (1 lsl 8) lor (1 lsl 4)
-    | "MOVDW" -> (0xe lsl 24) lor (1 lsl 20) lor (1 lsl 8) lor (1 lsl 4) lor (1 lsl 7)
-    | op -> error "bad data-processing op %s" op)
+  let d = function F -> 0 | D -> 1 lsl 7 in
+  o lor (match op with
+    | Alu a -> (match a with And -> 0x0 | Eor -> 0x1 | Sub -> 0x2 | Rsb -> 0x3 | Add -> 0x4 | Adc -> 0x5 | Sbc -> 0x6 | Rsc -> 0x7
+                           | Orr -> 0xc | Bic -> 0xe) lsl 21
+    | Test t -> ((match t with Tst -> 0x8 | Teq -> 0x9 | Cmp -> 0xa | Cmn -> 0xb) lsl 21) lor (1 lsl 20)
+    | Mov W32 -> 0xd lsl 21
+    | Mvn -> 0xf lsl 21
+    | Shift k -> (0xd lsl 21) lor (Link.shift_bits k lsl 5)
+    | Mul _ -> 0x9 lsl 4
+    | Swi -> 0xf lsl 24
+    | Mula -> (0x1 lsl 21) lor (0x9 lsl 4)
+    | Mull (un, acc) -> ((0x4 lor (if un then 0 else 2) lor (if acc then 1 else 0)) lsl 21) lor (0x9 lsl 4)
+    | Farith (f, pr) ->
+        (0xe lsl 24) lor ((match f with Fadd -> 0 | Fmul -> 1 | Fsub -> 2 | Fdiv -> 4) lsl 20) lor (1 lsl 8) lor d pr
+    | Fcmp _ -> (0xe lsl 24) lor (0x9 lsl 20) lor (0xf lsl 12) lor (1 lsl 8) lor (1 lsl 4)
+    | Fmov pr | Fcvt pr -> (0xe lsl 24) lor (1 lsl 15) lor (1 lsl 8) lor d pr
+    | Itof pr -> (0xe lsl 24) lor (1 lsl 8) lor (1 lsl 4) lor d pr
+    | Ftoi pr -> (0xe lsl 24) lor (1 lsl 20) lor (1 lsl 8) lor (1 lsl 4) lor d pr
+    | Mov (B8 | B8u | H16 | H16u) | Div _ | Mod _ | Movm | Case | Word | Ret -> error "bad data-processing op %s" (show op))
 
-(* branches (5l's opbra) *)
-let opbra as_ sc =
-  if as_ = "BL" then ((sc land 15) lsl 28) lor (0x5 lsl 25) lor (1 lsl 24)
-  else
-    let c = match as_ with "B" -> 14 | _ -> Option.get (condition (String.sub as_ 1 2)) in
-    (c lsl 28) lor (0x5 lsl 25)
+(* branches (5l's opbra): B's condition is always, BL's its suffix's *)
+let opbra (op : op Link.op) sc =
+  match op with
+  | Bl -> ((sc land 15) lsl 28) lor (0x5 lsl 25) lor (1 lsl 24)
+  | B -> (always lsl 28) lor (0x5 lsl 25)
+  | Bcond c -> (cond_bits c lsl 28) lor (0x5 lsl 25)
+  | Func | Nop | Bcase | Ins _ -> error "bad branch %s" (show_op show op)
 
 (* loads and stores of words and bytes (5l's olr, osr, olrr, osrr) *)
-let olr as_ sc v b rt =
+let olr ~byte sc v b rt =
   let o = ((sc land 15) lsl 28) lor (if sc land c_pbit = 0 then 1 lsl 24 else 0) lor (if sc land c_wbit <> 0 then 1 lsl 21 else 0)
           lor (1 lsl 26) lor (1 lsl 20) in
   let o, v = if v >= 0 then o lor (1 lsl 23), v else o, - v in
   if v >= 1 lsl 12 then error "literal span too large: %d" v;
-  o lor (if as_ = "MOVB" || as_ = "MOVBU" then 1 lsl 22 else 0) lor (b lsl 16) lor (rt lsl 12) lor v
+  o lor (if byte then 1 lsl 22 else 0) lor (b lsl 16) lor (rt lsl 12) lor v
 
-let osr as_ sc r v b = olr as_ sc v b r lxor (1 lsl 20)
-let olrr as_ sc i b r = olr as_ sc i b r lor (1 lsl 25)
-let osrr as_ sc r i b = olrr as_ sc i b r lxor (1 lsl 20)
+let osr ~byte sc r v b = olr ~byte sc v b r lxor (1 lsl 20)
+let olrr ~byte sc i b r = olr ~byte sc i b r lor (1 lsl 25)
+let osrr ~byte sc r i b = olrr ~byte sc i b r lxor (1 lsl 20)
 
 (* halves and signed bytes, ARMv4 (5l's olhr, oshr, olhrr, oshrr) *)
 let olhr v b r sc =
@@ -548,13 +602,13 @@ let olhrr i b r sc = olhr i b r sc lxor (1 lsl 22)
 let oshrr r i b sc = olhr i b r sc lxor ((1 lsl 22) lor (1 lsl 20))
 
 (* FPA's loads and stores (5l's ofsr) *)
-let ofsr as_ r v b sc =
+let ofsr pr r v b sc =
   let o = ((sc land 15) lsl 28) lor (if sc land c_pbit = 0 then 1 lsl 24 else 0) lor (if sc land c_wbit <> 0 then 1 lsl 21 else 0)
           lor (6 lsl 25) lor (1 lsl 24) lor (1 lsl 23) in
   let o, v = if v < 0 then o lxor (1 lsl 23), - v else o, v in
   if v land 3 <> 0 then error "odd offset for floating point op: %d" v;
   if v >= 1 lsl 10 then error "literal span too large: %d" v;
-  o lor ((v lsr 2) land 0xff) lor (b lsl 16) lor (r lsl 12) lor (1 lsl 8) lor (if as_ = "MOVD" then 1 lsl 15 else 0)
+  o lor ((v lsr 2) land 0xff) lor (b lsl 16) lor (r lsl 12) lor (1 lsl 8) lor (if pr = D then 1 lsl 15 else 0)
 
 let fregof = function Some (A.FReg r) -> r | _ -> -1
 
@@ -573,15 +627,20 @@ let encode_prog ctx (p : prog) : int list =
   let off a = snd (aclass ctx p a) in
   let rt = regof v.to_ and rf = regof v.from in
   let mid ~is_mov rt = if is_mov then 0 else match v.reg with Some r -> r | None -> rt in
-  let is_mov = v.as_ = "MOVW" || v.as_ = "MVN" in
+  (* the machine's instruction; a load's or store's width, a float's precision *)
+  let ins () = match v.op with Ins m -> m | op -> error "%s: not in the rule" (show_op show op) in
+  let width () = match ins () with Mov w -> w | m -> error "%s: not a move" (show m) in
+  let byte () = match width () with B8 | B8u -> true | H16 | H16u | W32 -> false in
+  let prec () = match ins () with Fmov pr -> pr | m -> error "%s: not a float move" (show m) in
+  let is_mov = v.op = Ins (Mov W32) || v.op = Ins Mvn in
   let base a = match regof a with -1 -> o.param | r -> r in
   (* a constant from the pool, or an MVN of its complement (5l's omvl) *)
   let omvl a dr =
     match p.target with
-    | Some w -> olr "MOVW" (sc land 15) (w.pc - p.pc - 8) reg_pc dr
+    | Some w -> olr ~byte:false (sc land 15) (w.pc - p.pc - 8) reg_pc dr
     | None -> (
         match immrot (lnot (off a)) with
-        | Some i -> oprrr "MVN" (sc land 15) lor (dr lsl 12) lor i
+        | Some i -> oprrr Mvn (sc land 15) lor (dr lsl 12) lor i
         | None -> error "missing literal")
   in
   let target_pc () = match p.target with Some q -> q.pc | None -> p.pc in
@@ -590,65 +649,65 @@ let encode_prog ctx (p : prog) : int list =
   | 11 -> [ off v.to_ land 0xffffffff ]
   | 1 ->
       let rt = if v.to_ = None then 0 else rt in
-      [ oprrr v.as_ sc lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) lor rf ]
+      [ oprrr (ins ()) sc lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) lor rf ]
   | 2 ->
       let rt = if v.to_ = None then 0 else rt in
-      [ oprrr v.as_ sc lor Option.get (immrot (off v.from)) lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) ]
+      [ oprrr (ins ()) sc lor Option.get (immrot (off v.from)) lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) ]
   | 3 ->
       let rt = if v.to_ = None then 0 else rt in
-      [ oprrr v.as_ sc lor shift_bits (shift_of v.from) lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) ]
-  | 8 -> let r = mid ~is_mov:false rt in [ oprrr v.as_ sc lor (rt lsl 12) lor ((off v.from land 31) lsl 7) lor r ]
-  | 9 -> let r = mid ~is_mov:false rt in [ oprrr v.as_ sc lor (rt lsl 12) lor (rf lsl 8) lor (1 lsl 4) lor r ]
+      [ oprrr (ins ()) sc lor shift_bits (shift_of v.from) lor (mid ~is_mov rt lsl 16) lor (rt lsl 12) ]
+  | 8 -> let r = mid ~is_mov:false rt in [ oprrr (ins ()) sc lor (rt lsl 12) lor ((off v.from land 31) lsl 7) lor r ]
+  | 9 -> let r = mid ~is_mov:false rt in [ oprrr (ins ()) sc lor (rt lsl 12) lor (rf lsl 8) lor (1 lsl 4) lor r ]
   | 14 ->
-      let n = if v.as_ = "MOVB" || v.as_ = "MOVBU" then 24 else 16 in
-      [ oprrr "SLL" sc lor (rt lsl 12) lor (n lsl 7) lor rf;
-        oprrr (if v.as_ = "MOVBU" || v.as_ = "MOVHU" then "SRL" else "SRA") sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
-  | 58 -> let r = if rf < 0 then rt else rf in [ oprrr "AND" sc lor Option.get (immrot 0xff) lor (r lsl 16) lor (rt lsl 12) ]
+      let n = if byte () then 24 else 16 in
+      [ oprrr (Shift Lsl) sc lor (rt lsl 12) lor (n lsl 7) lor rf;
+        oprrr (Shift (match width () with B8u | H16u -> Lsr | B8 | H16 | W32 -> Asr)) sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
+  | 58 -> let r = if rf < 0 then rt else rf in [ oprrr (Alu And) sc lor Option.get (immrot 0xff) lor (r lsl 16) lor (rt lsl 12) ]
   | 15 ->
       let r = mid ~is_mov:false rt in
       let r, rf = if rt = r then rf, rt else r, rf in
-      [ oprrr v.as_ sc lor (rt lsl 16) lor (rf lsl 8) lor r ]
+      [ oprrr (ins ()) sc lor (rt lsl 16) lor (rf lsl 8) lor r ]
   | 13 ->
       let o1 = omvl v.from reg_tmp in
-      let o2 = oprrr v.as_ sc lor (mid ~is_mov rt lsl 16) lor reg_tmp lor (if v.to_ <> None then rt lsl 12 else 0) in
+      let o2 = oprrr (ins ()) sc lor (mid ~is_mov rt lsl 16) lor reg_tmp lor (if v.to_ <> None then rt lsl 12 else 0) in
       [ o1; o2 ]
   | 12 -> [ omvl v.from rt ]
-  | 5 -> [ opbra v.as_ sc lor (((target_pc () - p.pc - 8) asr 2) land 0xffffff) ]
-  | 6 -> [ oprrr "ADD" sc lor Option.get (immrot (off v.to_)) lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) ]
+  | 5 -> [ opbra v.op sc lor (((target_pc () - p.pc - 8) asr 2) land 0xffffff) ]
+  | 6 -> [ oprrr (Alu Add) sc lor Option.get (immrot (off v.to_)) lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) ]
   | 7 ->
-      [ oprrr "ADD" sc lor (reg_pc lsl 16) lor (reg_link lsl 12) lor Option.get (immrot 0);
-        oprrr "ADD" sc lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) lor Option.get (immrot (off v.to_)) ]
-  | 21 -> [ olr v.as_ sc (off v.from) (base v.from) rt ]
-  | 31 -> [ omvl v.from reg_tmp; olrr v.as_ sc reg_tmp (base v.from) rt ]
-  | 20 -> [ osr v.as_ sc rf (off v.to_) (base v.to_) ]
-  | 30 -> [ omvl v.to_ reg_tmp; osrr v.as_ sc rf reg_tmp (base v.to_) ]
-  | 4 -> [ oprrr "ADD" sc lor (base v.from lsl 16) lor (rt lsl 12) lor Option.get (immrot (off v.from)) ]
-  | 34 -> [ omvl v.from reg_tmp; oprrr "ADD" sc lor (base v.from lsl 16) lor (rt lsl 12) lor reg_tmp ]
+      [ oprrr (Alu Add) sc lor (reg_pc lsl 16) lor (reg_link lsl 12) lor Option.get (immrot 0);
+        oprrr (Alu Add) sc lor (regof v.to_ lsl 16) lor (reg_pc lsl 12) lor Option.get (immrot (off v.to_)) ]
+  | 21 -> [ olr ~byte:(byte ()) sc (off v.from) (base v.from) rt ]
+  | 31 -> [ omvl v.from reg_tmp; olrr ~byte:(byte ()) sc reg_tmp (base v.from) rt ]
+  | 20 -> [ osr ~byte:(byte ()) sc rf (off v.to_) (base v.to_) ]
+  | 30 -> [ omvl v.to_ reg_tmp; osrr ~byte:(byte ()) sc rf reg_tmp (base v.to_) ]
+  | 4 -> [ oprrr (Alu Add) sc lor (base v.from lsl 16) lor (rt lsl 12) lor Option.get (immrot (off v.from)) ]
+  | 34 -> [ omvl v.from reg_tmp; oprrr (Alu Add) sc lor (base v.from lsl 16) lor (rt lsl 12) lor reg_tmp ]
   | 22 ->
-      let n = if v.as_ = "MOVB" then 24 else 16 in
-      [ olr "MOVW" sc (off v.from) (base v.from) rt;
-        oprrr "SLL" sc lor (rt lsl 12) lor (n lsl 7) lor rt;
-        oprrr (if v.as_ = "MOVHU" then "SRL" else "SRA") sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
+      let n = if byte () then 24 else 16 in
+      [ olr ~byte:false sc (off v.from) (base v.from) rt;
+        oprrr (Shift Lsl) sc lor (rt lsl 12) lor (n lsl 7) lor rt;
+        oprrr (Shift (if width () = H16u then Lsr else Asr)) sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
   | 32 ->
-      let n = if v.as_ = "MOVB" then 24 else 16 in
-      [ omvl v.from reg_tmp; olrr v.as_ sc reg_tmp (base v.from) rt;
-        oprrr "SLL" sc lor (rt lsl 12) lor (n lsl 7) lor rt;
-        oprrr (if v.as_ = "MOVHU" then "SRL" else "SRA") sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
+      let n = if byte () then 24 else 16 in
+      [ omvl v.from reg_tmp; olrr ~byte:(byte ()) sc reg_tmp (base v.from) rt;
+        oprrr (Shift Lsl) sc lor (rt lsl 12) lor (n lsl 7) lor rt;
+        oprrr (Shift (if width () = H16u then Lsr else Asr)) sc lor (rt lsl 12) lor (n lsl 7) lor rt ]
   | 23 ->
       let b = base v.to_ and x = off v.to_ in
-      [ osr "MOVBU" sc rf x b; oprrr "SRL" sc lor (reg_tmp lsl 12) lor (8 lsl 7) lor rf; osr "MOVBU" sc reg_tmp (x + 1) b ]
+      [ osr ~byte:true sc rf x b; oprrr (Shift Lsr) sc lor (reg_tmp lsl 12) lor (8 lsl 7) lor rf; osr ~byte:true sc reg_tmp (x + 1) b ]
   | 33 ->
       let b = base v.to_ in
-      [ omvl v.to_ reg_tmp; osrr "MOVBU" sc rf reg_tmp b;
-        oprrr "SRL" sc lor (rf lsl 12) lor (8 lsl 7) lor rf lor (1 lsl 6);
-        oprrr "ADD" sc lor (reg_tmp lsl 16) lor (reg_tmp lsl 12) lor Option.get (immrot 1);
-        osrr "MOVBU" sc rf reg_tmp b;
-        oprrr "SRL" sc lor (rf lsl 12) lor (24 lsl 7) lor rf lor (1 lsl 6) ]
-  | 10 -> [ oprrr v.as_ sc lor (if v.to_ <> None then off v.to_ land 0xffffff else 0) ]
+      [ omvl v.to_ reg_tmp; osrr ~byte:true sc rf reg_tmp b;
+        oprrr (Shift Lsr) sc lor (rf lsl 12) lor (8 lsl 7) lor rf lor (1 lsl 6);
+        oprrr (Alu Add) sc lor (reg_tmp lsl 16) lor (reg_tmp lsl 12) lor Option.get (immrot 1);
+        osrr ~byte:true sc rf reg_tmp b;
+        oprrr (Shift Lsr) sc lor (rf lsl 12) lor (24 lsl 7) lor rf lor (1 lsl 6) ]
+  | 10 -> [ oprrr (ins ()) sc lor (if v.to_ <> None then off v.to_ land 0xffffff else 0) ]
   | 16 -> [ 0xf lsl 28 ]
   | 17 ->
       let rt, rt2 = match v.to_ with Some (A.Pair (a, b)) -> a, b | _ -> 0, 0 in
-      [ oprrr v.as_ sc lor (rf lsl 8) lor Option.get v.reg lor (rt lsl 16) lor (rt2 lsl 12) ]
+      [ oprrr (ins ()) sc lor (rf lsl 8) lor Option.get v.reg lor (rt lsl 16) lor (rt2 lsl 12) ]
   | 38 | 39 ->
       let store = o.case = 38 in
       let mask = if store then off v.from else off v.to_ in
@@ -661,34 +720,34 @@ let encode_prog ctx (p : prog) : int list =
   | 70 -> [ oshr rf (off v.to_) (base v.to_) sc ]
   | 71 ->
       let o1 = olhr (off v.from) (base v.from) rt sc in
-      [ (if v.as_ = "MOVB" then o1 lxor ((1 lsl 5) lor (1 lsl 6)) else if v.as_ = "MOVH" then o1 lxor (1 lsl 6) else o1) ]
+      [ (match width () with B8 -> o1 lxor ((1 lsl 5) lor (1 lsl 6)) | H16 -> o1 lxor (1 lsl 6) | B8u | H16u | W32 -> o1) ]
   | 72 -> [ omvl v.to_ reg_tmp; oshrr rf reg_tmp (base v.to_) sc ]
   | 73 ->
       let o2 = olhrr reg_tmp (base v.from) rt sc in
       [ omvl v.from reg_tmp;
-        (if v.as_ = "MOVB" then o2 lxor ((1 lsl 5) lor (1 lsl 6)) else if v.as_ = "MOVH" then o2 lxor (1 lsl 6) else o2) ]
+        (match width () with B8 -> o2 lxor ((1 lsl 5) lor (1 lsl 6)) | H16 -> o2 lxor (1 lsl 6) | B8u | H16u | W32 -> o2) ]
   | 59 -> (
       match v.from with
-      | Some (A.Mem { base = R b; index = Some s; _ }) -> [ olrr v.as_ sc (shift_bits s) b rt ]
-      | _ -> [ oprrr v.as_ sc lor shift_bits (shift_of v.from) lor (rt lsl 12) ])
+      | Some (A.Mem { base = R b; index = Some s; _ }) -> [ olrr ~byte:(byte ()) sc (shift_bits s) b rt ]
+      | _ -> [ oprrr (ins ()) sc lor shift_bits (shift_of v.from) lor (rt lsl 12) ])
   | 60 -> (
       match v.from with
       | Some (A.Mem { base = R b; index = Some s; _ }) -> [ olhrr (shift_bits s) b rt sc lxor ((1 lsl 5) lor (1 lsl 6)) ]
       | _ -> error "byte MOV from shifter operand")
   | 61 -> (
       match v.to_ with
-      | Some (A.Mem { base = R b; index = Some s; _ }) -> [ osrr v.as_ sc rf (shift_bits s) b ]
+      | Some (A.Mem { base = R b; index = Some s; _ }) -> [ osrr ~byte:(byte ()) sc rf (shift_bits s) b ]
       | _ -> error "MOV to shifter operand")
-  | 62 -> [ olrr "MOVW" sc rf reg_pc reg_pc lor (2 lsl 7) ]
+  | 62 -> [ olrr ~byte:false sc rf reg_pc reg_pc lor (2 lsl 7) ]
   | 63 -> [ target_pc () ]
-  | 50 -> [ ofsr v.as_ (fregof v.from) (off v.to_) (base v.to_) sc ]
-  | 51 -> [ ofsr v.as_ (fregof v.to_) (off v.from) (base v.from) sc lor (1 lsl 20) ]
-  | 52 -> [ omvl v.to_ reg_tmp; oprrr "ADD" sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.to_;
-            ofsr v.as_ (fregof v.from) 0 reg_tmp sc ]
-  | 53 -> [ omvl v.from reg_tmp; oprrr "ADD" sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.from;
-            ofsr v.as_ (fregof v.to_) 0 reg_tmp sc lor (1 lsl 20) ]
+  | 50 -> [ ofsr (prec ()) (fregof v.from) (off v.to_) (base v.to_) sc ]
+  | 51 -> [ ofsr (prec ()) (fregof v.to_) (off v.from) (base v.from) sc lor (1 lsl 20) ]
+  | 52 -> [ omvl v.to_ reg_tmp; oprrr (Alu Add) sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.to_;
+            ofsr (prec ()) (fregof v.from) 0 reg_tmp sc ]
+  | 53 -> [ omvl v.from reg_tmp; oprrr (Alu Add) sc lor (reg_tmp lsl 12) lor (reg_tmp lsl 16) lor base v.from;
+            ofsr (prec ()) (fregof v.to_) 0 reg_tmp sc lor (1 lsl 20) ]
   | 54 ->
-      let o1 = oprrr v.as_ sc in
+      let o1 = oprrr (ins ()) sc in
       let rf = match v.from with
         | Some (A.Fimm x) -> (match chip_float x with Some i -> i lor 8 | None -> error "invalid floating-point immediate")
         | a -> fregof a in
@@ -697,17 +756,17 @@ let encode_prog ctx (p : prog) : int list =
       let rt = if v.to_ = None then 0 else rt in
       [ o1 lor rf lor (r lsl 16) lor (rt lsl 12) ]
   | 55 -> (
-      let o1 = oprrr v.as_ sc in
+      let o1 = oprrr (ins ()) sc in
       match v.from, v.to_ with
       | Some (A.Reg rf), Some (A.FReg rt) -> [ o1 lor (rf lsl 12) lor (rt lsl 16) ]
       | Some (A.FReg rf), Some (A.Reg rt) -> [ o1 lor rf lor (rt lsl 12) ]
       | _ -> error "bad float conversion")
   | n -> error "rule %d not in the subset" n
 
-let encode (t : Link.t) : Bytes.t =
+let encode (t : op Link.t) : Bytes.t =
   let ctx = { t; autosize = 0 } in
   let b = Bytes.make t.text_size '\000' in
   List.iter (fun (p : prog) ->
-    if p.op = "TEXT" then ctx.autosize <- p.frame + 4
+    if p.op = Func then ctx.autosize <- p.frame + 4
     else List.iteri (fun i w -> Link.put32 b (p.pc - t.text_start + (4 * i)) w) (encode_prog ctx p)) t.progs;
   b

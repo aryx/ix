@@ -9,21 +9,29 @@
  *)
 (* See CLI.mli *)
 
-(* a machine's passes *)
-type machine = { prepare : Link.t -> unit; needs : Link.prog list -> string list; follow : Link.t -> unit;
-                 rewrite : Link.t -> unit; layout : Link.t -> unit; encode : Link.t -> Bytes.t }
+(* a machine's passes, over its opcodes *)
+type 'm machine = {
+  decode : string -> 'm option;
+  show : 'm -> string;
+  prepare : 'm Link.t -> unit;
+  needs : 'm Link.prog list -> string list;
+  follow : 'm Link.t -> unit;
+  rewrite : 'm Link.t -> unit;
+  layout : 'm Link.t -> unit;
+  encode : 'm Link.t -> Bytes.t;
+}
 
-let machine = function
-  | Asm.Arm -> { prepare = Arm.prepare; needs = Arm.needs; follow = Arm.follow; rewrite = Arm.rewrite; layout = Arm.layout; encode = Arm.encode }
-  | Asm.Arm64 -> { prepare = Arm64.prepare; needs = (fun _ -> []); follow = Arm64.follow; rewrite = Arm64.rewrite; layout = Arm64.layout; encode = Arm64.encode }
+let arm = { decode = Arm.decode; show = Arm.show; prepare = Arm.prepare; needs = Arm.needs; follow = Arm.follow;
+            rewrite = Arm.rewrite; layout = Arm.layout; encode = Arm.encode }
+let arm64 = { decode = Arm64.decode; show = Arm64.show; prepare = Arm64.prepare; needs = (fun _ -> []); follow = Arm64.follow;
+              rewrite = Arm64.rewrite; layout = Arm64.layout; encode = Arm64.encode }
 
 type caps = < Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
 
 let print (_ : < Cap.stdout; .. >) s = print_string s
 let eprint (_ : < Cap.stderr; .. >) s = prerr_string s; flush stderr
 
-let link caps ~verbose arch format entry out files =
-  let m = machine arch in
+let link (m : _ machine) caps ~verbose arch format entry out files =
   let t = Link.create arch ~text_start:0 in
   let headr = Exe.headr (format, arch) in
   (* 5l's and 7l's INITTEXT: after the header *)
@@ -35,7 +43,7 @@ let link caps ~verbose arch format entry out files =
   t.pie <- format = Exe.Macho;
   (* the entry is the first name needed, before any object (5l's main) *)
   ignore (Link.lookup t entry 0);
-  Link.load caps t ~needs:m.needs files;
+  Link.load caps t ~decode:m.decode ~needs:m.needs files;
   m.prepare t;
   Link.resolve t;
   Link.layout_data t;
@@ -46,9 +54,9 @@ let link caps ~verbose arch format entry out files =
   let text = m.encode t in
   (* the listing, as 5l -a *)
   if verbose then
-    List.iter (fun (p : Link.prog) ->
+    List.iter (fun (p : _ Link.prog) ->
       let w = if p.pc >= t.text_start && p.pc + 4 <= t.text_start + t.text_size then Bytes.get_int32_le text (p.pc - t.text_start) else 0l in
-      print caps @@ Printf.sprintf "%08x: %08lx\t%s\n" p.pc w (Asm.show_item (Ins { op = p.op; suffixes = p.suffixes; args = p.args }))) t.progs;
+      print caps @@ Printf.sprintf "%08x: %08lx\t%s\n" p.pc w (Link.show m.show p)) t.progs;
   let data = Link.data_bytes t in
   Exe.write caps format arch out
     { text; data; bss = t.bss_size; text_start = t.text_start; data_start = t.data_start; entry = Link.entry t entry;
@@ -78,6 +86,8 @@ let main (caps : < caps; .. >) (argv : string array) : int =
   | _ -> (
       try
         if !lib <> "" then Link.make_library caps !lib files
-        else link caps ~verbose:!verbose !arch !format !entry !out files;
+        else (match !arch with
+          | Asm.Arm -> link arm caps ~verbose:!verbose !arch !format !entry !out files
+          | Asm.Arm64 -> link arm64 caps ~verbose:!verbose !arch !format !entry !out files);
         0
       with Link.Error m | Sys_error m | Failure m -> eprint caps ("tinyld: " ^ m ^ "\n"); 1)

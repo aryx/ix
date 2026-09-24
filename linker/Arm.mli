@@ -20,26 +20,33 @@
  * Mathematik, 1960), the stack instead of fixed cells: where
  * [rewrite]'s prologue pushes R14, below the frame, for a non-leaf. *)
 
+(* the machine's opcodes (5.out.h) *)
+type op
+
+(* an opcode from its name, and back *)
+val decode : string -> op option
+val show : op -> string
+
 (* immediates as a real ARM rotation, not goken's 64-bit one *)
 val rotate : bool ref
 
 (* the names the program needs besides its own (_div... for DIV) *)
-val needs : Link.prog list -> string list
+val needs : op Link.prog list -> string list
 
 (* B.NE as BNE; float constants into the data (5a's outcode, 5l's
  * ldobj) *)
-val prepare : Link.t -> unit
+val prepare : op Link.t -> unit
 
 (* the code in its flow's order, the dead code dropped (5l's follow) *)
-val follow : Link.t -> unit
+val follow : op Link.t -> unit
 
 (* prologues, RET, DIV and MOD, negative ADD and SUB (5l's noops, and
  * ldobj's part; xix's Rewrite5) *)
-val rewrite : Link.t -> unit
+val rewrite : op Link.t -> unit
 
 (* each instruction's pc, the literal pools, t.text_size, t.data_start
  * (5l's dotext; xix's Layout5) *)
-val layout : Link.t -> unit
+val layout : op Link.t -> unit
 
 (* the text's bytes (5l's asmout; xix's Codegen5) *)
-val encode : Link.t -> Bytes.t
+val encode : op Link.t -> Bytes.t

@@ -20,12 +20,43 @@ type sym = {
   created : int;
 }
 
-type prog = {
-  mutable op : string;
+type cond = EQ | NE | HS | LO | MI | PL | VS | VC | HI | LS | GE | LT | GT | LE
+
+let invert = function
+  | EQ -> NE | NE -> EQ | HS -> LO | LO -> HS | MI -> PL | PL -> MI | VS -> VC | VC -> VS
+  | HI -> LS | LS -> HI | GE -> LT | LT -> GE | GT -> LE | LE -> GT
+
+let conds = [ "EQ", EQ; "NE", NE; "HS", HS; "LO", LO; "MI", MI; "PL", PL; "VS", VS; "VC", VC;
+              "HI", HI; "LS", LS; "GE", GE; "LT", LT; "GT", GT; "LE", LE ]
+
+let cond_bits c =
+  let rec find i = function (_, c') :: rest -> if c = c' then i else find (i + 1) rest | [] -> assert false in
+  find 0 conds
+
+let cond_of_string = function "CS" -> Some HS | "CC" -> Some LO | s -> List.assoc_opt s conds
+let string_of_cond c = fst (List.find (fun (_, c') -> c = c') conds)
+
+type 'm op = Func | Nop | B | Bl | Bcond of cond | Bcase | Ins of 'm
+
+let decode machine = function
+  | "NOP" -> Some Nop
+  | "B" -> Some B
+  | "BL" -> Some Bl
+  | "BCASE" -> Some Bcase
+  | s when String.length s = 3 && s.[0] = 'B' && cond_of_string (String.sub s 1 2) <> None ->
+      Option.map (fun c -> Bcond c) (cond_of_string (String.sub s 1 2))
+  | s -> Option.map (fun m -> Ins m) (machine s)
+
+let show_op show = function
+  | Func -> "TEXT" | Nop -> "NOP" | B -> "B" | Bl -> "BL" | Bcond c -> "B" ^ string_of_cond c | Bcase -> "BCASE"
+  | Ins m -> show m
+
+type 'm prog = {
+  mutable op : 'm op;
   mutable suffixes : string list;
   mutable args : Asm.operand list;
   mutable pc : int;
-  mutable target : prog option;
+  mutable target : 'm prog option;
   version : int;
   where : string * int;
   mutable frame : int;
@@ -35,11 +66,11 @@ type prog = {
 
 type data = { dsym : sym; off : int; width : int; value : Asm.operand; dversion : int }
 
-type t = {
+type 'm t = {
   arch : Asm.arch;
   syms : (string * int, sym) Hashtbl.t;
   mutable ncreated : int;
-  mutable progs : prog list;
+  mutable progs : 'm prog list;
   mutable datas : data list;
   mutable text_start : int;
   mutable data_start : int;
@@ -51,6 +82,8 @@ type t = {
 }
 
 exception Error of string
+
+let show show_m (p : _ prog) = Asm.show_item (Ins { op = show_op show_m p.op; suffixes = p.suffixes; args = p.args })
 
 let error fmt = Printf.ksprintf (fun s -> raise (Error s)) fmt
 
@@ -81,19 +114,22 @@ let sym_of t version (n : Asm.name) = lookup t n.sym (if n.static then version e
 (* one object into the program (5l's ldobj): its instructions, its
  * TEXTs, GLOBLs and DATAs; each object has its own version, for its
  * name<>s *)
-let add_object t version (o : Asm.obj) =
+let add_object t ~decode:decode_machine version (o : Asm.obj) =
   if o.arch <> t.arch then error "%s: an object for another machine" o.file;
   let items = o.items in
   (* the prog of each item that has a pc; the targets point at items *)
   let progs = Array.map (fun (it, line) ->
     let mk op suffixes args = Some { op; suffixes; args; pc = 0; target = None; version; where = (o.file, line); frame = 0; leaf = false; rule = -1 } in
     match (it : Asm.item) with
-    | Ins i -> mk i.op i.suffixes i.args
+    | Ins i -> (
+        match decode decode_machine i.op with
+        | Some op -> mk op i.suffixes i.args
+        | None -> error "%s:%d: unknown opcode %s" o.file line i.op)
     | Text (n, flag, frame) ->
         let s = sym_of t version n in
         if s.kind = Text then error "%s:%d: %s defined twice" o.file line n.sym;
         s.kind <- Text;
-        (match mk "TEXT" [] [ Asm.Mem { base = SB; name = Some n; off = 0L; index = None }; Asm.Imm (Int64.of_int flag) ] with
+        (match mk Func [] [ Asm.Mem { base = SB; name = Some n; off = 0L; index = None }; Asm.Imm (Int64.of_int flag) ] with
          | Some p -> p.frame <- Int64.to_int frame; Some p
          | None -> None)
     | Globl (n, _, size) ->
@@ -144,7 +180,8 @@ let make_library caps out files =
     (o, List.sort_uniq compare names)) files in
   Asm.write_file caps out (Marshal.to_string (lib_version, lib) [])
 
-let load caps t ?(needs = fun _ -> []) files =
+let load caps t ~decode ?(needs = fun _ -> []) files =
+  let add_object = add_object ~decode in
   let version = ref 0 in
   let next () = incr version; !version in
   let libs = ref [] in
@@ -181,13 +218,13 @@ let load caps t ?(needs = fun _ -> []) files =
 (* Branches *)
 (*****************************************************************************)
 
-let is_branch op = op = "B" || op = "BL"
+let is_branch = function B | Bl -> true | Func | Nop | Bcond _ | Bcase | Ins _ -> false
 
 let resolve t =
   (* BL f(SB) and B f(SB): to f's TEXT *)
   let texts = Hashtbl.create 64 in
   List.iter (fun p ->
-    if p.op = "TEXT" then match p.args with Asm.Mem { name = Some n; _ } :: _ -> Hashtbl.replace texts (sym_of t p.version n) p | _ -> ()) t.progs;
+    if p.op = Func then match p.args with Asm.Mem { name = Some n; _ } :: _ -> Hashtbl.replace texts (sym_of t p.version n) p | _ -> ()) t.progs;
   List.iter (fun p ->
     match p.args with
     | [ Asm.Mem { base = SB; name = Some n; _ } ] when is_branch p.op -> (
@@ -199,7 +236,7 @@ let resolve t =
   (* a branch to an unconditional B goes where that B goes (brloop) *)
   let rec final q n =
     if n > 5000 then None
-    else if q.op = "B" && q.suffixes = [] then (match q.target with Some r when r != q -> final r (n + 1) | _ -> if q.target = None then Some q else None)
+    else if q.op = B && q.suffixes = [] then (match q.target with Some r when r != q -> final r (n + 1) | _ -> if q.target = None then Some q else None)
     else Some q
   in
   List.iter (fun p -> match p.target with Some q -> p.target <- final q 0 | None -> ()) t.progs
@@ -222,56 +259,60 @@ let resolve t =
  * instruction (5l's and 7l's noops) *)
 let drop_nops t =
   let real = ref None and nops = ref [] in
-  List.iter (fun (p : prog) -> if p.op = "NOP" then nops := (p, !real) :: !nops else real := Some p) (List.rev t.progs);
+  List.iter (fun (p : _ prog) -> if p.op = Nop then nops := (p, !real) :: !nops else real := Some p) (List.rev t.progs);
   if !nops <> [] then begin
-    List.iter (fun (p : prog) -> match p.target with Some q when q.op = "NOP" -> p.target <- List.assq q !nops | _ -> ()) t.progs;
-    t.progs <- List.filter (fun (p : prog) -> p.op <> "NOP") t.progs
+    List.iter (fun (p : _ prog) -> match p.target with Some q when q.op = Nop -> p.target <- List.assq q !nops | _ -> ()) t.progs;
+    t.progs <- List.filter (fun (p : _ prog) -> p.op <> Nop) t.progs
   end
 
-let follow t ~ends ~invert =
+let follow t ~ends =
+  let invert (p : _ prog) =
+    match p.op with
+    | Bcond c -> Bcond (invert c)
+    | Func | Nop | B | Bl | Bcase | Ins _ -> let f, l = p.where in error "%s:%d: unknown relation" f l in
   let link = Hashtbl.create 4096 and marked = Hashtbl.create 4096 in
   let ids = ref 0 in
-  let fresh (p : prog) = p.pc <- !ids; incr ids in
+  let fresh (p : _ prog) = p.pc <- !ids; incr ids in
   let rec links = function
-    | (p : prog) :: (q :: _ as rest) -> fresh p; Hashtbl.replace link p.pc q; links rest
+    | (p : _ prog) :: (q :: _ as rest) -> fresh p; Hashtbl.replace link p.pc q; links rest
     | [ p ] -> fresh p
     | [] -> ()
   in
   links t.progs;
-  let next (p : prog) = Hashtbl.find_opt link p.pc in
-  let is_marked (p : prog) = Hashtbl.mem marked p.pc in
-  let mark (p : prog) = Hashtbl.replace marked p.pc () in
+  let next (p : _ prog) = Hashtbl.find_opt link p.pc in
+  let is_marked (p : _ prog) = Hashtbl.mem marked p.pc in
+  let mark (p : _ prog) = Hashtbl.replace marked p.pc () in
   (* a TEXT's target is the next TEXT (5l's ldobj) *)
-  let texts = List.filter (fun (p : prog) -> p.op = "TEXT") t.progs in
-  List.iteri (fun i (p : prog) -> p.target <- List.nth_opt (List.tl texts) i) texts;
-  let rec chain (p : prog option) i =
-    if i >= 20 then None else match p with Some (q : prog) when q.op = "B" -> chain q.target (i + 1) | _ -> p
+  let texts = List.filter (fun (p : _ prog) -> p.op = Func) t.progs in
+  List.iteri (fun i (p : _ prog) -> p.target <- List.nth_opt (List.tl texts) i) texts;
+  let rec chain (p : _ prog option) i =
+    if i >= 20 then None else match p with Some (q : _ prog) when q.op = B -> chain q.target (i + 1) | _ -> p
   in
   let out = ref [] in
   let last () = match !out with q :: _ -> Some q | [] -> None in
-  let emit (p : prog) =
+  let emit (p : _ prog) =
     (match !out with l :: _ -> Hashtbl.replace link l.pc p | [] -> ());
     out := p :: !out
   in
-  let rec xfol (p : prog option) =
+  let rec xfol (p : _ prog option) =
     match p with
     | None -> ()
-    | Some ({ op = "B"; target = Some q; _ } as p) when not (is_marked q) -> mark p; xfol (Some q)
+    | Some ({ op = B; target = Some q; _ } as p) when not (is_marked q) -> mark p; xfol (Some q)
     | Some p ->
-        let p = match p.op, p.target with "B", Some q -> mark p; q | _ -> p in
+        let p = match p.op, p.target with B, Some q -> mark p; q | _ -> p in
         if is_marked p then begin
           (* up to 4 instructions from p, if they end the flow *)
-          let rec find (q : prog) i =
+          let rec find (q : _ prog) i =
             if i >= 4 || (match last () with Some l -> l == q | None -> false) then None
             (* claude: a NOP (5c -O0's) doesn't count *)
-            else if q.op = "NOP" then (match next q with Some r -> find r i | None -> None)
+            else if q.op = Nop then (match next q with Some r -> find r i | None -> None)
             else if ends q then Some q
-            else if (q.op = "BEQ" || q.op = "BNE") && (match q.target with Some c -> not (is_marked c) | None -> false) then Some q
+            else if (q.op = Bcond EQ || q.op = Bcond NE) && (match q.target with Some c -> not (is_marked c) | None -> false) then Some q
             else match next q with Some r -> find r (i + 1) | None -> None
           in
           match find p 0 with
           | Some q ->
-              let rec copy (p : prog) =
+              let rec copy (p : _ prog) =
                 let r = { p with rule = -1 } in
                 fresh r;
                 mark r;
@@ -279,7 +320,7 @@ let follow t ~ends ~invert =
                 emit r;
                 if p != q then copy (Option.get (next p))
                 else if not (ends q) then begin
-                  r.op <- invert q.op;
+                  r.op <- invert q;
                   r.target <- next q;
                   Option.iter (Hashtbl.replace link r.pc) q.target;
                   match q.target with Some l when not (is_marked l) -> xfol (Some l) | _ -> ()
@@ -287,7 +328,7 @@ let follow t ~ends ~invert =
               in
               copy p
           | None ->
-              let b = { p with op = "B"; suffixes = []; args = [ Asm.Target 0 ]; target = Some p; rule = -1 } in
+              let b = { p with op = B; suffixes = []; args = [ Asm.Target 0 ]; target = Some p; rule = -1 } in
               fresh b;
               Hashtbl.remove link b.pc;
               mark b;
@@ -298,11 +339,11 @@ let follow t ~ends ~invert =
           emit p;
           if not (ends p) then
             match p.target, next p with
-            | Some _, Some l when p.op <> "BL" ->
+            | Some _, Some l when p.op <> Bl ->
                 let q = chain (Some l) 0 in
                 (match q with
-                 | Some q when p.op <> "TEXT" && p.op <> "BCASE" && is_marked q ->
-                     p.op <- invert p.op;
+                 | Some q when p.op <> Func && p.op <> Bcase && is_marked q ->
+                     p.op <- invert p;
                      Hashtbl.replace link p.pc (Option.get p.target);
                      p.target <- Some q
                  | _ -> ());
@@ -313,7 +354,7 @@ let follow t ~ends ~invert =
         end
   in
   (match t.progs with p :: _ -> xfol (Some p) | [] -> ());
-  List.iter (fun (p : prog) -> if p.op = "TEXT" then p.target <- None) texts;
+  List.iter (fun (p : _ prog) -> if p.op = Func then p.target <- None) texts;
   t.progs <- List.rev !out
 
 (*****************************************************************************)

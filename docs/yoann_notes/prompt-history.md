@@ -2834,3 +2834,11 @@ Claude finished TinyEd refactoring and confirmed all shell tests pass with same 
 **Yoann:**
 
 > but don't you think those variants make the code cleaner and better?
+
+------------------------------------------------------------------------
+
+## 2026-09-24 09:03
+
+**Yoann:**
+
+> why linker/Arm.ml got deleted?
