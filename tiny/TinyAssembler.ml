@@ -165,11 +165,73 @@ type opd =
   | Addr of base * string * int        (* $ of the same *)
   | Target of int                      (* an instruction, by its number *)
 
+(* 64 or 32 bits: a W at the end of the mnemonic *)
+type size = X | W
+
+type mov = Mov | Movw | Movwu | Movh | Movhu | Movb | Movbu | Fmovd | Fmovs
+type logic = And | Orr | Eor | Ands | Bic | Orn | Eon | Bics
+type shift = Lsl | Lsr | Asr
+
+(* an instruction's mnemonic, decoded once by the parser *)
+(* old: the mnemonic's string, taken apart in compile at each use (a W
+ * stripped, op.[3], String.sub op 0 4...) and matched with catch-alls:
+ * FMOVD R1, R2 fell into the one for MOVBU and assembled as UXTB *)
+type op =
+  | Move of mov | Nop
+  | Ext of bool * int                                     (* SXTW ... UXTB: signed, bits *)
+  | Arith of bool * bool * size | Cmp of bool * size      (* ADD SUB ADDS SUBS: sub, flags; CMP CMN: sub *)
+  | Logic of logic * size | Tst of size | Neg of size | Mvn of size | Shift of shift * size
+  | Mul of size | Mull of bool | Div of bool * size | Rem of bool * size   (* UMULL UDIV UREM: unsigned *)
+  | B | Bl | Bcond of int | Cbz of bool * size          (* a condition's code; CBNZ: nonzero *)
+  | Ret | Return | Svc | Case | Bcase
+  | Farith of int * bool | Fcmp of bool | Fconv of int  (* the word, double *)
+  | Unknown of string                                  (* an error, if its function is linked *)
+
 type item =
   | Text of string * int                          (* name, frame *)
-  | Ins of string * opd list
+  | Ins of op * opd list
   | Globl of string * int
   | Data of string * int * int * opd              (* name, offset, width, value *)
+
+let conds = [ "EQ", 0; "NE", 1; "CS", 2; "HS", 2; "CC", 3; "LO", 3; "MI", 4; "PL", 5; "VS", 6; "VC", 7; "HI", 8; "LS", 9;
+              "GE", 10; "LT", 11; "GT", 12; "LE", 13 ]
+
+let fconv = [ "FCVTDS", 0x1E624000; "FCVTSD", 0x1E22C000; "SCVTFD", 0x9E620000; "SCVTFWD", 0x1E620000; "SCVTFS", 0x9E220000;
+              "SCVTFWS", 0x1E220000; "UCVTFD", 0x9E630000; "UCVTFWD", 0x1E630000; "UCVTFS", 0x9E230000; "UCVTFWS", 0x1E230000;
+              "FCVTZSD", 0x9E780000; "FCVTZSDW", 0x1E780000; "FCVTZSS", 0x9E380000; "FCVTZSSW", 0x1E380000;
+              "FCVTZUD", 0x9E790000; "FCVTZUDW", 0x1E790000; "FCVTZUS", 0x9E390000; "FCVTZUSW", 0x1E390000 ]
+
+let op_of_string (s : string) : op =
+  let n = String.length s in
+  (* a W at the end: the 32-bit form, but in MOVW, SXTW, UXTW *)
+  let base, sz = if n > 1 && s.[n - 1] = 'W' && not (List.mem s [ "MOVW"; "SXTW"; "UXTW" ]) then String.sub s 0 (n - 1), W else s, X in
+  let assoc l k = List.assoc_opt k l in
+  match assoc fconv s with
+  | Some w -> Fconv w
+  | None -> (
+      match assoc [ "MOV", Mov; "MOVW", Movw; "MOVWU", Movwu; "MOVH", Movh; "MOVHU", Movhu; "MOVB", Movb; "MOVBU", Movbu;
+                    "FMOVD", Fmovd; "FMOVS", Fmovs ] base,
+            assoc [ "AND", And; "ORR", Orr; "EOR", Eor; "ANDS", Ands; "BIC", Bic; "ORN", Orn; "EON", Eon; "BICS", Bics ] base with
+      | Some m, _ -> Move m
+      | _, Some l -> Logic (l, sz)
+      | None, None -> (
+          match base with
+          | "SXTW" -> Ext (true, 32) | "SXTH" -> Ext (true, 16) | "SXTB" -> Ext (true, 8)
+          | "UXTW" -> Ext (false, 32) | "UXTH" -> Ext (false, 16) | "UXTB" -> Ext (false, 8)
+          | "ADD" -> Arith (false, false, sz) | "SUB" -> Arith (true, false, sz)
+          | "ADDS" -> Arith (false, true, sz) | "SUBS" -> Arith (true, true, sz)
+          | "CMP" -> Cmp (true, sz) | "CMN" -> Cmp (false, sz)
+          | "TST" -> Tst sz | "NEG" -> Neg sz | "MVN" -> Mvn sz
+          | "LSL" -> Shift (Lsl, sz) | "LSR" -> Shift (Lsr, sz) | "ASR" -> Shift (Asr, sz)
+          | "MUL" -> Mul sz | "UMULL" -> Mull true | "SMULL" -> Mull false
+          | "UDIV" -> Div (true, sz) | "SDIV" -> Div (false, sz) | "UREM" -> Rem (true, sz) | "REM" -> Rem (false, sz)
+          | "B" -> B | "BL" -> Bl | "CBZ" -> Cbz (false, sz) | "CBNZ" -> Cbz (true, sz)
+          | "RET" -> Ret | "RETURN" -> Return | "SVC" -> Svc | "CASE" -> Case | "BCASE" -> Bcase | "NOP" -> Nop
+          | "FADDD" | "FSUBD" | "FMULD" | "FDIVD" | "FADDS" | "FSUBS" | "FMULS" | "FDIVS" ->
+              Farith (List.assoc (String.sub s 0 4) [ "FADD", 0x1E202800; "FSUB", 0x1E203800; "FMUL", 0x1E200800; "FDIV", 0x1E201800 ], s.[4] = 'D')
+          | "FCMPD" -> Fcmp true | "FCMPS" -> Fcmp false
+          | _ when n = 3 && s.[0] = 'B' && List.mem_assoc (String.sub s 1 2) conds -> Bcond (List.assoc (String.sub s 1 2) conds)
+          | _ -> Unknown s))
 
 let register s =
   let num p = if String.length s > 1 && s.[0] = p then int_of_string_opt (String.sub s 1 (String.length s - 1)) else None in
@@ -260,7 +322,7 @@ let parse caps files =
             | [ Mem (SB, n, _); Imm s ] | [ Mem (SB, n, _); _; Imm s ] ->
                 emit (if d = "TEXT" then Text (n, Int64.to_int s) else Globl (n, Int64.to_int s))
             | _ -> fail ("bad " ^ d))
-        | Id op -> emit (Ins (op, if !toks = [] then [] else operands ()))
+        | Id op -> emit (Ins (op_of_string op, if !toks = [] then [] else operands ()))
         | _ -> fail "syntax error"
       in
       statement ();
@@ -363,11 +425,10 @@ let address rd (a : unit -> int) : word list =
 (* loads and stores: the size's log, the load, the store (unsigned
  * offset forms; the unscaled and register-offset ones derive) *)
 let ldst = function
-  | "MOV" -> 3, 0xF9400000, 0xF9000000 | "MOVW" -> 2, 0xB9800000, 0xB9000000 | "MOVWU" -> 2, 0xB9400000, 0xB9000000
-  | "MOVH" -> 1, 0x79800000, 0x79000000 | "MOVHU" -> 1, 0x79400000, 0x79000000
-  | "MOVB" -> 0, 0x39800000, 0x39000000 | "MOVBU" -> 0, 0x39400000, 0x39000000
-  | "FMOVD" -> 3, 0xFD400000, 0xFD000000 | "FMOVS" -> 2, 0xBD400000, 0xBD000000
-  | op -> error "no load or store %s" op
+  | Mov -> 3, 0xF9400000, 0xF9000000 | Movw -> 2, 0xB9800000, 0xB9000000 | Movwu -> 2, 0xB9400000, 0xB9000000
+  | Movh -> 1, 0x79800000, 0x79000000 | Movhu -> 1, 0x79400000, 0x79000000
+  | Movb -> 0, 0x39800000, 0x39000000 | Movbu -> 0, 0x39400000, 0x39000000
+  | Fmovd -> 3, 0xFD400000, 0xFD000000 | Fmovs -> 2, 0xBD400000, 0xBD000000
 
 let access op load rt b o =
   let s, l, st = ldst op in
@@ -375,17 +436,6 @@ let access op load rt b o =
   if o >= 0 && o land ((1 lsl s) - 1) = 0 && o lsr s < 4096 then [ k (opc lor ((o lsr s) lsl 10) lor (b lsl 5) lor rt) ]
   else if o >= -256 && o < 256 then [ k ((opc land lnot (1 lsl 24)) lor ((o land 0x1ff) lsl 12) lor (b lsl 5) lor rt) ]
   else movconst true tmp (Int64.of_int o) @ [ k ((opc land lnot (1 lsl 24)) lor (1 lsl 21) lor (tmp lsl 16) lor (3 lsl 13) lor (2 lsl 10) lor (b lsl 5) lor rt) ]
-
-let conds = [ "EQ", 0; "NE", 1; "CS", 2; "HS", 2; "CC", 3; "LO", 3; "MI", 4; "PL", 5; "VS", 6; "VC", 7; "HI", 8; "LS", 9;
-              "GE", 10; "LT", 11; "GT", 12; "LE", 13 ]
-
-(* a W at the end: the 32-bit form *)
-let width op = if String.length op > 1 && op.[String.length op - 1] = 'W' && not (List.mem op [ "MOVW"; "SXTW"; "UXTW" ]) then String.sub op 0 (String.length op - 1), false else op, true
-
-let fconv = [ "FCVTDS", 0x1E624000; "FCVTSD", 0x1E22C000; "SCVTFD", 0x9E620000; "SCVTFWD", 0x1E620000; "SCVTFS", 0x9E220000;
-              "SCVTFWS", 0x1E220000; "UCVTFD", 0x9E630000; "UCVTFWD", 0x1E630000; "UCVTFS", 0x9E230000; "UCVTFWS", 0x1E230000;
-              "FCVTZSD", 0x9E780000; "FCVTZSDW", 0x1E780000; "FCVTZSS", 0x9E380000; "FCVTZSSW", 0x1E380000;
-              "FCVTZUD", 0x9E790000; "FCVTZUDW", 0x1E790000; "FCVTZUS", 0x9E390000; "FCVTZUSW", 0x1E390000 ]
 
 type fctx = { autosize : int; leaf : bool; mutable lastcase : int }
 
@@ -400,103 +450,105 @@ let branch base bits shift t : word = fun pc -> base lor ((((t () - pc) asr 2) l
 let frame_off c b o = match b with SP -> c.autosize + o | FP -> c.autosize + 8 + o | _ -> o
 let reg = function Reg r | FReg r -> r | Imm 0L -> zr | _ -> error "expected a register"
 
-let compile c op args : word list =
-  let base, sf = width op in
-  let top = if sf then 1 lsl 31 else 0 in
+let compile c (op : op) args : word list =
+  let bad () = error "bad operands" in
+  let top = function X -> 1 lsl 31 | W -> 0 in
   (* the operands: (from, middle, to), the middle defaulting to to *)
-  let three = function [ a; d ] -> a, reg d, reg d | [ a; n; d ] -> a, reg n, reg d | _ -> error "%s: bad operands" op in
-  match base, args with
+  let three = function [ a; d ] -> a, reg d, reg d | [ a; n; d ] -> a, reg n, reg d | _ -> bad () in
+  let two = function [ a; n ] -> a, reg n, zr | _ -> bad () in
+  (* ADD SUB ADDS SUBS: register, or an immediate made to fit *)
+  let arith sub flags sz (a, n, d) =
+    let sf = sz = X in
+    let rr sub rm = k (top sz lor (if sub then 1 lsl 30 else 0) lor (if flags then 1 lsl 29 else 0) lor 0x0B000000 lor (rm lsl 16) lor (n lsl 5) lor d) in
+    match a with
+    | Reg m -> [ rr sub m ]
+    | Imm v ->
+        let sub, v = if v < 0L then not sub, Int64.neg v else sub, v in
+        let v = Int64.to_int v in
+        if v < 4096 || (v land 0xfff = 0 && v < 1 lsl 24) || (not flags && v < 1 lsl 24) then
+          List.map (fun w pc -> w pc lor (if flags then 1 lsl 29 else 0)) (add_imm sf sub d n v)
+        else if not flags && (n = sp || d = sp) then
+          movconst sf tmp (Int64.of_int v) @ [ k (top sz lor (if sub then 1 lsl 30 else 0) lor 0x0B200000 lor (tmp lsl 16) lor ((if sf then 3 else 2) lsl 13) lor (n lsl 5) lor d) ]
+        else movconst sf tmp (Int64.of_int v) @ [ rr sub tmp ]
+    | _ -> bad ()
+  in
+  let logic l sz (a, n, d) =
+    let opc, neg = match l with And -> 0, 0 | Orr -> 1, 0 | Eor -> 2, 0 | Ands -> 3, 0 | Bic -> 0, 1 | Orn -> 1, 1 | Eon -> 2, 1 | Bics -> 3, 1 in
+    let rr m = k (top sz lor (opc lsl 29) lor 0x0A000000 lor (neg lsl 21) lor (m lsl 16) lor (n lsl 5) lor d) in
+    match a with
+    | Reg m -> [ rr m ]
+    | Imm v -> movconst (sz = X) tmp (if sz = X then v else Int64.logand v 0xffffffffL) @ [ rr tmp ]
+    | _ -> bad ()
+  in
+  let rrr o = let a, n, d = three args in [ k (o lor (reg a lsl 16) lor (n lsl 5) lor d) ] in
+  match op, args with
   (* moves, loads and stores *)
-  | ("MOV" | "MOVW" | "MOVWU" | "MOVH" | "MOVHU" | "MOVB" | "MOVBU" | "FMOVD" | "FMOVS"), [ a; b ] -> (
+  | Move m, [ a; b ] -> (
       match a, b with
-      | (Reg _ | FReg _ | Imm 0L), Mem (SB, n, o) -> address tmp (fun () -> addr n + o) @ access op false (reg a) tmp 0
-      | (Reg _ | FReg _ | Imm 0L), Mem (bs, _, o) -> access op false (reg a) (match bs with R r -> r | _ -> sp) (frame_off c bs o)
-      | Mem (SB, n, o), _ -> address tmp (fun () -> addr n + o) @ access op true (reg b) tmp 0
-      | Mem (bs, _, o), _ -> access op true (reg b) (match bs with R r -> r | _ -> sp) (frame_off c bs o)
+      | (Reg _ | FReg _ | Imm 0L), Mem (SB, n, o) -> address tmp (fun () -> addr n + o) @ access m false (reg a) tmp 0
+      | (Reg _ | FReg _ | Imm 0L), Mem (bs, _, o) -> access m false (reg a) (match bs with R r -> r | _ -> sp) (frame_off c bs o)
+      | Mem (SB, n, o), _ -> address tmp (fun () -> addr n + o) @ access m true (reg b) tmp 0
+      | Mem (bs, _, o), _ -> access m true (reg b) (match bs with R r -> r | _ -> sp) (frame_off c bs o)
       | Addr (SB, n, o), Reg d -> address d (fun () -> addr n + o)
       | Addr (bs, _, o), Reg d -> add_imm true false d (match bs with R r -> r | _ -> sp) (frame_off c bs o)
-      | Imm v, Reg d -> movconst (op = "MOV") d (if op = "MOV" then v else Int64.logand v 0xffffffffL)
-      | Fimm x, FReg d ->
-          if op = "FMOVD" then movconst true tmp (Int64.bits_of_float x) @ [ k (0x9E670000 lor (tmp lsl 5) lor d) ]
-          else movconst false tmp (Int64.of_int32 (Int32.bits_of_float x)) @ [ k (0x1E270000 lor (tmp lsl 5) lor d) ]
-      | FReg f, FReg d -> [ k ((if op = "FMOVD" then 0x1E604000 else 0x1E204000) lor (f lsl 5) lor d) ]
-      | Reg f, Reg d ->
-          [ k (match op with
-               | "MOV" when f = sp || d = sp -> 0x91000000 lor (f lsl 5) lor d
-               | "MOV" -> 0xAA0003E0 lor (f lsl 16) lor d
-               | "MOVWU" -> 0x2A0003E0 lor (f lsl 16) lor d
-               | "MOVW" -> 0x93407C00 lor (f lsl 5) lor d | "MOVH" -> 0x93403C00 lor (f lsl 5) lor d
-               | "MOVHU" -> 0xD3403C00 lor (f lsl 5) lor d | "MOVB" -> 0x93401C00 lor (f lsl 5) lor d
-               | _ -> 0xD3401C00 lor (f lsl 5) lor d) ]
-      | _ -> error "%s: bad operands" op)
-  | ("SXTW" | "SXTH" | "SXTB" | "UXTW" | "UXTH" | "UXTB"), [ Reg f; Reg d ] ->
-      [ k (List.assoc op [ "SXTW", 0x93407C00; "SXTH", 0x93403C00; "SXTB", 0x93401C00; "UXTW", 0xD3407C00; "UXTH", 0xD3403C00; "UXTB", 0xD3401C00 ]
-           lor (f lsl 5) lor d) ]
-  (* claude: 7c -O0's NOPs: no word, so a branch to one lands on the next *)
-  | "NOP", _ -> []
+      | Imm v, Reg d -> movconst (m = Mov) d (if m = Mov then v else Int64.logand v 0xffffffffL)
+      | Fimm x, FReg d when m = Fmovd -> movconst true tmp (Int64.bits_of_float x) @ [ k (0x9E670000 lor (tmp lsl 5) lor d) ]
+      | Fimm x, FReg d when m = Fmovs -> movconst false tmp (Int64.of_int32 (Int32.bits_of_float x)) @ [ k (0x1E270000 lor (tmp lsl 5) lor d) ]
+      | FReg f, FReg d when m = Fmovd -> [ k (0x1E604000 lor (f lsl 5) lor d) ]
+      | FReg f, FReg d when m = Fmovs -> [ k (0x1E204000 lor (f lsl 5) lor d) ]
+      | Reg f, Reg d -> (
+          let w o = [ k (o lor (f lsl 5) lor d) ] and orr o = [ k (o lor (f lsl 16) lor d) ] in
+          match m with
+          | Mov when f = sp || d = sp -> w 0x91000000
+          | Mov -> orr 0xAA0003E0
+          | Movwu -> orr 0x2A0003E0
+          | Movw -> w 0x93407C00 | Movh -> w 0x93403C00 | Movhu -> w 0xD3403C00 | Movb -> w 0x93401C00 | Movbu -> w 0xD3401C00
+          | Fmovd | Fmovs -> bad ())
+      | _ -> bad ())
+  | Ext (signed, bits), [ Reg f; Reg d ] ->
+      [ k ((if signed then 0x93400000 else 0xD3400000) lor ((bits - 1) lsl 10) lor (f lsl 5) lor d) ]
   (* claude: 7c's optimizer extends constants too (SXTW $c, R), a MOV of the extended value *)
-  | ("SXTW" | "SXTH" | "SXTB" | "UXTW" | "UXTH" | "UXTB"), [ Imm v; Reg d ] ->
-      let bits = match op.[3] with 'W' -> 32 | 'H' -> 16 | _ -> 8 in
-      let v = if op.[0] = 'S' then Int64.shift_right (Int64.shift_left v (64 - bits)) (64 - bits)
+  | Ext (signed, bits), [ Imm v; Reg d ] ->
+      let v = if signed then Int64.shift_right (Int64.shift_left v (64 - bits)) (64 - bits)
               else Int64.logand v (Int64.pred (Int64.shift_left 1L bits)) in
       movconst true d v
-  (* arithmetic: register, or an immediate made to fit *)
-  | ("ADD" | "SUB" | "ADDS" | "SUBS" | "CMP" | "CMN"), _ ->
-      let a, n, d = match base, args with ("CMP" | "CMN"), [ a; n ] -> a, reg n, zr | _ -> three args in
-      let flags = base <> "ADD" && base <> "SUB" in
-      let sub = List.mem base [ "SUB"; "SUBS"; "CMP" ] in
-      let rr sub rm = k (top lor (if sub then 1 lsl 30 else 0) lor (if flags then 1 lsl 29 else 0) lor 0x0B000000 lor (rm lsl 16) lor (n lsl 5) lor d) in
-      (match a with
-       | Reg m -> [ rr sub m ]
-       | Imm v ->
-           let sub, v = if v < 0L then not sub, Int64.neg v else sub, v in
-           let v = Int64.to_int v in
-           if v < 4096 || (v land 0xfff = 0 && v < 1 lsl 24) || (not flags && v < 1 lsl 24) then
-             List.map (fun w pc -> w pc lor (if flags then 1 lsl 29 else 0)) (add_imm sf sub d n v)
-           else if not flags && (n = sp || d = sp) then
-             movconst sf tmp (Int64.of_int v) @ [ k (top lor (if sub then 1 lsl 30 else 0) lor 0x0B200000 lor (tmp lsl 16) lor ((if sf then 3 else 2) lsl 13) lor (n lsl 5) lor d) ]
-           else movconst sf tmp (Int64.of_int v) @ [ rr sub tmp ]
-       | _ -> error "%s: bad operands" op)
-  | ("AND" | "ORR" | "EOR" | "ANDS" | "BIC" | "ORN" | "EON" | "BICS" | "TST"), _ ->
-      let a, n, d = if base = "TST" then (match args with [ a; n ] -> a, reg n, zr | _ -> error "bad TST") else three args in
-      let opc, neg = List.assoc (if base = "TST" then "ANDS" else base)
-          [ "AND", (0, 0); "ORR", (1, 0); "EOR", (2, 0); "ANDS", (3, 0); "BIC", (0, 1); "ORN", (1, 1); "EON", (2, 1); "BICS", (3, 1) ] in
-      let rr m = k (top lor (opc lsl 29) lor 0x0A000000 lor (neg lsl 21) lor (m lsl 16) lor (n lsl 5) lor d) in
-      (match a with
-       | Reg m -> [ rr m ]
-       | Imm v -> movconst sf tmp (if sf then v else Int64.logand v 0xffffffffL) @ [ rr tmp ]
-       | _ -> error "%s: bad operands" op)
-  | ("NEG" | "MVN"), [ Reg m; Reg d ] -> [ k (top lor (if base = "NEG" then 0x4B0003E0 else 0x2A2003E0) lor (m lsl 16) lor d) ]
-  | ("LSL" | "LSR" | "ASR"), _ -> (
+  (* claude: 7c -O0's NOPs: no word, so a branch to one lands on the next *)
+  | Nop, _ -> []
+  | Arith (sub, flags, sz), _ -> arith sub flags sz (three args)
+  | Cmp (sub, sz), _ -> arith sub true sz (two args)
+  | Logic (l, sz), _ -> logic l sz (three args)
+  | Tst sz, _ -> logic Ands sz (two args)
+  | Neg sz, [ Reg m; Reg d ] -> [ k (top sz lor 0x4B0003E0 lor (m lsl 16) lor d) ]
+  | Mvn sz, [ Reg m; Reg d ] -> [ k (top sz lor 0x2A2003E0 lor (m lsl 16) lor d) ]
+  | Shift (sh, sz), _ -> (
       let a, n, d = three args in
-      let w = if sf then 64 else 32 in
+      let w = if sz = X then 64 else 32 in
       match a with
       | Imm v ->
           let v = Int64.to_int v in
-          let immr, imms = if base = "LSL" then (w - v) land (w - 1), w - 1 - v else v, w - 1 in
-          [ k ((if base = "ASR" then (if sf then 0x93400000 else 0x13000000) else if sf then 0xD3400000 else 0x53000000)
+          let immr, imms = if sh = Lsl then (w - v) land (w - 1), w - 1 - v else v, w - 1 in
+          [ k ((if sh = Asr then (if sz = X then 0x93400000 else 0x13000000) else if sz = X then 0xD3400000 else 0x53000000)
                lor (immr lsl 16) lor (imms lsl 10) lor (n lsl 5) lor d) ]
-      | Reg m -> [ k (top lor List.assoc base [ "LSL", 0x1AC02000; "LSR", 0x1AC02400; "ASR", 0x1AC02800 ] lor (m lsl 16) lor (n lsl 5) lor d) ]
-      | _ -> error "%s: bad operands" op)
-  | ("MUL" | "UMULL" | "SMULL" | "SDIV" | "UDIV"), _ ->
-      let a, n, d = three args in
-      let o = match base with "MUL" -> top lor 0x1B007C00 | "UMULL" -> 0x9BA07C00 | "SMULL" -> 0x9B207C00
-                              | "SDIV" -> top lor 0x1AC00C00 | _ -> top lor 0x1AC00800 in
-      [ k (o lor (reg a lsl 16) lor (n lsl 5) lor d) ]
-  | ("REM" | "UREM"), _ ->
+      | Reg m -> [ k (top sz lor (match sh with Lsl -> 0x1AC02000 | Lsr -> 0x1AC02400 | Asr -> 0x1AC02800) lor (m lsl 16) lor (n lsl 5) lor d) ]
+      | _ -> bad ())
+  | Mul sz, _ -> rrr (top sz lor 0x1B007C00)
+  | Mull unsigned, _ -> rrr (if unsigned then 0x9BA07C00 else 0x9B207C00)
+  | Div (unsigned, sz), _ -> rrr (top sz lor if unsigned then 0x1AC00800 else 0x1AC00C00)
+  | Rem (unsigned, sz), _ ->
       (* the quotient, then the remainder by MSUB *)
       let a, n, d = three args in
-      [ k (top lor (if base = "REM" then 0x1AC00C00 else 0x1AC00800) lor (reg a lsl 16) lor (n lsl 5) lor tmp);
-        k (top lor 0x1B008000 lor (reg a lsl 16) lor (n lsl 10) lor (tmp lsl 5) lor d) ]
+      [ k (top sz lor (if unsigned then 0x1AC00800 else 0x1AC00C00) lor (reg a lsl 16) lor (n lsl 5) lor tmp);
+        k (top sz lor 0x1B008000 lor (reg a lsl 16) lor (n lsl 10) lor (tmp lsl 5) lor d) ]
   (* branches *)
-  | ("B" | "BL"), [ Mem (R r, _, _) ] -> [ k ((if op = "B" then 0xD61F0000 else 0xD63F0000) lor (r lsl 5)) ]
-  | ("B" | "BL"), [ t ] -> [ branch (if op = "B" then 0x14000000 else 0x94000000) 26 0 (target t) ]
-  | _, [ t ] when String.length op = 3 && op.[0] = 'B' && List.mem_assoc (String.sub op 1 2) conds ->
-      [ branch (0x54000000 lor List.assoc (String.sub op 1 2) conds) 19 5 (target t) ]
-  | ("CBZ" | "CBNZ"), [ Reg r; t ] -> [ branch (top lor (if base = "CBZ" then 0x34000000 else 0x35000000) lor r) 19 5 (target t) ]
-  | "RET", [] -> [ k 0xD65F03C0 ]
-  | "RET", [ Mem (R r, _, _) ] | "RET", [ Reg r ] -> [ k (0xD65F0000 lor (r lsl 5)) ]
-  | "RETURN", [] ->
+  | B, [ Mem (R r, _, _) ] -> [ k (0xD61F0000 lor (r lsl 5)) ]
+  | Bl, [ Mem (R r, _, _) ] -> [ k (0xD63F0000 lor (r lsl 5)) ]
+  | B, [ t ] -> [ branch 0x14000000 26 0 (target t) ]
+  | Bl, [ t ] -> [ branch 0x94000000 26 0 (target t) ]
+  | Bcond cc, [ t ] -> [ branch (0x54000000 lor cc) 19 5 (target t) ]
+  | Cbz (nonzero, sz), [ Reg r; t ] -> [ branch (top sz lor (if nonzero then 0x35000000 else 0x34000000) lor r) 19 5 (target t) ]
+  | Ret, [] -> [ k 0xD65F03C0 ]
+  | Ret, ([ Mem (R r, _, _) ] | [ Reg r ]) -> [ k (0xD65F0000 lor (r lsl 5)) ]
+  | Return, [] ->
       let ret = k 0xD65F03C0 in
       if c.leaf then (if c.autosize = 0 then [ ret ] else add_imm true false sp sp c.autosize @ [ ret ])
       else
@@ -504,28 +556,29 @@ let compile c op args : word list =
         (* LDR R30, [SP], #pop *)
         k (0xF8400400 lor ((pop land 0x1ff) lsl 12) lor (sp lsl 5) lor link)
         :: (if c.autosize > pop then add_imm true false sp sp (c.autosize - pop) else []) @ [ ret ]
-  | "SVC", ([] | [ Imm _ ]) -> [ k (0xD4000001 lor (match args with [ Imm v ] -> (Int64.to_int v land 0xffff) lsl 5 | _ -> 0)) ]
+  | Svc, [] -> [ k 0xD4000001 ]
+  | Svc, [ Imm v ] -> [ k (0xD4000001 lor ((Int64.to_int v land 0xffff) lsl 5)) ]
   (* a switch: the table of offsets that follows, at CASE+16 *)
-  | "CASE", [ Reg v; Reg t ] ->
+  | Case, [ Reg v; Reg t ] ->
       [ k (0x10000000 lor (4 lsl 5) lor t);
         k (0xB8A07800 lor (v lsl 16) lor (t lsl 5) lor tmp);
         k (0x8B000000 lor (t lsl 16) lor (tmp lsl 5) lor tmp);
         k (0xD61F0000 lor (tmp lsl 5)) ]
-  | "BCASE", [ t ] ->
+  | Bcase, [ t ] ->
       let case = c.lastcase in
       [ (fun _ -> (target t () - (Hashtbl.find item_addrs case + 16)) land 0xffffffff) ]
   (* floating point *)
-  | ("FADDD" | "FSUBD" | "FMULD" | "FDIVD" | "FADDS" | "FSUBS" | "FMULS" | "FDIVS"), _ ->
+  | Farith (o, double), _ ->
       let a, n, d = three args in
-      let o = List.assoc (String.sub op 0 4) [ "FADD", 0x1E202800; "FSUB", 0x1E203800; "FMUL", 0x1E200800; "FDIV", 0x1E201800 ] in
-      [ k (o lor (if op.[4] = 'D' then 0x400000 else 0) lor (reg a lsl 16) lor (n lsl 5) lor d) ]
-  | ("FCMPD" | "FCMPS"), [ a; n ] -> [ k ((if op = "FCMPD" then 0x1E602000 else 0x1E202000) lor (reg a lsl 16) lor (reg n lsl 5)) ]
-  | _, [ a; d ] when List.mem_assoc op fconv -> [ k (List.assoc op fconv lor (reg a lsl 5) lor reg d) ]
-  | _ -> error "%s: not in the subset, or bad operands" op
+      [ k (o lor (if double then 0x400000 else 0) lor (reg a lsl 16) lor (n lsl 5) lor d) ]
+  | Fcmp double, [ a; n ] -> [ k ((if double then 0x1E602000 else 0x1E202000) lor (reg a lsl 16) lor (reg n lsl 5)) ]
+  | Fconv o, [ a; d ] -> [ k (o lor (reg a lsl 5) lor reg d) ]
+  | Unknown s, _ -> error "%s: not in the subset" s
+  | (Move _ | Ext _ | Neg _ | Mvn _ | B | Bl | Bcond _ | Cbz _ | Ret | Return | Svc | Case | Bcase | Fcmp _ | Fconv _), _ -> bad ()
 
 (* a function's frame (7l's noops), its prologue, and its instructions *)
 let expand (f : func) =
-  let leaf = not (List.exists (function Ins ("BL", _), _ -> true | _ -> false) f.body) in
+  let leaf = not (List.exists (function Ins (Bl, _), _ -> true | _ -> false) f.body) in
   let a = if f.frame < 0 then 0 else ((f.frame + 7) land lnot 7) + 8 in
   let a = if leaf && a <= 8 then 0 else (a + 15) land lnot 15 in
   let leaf = leaf || a = 0 in
@@ -537,7 +590,7 @@ let expand (f : func) =
         (if a > push then add_imm true true sp sp (a - push) else [])
         (* STR R30, [SP, #-push]! *)
         @ if leaf then [] else [ k (0xF8000C00 lor ((- push land 0x1ff) lsl 12) lor (sp lsl 5) lor link) ]
-    | Ins (op, args) -> if op = "CASE" then c.lastcase <- id; (try compile c op args with Error m -> let fl, l = f.where in error "%s (in %s, from %s:%d)" m f.name fl l)
+    | Ins (op, args) -> if op = Case then c.lastcase <- id; (try compile c op args with Error m -> let fl, l = f.where in error "%s (in %s, from %s:%d)" m f.name fl l)
     | _ -> []) f.body
 
 (*****************************************************************************)

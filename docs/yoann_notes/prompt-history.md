@@ -2810,3 +2810,27 @@ All 58 editor tests, 45 corpus cases, and TinyEditor's sam-based tests passed af
 **Yoann:**
 
 > (can update the README with those relaxing constraints)
+
+**Claude (summary):**
+
+Claude identified condition codes, regex engines, and small helpers as candidates for lib_core/ or tiny/TinyLibXxx.ml.
+Claude updated README principle 9 to explicitly allow intermediate libraries factoring real duplication across programs.
+Claude completed TinyShell's `-e` bug fix by moving execution context from global counter to a local run argument.
+Claude fixed TinyRc's `<{cmd}^x` pipe-fd word bug and refactored Pipefd, keywords, redirections as closed variants.
+Claude finished TinyEd refactoring and confirmed all shell tests pass with same verdicts on principia and xix files.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:45
+
+**Yoann:**
+
+> let's continue, but look also for tiny libs opportunities
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:46
+
+**Yoann:**
+
+> but don't you think those variants make the code cleaner and better?
