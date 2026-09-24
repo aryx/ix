@@ -95,7 +95,7 @@ let etype_of (t : typ option) = match t with Some t -> t.etype | None -> Txxx
 
 (* a cast that makes no code: a same-size move (sub.c's nocast) *)
 let nocast (t1 : typ option) (t2 : typ option) =
-  b (etype_of t2) land (m ()).ncast (etype_of t1) <> 0
+  ncast (etype_of t1) (etype_of t2)
 
 (* a cast that means nothing: small to large (sub.c's nilcast) *)
 let nilcast (t1 : typ option) (t2 : typ option) =
@@ -106,11 +106,9 @@ let nilcast (t1 : typ option) (t2 : typ option) =
   | _ -> false
 
 (* the operator's table says t2 won't do with t1 *)
-let stcompat (n : node) (t1 : typ option) (t2 : typ option) (ttab : etype -> int) =
+let stcompat (n : node) (t1 : typ option) (t2 : typ option) ttab =
   let i1 = etype_of t1 and i2 = etype_of t2 in
-  let bb = b i2 in
-  if bb land ttab i1 = 0 then true
-  else (ttab == tasign && (bb = b Tstruct || bb = b Tunion) || n.op <> OCAST && bb = b Tind && i1 = Tind) && not (sametype t1 t2)
+  not (ttab i1 i2) || (ttab == tasign && typesu i2 || n.op <> OCAST && i2 = Tind && i1 = Tind) && not (sametype t1 t2)
 
 let tcompat n t1 t2 ttab =
   stcompat n t1 t2 ttab && diag (Some n) "incompatible types: \"%s\" and \"%s\" for op \"%s\"" (show_type t1) (show_type t2) (opname n.op)

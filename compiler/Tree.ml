@@ -13,90 +13,78 @@
 (* Types' kinds, and their sets *)
 (*****************************************************************************)
 
-(* a type's kind, then the other words of a declaration: one numbering,
- * for a declaration's words are a set of bits (cc.h's TCHAR... BAUTO...) *)
+(* a type's kind; Tdot is a prototype's ..., Told an old-style one's
+ * parameters *)
 type etype =
   | Txxx | Tchar | Tuchar | Tshort | Tushort | Tint | Tuint | Tlong | Tulong | Tvlong | Tuvlong | Tfloat | Tdouble
-  | Tind | Tfunc | Tarray | Tvoid | Tstruct | Tunion | Tenum | Tdot
-  | Tauto | Textern | Tstatic | Ttypedef | Ttypestr | Tregister | Tconstnt | Tvolatile | Tunsigned | Tsigned | Tfile | Told
+  | Tind | Tfunc | Tarray | Tvoid | Tstruct | Tunion | Tenum | Tdot | Told
 
-(* constant constructors are their index *)
-let rank (t : etype) = (Obj.magic t : int)
-let b t = 1 lsl rank t
-let bits l = List.fold_left (fun a t -> a lor b t) 0 l
-
-let integers = [ Tchar; Tuchar; Tshort; Tushort; Tint; Tuint; Tlong; Tulong; Tvlong; Tuvlong ]
-let binteger = bits integers
-let bnumber = binteger lor b Tfloat lor b Tdouble
-let bclass = bits [ Tauto; Textern; Tstatic; Ttypedef; Ttypestr; Tregister ]
-let bgarb = b Tconstnt lor b Tvolatile
+let kinds = [ Txxx, "TXXX"; Tchar, "CHAR"; Tuchar, "UCHAR"; Tshort, "SHORT"; Tushort, "USHORT"; Tint, "INT";
+  Tuint, "UINT"; Tlong, "LONG"; Tulong, "ULONG"; Tvlong, "VLONG"; Tuvlong, "UVLONG"; Tfloat, "FLOAT";
+  Tdouble, "DOUBLE"; Tind, "IND"; Tfunc, "FUNC"; Tarray, "ARRAY"; Tvoid, "VOID"; Tstruct, "STRUCT";
+  Tunion, "UNION"; Tenum, "ENUM"; Tdot, "DOT"; Told, "OLD" ]
+let tname t = List.assoc t kinds
 
 (* the sets are named by their members' initials, as sub.c's: typechlp
  * is char, short, long (of each sign) and pointer *)
 let set l t = List.mem t l
+let integers = [ Tchar; Tuchar; Tshort; Tushort; Tint; Tuint; Tlong; Tulong; Tvlong; Tuvlong ]
+let chl = [ Tchar; Tuchar; Tshort; Tushort; Tint; Tuint; Tlong; Tulong ]
 let typei = set integers
 let typeu = set [ Tuchar; Tushort; Tuint; Tulong; Tuvlong; Tind ]
 let typesuv = set [ Tvlong; Tuvlong; Tstruct; Tunion ]
 let typeilp = set [ Tint; Tuint; Tlong; Tulong; Tind ]
-let chl = [ Tchar; Tuchar; Tshort; Tushort; Tint; Tuint; Tlong; Tulong ]
 let typechl = set chl
-let typechlv = set integers
+let typechlv = typei
 let typechlvp = set (Tind :: integers)
 let typechlp = set (Tind :: chl)
 let typev = set [ Tvlong; Tuvlong ]
 let typefd = set [ Tfloat; Tdouble ]
 let typeaf = set [ Tfunc; Tarray ]
 let typesu = set [ Tstruct; Tunion ]
+let number t = typei t || typefd t
 
-(* which types an operator takes, by its left type: a set of right types
- * as bits (sub.c's tasign, tadd...) *)
-let table l t = match List.assoc_opt t l with Some v -> v | None -> 0
-let numbers = List.map (fun t -> t, bnumber) (integers @ [ Tfloat; Tdouble ])
-let tasign = table (numbers @ [ Tind, b Tind; Tstruct, b Tstruct; Tunion, b Tunion ])
-let tasadd = table (numbers @ [ Tind, binteger ])
-let tcast = table (List.map (fun t -> t, bnumber lor b Tind lor b Tvoid) integers
-                   @ [ Tfloat, bnumber lor b Tvoid; Tdouble, bnumber lor b Tvoid; Tind, binteger lor b Tind lor b Tvoid;
-                       Tvoid, b Tvoid; Tstruct, b Tstruct lor b Tvoid; Tunion, b Tunion lor b Tvoid ])
-let tadd = table (List.map (fun (t, v) -> t, if typefd t then v else v lor b Tind) numbers @ [ Tind, binteger ])
-let tsub = table (numbers @ [ Tind, binteger lor b Tind ])
-let tmul = table numbers
-let tand = table (List.map (fun t -> t, if t = Tint || t = Tuint then bnumber else binteger) integers)
-let trel = table (numbers @ [ Tind, b Tind ])
+(* which operand types an operator takes, the left and the right (sub.c's
+ * tasign, tadd... tables) *)
+let tasign l r = number l && number r || (l = Tind || typesu l) && r = l
+let tasadd l r = number l && number r || l = Tind && typei r
+let tadd l r = number l && number r || typei l && r = Tind || l = Tind && typei r
+let tsub l r = number l && number r || l = Tind && (typei r || r = Tind)
+let tmul l r = number l && number r
+let tand l r = typei l && (typei r || (l = Tint || l = Tuint) && typefd r)
+let trel l r = number l && number r || l = Tind && r = Tind
+let tcast l r =
+  r = Tvoid && (number l || l = Tind || l = Tvoid || typesu l)
+  || number l && number r || typei l && r = Tind || l = Tind && (typei r || r = Tind) || typesu l && r = l
 (* whatever the left type *)
-let tfunct _ = b Tfunc and tindir _ = b Tind and tdots _ = b Tstruct lor b Tunion
-and tnot _ = bnumber lor b Tind and targ _ = bnumber lor b Tind lor b Tstruct lor b Tunion
+let tfunct _ r = r = Tfunc and tindir _ r = r = Tind and tdots _ r = typesu r
+and tnot _ r = number r || r = Tind and targ _ r = number r || r = Tind || typesu r
+
+(* an integer's signed kind, and its unsigned one *)
+let signs = [ Tchar, Tuchar; Tshort, Tushort; Tint, Tuint; Tlong, Tulong; Tvlong, Tuvlong ]
+let signed t = match List.find_opt (fun (_, u) -> u = t) signs with Some (s, _) -> s | None -> t
 
 (* the usual arithmetic conversions: the type of l op r (sub.c's tab,
- * with its quirks: no promotion, double op float is float) *)
+ * with its quirks: no promotion, double op float is float); the larger
+ * integer, unsigned if either is *)
 let arith_tab (l : etype) (r : etype) =
-  let rows = [
-    [ Tchar; Tuchar; Tshort; Tushort; Tint; Tuint; Tlong; Tulong; Tvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tuchar; Tuchar; Tushort; Tushort; Tuint; Tuint; Tulong; Tulong; Tuvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tshort; Tushort; Tshort; Tushort; Tint; Tuint; Tlong; Tulong; Tvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tushort; Tushort; Tushort; Tushort; Tuint; Tuint; Tulong; Tulong; Tuvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tint; Tuint; Tint; Tuint; Tint; Tuint; Tlong; Tulong; Tvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tuint; Tuint; Tuint; Tuint; Tuint; Tuint; Tulong; Tulong; Tuvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tlong; Tulong; Tlong; Tulong; Tlong; Tulong; Tlong; Tulong; Tvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tulong; Tulong; Tulong; Tulong; Tulong; Tulong; Tulong; Tulong; Tuvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tvlong; Tuvlong; Tvlong; Tuvlong; Tvlong; Tuvlong; Tvlong; Tuvlong; Tvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tuvlong; Tuvlong; Tuvlong; Tuvlong; Tuvlong; Tuvlong; Tuvlong; Tuvlong; Tuvlong; Tuvlong; Tfloat; Tdouble; Tind ];
-    [ Tfloat; Tfloat; Tfloat; Tfloat; Tfloat; Tfloat; Tfloat; Tfloat; Tfloat; Tfloat; Tfloat; Tdouble; Tind ];
-    [ Tdouble; Tdouble; Tdouble; Tdouble; Tdouble; Tdouble; Tdouble; Tdouble; Tdouble; Tdouble; Tfloat; Tdouble; Tind ];
-    List.init 13 (fun _ -> Tind) ] in
-  let i = rank l and j = rank r in
-  if i < 1 || i > 13 || j < 1 || j > 13 then Txxx else List.nth (List.nth rows (i - 1)) (j - 1)
+  let size t = match signed t with Tchar -> 1 | Tshort -> 2 | Tint -> 3 | Tlong -> 4 | _ -> 5 in
+  if not ((number l || l = Tind) && (number r || r = Tind)) then Txxx
+  else if l = Tind || r = Tind then Tind
+  else if typefd r then r
+  else if typefd l then l
+  else
+    let s = if size l >= size r then signed l else signed r in
+    if typeu l || typeu r then List.assoc s signs else s
 
 (* char and short to int, keeping the sign *)
 let promote = function Tchar | Tshort -> Tint | Tuchar | Tushort -> Tuint | t -> t
 
-let tname t = List.nth [ "TXXX"; "CHAR"; "UCHAR"; "SHORT"; "USHORT"; "INT"; "UINT"; "LONG"; "ULONG"; "VLONG";
-  "UVLONG"; "FLOAT"; "DOUBLE"; "IND"; "FUNC"; "ARRAY"; "VOID"; "STRUCT"; "UNION"; "ENUM"; "DOT"; "AUTO"; "EXTERN";
-  "STATIC"; "TYPEDEF"; "TYPESTR"; "REGISTER"; "CONSTNT"; "VOLATILE"; "UNSIGNED"; "SIGNED"; "FILE"; "OLD" ] (rank t)
-
 (* storage classes, and qualifiers (GCONSTNT...) *)
 type cls = Cxxx | Cauto | Cextern | Cglobl | Cstatic | Clocal | Ctypedef | Ctypestr | Cparam | Cselem | Clabel | Cexreg
-let cname (c : cls) = List.nth [ "CXXX"; "AUTO"; "EXTERN"; "GLOBL"; "STATIC"; "LOCAL"; "TYPEDEF"; "TYPESTR"; "PARAM";
-  "SELEM"; "LABEL"; "EXREG" ] (Obj.magic c : int)
+let cname = function
+  | Cxxx -> "CXXX" | Cauto -> "AUTO" | Cextern -> "EXTERN" | Cglobl -> "GLOBL" | Cstatic -> "STATIC" | Clocal -> "LOCAL"
+  | Ctypedef -> "TYPEDEF" | Ctypestr -> "TYPESTR" | Cparam -> "PARAM" | Cselem -> "SELEM" | Clabel -> "LABEL" | Cexreg -> "EXREG"
 let gconstnt = 1 and gvolatile = 2 and gincomplete = 4
 let gnames = [| "GXXX"; "CONST"; "VOLATILE"; "CONST-VOLATILE" |]
 
@@ -114,16 +102,21 @@ type op =
   | OLSTRING | OSTRUCT | OSUB | OSWITCH | OUNION | OUSED | OWHILE | OXOR | ONEG | OCOM | OPOS | OELEM
   | OTST | OINDEX | OFAS | OREGPAIR | OEXREG
 
-let onames = [| "OXXX"; "ADD"; "ADDR"; "AND"; "ANDAND"; "ARRAY"; "AS"; "ASI"; "ASADD"; "ASAND"; "ASASHL"; "ASASHR";
-  "ASDIV"; "ASHL"; "ASHR"; "ASLDIV"; "ASLMOD"; "ASLMUL"; "ASLSHR"; "ASMOD"; "ASMUL"; "ASOR"; "ASSUB"; "ASXOR";
-  "BIT"; "BREAK"; "CASE"; "CAST"; "COMMA"; "COND"; "CONST"; "CONTINUE"; "DIV"; "DOT"; "DOTDOT"; "DWHILE"; "ENUM";
-  "EQ"; "FOR"; "FUNC"; "GE"; "GOTO"; "GT"; "HI"; "HS"; "IF"; "IND"; "INDREG"; "INIT"; "LABEL"; "LDIV"; "LE";
-  "LIST"; "LMOD"; "LMUL"; "LO"; "LS"; "LSHR"; "LT"; "MOD"; "MUL"; "NAME"; "NE"; "NOT"; "OR"; "OROR"; "POSTDEC";
-  "POSTINC"; "PREDEC"; "PREINC"; "PROTO"; "REGISTER"; "RETURN"; "SET"; "SIGN"; "SIZE"; "STRING"; "LSTRING";
-  "STRUCT"; "SUB"; "SWITCH"; "UNION"; "USED"; "WHILE"; "XOR"; "NEG"; "COM"; "POS"; "ELEM"; "TST"; "INDEX";
-  "FAS"; "REGPAIR"; "EXREG" |]
-(* constant constructors are their index *)
-let opname (o : op) = onames.((Obj.magic o : int))
+let opnames = [ OXXX, "OXXX"; OADD, "ADD"; OADDR, "ADDR"; OAND, "AND"; OANDAND, "ANDAND"; OARRAY, "ARRAY"; OAS, "AS";
+  OASI, "ASI"; OASADD, "ASADD"; OASAND, "ASAND"; OASASHL, "ASASHL"; OASASHR, "ASASHR"; OASDIV, "ASDIV";
+  OASHL, "ASHL"; OASHR, "ASHR"; OASLDIV, "ASLDIV"; OASLMOD, "ASLMOD"; OASLMUL, "ASLMUL"; OASLSHR, "ASLSHR";
+  OASMOD, "ASMOD"; OASMUL, "ASMUL"; OASOR, "ASOR"; OASSUB, "ASSUB"; OASXOR, "ASXOR"; OBIT, "BIT"; OBREAK, "BREAK";
+  OCASE, "CASE"; OCAST, "CAST"; OCOMMA, "COMMA"; OCOND, "COND"; OCONST, "CONST"; OCONTINUE, "CONTINUE"; ODIV, "DIV";
+  ODOT, "DOT"; ODOTDOT, "DOTDOT"; ODWHILE, "DWHILE"; OENUM, "ENUM"; OEQ, "EQ"; OFOR, "FOR"; OFUNC, "FUNC"; OGE, "GE";
+  OGOTO, "GOTO"; OGT, "GT"; OHI, "HI"; OHS, "HS"; OIF, "IF"; OIND, "IND"; OINDREG, "INDREG"; OINIT, "INIT";
+  OLABEL, "LABEL"; OLDIV, "LDIV"; OLE, "LE"; OLIST, "LIST"; OLMOD, "LMOD"; OLMUL, "LMUL"; OLO, "LO"; OLS, "LS";
+  OLSHR, "LSHR"; OLT, "LT"; OMOD, "MOD"; OMUL, "MUL"; ONAME, "NAME"; ONE, "NE"; ONOT, "NOT"; OOR, "OR";
+  OOROR, "OROR"; OPOSTDEC, "POSTDEC"; OPOSTINC, "POSTINC"; OPREDEC, "PREDEC"; OPREINC, "PREINC"; OPROTO, "PROTO";
+  OREGISTER, "REGISTER"; ORETURN, "RETURN"; OSET, "SET"; OSIGN, "SIGN"; OSIZE, "SIZE"; OSTRING, "STRING";
+  OLSTRING, "LSTRING"; OSTRUCT, "STRUCT"; OSUB, "SUB"; OSWITCH, "SWITCH"; OUNION, "UNION"; OUSED, "USED";
+  OWHILE, "WHILE"; OXOR, "XOR"; ONEG, "NEG"; OCOM, "COM"; OPOS, "POS"; OELEM, "ELEM"; OTST, "TST"; OINDEX, "INDEX";
+  OFAS, "FAS"; OREGPAIR, "REGPAIR"; OEXREG, "EXREG" ]
+let opname o = List.assoc o opnames
 
 type sym = {
   name : string;
@@ -181,7 +174,6 @@ type machine = {
   typecmplx : etype -> bool;             (* returned through a pointer *)
   typeword : etype -> bool;              (* passed in a register *)
   typeswitch : etype -> bool;
-  ncast : etype -> int;                  (* the casts that are no-ops *)
   machcap : node option -> bool;      (* what the back end does itself *)
 }
 
@@ -196,6 +188,13 @@ let ewidth = function
   | Tind -> (m ()).sz_ind
   | Tfunc | Tvoid -> 0
   | _ -> -1
+
+(* a conversion that makes no code: to itself, between integers of a
+ * size, an integer to a pointer of its size, a pointer to a long (arm)
+ * or a vlong (arm64) (txt.c's ncast tables) *)
+let ncast from to_ =
+  from = to_ && (typefd from || typesu from || from = Tind)
+  || ewidth from = ewidth to_ && (typei from && (typei to_ || to_ = Tind) || from = Tind && List.mem to_ [ Tlong; Tulong; Tvlong; Tuvlong ])
 
 (* a constant as a type holds it (com64.c's convvtox) *)
 let convvtox (c : int64) et =
@@ -235,11 +234,11 @@ let typ et d =
 let copytyp (t : typ) = { t with etype = t.etype }
 
 (* the basic types, one of each (lex.c's cinit) *)
-let types : typ option array = Array.make (rank Tdot + 1) None
-let ty et = Option.get types.(rank et)
+let types : (etype, typ) Hashtbl.t = Hashtbl.create 16
+let ty et = Hashtbl.find types et
 
 let init_types () =
-  let set et t = types.(rank et) <- Some t in
+  let set et t = Hashtbl.replace types et t in
   List.iter (fun et -> set et (typ et None))
     [ Tchar; Tuchar; Tshort; Tushort; Tint; Tuint; Tlong; Tulong; Tvlong; Tuvlong; Tfloat; Tdouble; Tvoid; Tenum ];
   set Tfunc (typ Tfunc (Some (ty Tint)));

@@ -20,99 +20,42 @@
  * Programming, vol. 3, section 6.4, for [lookup]'s table, chained
  * buckets with a cheap hash. *)
 
+(* a type's kind; Tdot is a prototype's ..., Told an old-style one's
+ * parameters *)
 type etype =
-    Txxx
-  | Tchar
-  | Tuchar
-  | Tshort
-  | Tushort
-  | Tint
-  | Tuint
-  | Tlong
-  | Tulong
-  | Tvlong
-  | Tuvlong
-  | Tfloat
-  | Tdouble
-  | Tind
-  | Tfunc
-  | Tarray
-  | Tvoid
-  | Tstruct
-  | Tunion
-  | Tenum
-  | Tdot
-  | Tauto
-  | Textern
-  | Tstatic
-  | Ttypedef
-  | Ttypestr
-  | Tregister
-  | Tconstnt
-  | Tvolatile
-  | Tunsigned
-  | Tsigned
-  | Tfile
-  | Told
+  | Txxx | Tchar | Tuchar | Tshort | Tushort | Tint | Tuint | Tlong | Tulong | Tvlong | Tuvlong | Tfloat | Tdouble
+  | Tind | Tfunc | Tarray | Tvoid | Tstruct | Tunion | Tenum | Tdot | Told
 
-val b : etype -> int
-
-val bclass : int
-
-val bgarb : int
-
+(* the sets of kinds, named by their members' initials as sub.c's:
+ * typechlp is char, short, long (of each sign) and pointer *)
 val typei : etype -> bool
-
 val typeu : etype -> bool
-
 val typesuv : etype -> bool
-
 val typeilp : etype -> bool
-
 val typechl : etype -> bool
-
 val typechlv : etype -> bool
-
 val typechlvp : etype -> bool
-
 val typechlp : etype -> bool
-
 val typev : etype -> bool
-
 val typefd : etype -> bool
-
 val typeaf : etype -> bool
-
 val typesu : etype -> bool
 
-(* a table's value for a kind, 0 if not in it *)
-val table : ('a * int) list -> 'a -> int
-
-val tasign : etype -> int
-
-val tasadd : etype -> int
-
-val tcast : etype -> int
-
-val tadd : etype -> int
-
-val tsub : etype -> int
-
-val tmul : etype -> int
-
-val tand : etype -> int
-
-val trel : etype -> int
-
-val tfunct : 'a -> int
-
-val tindir : 'a -> int
-
-val tdots : 'a -> int
-
-val tnot : 'a -> int
-
-val targ : 'a -> int
+(* whether an operator takes a left and a right operand of these kinds
+ * (sub.c's tables) *)
+val tasign : etype -> etype -> bool
+val tasadd : etype -> etype -> bool
+val tcast : etype -> etype -> bool
+val tadd : etype -> etype -> bool
+val tsub : etype -> etype -> bool
+val tmul : etype -> etype -> bool
+val tand : etype -> etype -> bool
+val trel : etype -> etype -> bool
+val tfunct : 'a -> etype -> bool
+val tindir : 'a -> etype -> bool
+val tdots : 'a -> etype -> bool
+val tnot : 'a -> etype -> bool
+val targ : 'a -> etype -> bool
 
 (* the type of l op r (sub.c's tab: double op float is float) *)
 val arith_tab : etype -> etype -> etype
@@ -291,7 +234,6 @@ type machine = {
   typecmplx : etype -> bool;
   typeword : etype -> bool;
   typeswitch : etype -> bool;
-  ncast : etype -> int;
   machcap : node option -> bool;
 }
 
@@ -302,6 +244,9 @@ val m : unit -> machine
 val ewidth : etype -> int
 
 (* a constant truncated and extended as a value of the type *)
+(* a conversion that makes no code (txt.c's ncast) *)
+val ncast : etype -> etype -> bool
+
 val convvtox : int64 -> etype -> int64
 
 val lineno : int ref

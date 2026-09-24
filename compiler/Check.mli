@@ -33,7 +33,7 @@ val nocast : Tree.typ option -> Tree.typ option -> bool
 val tcompat :
   Tree.node ->
   Tree.typ option ->
-  Tree.typ option -> (Tree.etype -> int) -> bool
+  Tree.typ option -> (Tree.etype -> Tree.etype -> bool) -> bool
 
 val relindex : Tree.op -> int
 

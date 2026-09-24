@@ -65,15 +65,24 @@ val align : int -> Tree.typ -> align -> int
 
 val maxround : int -> int -> int
 
-val simpleg : int -> int
+(* a declaration's words, in the order C allows them anywhere *)
+type word =
+  | Char | Short | Int | Long | Signed | Unsigned | Float | Double | Void
+  | Auto | Static | Extern | Typedef | Typestr | Register | Const | Volatile
 
-val simplec : int -> Tree.cls
+val type_words : word list
 
-val simplet : int -> Tree.typ
+(* the qualifiers the words say, as Tree's garb *)
+val simpleg : word list -> int
 
-val garbt : Tree.typ -> int -> Tree.typ
+(* the class *)
+val simplec : word list -> Tree.cls
 
-val typebitor : int -> int -> int
+(* the type: int by default, long long a vlong *)
+val simplet : word list -> Tree.typ
+
+(* t qualified by the words *)
+val garbt : Tree.typ -> word list -> Tree.typ
 
 val mkstatic : Tree.sym -> Tree.sym
 

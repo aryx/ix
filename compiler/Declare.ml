@@ -90,49 +90,49 @@ let maxround max v = let v = round v (m ()).maxalign in if v > max then v else m
 (* The words of a declaration (sub.c's simplet, simplec, simpleg) *)
 (*****************************************************************************)
 
-let simpleg b' =
-  match b' land bgarb with
-  | x when x = b Tconstnt -> gconstnt
-  | x when x = b Tvolatile -> gvolatile
-  | x when x = b Tvolatile lor b Tconstnt -> gconstnt lor gvolatile
-  | _ -> 0
+(* a declaration's words, in the order C allows them anywhere *)
+type word =
+  | Char | Short | Int | Long | Signed | Unsigned | Float | Double | Void
+  | Auto | Static | Extern | Typedef | Typestr | Register | Const | Volatile
 
-let simplec b' =
-  let x = b' land bclass in
-  if x = 0 || x = b Tregister then Cxxx
-  else if x = b Tauto || x = b Tauto lor b Tregister then Cauto
-  else if x = b Textern then Cextern
-  else if x = b Textern lor b Tregister then Cexreg
-  else if x = b Tstatic then Cstatic
-  else if x = b Ttypedef then Ctypedef
-  else if x = b Ttypestr then Ctypestr
-  else diag None "illegal combination of classes"
+let words_of kind ws = List.sort_uniq compare (List.filter (fun w -> List.mem w kind) ws)
+let type_words = [ Char; Short; Int; Long; Signed; Unsigned; Float; Double; Void ]
 
-let simplet b' =
-  let x = b' land lnot bclass land lnot bgarb in
-  let is l = List.exists (fun bits -> x = List.fold_left (fun a t -> a lor b t) 0 bits) l in
-  let r =
-    if is [ [ Tchar ]; [ Tchar; Tsigned ] ] then Tchar
-    else if is [ [ Tchar; Tunsigned ] ] then Tuchar
-    else if is [ [ Tshort ]; [ Tshort; Tint ]; [ Tshort; Tsigned ]; [ Tshort; Tint; Tsigned ] ] then Tshort
-    else if is [ [ Tunsigned; Tshort ]; [ Tunsigned; Tshort; Tint ] ] then Tushort
-    else if x = 0 || is [ [ Tint ]; [ Tint; Tsigned ]; [ Tsigned ] ] then Tint
-    else if is [ [ Tunsigned ]; [ Tunsigned; Tint ] ] then Tuint
-    else if is [ [ Tlong ]; [ Tlong; Tint ]; [ Tlong; Tsigned ]; [ Tlong; Tint; Tsigned ] ] then Tlong
-    else if is [ [ Tunsigned; Tlong ]; [ Tunsigned; Tlong; Tint ] ] then Tulong
-    else if is [ [ Tvlong; Tlong ]; [ Tvlong; Tlong; Tint ]; [ Tvlong; Tlong; Tsigned ]; [ Tvlong; Tlong; Tint; Tsigned ] ] then Tvlong
-    else if is [ [ Tvlong; Tlong; Tunsigned ]; [ Tvlong; Tlong; Tint; Tunsigned ] ] then Tuvlong
-    else if is [ [ Tfloat ] ] then Tfloat
-    else if is [ [ Tdouble ]; [ Tdouble; Tlong ]; [ Tfloat; Tlong ] ] then Tdouble
-    else if is [ [ Tvoid ] ] then Tvoid
-    else diag None "illegal combination of types"
+let simpleg ws = (if List.mem Const ws then gconstnt else 0) lor (if List.mem Volatile ws then gvolatile else 0)
+
+let simplec ws =
+  match words_of [ Auto; Static; Extern; Typedef; Typestr; Register ] ws with
+  | [] | [ Register ] -> Cxxx
+  | [ Auto ] | [ Auto; Register ] -> Cauto
+  | [ Static ] -> Cstatic
+  | [ Extern ] -> Cextern
+  | [ Extern; Register ] -> Cexreg
+  | [ Typedef ] -> Ctypedef
+  | [ Typestr ] -> Ctypestr
+  | _ -> diag None "illegal combination of classes"
+
+(* the type the words say: int by default, long long a vlong *)
+let simplet ws =
+  let has w = List.mem w ws and longs = List.length (List.filter (( = ) Long) ws) in
+  let plain = not (has Int || has Signed || has Unsigned) in
+  let sign s u = Some (if has Unsigned then u else s) in
+  let t =
+    if has Signed && has Unsigned then None
+    else
+      match List.filter (fun w -> not (List.mem w [ Int; Signed; Unsigned ])) (words_of type_words ws) with
+      | [] -> sign Tint Tuint
+      | [ Char ] when not (has Int) -> sign Tchar Tuchar
+      | [ Short ] -> sign Tshort Tushort
+      | [ Long ] when longs >= 2 -> sign Tvlong Tuvlong
+      | [ Long ] -> sign Tlong Tulong
+      | [ Float ] when plain -> Some Tfloat
+      | ([ Double ] | [ Long; (Float | Double) ]) when plain && longs <= 1 -> Some Tdouble
+      | [ Void ] when plain -> Some Tvoid
+      | _ -> None
   in
-  ty r
+  match t with Some t -> ty t | None -> diag None "illegal combination of types"
 
-let garbt (t : typ) b' = if b' land bgarb <> 0 then (let t1 = copytyp t in t1.garb <- simpleg b'; t1) else t
-
-(* long long is vlong (sub.c's typebitor) *)
-let typebitor a b' = let c = a lor b' in if a land b' <> 0 && a land b' = b Tlong then c lor b Tvlong else c
+let garbt (t : typ) ws = if simpleg ws <> 0 then (let t1 = copytyp t in t1.garb <- simpleg ws; t1) else t
 
 (*****************************************************************************)
 (* Declarators (dcl.c's dodecl) *)

@@ -473,12 +473,12 @@ types:
 | tname                                 { Declare.simplet $1, Cxxx }
 | gcnlist                               { Declare.garbt (Declare.simplet $1) $1, Declare.simplec $1 }
 | complex gctnlist
-    { if $2 land lnot bclass land lnot bgarb <> 0 then ignore (diag None "duplicate types given: %s" (show_type (Some $1)));
+    { if List.exists (fun w -> List.mem w Declare.type_words) $2 then ignore (diag None "duplicate types given: %s" (show_type (Some $1)));
       Declare.garbt $1 $2, Declare.simplec $2 }
-| tname gctnlist                        { Declare.garbt (Declare.simplet (Declare.typebitor $1 $2)) $2, Declare.simplec $2 }
-| gcnlist complex zgnlist               { Declare.garbt $2 ($1 lor $3), Declare.simplec $1 }
+| tname gctnlist                        { Declare.garbt (Declare.simplet ($1 @ $2)) $2, Declare.simplec $2 }
+| gcnlist complex zgnlist               { Declare.garbt $2 ($1 @ $3), Declare.simplec $1 }
 | gcnlist tname                         { Declare.garbt (Declare.simplet $2) $1, Declare.simplec $1 }
-| gcnlist tname gctnlist                { Declare.garbt (Declare.simplet (Declare.typebitor $2 $3)) ($1 lor $3), Declare.simplec ($1 lor $3) }
+| gcnlist tname gctnlist                { Declare.garbt (Declare.simplet ($2 @ $3)) ($1 @ $3), Declare.simplec ($1 @ $3) }
 ;
 
 tlist:
@@ -532,11 +532,11 @@ enum:
 
 gctnlist:
   gctname                               { $1 }
-| gctnlist gctname                      { Declare.typebitor $1 $2 }
+| gctnlist gctname                      { $1 @ $2 }
 ;
 zgnlist:
-  /* empty */                           { 0 }
-| zgnlist gname                         { Declare.typebitor $1 $2 }
+  /* empty */                           { [] }
+| zgnlist gname                         { $1 @ $2 }
 ;
 gctname:
   tname                                 { $1 }
@@ -545,7 +545,7 @@ gctname:
 ;
 gcnlist:
   gcname                                { $1 }
-| gcnlist gcname                        { Declare.typebitor $1 $2 }
+| gcnlist gcname                        { $1 @ $2 }
 ;
 gcname:
   gname                                 { $1 }
@@ -553,15 +553,16 @@ gcname:
 ;
 
 tname:
-  LCHAR { b Tchar } | LSHORT { b Tshort } | LINT { b Tint } | LLONG { b Tlong } | LSIGNED { b Tsigned }
-| LUNSIGNED { b Tunsigned } | LFLOAT { b Tfloat } | LDOUBLE { b Tdouble } | LVOID { b Tvoid }
+  LCHAR { [ Declare.Char ] } | LSHORT { [ Declare.Short ] } | LINT { [ Declare.Int ] } | LLONG { [ Declare.Long ] }
+| LSIGNED { [ Declare.Signed ] } | LUNSIGNED { [ Declare.Unsigned ] } | LFLOAT { [ Declare.Float ] }
+| LDOUBLE { [ Declare.Double ] } | LVOID { [ Declare.Void ] }
 ;
 cname:
-  LAUTO { b Tauto } | LSTATIC { b Tstatic } | LEXTERN { b Textern } | LTYPEDEF { b Ttypedef }
-| LTYPESTR { b Ttypestr } | LREGISTER { b Tregister } | LINLINE { 0 }
+  LAUTO { [ Declare.Auto ] } | LSTATIC { [ Declare.Static ] } | LEXTERN { [ Declare.Extern ] }
+| LTYPEDEF { [ Declare.Typedef ] } | LTYPESTR { [ Declare.Typestr ] } | LREGISTER { [ Declare.Register ] } | LINLINE { [] }
 ;
 gname:
-  LCONSTNT { b Tconstnt } | LVOLATILE { b Tvolatile } | LRESTRICT { 0 }
+  LCONSTNT { [ Declare.Const ] } | LVOLATILE { [ Declare.Volatile ] } | LRESTRICT { [] }
 ;
 
 name:
