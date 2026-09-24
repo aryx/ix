@@ -8,8 +8,8 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# lib_security's SHA-1 and lib_compression's zlib against Python's
-# hashlib and zlib, on random inputs (text-like, binary, repetitive,
+# lib_security's SHA-1 and lib_compression's zlib and CRC-32 against
+# Python's hashlib and zlib, on random inputs (text-like, binary, repetitive,
 # empty): the digests equal; our deflate's output inflated by Python;
 # Python's, at every level, inflated by ours, with bytes after the
 # stream (as in a pack) left unread.
@@ -45,6 +45,8 @@ def fail(what, data):
 
 for _ in range(count):
     d = sample()
+    out, _ = run("crc32", d)
+    if int(out) != zlib.crc32(d): fail("crc32", d)
     out, _ = run("sha1", d)
     if out.decode() != hashlib.sha1(d).hexdigest(): fail("sha1", d)
     z, _ = run("deflate", d)

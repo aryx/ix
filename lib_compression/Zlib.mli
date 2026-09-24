@@ -31,3 +31,7 @@ exception Corrupt of string
 val inflate : ?pos:int -> string -> string * int
 
 val deflate : string -> string
+
+(* CRC-32 (the polynomial 0xedb88320, reflected), of [len] bytes from
+ * [pos]: what a pack index records of each entry's bytes *)
+val crc32 : ?pos:int -> ?len:int -> string -> int

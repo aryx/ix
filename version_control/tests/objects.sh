@@ -8,10 +8,12 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# Phases 2 and 3: every object of a repository read by TinyGit's Store,
-# its kind and size as git cat-file --batch-check says, and printing
-# its parse hashing back to its name; the repository loose, packed by
-# git gc (OFS deltas), and repacked with REF deltas.
+# Phases 2, 3 and 7: every object of a repository read by TinyGit's
+# Store, its kind and size as git cat-file --batch-check says, and
+# printing its parse hashing back to its name; the repository loose,
+# packed by git gc (OFS deltas), repacked with REF deltas, and repacked
+# by tinygit repack (git9's deltas and index), which git verify-pack
+# and git fsck --strict must accept, the same objects in it.
 #
 # Usage: objects.sh [REPO]   (default: ix itself)
 
@@ -42,4 +44,13 @@ git --git-dir=$W/r.git gc -q --aggressive
 check "gc (OFS deltas)" $W/r.git
 git --git-dir=$W/r.git -c repack.useDeltaBaseOffset=false repack -q -a -d -f
 check "repack (REF deltas)" $W/r.git
+git --git-dir=$W/r.git cat-file --batch-all-objects --batch-check > $W/before
+git clone -q $W/r.git $W/tiny
+(cd $W/tiny && $ROOT/_build/default/version_control/Main.exe repack)
+if git --git-dir=$W/tiny/.git verify-pack $W/tiny/.git/objects/pack/*.idx && git --git-dir=$W/tiny/.git fsck --strict; then
+  check "tinygit repack" $W/tiny/.git
+  git --git-dir=$W/tiny/.git cat-file --batch-all-objects --batch-check | cmp -s - $W/before || { echo "FAIL tinygit repack: objects differ"; failures=$((failures + 1)); }
+else
+  echo "FAIL tinygit repack: verify-pack or fsck"; failures=$((failures + 1))
+fi
 exit $failures

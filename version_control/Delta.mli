@@ -24,3 +24,18 @@ val encode : t -> string
 
 (* the result, checked against the base's size and the result's *)
 val apply : string -> t -> string
+
+(* git9's encoder (delta.c): both objects cut into content-defined
+ * chunks -- 128 to 8,192 bytes, cut where a gear rolling hash has its
+ * low 8 bits zero, so that a chunk boundary depends on the bytes near
+ * it, not on offsets, and an insertion moves only the chunks around it;
+ * each chunk of the target found among the base's is a copy, stretched
+ * as far as the bytes keep matching, and the others are inserts. *)
+type table
+
+val table : string -> table
+val deltify : table -> string -> t
+
+(* git9's estimate of a delta's size (deltasz): 7 bytes a copy, the
+ * data and a byte an insert, and 32 *)
+val estimate : t -> int

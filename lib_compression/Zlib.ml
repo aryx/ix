@@ -227,3 +227,22 @@ let deflate (s : string) =
   Bytes.set_int32_be a 0 (Int32.of_int (adler32 s));
   Buffer.add_bytes o.buf a;
   Buffer.contents o.buf
+
+(*****************************************************************************)
+(* CRC-32 *)
+(*****************************************************************************)
+
+let crc_table =
+  lazy (Array.init 256 (fun n ->
+    let c = ref n in
+    for _ = 0 to 7 do c := if !c land 1 <> 0 then 0xedb88320 lxor (!c lsr 1) else !c lsr 1 done;
+    !c))
+
+let crc32 ?(pos = 0) ?len s =
+  let len = match len with Some l -> l | None -> String.length s - pos in
+  let t = Lazy.force crc_table in
+  let c = ref 0xffffffff in
+  for i = pos to pos + len - 1 do
+    c := t.((!c lxor Char.code (String.unsafe_get s i)) land 0xff) lxor (!c lsr 8)
+  done;
+  !c lxor 0xffffffff

@@ -21,6 +21,10 @@ val branch : caps -> string list -> int
 val revert : caps -> string list -> int
 val diff : caps -> string list -> int
 val merge : caps -> string list -> int
+val repack : caps -> string list -> int
+
+(* a pack's bytes indexed and saved; its name *)
+val save_pack : Repo.t -> string -> string
 val walk : caps -> string list -> int
 val save : caps -> string list -> int
 

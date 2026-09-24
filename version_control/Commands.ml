@@ -494,3 +494,41 @@ let merge (caps : caps) args =
         0
       end
   | _ -> die "usage: git/merge theirs"
+
+(*****************************************************************************)
+(* repack *)
+(*****************************************************************************)
+
+(* a pack's bytes and its index into .git/objects/pack, named by the
+ * pack's hash (git9 names them HASH.pack, without git's "pack-") *)
+let save_pack (r : Repo.t) pack =
+  let dir = Fpath.(r.store.git / "objects" / "pack") in
+  mkdir_p (Fpath.to_string dir);
+  let idx = Pack.index pack ~base:(Store.read_raw r.store) in
+  let name = Pack.name pack in
+  let tmp ext = Fpath.(dir / ("repack." ^ ext ^ ".tmp")) in
+  Files.write r.store.caps (tmp "pack") pack;
+  Files.write r.store.caps (tmp "idx") idx;
+  Unix.rename (Fpath.to_string (tmp "pack")) (Fpath.to_string Fpath.(dir / (name ^ ".pack")));
+  Unix.rename (Fpath.to_string (tmp "idx")) (Fpath.to_string Fpath.(dir / (name ^ ".idx")));
+  Store.refresh r.store;
+  name
+
+(* all objects the references reach into one pack; then every loose
+ * object and every other pack removed, as git9's repack does (what no
+ * reference reaches, a detached HEAD's commits included, is gone) *)
+let repack (caps : caps) args =
+  let r = Repo.find (store_caps caps) in
+  (match args with [] | [ "-d" ] -> () | _ -> die "usage: git/repack [-d]");
+  let refs = List.map snd (Refs.list r.store) in
+  let pack = Packer.pack r.store ~heads:refs ~have:[] in
+  let name = save_pack r pack in
+  let objects = Fpath.to_string Fpath.(r.store.git / "objects") in
+  for i = 0 to 255 do
+    let d = Filename.concat objects (Printf.sprintf "%02x" i) in
+    if Sys.file_exists d then rm_rf d
+  done;
+  let pdir = Filename.concat objects "pack" in
+  Array.iter (fun f -> if not (String.starts_with ~prefix:(name ^ ".") f) then Sys.remove (Filename.concat pdir f)) (Sys.readdir pdir);
+  Store.refresh r.store;
+  0

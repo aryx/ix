@@ -111,3 +111,116 @@ let all git =
   match Sys.readdir (Fpath.to_string dir) with
   | fs -> Array.to_list fs |> List.sort compare |> List.filter (fun f -> Filename.check_suffix f ".idx") |> List.map (fun f -> Fpath.(dir / f))
   | exception Sys_error _ -> []
+
+(*****************************************************************************)
+(* Writing *)
+(*****************************************************************************)
+
+type entry = Whole of Object.Kind.t * string | Ref_delta of Hash.t * Delta.t
+
+let code_of_kind : Object.Kind.t -> int = function Commit -> 1 | Tree -> 2 | Blob -> 3 | Tag -> 4
+
+(* type in bits 4-6, the size's low 4 bits, then 7-bit groups *)
+let header_bytes b ty len =
+  let first = (ty lsl 4) lor (len land 0xf) in
+  let rest = len lsr 4 in
+  if rest = 0 then Buffer.add_char b (Char.chr first)
+  else begin
+    Buffer.add_char b (Char.chr (first lor 0x80));
+    let rec go n = if n >= 0x80 then (Buffer.add_char b (Char.chr (0x80 lor (n land 0x7f))); go (n lsr 7)) else Buffer.add_char b (Char.chr n) in
+    go rest
+  end
+
+let write entries =
+  let b = Buffer.create 4096 in
+  Buffer.add_string b "PACK";
+  let be32 n = let x = Bytes.create 4 in Bytes.set_int32_be x 0 (Int32.of_int n); Buffer.add_bytes b x in
+  be32 2;
+  be32 (List.length entries);
+  List.iter (function
+    | Whole (k, data) -> header_bytes b (code_of_kind k) (String.length data); Buffer.add_string b (Zlib.deflate data)
+    | Ref_delta (base, d) ->
+        let enc = Delta.encode d in
+        header_bytes b 7 (String.length enc);
+        Buffer.add_string b (Sha1.raw base);
+        Buffer.add_string b (Zlib.deflate enc)) entries;
+  let body = Buffer.contents b in
+  body ^ Sha1.raw (Sha1.string body)
+
+let name pack = Sha1.to_hex (Sha1.of_raw (String.sub pack (String.length pack - 20) 20))
+
+(*****************************************************************************)
+(* Indexing *)
+(*****************************************************************************)
+
+type raw = { off : int; stop : int; kind : [ `Whole of Object.Kind.t | `Ofs of int | `Ref of Hash.t ]; data : string }
+
+let index pack ~base =
+  if String.length pack < 32 || String.sub pack 0 8 <> "PACK\000\000\000\002" then corrupt "invalid header";
+  let count = u32 pack 8 in
+  (* the entries, in order *)
+  let raws = Array.make count { off = 0; stop = 0; kind = `Ofs 0; data = "" } in
+  let pos = ref 12 in
+  for i = 0 to count - 1 do
+    let off = !pos in
+    let code, _, p = header pack off in
+    let kind, p =
+      match kind_of_code code, code with
+      | Some k, _ -> `Whole k, p
+      | None, 6 ->
+          let c0 = Char.code pack.[p] in
+          let rec dist pos acc =
+            let c = Char.code pack.[pos] in
+            let acc = (acc lsl 7) lor (c land 0x7f) in
+            if c land 0x80 <> 0 then dist (pos + 1) (acc + 1) else acc, pos + 1 in
+          let d, p = if c0 land 0x80 = 0 then c0, p + 1 else dist (p + 1) ((c0 land 0x7f) + 1) in
+          `Ofs (off - d), p
+      | None, 7 -> `Ref (Sha1.of_raw (String.sub pack p 20)), p + 20
+      | None, _ -> corrupt "unknown type %d at %d" code off in
+    let data, stop = Zlib.inflate ~pos:p pack in
+    raws.(i) <- { off; stop; kind; data };
+    pos := stop
+  done;
+  (* resolved: by offset, and by hash for REF deltas *)
+  let by_off = Hashtbl.create count and by_hash = Hashtbl.create count in
+  let resolved = Array.make count None in
+  let resolve i =
+    let r = raws.(i) in
+    let whole k d = Some (k, d) in
+    let o = match r.kind with
+      | `Whole k -> whole k r.data
+      | `Ofs boff -> Option.map (fun (k, b) -> k, Delta.apply b (Delta.decode r.data)) (Hashtbl.find_opt by_off boff)
+      | `Ref h ->
+          let b = match Hashtbl.find_opt by_hash h with Some o -> Some o | None -> base h in
+          Option.map (fun (k, b) -> k, Delta.apply b (Delta.decode r.data)) b in
+    Option.iter (fun (k, d) ->
+      let h = Hash.of_object (Object.Kind.to_string k) d in
+      resolved.(i) <- Some h;
+      Hashtbl.replace by_off r.off (k, d);
+      Hashtbl.replace by_hash h (k, d)) o in
+  let rec passes nvalid =
+    Array.iteri (fun i o -> if o = None then resolve i) resolved;
+    let n = Array.fold_left (fun n o -> if o <> None then n + 1 else n) 0 resolved in
+    if n < count then (if n = nvalid then corrupt "fix point reached too early: %d/%d" n count else passes n) in
+  passes 0;
+  (* the index *)
+  let objs = Array.init count (fun i -> Option.get resolved.(i), raws.(i)) in
+  Array.sort (fun (a, _) (b, _) -> Hash.compare a b) objs;
+  let b = Buffer.create (1072 + count * 28) in
+  let be32 n = let x = Bytes.create 4 in Bytes.set_int32_be x 0 (Int32.of_int n); Buffer.add_bytes b x in
+  Buffer.add_string b "\xfftOc\000\000\000\002";
+  let c = ref 0 in
+  for i = 0 to 255 do
+    while !c < count && Char.code (Sha1.raw (fst objs.(!c))).[0] <= i do incr c done;
+    be32 !c
+  done;
+  Array.iter (fun (h, _) -> Buffer.add_string b (Sha1.raw h)) objs;
+  Array.iter (fun (_, r) -> be32 (Zlib.crc32 ~pos:r.off ~len:(r.stop - r.off) pack)) objs;
+  let big = ref [] in
+  Array.iter (fun (_, r) ->
+    if r.off < 1 lsl 31 then be32 r.off
+    else (be32 ((1 lsl 31) lor List.length !big); big := r.off :: !big)) objs;
+  List.iter (fun off -> let x = Bytes.create 8 in Bytes.set_int64_be x 0 (Int64.of_int off); Buffer.add_bytes b x) (List.rev !big);
+  Buffer.add_string b (String.sub pack (String.length pack - 20) 20);
+  let body = Buffer.contents b in
+  body ^ Sha1.raw (Sha1.string body)

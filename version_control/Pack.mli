@@ -32,3 +32,19 @@ val hashes : t -> Hash.t list
 
 (* the .idx files of a repository's .git *)
 val all : Fpath.t -> Fpath.t list
+
+(* an object in a pack being written: whole, or a delta against
+ * another object, named by its hash (git9 writes REF deltas only) *)
+type entry = Whole of Object.Kind.t * string | Ref_delta of Hash.t * Delta.t
+
+(* the pack's bytes, its SHA-1 at the end *)
+val write : entry list -> string
+
+(* the index of a pack's bytes (git9's indexpack): the entries read
+ * one after the other, each ending where its zlib stream ends; deltas
+ * resolved in passes until all are, a REF delta's base in the pack or,
+ * for a thin pack, from [base]; the .idx v2 of the result *)
+val index : string -> base:(Hash.t -> (Object.Kind.t * string) option) -> string
+
+(* the hex name a pack is saved under, from its trailing SHA-1 *)
+val name : string -> string

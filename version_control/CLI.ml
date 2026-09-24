@@ -101,6 +101,7 @@ let commands : (string * (caps -> string list -> int) * string) list = [
   "revert", (fun c -> Commands.revert (c :> Commands.caps)), "[-c query] file ...";
   "diff", (fun c -> Commands.diff (c :> Commands.caps)), "[-c branch] [-su] [file ...]";
   "merge", (fun c -> Commands.merge (c :> Commands.caps)), "theirs";
+  "repack", (fun c -> Commands.repack (c :> Commands.caps)), "[-d]";
   "conf", conf, "[-f file] [-r] keys..";
   "fs", fs, "path ...";
   "log", log, "[-s] [-e expr | -c commit] files..";
