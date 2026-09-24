@@ -85,5 +85,11 @@ e_expected=$($RC -e -c 'if(false) echo no; false || echo or; ! true; echo still'
 e_actual=$($TS -e -c 'if(false) echo no; false || echo or; ! true; echo still' 2>&1; echo "[exit $?]")
 if [ "$e_expected" = "$e_actual" ]; then echo "ok   -e, not in conditions"
 else echo "FAIL -e, not in conditions"; echo "$e_expected"; echo "---"; echo "$e_actual"; failures=$((failures + 1)); fi
+# a function's body is no condition, even when the function is called from one
+e_script='fn f { false; echo after }; if(f) echo y; echo end'
+e_expected=$($RC -e -c "$e_script" 2>&1; echo "[exit $?]")
+e_actual=$($TS -e -c "$e_script" 2>&1; echo "[exit $?]")
+if [ "$e_expected" = "$e_actual" ]; then echo "ok   -e, in a function called from a condition"
+else echo "FAIL -e, in a function called from a condition"; echo "$e_expected"; echo "---"; echo "$e_actual"; failures=$((failures + 1)); fi
 
 [ $failures -eq 0 ] && echo "all passed" || { echo "$failures failed"; exit 1; }

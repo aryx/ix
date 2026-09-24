@@ -455,7 +455,6 @@ let into caps w r f = fork caps (fun () -> Unix.dup2 w Unix.stdout; Unix.close w
 
 let background = ref []
 let eflag = ref false
-let in_cond = ref 0      (* inside a condition, where -e does not apply *)
 
 (* a list joined to another: distributing, or pairwise *)
 let join (a : string list) (b : string list) : string list =
@@ -466,8 +465,11 @@ let join (a : string list) (b : string list) : string list =
   | l1, l2 when List.length l1 = List.length l2 -> List.map2 ( ^ ) l1 l2
   | _ -> raise (Error "mismatched list lengths in concatenation")
 
-let rec run (caps : caps) (c : cmd) : unit =
-  let run = run caps and words = words caps in
+(* e: -e applies here, not in a condition *)
+(* old: a global count of the conditions being run, still raised in a
+ * function called from one: its failures were ignored *)
+let rec run (caps : caps) ~e (c : cmd) : unit =
+  let run = run caps ~e and cond = run caps ~e:false and words = words caps in
   match c with
   | Empty -> ()
   | Seq (a, b) -> run a; run b
@@ -475,12 +477,12 @@ let rec run (caps : caps) (c : cmd) : unit =
       let pid = fork caps (fun () -> run c) in
       background := pid :: !background;
       set "apid" [ string_of_int pid ]
-  | And (a, b) -> condition caps a; if truth (status ()) then run b
-  | Or (a, b) -> condition caps a; if not (truth (status ())) then run b
-  | Not c -> condition caps c; set_status (if truth (status ()) then "false" else "")
-  | If (c, body) -> condition caps c; if truth (status ()) then run body
+  | And (a, b) -> cond a; if truth (status ()) then run b
+  | Or (a, b) -> cond a; if not (truth (status ())) then run b
+  | Not c -> cond c; set_status (if truth (status ()) then "false" else "")
+  | If (c, body) -> cond c; if truth (status ()) then run body
   | While (c, body) ->
-      let rec loop () = condition caps c; if truth (status ()) then (run body; loop ()) in
+      let rec loop () = cond c; if truth (status ()) then (run body; loop ()) in
       loop ()
   | For (x, list, body) ->
       List.iter (fun v -> set x [ v ]; run body) (match list with Some ws -> words ws | None -> get "*")
@@ -488,7 +490,7 @@ let rec run (caps : caps) (c : cmd) : unit =
   | Assign (x, v, None) -> set x (words v)
   | Assign (x, v, Some c) -> local x (words v) (fun () -> run c)
   | Brace (c, rs) -> with_fds (redirs caps rs) (fun () -> run c)
-  | Subshell c -> set_status (wait caps (fork caps (fun () -> run c))); check ()
+  | Subshell c -> set_status (wait caps (fork caps (fun () -> run c))); check ~e
   | Pipe (a, b) ->
       let r, w = Unix.pipe ~cloexec:true () in
       let pid = into caps w r (fun () -> run a) in
@@ -499,7 +501,7 @@ let rec run (caps : caps) (c : cmd) : unit =
       Fun.protect (fun () -> run b) ~finally:(fun () -> flush_all (); Unix.dup2 saved Unix.stdin; Unix.close saved);
       let last = status () in
       set_status (wait caps pid ^ "|" ^ last);
-      check ()
+      check ~e
   | Simple ([ Lit ("~", false) ] :: args, rs) ->
       (* ~ subject pattern ...: the words as they are, not globbed *)
       with_fds (redirs caps rs) (fun () ->
@@ -509,17 +511,15 @@ let rec run (caps : caps) (c : cmd) : unit =
   | Simple (ws, rs) ->
       let argv = words ws in
       with_fds (redirs caps rs) (fun () -> command caps argv);
-      check ()
+      check ~e
 
-(* a condition: -e does not end the shell there *)
-and condition caps c = incr in_cond; Fun.protect (fun () -> run caps c) ~finally:(fun () -> decr in_cond)
-
-and check () = if !eflag && !in_cond = 0 && not (truth (status ())) then raise (Exit (status ()))
+and check ~e = if !eflag && e && not (truth (status ())) then raise (Exit (status ()))
 
 and command caps (argv : string list) =
   match argv with
   | [] -> ()
-  | f :: args when Hashtbl.mem fns f -> local "*" args (fun () -> run caps (Hashtbl.find fns f))
+  (* a function's body is no condition, even called from one *)
+  | f :: args when Hashtbl.mem fns f -> local "*" args (fun () -> run caps ~e:true (Hashtbl.find fns f))
   | [ "cd" ] | [ "cd"; _ ] ->
       let dir = match argv with [ _; d ] -> d | _ -> String.concat "" (get "HOME") in
       (try CapUnix.chdir caps dir; set_status ""
@@ -550,7 +550,7 @@ and word caps (w : word) : string list =
     | Count x -> [ string_of_int (List.length (get x)) ]
     | Back c ->
         let r, w = Unix.pipe ~cloexec:true () in
-        let pid = into caps w r (fun () -> run caps c) in
+        let pid = into caps w r (fun () -> run caps ~e:true c) in
         Unix.close w;
         let ic = Unix.in_channel_of_descr r in
         let out = In_channel.input_all ic in
@@ -574,7 +574,7 @@ let source caps (text : string) =
   let p = { lx = { text; pos = 0 }; ahead = None } in
   let rec loop () =
     skipnl p;
-    if peek p <> EOF then (run caps (body p (fun t -> t = NL || t = EOF)); loop ())
+    if peek p <> EOF then (run caps ~e:true (body p (fun t -> t = NL || t = EOF)); loop ())
   in
   loop ()
 
