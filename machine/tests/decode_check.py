@@ -25,11 +25,12 @@
 # Usage: decode_check.py [words file]
 #        decode_check.py --random N [seed]
 
-import os, random, shutil, subprocess, sys, tempfile
+import atexit, os, random, shutil, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "../..")
 tmp = tempfile.mkdtemp()
+atexit.register(shutil.rmtree, tmp)
 randomized = len(sys.argv) > 1 and sys.argv[1] == "--random"
 if randomized:
     n = int(sys.argv[2]); r = random.Random(int(sys.argv[3]) if len(sys.argv) > 3 else 1)

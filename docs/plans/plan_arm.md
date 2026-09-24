@@ -275,10 +275,9 @@ the same IEEE doubles, the same output).
 3. **Linux's system calls for the corpus.** All 34 arm32 programs (and
    ix's `t/` builds): output, exit status and the sequence of system
    calls (TinyArm's `-t` log of them against strace) identical.
-4. **The per-instruction differential and the random harness.** The
-   registers after each instruction against qemu-arm's `-d cpu` log,
-   the first divergence reported; random instruction blocks against
-   the CPU.
+4. **The random harness**: random instruction blocks against the
+   CPU. (Planned also: the registers after each instruction against
+   qemu-arm's `-d cpu` log; dropped, see Status.)
 5. **Arm64**: decode and print (objdump on the 2,218 words), execute,
    the same Linux module with arm64's numbers and structures; all 34
    programs.
@@ -343,3 +342,34 @@ under a delayed `exit`; `openat` relative to a directory descriptor
 (`dirread`); goken's arm signal handlers have no restorer, so a handler
 returns through the kernel's sigpage: TinyArm maps a trampoline
 (`mov r7, #119; svc 0`) and builds its own frame.
+**Phase 4 done** (2026-09-24), in a different shape than planned:
+`machine/tests/random_blocks.py` writes random blocks of arm32
+instructions, each into its own static ELF (a prologue loading random
+registers and flags, the block, an epilogue writing all registers, the
+flags and a 512-byte buffer to stdout). It runs each ELF on the CPU
+and under TinyArm, and on a difference bisects to the first differing
+instruction. It covers every data processing form (immediate, rotated
+immediate, shift by immediate and by register, RRX), all conditions,
+the multiplies, `clz`, `mrs`/`msr`, and word, byte, halfword, signed
+and doubleword transfers, unaligned where ARMv7 allows. It covers
+pre- and post-indexing, writeback, and `ldm`/`stm` in all four modes.
+The generator never writes r12 (every transfer's base), sp or pc, and
+a transfer writing back r12 is unconditional, so every address it
+generates is known to fall inside the buffer. 6,000 blocks of 30
+instructions: no difference (`make test` runs 3,000, in about 3 s).
+The harness catches deliberate bugs: a wrong RRX carry was caught by 1
+block in 300, a wrong SBC carry-in by 49 in 300, both bisected to the
+right instruction.
+
+The qemu-arm per-instruction log was not built: the CPU itself is the
+stronger oracle, and qemu places the stack, auxv and heap elsewhere,
+so its registers differ from TinyArm's at the first stack address.
+`qemu-arm -d cpu -one-insn-per-tb` remains the tool to trace a
+divergence the corpus finds.
+
+What it found: nothing wrong in the execution; for the decoder, `mrs`
+and `msr` (added, the harness needing them to set and read the flags).
+And the CPSR's other bits belong to the machine: this ARMv8 core's
+AArch32 `mrs` returns the flags plus SSBS (bit 23), with the mode bits
+0. TinyArm returns the flags plus `usr` (0x10), as an ARMv6 or ARMv7
+does; the harness compares the flags only.

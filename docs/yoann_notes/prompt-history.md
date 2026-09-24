@@ -3340,3 +3340,15 @@ Phase 2 outlined: ELF loader, fetch-decode-execute loop, and hello.exe test unde
 **Yoann:**
 
 > let's continue
+
+**Claude (summary):**
+
+Claude described building Phase 2 of TinyArm with memory management, ELF loader, and CPU execution loop components. Claude reported that TinyArm now runs arm32 programs matching native output, exit status, and system-call sequences exactly. Claude implemented 30 Linux system calls, signal handling with trampoline pages, and a test harness using strace comparison. Claude discovered that Linux maps whole pages and that openat with directory descriptors was needed by some programs. Claude suggested proceeding to Phase 4 (register verification vs qemu-arm) or Phase 5 (arm64 support) next.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 20:19
+
+**Yoann:**
+
+> let's move forward

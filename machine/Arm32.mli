@@ -59,6 +59,9 @@ type t =
   | Branch of { cond : cond; link : bool; offset : int }
   | Bx of { cond : cond; link : bool; rm : reg }
   | Clz of { cond : cond; rd : reg; rm : reg }
+  (* the status register, CPSR; [fields]: the mask, bits f s x c *)
+  | Mrs of { cond : cond; rd : reg }
+  | Msr of { cond : cond; fields : int; src : operand }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 

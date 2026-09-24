@@ -29,6 +29,8 @@ type t =
   | Branch of { cond : cond; link : bool; offset : int }
   | Bx of { cond : cond; link : bool; rm : reg }
   | Clz of { cond : cond; rd : reg; rm : reg }
+  | Mrs of { cond : cond; rd : reg }
+  | Msr of { cond : cond; fields : int; src : operand }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 
@@ -93,8 +95,13 @@ let decode w =
         if field w 4 4 = 1 && field w 21 2 = 1 && field w 8 12 = 0xfff then Bx { cond; link = false; rm = field w 0 4 }
         else if field w 4 4 = 3 && field w 21 2 = 1 && field w 8 12 = 0xfff then Bx { cond; link = true; rm = field w 0 4 }
         else if field w 4 4 = 1 && field w 21 2 = 3 && field w 16 4 = 15 && field w 8 4 = 15 then Clz { cond; rd; rm = field w 0 4 }
+        (* the status register: CPSR only, SPSR (bit 22) is privileged *)
+        else if field w 20 5 = 0b10000 && field w 16 4 = 15 && field w 0 12 = 0 then Mrs { cond; rd }
+        else if field w 20 5 = 0b10010 && rd = 15 && field w 4 8 = 0 then Msr { cond; fields = rn; src = Sreg (field w 0 4, No_shift) }
         else Undefined w
     | 0 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = shifted w }
+    | 1 when field w 20 5 = 0b10010 && rd = 15 && rn <> 0 ->
+        Msr { cond; fields = rn; src = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
     | 1 when field w 23 2 = 2 && not (bit w 20) -> Undefined w
     | 1 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
     | (2 | 3) as c ->
@@ -222,6 +229,11 @@ let print ~addr (i : t) =
       m ((if link then "bl" else "b") ^ cond_name cond) (Bits.to_hex32 (addr + 8 + offset))
   | Bx { cond; link; rm } -> m ((if link then "blx" else "bx") ^ cond_name cond) (reg_name rm)
   | Clz { cond; rd; rm } -> m ("clz" ^ cond_name cond) (reg_name rd ^ ", " ^ reg_name rm)
+  | Mrs { cond; rd } -> m ("mrs" ^ cond_name cond) (reg_name rd ^ ", CPSR")
+  | Msr { cond; fields; src } ->
+      let names = String.concat "" (List.filter_map (fun (b, c) -> if fields land b <> 0 then Some c else None)
+                                      [ 8, "f"; 4, "s"; 2, "x"; 1, "c" ]) in
+      m ("msr" ^ cond_name cond) ("CPSR_" ^ names ^ ", " ^ operand_text src)
   | Svc { cond; imm } -> m ("svc" ^ cond_name cond) (Printf.sprintf "0x%08x" imm)
   | Undefined w -> Printf.sprintf ".word\t0x%08x" (Bits.unsigned32 w)
 
@@ -389,5 +401,17 @@ let execute st ~addr ~svc i =
         let v = st.r.(rm) in
         let rec go k = if k < 0 then 32 else if (v lsr k) land 1 = 1 then 31 - k else go (k - 1) in
         set st rd (go 31)
+      end
+  (* user mode sees N, Z, C, V and the mode (0x10, usr); it writes
+   * only the flags *)
+  | Mrs { cond; rd } ->
+      if cond_passed st cond then
+        let b f k = if f then 1 lsl k else 0 in
+        set st rd (b st.n 31 lor b st.z 30 lor b st.c 29 lor b st.v 28 lor 0x10)
+  | Msr { cond; fields; src } ->
+      if cond_passed st cond && fields land 8 <> 0 then begin
+        let v, _ = operand st src in
+        st.n <- (v lsr 31) land 1 = 1; st.z <- (v lsr 30) land 1 = 1;
+        st.c <- (v lsr 29) land 1 = 1; st.v <- (v lsr 28) land 1 = 1
       end
   | Svc { cond; imm } -> if cond_passed st cond then svc st imm
