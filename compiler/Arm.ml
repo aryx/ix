@@ -162,9 +162,14 @@ let gmovm (f : node) (t : node) w =
  * or a loop of them *)
 let sucopy (n : node) (nn : node) w =
   let w = w / 4 in
-  let order () = if n.complex > nn.complex then (let a = Gen.reglpcgen n (w <= 2) in let b = Gen.reglpcgen nn (w <= 2) in a, b) else (let b = Gen.reglpcgen nn (w <= 2) in let a = Gen.reglpcgen n (w <= 2) in a, b) in
+  (* the addresses, the harder first *)
+  let addrs () =
+    let small = w <= 2 in
+    if n.complex > nn.complex then (let a = Gen.reglpcgen n small in a, Gen.reglpcgen nn small)
+    else (let b = Gen.reglpcgen nn small in Gen.reglpcgen n small, b)
+  in
+  let nod1, nod2 = addrs () in
   if w <= 2 then begin
-    let nod1, nod2 = order () in
     let nod3 = regalloc (regnode ()) None in
     let nod4 = regalloc (regnode ()) None in
     let nod3, nod4 = if nod3.reg > nod4.reg then nod4, nod3 else nod3, nod4 in
@@ -173,56 +178,32 @@ let sucopy (n : node) (nn : node) w =
     else (gmove nod1 nod3; if w = 2 then (nod1.xoffset <- nod1.xoffset + 4; gmove nod1 nod4));
     if w = 2 && nod2.xoffset = 0 then gmovm nod0 nod2 false
     else (gmove nod3 nod2; if w = 2 then (nod2.xoffset <- nod2.xoffset + 4; gmove nod4 nod2));
-    regfree nod1; regfree nod2; regfree nod3; regfree nod4
+    List.iter regfree [ nod1; nod2; nod3; nod4 ]
   end
   else begin
-    let nod1, nod2 = order () in
-    let m = ref 0 and c = ref 0 in
-    while !c < w && !c < 4 do
-      let i = tmpreg () in
-      !regs.(i) <- !regs.(i) + 1;
-      m := !m lor (1 lsl i);
-      incr c
-    done;
-    let c = !c and w = ref w in
-    let nod4 = nodconst (Int64.of_int !m) in
-    if !w < 3 * c then
-      while !w > c do gmovm nod1 nod4 true; gmovm nod4 nod2 true; w := !w - c done
-    else begin
-      let nod3 = regalloc (regnode ()) None in
-      gmove (Gen.iconst (!w / c)) nod3;
-      w := !w mod c;
-      let pc1 = !pc in
-      gmovm nod1 nod4 true;
-      gmovm nod4 nod2 true;
-      Gen.op2 OSUB (nodconst 1L) nod3;
-      Gen.compare OEQ (nodconst 0L) nod3;
-      (p ()).as_ <- "BGT";
-      patch (p ()) pc1;
-      regfree nod3
-    end;
+    (* up to four registers, the lowest free, moved at once *)
+    let rec take k = if k = 0 then [] else (let i = tmpreg () in !regs.(i) <- !regs.(i) + 1; i :: take (k - 1)) in
+    let rl = take (min w 4) in
+    let c = List.length rl in
+    let movm rl wb = let m = nodconst (Int64.of_int (List.fold_left (fun m i -> m lor (1 lsl i)) 0 rl)) in gmovm nod1 m wb; gmovm m nod2 wb in
+    let rest =
+      if w < 3 * c then (let rec go w = if w > c then (movm rl true; go (w - c)) else w in go w)
+      else begin
+        let nod3 = regalloc (regnode ()) None in
+        gmove (Gen.iconst (w / c)) nod3;
+        let pc1 = !pc in
+        movm rl true;
+        Gen.op2 OSUB (nodconst 1L) nod3;
+        Gen.compare OEQ (nodconst 0L) nod3;
+        (p ()).as_ <- "BGT";
+        patch (p ()) pc1;
+        regfree nod3;
+        w mod c
+      end
+    in
     (* the rest, with the highest registers of the list *)
-    let c = ref c in
-    if !w > 0 then begin
-      let i = ref 0 in
-      while !c > !w do
-        while !m land (1 lsl !i) = 0 do incr i done;
-        m := !m land lnot (1 lsl !i);
-        !regs.(!i) <- 0;
-        decr c;
-        incr i
-      done;
-      nod4.vconst <- Int64.of_int !m;
-      gmovm nod1 nod4 false;
-      gmovm nod4 nod2 false
-    end;
-    let i = ref 0 in
-    while !c > 0 do
-      while !m land (1 lsl !i) = 0 do incr i done;
-      !regs.(!i) <- 0;
-      decr c;
-      incr i
-    done;
+    if rest > 0 then movm (List.filteri (fun i _ -> i >= c - rest) rl) false;
+    List.iter (fun i -> !regs.(i) <- 0) rl;
     regfree nod1;
     regfree nod2
   end
