@@ -66,7 +66,7 @@ type flags = {
 (* What a build does to the world; CLI gives the real one, tests a fake. *)
 type io = {
   run : Recipe.job -> slot:int -> env:(string * string list) list -> int;  (* a pid *)
-  wait : unit -> (int * string) option;   (* None: no child left *)
+  wait : unit -> (int * Recipe.ended) option;   (* None: no child left *)
   stat : string -> float;                 (* 0: missing *)
   exists : string -> bool;
   touch : string -> unit;

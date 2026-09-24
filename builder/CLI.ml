@@ -71,7 +71,8 @@ let first_int mk name =
 let main (caps : < caps; .. >) (argv : string array) : int =
   Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
   let args = List.tl (Array.to_list argv) in
-  let file = ref None and whatif = ref [] and debug = ref "" in
+  let file = ref None and whatif = ref [] in
+  let dump_mkfile = ref false and dump_graph = ref false in
   let dry = ref false and touch_ = ref false and always = ref false in
   let keep = ref false and explain = ref false and seq = ref false and uflag = ref false in
   let hash = ref false in
@@ -86,14 +87,20 @@ let main (caps : < caps; .. >) (argv : string array) : int =
          | 'w', rest when String.length a > 2 ->
              whatif := String.sub a 2 (String.length a - 2) :: !whatif; options rest
          | 'w', f :: rest -> whatif := f :: !whatif; options rest
-         | ('s' | 'e' | 'n' | 'u' | 'i' | 't' | 'a' | 'k' | 'd' | 'H'), rest ->
-             (match letter with
-              | 's' -> seq := true | 'e' -> explain := true | 'n' -> dry := true
-              | 'H' -> hash := true
-              | 'u' -> uflag := true | 't' -> touch_ := true | 'a' -> always := true
-              | 'k' -> keep := true
-              | 'd' -> debug := (if String.length a > 2 then String.sub a 2 (String.length a - 2) else "egp")
-              | _ -> ());
+         | 's', rest -> seq := true; options rest
+         | 'e', rest -> explain := true; options rest
+         | 'n', rest -> dry := true; options rest
+         | 'H', rest -> hash := true; options rest
+         | 'u', rest -> uflag := true; options rest
+         | 't', rest -> touch_ := true; options rest
+         | 'a', rest -> always := true; options rest
+         | 'k', rest -> keep := true; options rest
+         | 'i', rest -> options rest
+         | 'd', rest ->
+             (* -dp the mkfile as read, -dg the graph; -d both (and 9base's e) *)
+             let what = if String.length a > 2 then String.sub a 2 (String.length a - 2) else "egp" in
+             dump_mkfile := String.contains what 'p';
+             dump_graph := String.contains what 'g';
              options rest
          | _ -> failwith usage)
     | rest -> rest
@@ -131,7 +138,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
          | Some text -> Mkfile.read io mk ~file:f text
          | None -> failwith (f ^ ": No such file or directory"))
      | None -> Option.iter (Mkfile.read io mk ~file:"mkfile") (read_file caps "mkfile"));
-    if String.contains !debug 'p' then print caps (Mkfile.dump mk);
+    if !dump_mkfile then print caps (Mkfile.dump mk);
     let now = Unix.gettimeofday () in
     let whatif =
       List.concat_map (fun s ->
@@ -218,7 +225,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
         { dry = !dry; touch = !touch_; always = !always; keep_going = !keep; explain = !explain } in
     let make target =
       let nrep = first_int mk "NREP" in
-      if String.contains !debug 'g' then print caps (Graph.dump (Graph.node g ~nrep target));
+      if !dump_graph then print caps (Graph.dump (Graph.node g ~nrep target));
       Build.make b ~nproc:(first_int mk "NPROC") ~nrep target
     in
     (try

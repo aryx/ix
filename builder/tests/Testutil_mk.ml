@@ -104,7 +104,7 @@ let io (w : world) : Build.io = {
         in
         w.running <- List.filter (fun (p, _) -> p <> pid) w.running;
         finish w j;
-        Some (pid, ""));
+        Some (pid, Recipe.Succeeded));
   stat = (fun name -> match Hashtbl.find_opt w.files name with Some (t, _) -> t | None -> 0.);
   exists = Hashtbl.mem w.files;
   touch = (fun name ->

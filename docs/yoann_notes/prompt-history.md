@@ -2698,3 +2698,27 @@ Claude planned to run five parallel audits and refactor whichever showed cleares
 >   - **TinyAssembler (1, 6, 8):** `tiny/TinyAssembler_test.sh`, run by `make test-goken`: exit, hello, and 17 hello_libc programs with all of libc, outputs compared.
 >   - **Missing test:** the round-trip law in `Asm.mli:111-113` (`show_item` as the assembler would read it back) isn't checked anywhere. A small check of parse ∘ show over the golden fixtures would protect finding 4's suffix desugaring.
 > </agent-message>
+
+**Claude (summary):**
+
+Claude audited five ix programs and identified builder/TinyMk as first for refactoring to fix type-safety issues.
+Rule matching changed from position-indexed string arrays to typed variants (Literal, Meta with Stem/Groups/Percent/Amp), eliminating ambiguity.
+The change fixed a crash in `mk '%.o'`; TinyMk now prints 9base's error message instead of array index failing.
+Tests confirmed the fix: all 63 builder tests pass, 35 regression cases match 9base's mk, readability and safety improved.
+Claude proposed continuing with builder's remaining string-to-variant conversions, then TinyBuildSystem, editor, shell, assembler, linker in order.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:10
+
+**Yoann:**
+
+> I like the direction
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:10
+
+**Yoann:**
+
+> I agree with your assessments

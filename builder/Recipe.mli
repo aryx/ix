@@ -73,9 +73,12 @@ type caps = < Cap.fork; Cap.exec; Cap.wait >
  * (e.g. ["-e"]) and [script] on its standard input; returns its pid *)
 val start : < caps; .. > -> shell:string list -> env:string array -> args:string list -> string -> int
 
-(* [wait caps]: a child that ended, and "" or why it failed
- * ("exit(1)", "signal 9") *)
-val wait : < caps; .. > -> int * string
+(* how a recipe ended: why it failed, as mk prints it ("exit(1)",
+ * "signal 9") *)
+type ended = Succeeded | Exit_status of string
+
+(* [wait caps]: a child that ended, and how *)
+val wait : < caps; .. > -> int * ended
 
 (* [output caps ~shell ~env ~stdin cmd]: run [cmd] (on the standard input
  * or with -c), wait for it, and return what it printed and whether it

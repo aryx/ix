@@ -19,7 +19,7 @@ type flags = {
 
 type io = {
   run : Recipe.job -> slot:int -> env:(string * string list) list -> int;
-  wait : unit -> (int * string) option;
+  wait : unit -> (int * Recipe.ended) option;
   stat : string -> float;
   exists : string -> bool;
   touch : string -> unit;
@@ -125,7 +125,7 @@ let run t (j : Recipe.job) =
 let rec waitup t : bool =
   match t.io.wait () with
   | None -> false
-  | Some (pid, why) -> (
+  | Some (pid, ended) -> (
       let rec find i =
         if i >= Array.length t.slots then None
         else match t.slots.(i) with
@@ -138,22 +138,22 @@ let rec waitup t : bool =
           account t;
           t.slots.(slot) <- None;
           t.running <- t.running - 1;
-          let failed = why <> "" in
-          if failed then begin
-            let _, text = printed t j ~slot in
-            let b = Buffer.create 80 in
-            Printf.bprintf b "mk: %s: exit status=%s" (Recipe.front text) why;
-            let deleted = List.filter (fun (n : Graph.node) -> n.delete) j.nodes in
-            if deleted <> [] then Buffer.add_string b ", deleting";
-            deleted |> List.iter (fun (n : Graph.node) ->
-              Printf.bprintf b " '%s'" n.name;
-              t.io.delete n.name);
-            t.io.eprint (Buffer.contents b ^ "\n");
-            if t.flags.keep_going then t.errors <- t.errors + 1
-            else (Queue.clear t.queue; raise Failed)
-          end;
+          (match ended with
+          | Succeeded -> ()
+          | Exit_status why ->
+              let _, text = printed t j ~slot in
+              let b = Buffer.create 80 in
+              Printf.bprintf b "mk: %s: exit status=%s" (Recipe.front text) why;
+              let deleted = List.filter (fun (n : Graph.node) -> n.delete) j.nodes in
+              if deleted <> [] then Buffer.add_string b ", deleting";
+              deleted |> List.iter (fun (n : Graph.node) ->
+                Printf.bprintf b " '%s'" n.name;
+                t.io.delete n.name);
+              t.io.eprint (Buffer.contents b ^ "\n");
+              if t.flags.keep_going then t.errors <- t.errors + 1
+              else (Queue.clear t.queue; raise Failed));
           j.targets |> List.iter (fun name ->
-            Option.iter (fun n -> update t n ~failed) (Graph.find t.g name));
+            Option.iter (fun n -> update t n ~failed:(ended <> Succeeded)) (Graph.find t.g name));
           if t.running < Array.length t.slots then sched t;
           true)
 

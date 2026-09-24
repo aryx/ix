@@ -172,11 +172,13 @@ let start caps ~shell ~env ~args script =
   Unix.close wr;
   pid
 
-let describe (st : Unix.process_status) : string =
+type ended = Succeeded | Exit_status of string
+
+let describe (st : Unix.process_status) : ended =
   match st with
-  | Unix.WEXITED 0 -> ""
-  | Unix.WEXITED n -> Printf.sprintf "exit(%d)" n
-  | Unix.WSIGNALED n | Unix.WSTOPPED n -> Printf.sprintf "signal %d" n
+  | Unix.WEXITED 0 -> Succeeded
+  | Unix.WEXITED n -> Exit_status (Printf.sprintf "exit(%d)" n)
+  | Unix.WSIGNALED n | Unix.WSTOPPED n -> Exit_status (Printf.sprintf "signal %d" n)
 
 let rec wait caps =
   match CapUnix.wait caps () with
