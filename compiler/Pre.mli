@@ -17,29 +17,32 @@ type input = { text : string; mutable pos : int; }
 
 val includes : string list ref
 
-val peekc : int option ref
+(* the character put back, if any *)
+val peekc : char option ref
 
-val eof : int
+(* the end of the input: a NUL is no C *)
+val eof : char
 
-val raw : unit -> int
+(* the next byte, eof at the end *)
+val raw : unit -> char
 
 (* the text, read next *)
 val push : string -> unit
 
-val getc : unit -> int
+(* the character put back, or the next *)
+val read : unit -> char
 
-val unget : int -> unit
+(* the next, counting lines; an error at the end *)
+val getc : unit -> char
 
-val is_alpha : int -> bool
+val unget : char -> unit
 
-val is_digit : int -> bool
+val is_alpha : char -> bool
+val is_digit : char -> bool
+val is_alnum : char -> bool
+val is_space : char -> bool
 
-val is_alnum : int -> bool
-
-val is_space : int -> bool
-
-val chr : int -> char
-
+(* -Dname=value *)
 val dodefine : string -> unit
 
 (* the expansion of a use of s, its arguments read *)

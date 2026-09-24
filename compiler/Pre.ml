@@ -9,6 +9,7 @@
  *)
 (* See Pre.mli *)
 
+
 open Tree
 
 (*****************************************************************************)
@@ -19,43 +20,43 @@ type input = { text : string; mutable pos : int }
 
 let stack : input list ref = ref []
 let includes : string list ref = ref []
-let peekc : int option ref = ref None
-let eof = -1
+let peekc : char option ref = ref None
+
+(* the end of the input: a NUL is no C *)
+let eof = '\000'
 
 (* lex.c's GETC: the next byte, popping what is exhausted *)
 let rec raw () =
   match !stack with
   | [] -> eof
   | i :: rest ->
-      if i.pos < String.length i.text then (let c = Char.code i.text.[i.pos] in i.pos <- i.pos + 1; c)
+      if i.pos < String.length i.text then (let c = i.text.[i.pos] in i.pos <- i.pos + 1; c)
       else (stack := rest; raw ())
 
 let push text = stack := { text; pos = 0 } :: !stack
 
+(* the character put back, or the next *)
+let read () = match !peekc with Some c -> peekc := None; c | None -> raw ()
+
 let getc () =
-  let c = match !peekc with Some c -> peekc := None; c | None -> raw () in
-  if c = Char.code '\n' then incr lineno;
+  let c = read () in
+  if c = '\n' then incr lineno;
   if c = eof then error_at !lineno "End of file";
   c
 
+let is_alpha c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+let is_digit c = c >= '0' && c <= '9'
+let is_alnum c = is_alpha c || is_digit c
+let is_space c = c = ' ' || c = '\t' || c = '\n' || c = '\011' || c = '\012' || c = '\r'
+
 (* the next non-space, stopping at a newline *)
 let getnsc () =
-  let rec go c =
-    if c >= 0x80 || not (c = 32 || c = 9 || c = 11 || c = 12 || c = 13 || c = 10) then c
-    else if c = 10 then (incr lineno; c)
-    else go (raw ())
-  in
-  go (match !peekc with Some c -> peekc := None; c | None -> raw ())
+  let rec go c = if not (is_space c) then c else if c = '\n' then (incr lineno; c) else go (raw ()) in
+  go (read ())
 
-let unget c = peekc := Some c; if c = 10 then decr lineno
+let unget c = peekc := Some c; if c = '\n' then decr lineno
 
 let index_of x l = let rec go i = function [] -> None | y :: r -> if y = x then Some i else go (i + 1) r in go 0 l
-
-let is_alpha c = (c >= 97 && c <= 122) || (c >= 65 && c <= 90)
-let is_digit c = c >= 48 && c <= 57
-let is_alnum c = is_alpha c || is_digit c
-let is_space c = c = 32 || c = 9 || c = 10 || c = 11 || c = 12 || c = 13
-let chr = Char.chr
 
 (*****************************************************************************)
 (* The preprocessor (macbody) *)
@@ -63,10 +64,10 @@ let chr = Char.chr
 
 let getsym () =
   let c = getnsc () in
-  if (not (is_alpha c)) && c <> 95 && c < 0x80 then (unget c; None)
+  if (not (is_alpha c)) && c <> '_' && c < '\128' then (unget c; None)
   else begin
     let b = Buffer.create 16 in
-    let rec go c = if is_alnum c || c = 95 || c >= 0x80 then (Buffer.add_char b (chr c); go (getc ())) else unget c in
+    let rec go c = if is_alnum c || c = '_' || c >= '\128' then (Buffer.add_char b c; go (getc ())) else unget c in
     go c;
     Some (lookup (Buffer.contents b))
   end
@@ -75,32 +76,35 @@ let getsym () =
 let getcom () =
   let rec go () =
     let c = getnsc () in
-    if c <> 47 then c
+    if c <> '/' then c
     else
       let c = getc () in
-      if c = 47 then (let rec eol c = if c <> 10 then eol (getc ()) in eol c; 10)
-      else if c <> 42 then c
+      if c = '/' then (let rec eol c = if c <> '\n' then eol (getc ()) in eol c; '\n')
+      else if c <> '*' then c
       else begin
         let rec skip c =
-          if c = 42 then (let c = getc () in if c = 47 then getc () else skip c)
-          else if c = 10 then 10
+          if c = '*' then (let c = getc () in if c = '/' then getc () else skip c)
+          else if c = '\n' then '\n'
           else skip (getc ())
         in
         let c = skip (getc ()) in
-        if c = 10 then 10 else (unget c; go ())
+        if c = '\n' then '\n' else (unget c; go ())
       end
   in
   go ()
 
-let macend () = let rec go () = let c = getnsc () in if c >= 0 && c <> 10 then go () in go ()
+let macend () = let rec go () = let c = getnsc () in if c <> eof && c <> '\n' then go () in go ()
+
+(* a macro is its number of parameters + 1 (0: none), varmac if the
+ * last is ..., as a first character; then its body, a parameter as #a,
+ * #b... *)
+let varmac = 0x80
 
 (* -Dname=value *)
 let dodefine s =
   match String.index_opt s '=' with
   | Some i -> (lookup (String.sub s 0 i)).macro <- Some ("\000" ^ String.sub s (i + 1) (String.length s - i - 1))
   | None -> (lookup s).macro <- Some "\0001"
-
-let varmac = 0x80
 
 let macdef () =
   match getsym () with
@@ -109,22 +113,22 @@ let macdef () =
       let c = getc () in
       let args = ref [] and dots = ref false and n = ref (-1) in
       let c =
-        if c = 40 then begin
+        if c = '(' then begin
           n := 0;
           let c = getnsc () in
-          if c <> 41 then begin
+          if c <> ')' then begin
             unget c;
             let rec params () =
               let a = match getsym () with
                 | Some a -> a.name
                 | None ->
                     let c = getnsc () in
-                    if c = 46 && getc () = 46 && getc () = 46 then (dots := true; "__VA_ARGS__")
+                    if c = '.' && getc () = '.' && getc () = '.' then (dots := true; "__VA_ARGS__")
                     else error_at !lineno "syntax in #define: %s" s.name in
               args := !args @ [ a ];
               incr n;
               let c = getnsc () in
-              if c = 41 then () else if c = 44 && not !dots then params () else error_at !lineno "syntax in #define: %s" s.name
+              if c = ')' then () else if c = ',' && not !dots then params () else error_at !lineno "syntax in #define: %s" s.name
             in
             params ()
           end;
@@ -132,57 +136,57 @@ let macdef () =
         end
         else c
       in
-      let c = if is_space c && c <> 10 then getnsc () else c in
+      let c = if is_space c && c <> '\n' then getnsc () else c in
       let base = Buffer.create 64 in
-      (* q: the quote of the string or the constant c is in *)
+      let add = Buffer.add_char base in
+      (* q: the quote of the string or the character constant c is in *)
       let rec body c q =
-        if q = None && (is_alpha c || c = 95) then begin
+        if q = None && (is_alpha c || c = '_') then begin
           let w = Buffer.create 16 in
-          let rec word c = if is_alnum c || c = 95 then (Buffer.add_char w (chr c); word (getc ())) else c in
+          let rec word c = if is_alnum c || c = '_' then (Buffer.add_char w c; word (getc ())) else c in
           let c = word c in
           let w = Buffer.contents w in
-          (match index_of w !args with
-           | Some i -> Buffer.add_char base '#'; Buffer.add_char base (chr (97 + i))
-           | None -> Buffer.add_string base w);
+          (match index_of w !args with Some i -> add '#'; add (Char.chr (97 + i)) | None -> Buffer.add_string base w);
           body c q
         end
-        else if q <> None && c = 92 then (Buffer.add_char base (chr c); let c = getc () in Buffer.add_char base (chr c); body (next ()) q)
-        else if q = Some c then (Buffer.add_char base (chr c); body (next ()) None)
-        else if q = None && (c = 34 || c = 39) then (Buffer.add_char base (chr c); body (getc ()) (Some c))
-        else if q = None && c = 47 then begin
+        else if q <> None && c = '\\' then (add c; add (getc ()); body (next ()) q)
+        else if q = Some c then (add c; body (next ()) None)
+        else if q = None && (c = '"' || c = '\'') then (add c; body (getc ()) (Some c))
+        else if q = None && c = '/' then begin
           let c = getc () in
-          if c = 47 then (let rec eol c = if c <> 10 then eol (getc ()) else c in body (eol (getc ())) q)
-          else if c = 42 then begin
+          if c = '/' then (let rec eol c = if c <> '\n' then eol (getc ()) else c in body (eol (getc ())) q)
+          else if c = '*' then begin
             let rec skip c =
-              if c = 42 then (let c = getc () in if c <> 47 then skip c else getc ())
-              else if c = 10 then error_at !lineno "comment and newline in define: %s" s.name
+              if c = '*' then (let c = getc () in if c <> '/' then skip c else getc ())
+              else if c = '\n' then error_at !lineno "comment and newline in define: %s" s.name
               else skip (getc ())
             in
             body (skip (getc ())) q
           end
-          else (Buffer.add_char base '/'; body c q)
+          else (add '/'; body c q)
         end
-        else if c = 92 then begin
+        else if c = '\\' then begin
+          (* a line continued *)
           let c = getc () in
-          if c = 10 then body (getc ()) q
-          else if c = 13 then (let c = getc () in if c = 10 then body (getc ()) q else (Buffer.add_char base '\\'; body c q))
-          else (Buffer.add_char base '\\'; body c q)
+          if c = '\n' then body (getc ()) q
+          else if c = '\r' then (let c = getc () in if c = '\n' then body (getc ()) q else (add '\\'; body c q))
+          else (add '\\'; body c q)
         end
-        else if c = 10 then ()
+        else if c = '\n' then ()
         else begin
-          if c = 35 && !n > 0 then Buffer.add_char base '#';
-          Buffer.add_char base (chr c);
+          if c = '#' && !n > 0 then add '#';
+          add c;
           body (next ()) q
         end
       and next () =
         let c = raw () in
-        if c = 10 then incr lineno;
+        if c = '\n' then incr lineno;
         if c = eof then error_at !lineno "eof in a macro: %s" s.name;
         c
       in
       body c None;
       let head = (!n + 1) lor (if !dots then varmac else 0) in
-      s.macro <- Some (String.make 1 (chr head) ^ Buffer.contents base)
+      s.macro <- Some (String.make 1 (Char.chr head) ^ Buffer.contents base)
 
 (* the expansion of s, its arguments read from the input *)
 let macexpand s =
@@ -192,48 +196,47 @@ let macexpand s =
   if head = 0 then text
   else begin
     let nargs = (head land lnot varmac) - 1 and dots = head land varmac <> 0 in
-    if getnsc () <> 40 then error_at !lineno "syntax in macro expansion: %s" s.name;
+    if getnsc () <> '(' then error_at !lineno "syntax in macro expansion: %s" s.name;
     let args = ref [] and cur = Buffer.create 64 in
+    let add = Buffer.add_char cur in
     let c = getc () in
-    if c <> 41 then begin
+    if c <> ')' then begin
       unget c;
       let rec arg level =
         let c = getc () in
         let quoted q =
-          Buffer.add_char cur (chr c);
+          add c;
           let rec go () =
             let c = getc () in
-            if c = 92 then (Buffer.add_char cur (chr c); Buffer.add_char cur (chr (getc ())); go ())
-            else if c = 10 then error_at !lineno "syntax in macro expansion: %s" s.name
-            else if c = q then Buffer.add_char cur (chr c)
-            else (Buffer.add_char cur (chr c); go ())
+            if c = '\\' then (add c; add (getc ()); go ())
+            else if c = '\n' then error_at !lineno "syntax in macro expansion: %s" s.name
+            else if c = q then add c
+            else (add c; go ())
           in
           go ();
           arg level
         in
-        if c = 34 then quoted 34
-        else if c = 39 then quoted 39
+        if c = '"' || c = '\'' then quoted c
         else begin
+          (* a comment is a space *)
           let c =
-            if c = 47 then begin
+            if c <> '/' then Some c
+            else
               let c2 = getc () in
-              if c2 = 42 then (let rec skip () = let c = getc () in if c = 42 && getc () = 47 then () else skip () in skip (); -2)
-              else if c2 = 47 then (let rec eol () = if getc () <> 10 then eol () in eol (); 10)
-              else (unget c2; 47)
-            end
-            else c
+              if c2 = '*' then (let rec skip () = let c = getc () in if c = '*' && getc () = '/' then () else skip () in skip (); None)
+              else if c2 = '/' then (let rec eol () = if getc () <> '\n' then eol () in eol (); Some '\n')
+              else (unget c2; Some '/')
           in
-          if c = -2 then (Buffer.add_char cur ' '; arg level)
-          else if level = 0 && c = 44 && not (List.length !args + 1 = nargs && dots) then begin
-            args := !args @ [ Buffer.contents cur ];
-            Buffer.clear cur;
-            if List.length !args > nargs then () else arg level
-          end
-          else if level = 0 && c = 41 then args := !args @ [ Buffer.contents cur ]
-          else begin
-            Buffer.add_char cur (chr (if c = 10 then 32 else c));
-            arg (if c = 40 then level + 1 else if c = 41 then level - 1 else level)
-          end
+          match c with
+          | None -> add ' '; arg level
+          | Some c when level = 0 && c = ',' && not (List.length !args + 1 = nargs && dots) ->
+              args := !args @ [ Buffer.contents cur ];
+              Buffer.clear cur;
+              if List.length !args > nargs then () else arg level
+          | Some c when level = 0 && c = ')' -> args := !args @ [ Buffer.contents cur ]
+          | Some c ->
+              add (if c = '\n' then ' ' else c);
+              arg (if c = '(' then level + 1 else if c = ')' then level - 1 else level)
         end
       in
       arg 0
@@ -260,26 +263,26 @@ let read_file = ref (fun (_ : string) -> (None : string option))
 
 let macinc () =
   let c0 = getnsc () in
-  let close = if c0 = 34 then 34 else if c0 = 60 then 62 else error_at !lineno "syntax in #include" in
+  let close = if c0 = '"' then '"' else if c0 = '<' then '>' else error_at !lineno "syntax in #include" in
   let b = Buffer.create 32 in
-  let rec go () = let c = getc () in if c = close then () else if c = 10 then error_at !lineno "syntax in #include" else (Buffer.add_char b (chr c); go ()) in
+  let rec go () = let c = getc () in if c = close then () else if c = '\n' then error_at !lineno "syntax in #include" else (Buffer.add_char b c; go ()) in
   go ();
-  if getcom () <> 10 then error_at !lineno "syntax in #include";
+  if getcom () <> '\n' then error_at !lineno "syntax in #include";
   let f = Buffer.contents b in
-  let dirs = List.filteri (fun i _ -> not (i = 0 && close = 62)) !includes in
+  let dirs = List.filteri (fun i _ -> not (i = 0 && close = '>')) !includes in
   let text = List.find_map (fun d -> !read_file (if d = "." then f else Filename.concat d f)) dirs in
   match text with
   | Some t -> push t
   | None -> (match !read_file f with Some t -> push t | None -> error_at !lineno "cannot open include file %s" f)
 
-(* #ifdef, #ifndef, #else: skip what is not taken *)
 type cond = Ifdef | Ifndef | Else
 
+(* #ifdef, #ifndef, #else: skip what is not taken *)
 let macif f =
   let skip () =
     let rec go bol l =
       let c = getc () in
-      if c <> 35 then go (if c = 10 then true else if not (is_space c) then false else bol) l
+      if c <> '#' then go (if c = '\n' then true else if not (is_space c) then false else bol) l
       else if not bol then go bol l
       else
         match getsym () with
@@ -296,7 +299,7 @@ let macif f =
     match getsym () with
     | None -> error_at !lineno "syntax in #if(n)def"
     | Some s ->
-        if getcom () <> 10 then error_at !lineno "syntax in #if(n)def";
+        if getcom () <> '\n' then error_at !lineno "syntax in #if(n)def";
         if (s.macro <> None) <> (f = Ifndef) then () else skip ()
 
 (* #pragma profile: off makes TEXT's flag NOPROF *)
