@@ -40,3 +40,21 @@ let to_hex32 w =
   if native then Printf.sprintf "0x%x" (w land m32)
   else if w >= 0 then Printf.sprintf "0x%x" w
   else Printf.sprintf "0x%x%07x" ((w lsr 28) land 0xf) (w land 0xfffffff)
+
+let of_int32 i = mask32 (Int32.to_int i)
+let to_int32 w = Int32.of_int (signed32 w)
+
+let add_carry a b cin =
+  let r = mask32 (a + b + cin) in
+  let c = if cin = 0 then ult32 r a else ule32 r a in
+  let v = (a lxor r) land (b lxor r) land top <> 0 in
+  r, c, v
+
+let mul64 ~signed a b =
+  let ext w = if signed then Int64.of_int (signed32 w) else Int64.logand (Int64.of_int (signed32 w)) 0xffffffffL in
+  let p = Int64.mul (ext a) (ext b) in
+  of_int32 (Int64.to_int32 p), of_int32 (Int64.to_int32 (Int64.shift_right_logical p 32))
+
+let lsl32 w n = mask32 (w lsl n)
+let lsr32 w n = if n = 0 then w else (unsigned32 w) lsr n
+let asr32 w n = mask32 (signed32 w asr n)

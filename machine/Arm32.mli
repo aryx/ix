@@ -72,3 +72,29 @@ val print : addr:int -> t -> string
 val imm_value : imm8:int -> rot:int -> int
 
 val reg_name : reg -> string
+
+(*****************************************************************************)
+(* Execution *)
+(*****************************************************************************)
+
+(* the user-mode state: r0-r15 (words), the flags; [next] is the address
+ * the instruction running jumps to, pc + 4 unless it writes pc *)
+type state = {
+  r : int array;
+  mutable n : bool;
+  mutable z : bool;
+  mutable c : bool;
+  mutable v : bool;
+  mutable next : int;
+  mem : Memory.t;
+}
+
+exception Unimplemented of int * int  (* the word, its address *)
+
+val create : Memory.t -> state
+
+(* the instruction at [addr], r15 reading addr + 8; [svc] runs a
+ * system call *)
+val execute : state -> addr:int -> svc:(state -> int -> unit) -> t -> unit
+
+val cond_passed : state -> cond -> bool

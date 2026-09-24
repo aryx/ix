@@ -224,3 +224,170 @@ let print ~addr (i : t) =
   | Clz { cond; rd; rm } -> m ("clz" ^ cond_name cond) (reg_name rd ^ ", " ^ reg_name rm)
   | Svc { cond; imm } -> m ("svc" ^ cond_name cond) (Printf.sprintf "0x%08x" imm)
   | Undefined w -> Printf.sprintf ".word\t0x%08x" (Bits.unsigned32 w)
+
+(*****************************************************************************)
+(* Execution *)
+(*****************************************************************************)
+
+type state = {
+  r : int array;
+  mutable n : bool;
+  mutable z : bool;
+  mutable c : bool;
+  mutable v : bool;
+  mutable next : int;
+  mem : Memory.t;
+}
+
+exception Unimplemented of int * int
+
+let create mem = { r = Array.make 16 0; n = false; z = false; c = false; v = false; next = 0; mem }
+
+let cond_passed st = function
+  | EQ -> st.z | NE -> not st.z | CS -> st.c | CC -> not st.c | MI -> st.n | PL -> not st.n
+  | VS -> st.v | VC -> not st.v | HI -> st.c && not st.z | LS -> (not st.c) || st.z
+  | GE -> st.n = st.v | LT -> st.n <> st.v | GT -> (not st.z) && st.n = st.v | LE -> st.z || st.n <> st.v | AL -> true
+
+(* a register written; pc: a jump (ARM state only: bit 0 would be Thumb) *)
+let set st rd v =
+  if rd = 15 then begin
+    if v land 1 <> 0 then raise (Unimplemented (v, st.r.(15) - 8)) (* Thumb *)
+    else st.next <- Bits.mask32 (v land lnot 3)
+  end
+  else st.r.(rd) <- v
+
+(* the shifter: a value and its carry out *)
+let shift st v sh n =
+  let bitc k = (v lsr k) land 1 = 1 in
+  match sh with
+  | LSL -> if n = 0 then v, st.c else if n < 32 then Bits.lsl32 v n, bitc (32 - n) else if n = 32 then 0, bitc 0 else 0, false
+  | LSR -> if n = 0 then v, st.c else if n < 32 then Bits.lsr32 v n, bitc (n - 1) else if n = 32 then 0, bitc 31 else 0, false
+  | ASR -> if n = 0 then v, st.c else if n < 32 then Bits.asr32 v n, bitc (n - 1) else Bits.asr32 v 31, bitc 31
+  | ROR -> if n = 0 then v, st.c else let k = n land 31 in if k = 0 then v, bitc 31 else Bits.ror32 v k, bitc (k - 1)
+
+let shifted_value st rm = function
+  | No_shift -> st.r.(rm), st.c
+  | By_imm (sh, n) -> shift st st.r.(rm) sh n
+  | By_reg (sh, rs) -> shift st st.r.(rm) sh (st.r.(rs) land 0xff)
+  | Rrx -> let v = st.r.(rm) in Bits.mask32 ((if st.c then 1 lsl 31 else 0) lor Bits.lsr32 v 1), v land 1 = 1
+
+let operand st = function
+  | Imm { imm8; rot } -> let v = imm_value ~imm8 ~rot in v, (if rot = 0 then st.c else (v lsr 31) land 1 = 1)
+  | Sreg (rm, sh) -> shifted_value st rm sh
+
+let set_nz st r = st.n <- (r lsr 31) land 1 = 1; st.z <- r = 0
+
+let execute st ~addr ~svc i =
+  st.r.(15) <- Bits.mask32 (addr + 8);
+  st.next <- Bits.mask32 (addr + 4);
+  match i with
+  | Undefined w -> raise (Unimplemented (w, addr))
+  | Dp { cond; op; s; rd; rn; op2 } ->
+      if cond_passed st cond then begin
+        let b, sc = operand st op2 in
+        let a = st.r.(rn) in
+        let logical r = if s then (set_nz st r; st.c <- sc) in
+        let arith (r, c, v) = if s then (set_nz st r; st.c <- c; st.v <- v); r in
+        let cin = if st.c then 1 else 0 in
+        let result = match op with
+          | AND -> let r = a land b in logical r; Some r
+          | EOR -> let r = a lxor b in logical r; Some r
+          | ORR -> let r = a lor b in logical r; Some r
+          | BIC -> let r = a land Bits.mask32 (lnot b) in logical r; Some r
+          | MOV -> logical b; Some b
+          | MVN -> let r = Bits.mask32 (lnot b) in logical r; Some r
+          | ADD -> Some (arith (Bits.add_carry a b 0))
+          | ADC -> Some (arith (Bits.add_carry a b cin))
+          | SUB -> Some (arith (Bits.add_carry a (Bits.mask32 (lnot b)) 1))
+          | SBC -> Some (arith (Bits.add_carry a (Bits.mask32 (lnot b)) cin))
+          | RSB -> Some (arith (Bits.add_carry b (Bits.mask32 (lnot a)) 1))
+          | RSC -> Some (arith (Bits.add_carry b (Bits.mask32 (lnot a)) cin))
+          | TST -> set_nz st (a land b); st.c <- sc; None
+          | TEQ -> set_nz st (a lxor b); st.c <- sc; None
+          | CMP -> let r, c, v = Bits.add_carry a (Bits.mask32 (lnot b)) 1 in set_nz st r; st.c <- c; st.v <- v; None
+          | CMN -> let r, c, v = Bits.add_carry a b 0 in set_nz st r; st.c <- c; st.v <- v; None in
+        Option.iter (set st rd) result
+      end
+  | Mul { cond; s; rd; rm; rs; acc } ->
+      if cond_passed st cond then begin
+        let lo, _ = Bits.mul64 ~signed:false st.r.(rm) st.r.(rs) in
+        let r = match acc with Some ra -> Bits.mask32 (lo + st.r.(ra)) | None -> lo in
+        if s then set_nz st r;
+        set st rd r
+      end
+  | Mull { cond; s; signed; acc; rdlo; rdhi; rm; rs } ->
+      if cond_passed st cond then begin
+        let lo, hi = Bits.mul64 ~signed st.r.(rm) st.r.(rs) in
+        let lo, hi =
+          if acc then
+            let l, c, _ = Bits.add_carry lo st.r.(rdlo) 0 in
+            l, Bits.mask32 (hi + st.r.(rdhi) + if c then 1 else 0)
+          else lo, hi in
+        if s then (st.n <- (hi lsr 31) land 1 = 1; st.z <- lo = 0 && hi = 0);
+        set st rdlo lo;
+        set st rdhi hi
+      end
+  | Mem { cond; load; size; rd; rn; offset; up; index; writeback; user = _ } ->
+      if cond_passed st cond then begin
+        let off = match offset with Off_imm n -> n | Off_reg (rm, sh) -> fst (shifted_value st rm sh) in
+        let base = st.r.(rn) in
+        let moved = Bits.mask32 (if up then base + off else base - off) in
+        let a = match index with Pre -> moved | Post -> base in
+        let m = st.mem in
+        (* the base written back before the load, so that a load into
+         * the base register wins *)
+        if index = Post || writeback then (if rn <> 15 then st.r.(rn) <- moved);
+        if load then
+          match size with
+          | Word -> set st rd (Memory.load32 m a)
+          | Byte -> set st rd (Memory.load8 m a)
+          | Half -> set st rd (Memory.load16 m a)
+          | Sbyte -> set st rd (Bits.mask32 (Bits.sign_extend 8 (Memory.load8 m a)))
+          | Shalf -> set st rd (Bits.mask32 (Bits.sign_extend 16 (Memory.load16 m a)))
+          | Dword -> set st rd (Memory.load32 m a); set st (rd + 1) (Memory.load32 m (Bits.mask32 (a + 4)))
+        else
+          let value r = if r = 15 then Bits.mask32 (addr + 8) else st.r.(r) in
+          match size with
+          | Word -> Memory.store32 m a (value rd)
+          | Byte -> Memory.store8 m a (value rd)
+          | Half | Sbyte | Shalf -> Memory.store16 m a (value rd)
+          | Dword -> Memory.store32 m a (value rd); Memory.store32 m (Bits.mask32 (a + 4)) (value (rd + 1))
+      end
+  | Block { cond; load; rn; writeback; mode; regs; psr } ->
+      if cond_passed st cond then begin
+        if psr then raise (Unimplemented (0, addr));
+        let count = let rec go k acc = if k = 16 then acc else go (k + 1) (acc + ((regs lsr k) land 1)) in go 0 0 in
+        let base = st.r.(rn) in
+        let start = match mode with
+          | IA -> base | IB -> base + 4 | DA -> base - (4 * count) + 4 | DB -> base - (4 * count) in
+        let final = match mode with IA | IB -> base + (4 * count) | DA | DB -> base - (4 * count) in
+        let a = ref (Bits.mask32 start) in
+        let loaded = ref [] in
+        for k = 0 to 15 do
+          if (regs lsr k) land 1 = 1 then begin
+            if load then loaded := (k, Memory.load32 st.mem !a) :: !loaded
+            else Memory.store32 st.mem !a st.r.(k);
+            a := Bits.mask32 (!a + 4)
+          end
+        done;
+        if writeback then st.r.(rn) <- Bits.mask32 final;
+        List.iter (fun (k, v) -> set st k v) (List.rev !loaded)
+      end
+  | Branch { cond; link; offset } ->
+      if cond_passed st cond then begin
+        if link then st.r.(14) <- Bits.mask32 (addr + 4);
+        st.next <- Bits.mask32 (addr + 8 + offset)
+      end
+  | Bx { cond; link; rm } ->
+      if cond_passed st cond then begin
+        let target = st.r.(rm) in
+        if link then st.r.(14) <- Bits.mask32 (addr + 4);
+        set st 15 target
+      end
+  | Clz { cond; rd; rm } ->
+      if cond_passed st cond then begin
+        let v = st.r.(rm) in
+        let rec go k = if k < 0 then 32 else if (v lsr k) land 1 = 1 then 31 - k else go (k - 1) in
+        set st rd (go 31)
+      end
+  | Svc { cond; imm } -> if cond_passed st cond then svc st imm

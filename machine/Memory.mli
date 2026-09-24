@@ -1,0 +1,38 @@
+(* A guest's memory: segments of bytes at addresses, each checked on
+ * every access; the bus the CPU loads and stores through (plan_arm.md,
+ * decision 4). An access outside every segment raises Fault, the
+ * guest's segmentation fault.
+ *
+ *   map m ~base:0x80a0 ~size:0x6ee8 "text"
+ *   load32 m 0x80cc                       the word at the entry
+ *
+ * Addresses and values are words (Bits): compared unsigned, so that
+ * the same code is right under js_of_ocaml. Little-endian. Unaligned
+ * words and halfwords are allowed, as ARMv6 and later allow them to
+ * user programs. *)
+
+type t
+
+exception Fault of int
+
+val create : unit -> t
+
+(* a zeroed segment *)
+val map : t -> base:int -> size:int -> string -> unit
+
+(* the segment's end grown or shrunk (brk); its end *)
+val resize : t -> string -> size:int -> unit
+val segment_end : t -> string -> int
+
+val load8 : t -> int -> int
+val load16 : t -> int -> int
+val load32 : t -> int -> int
+val store8 : t -> int -> int -> unit
+val store16 : t -> int -> int -> unit
+val store32 : t -> int -> int -> unit
+
+val write_string : t -> int -> string -> unit
+val read_string : t -> int -> int -> string
+
+(* a NUL-terminated string at the address *)
+val read_cstring : t -> int -> string

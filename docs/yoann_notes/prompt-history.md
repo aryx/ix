@@ -3324,3 +3324,19 @@ With this setup, Claude readied the TinyArm project for phase 1 development.
 **Yoann:**
 
 > the good think of using the playground is that we can also target jsoo and the web!
+
+**Claude (summary):**
+
+Claude fixed corpus file generation and completed phase 1 ARM instruction decoding.
+Bits and Arm32 modules written to match objdump output exactly on all 2,311 words.
+Random word testing revealed edge cases like r10 aliases and unprivileged access modes.
+Unsigned comparison bug in js_of_ocaml version was fixed with Bits.ule32.
+Phase 2 outlined: ELF loader, fetch-decode-execute loop, and hello.exe test under TinyArm.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 20:05
+
+**Yoann:**
+
+> let's continue

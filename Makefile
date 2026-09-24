@@ -45,6 +45,7 @@ test-goken: all
 	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
 	./compiler/tests/fuzz.sh $(GOKEN_W)/fuzz 150
 	P9DIFF=$(GOKEN_W)/p9diff ./version_control/tests/diff_fuzz.py 500
+	./machine/tests/corpus.py 5 $(GOKEN_W)/libc5/*/*.exe
 
 # The database against chidb (~/github/chidb, built): the course's
 # .dbmf cases (in make test too, when chidb's checkout is there), the

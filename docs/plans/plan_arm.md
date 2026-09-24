@@ -324,3 +324,22 @@ rot` for a non-canonical rotation, `stmia`, `ldmfd`/`stmfd` for one
 register from sp, ldrd's single register, a halfword's `#0`, no `!` on
 a pc-based halfword). And js_of_ocaml found the first width bug, an
 unsigned test written as `<= 0xff`: hence `Bits.ule32`.
+
+**Phases 2 and 3 done for arm32** (2026-09-24): `Memory`, `Elf`,
+`Arm32`'s execution, `Cpu`'s loop with its decode cache, `Linux` (the
+process, 30 system calls, signals, fork, exec) behind a host record,
+`Host` on Unix, `tinyarm [-t] [-s] [-y]`. All 34 programs of the arm32
+corpus (goken's and ix's links of the 17 hello_libc tests) run with
+the same standard output, exit status and **system-call sequence**
+(`strace` on the native run, TinyArm's `-y`) as on this machine's CPU
+(`machine/tests/corpus.py`).
+
+What the runs found: the kernel maps an ELF's segments by whole pages,
+and a program may use the rest of its last page past its bss (goken's
+`mem.exe` does, its `brk` having failed: goken's `brk` takes any answer
+at or above the request as success, and Linux's randomized heap answers
+far above) -- found by reading the native process's `/proc/PID/maps`
+under a delayed `exit`; `openat` relative to a directory descriptor
+(`dirread`); goken's arm signal handlers have no restorer, so a handler
+returns through the kernel's sigpage: TinyArm maps a trampoline
+(`mov r7, #119; svc 0`) and builds its own frame.
