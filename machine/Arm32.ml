@@ -340,6 +340,10 @@ let take st kind ~ret =
   (match kind with Undefined_instruction | Supervisor_call -> () | _ -> st.a_off <- true);
   st.next <- Bits.mask32 (st.vectors + off)
 
+(* an address through the MMU, when on: bit 0 of [w] a write, bit 1 as
+ * user (ldrt) *)
+let[@inline] phys st a w = if st.mmu then st.translate a w else a
+
 (* the user mode's registers, from a privileged mode (ldm and stm with ^) *)
 let get_user st k =
   if (k = 13 || k = 14) && bank_of st.mode <> 0 then st.banked.(k - 13)
@@ -357,7 +361,7 @@ let cond_passed st = function
   | GE -> st.n = st.v | LT -> st.n <> st.v | GT -> (not st.z) && st.n = st.v | LE -> st.z || st.n <> st.v | AL -> true
 
 (* a register written; pc: a jump (ARM state only: bit 0 would be Thumb) *)
-let set st rd v =
+let[@inline] set st rd v =
   if rd = 15 then begin
     if v land 1 <> 0 then raise (Unimplemented (v, st.r.(15) - 8)) (* Thumb *)
     else st.next <- Bits.mask32 (v land lnot 3)
@@ -427,11 +431,10 @@ let execute st ~addr ~svc i =
          * the flags not set *)
         let return = s && rd = 15 && (match op with TST | TEQ | CMP | CMN -> false | _ -> true) in
         let s = s && not return in
-        let set st rd v = set st rd v; if return then restore_spsr st in
         let logical r = if s then (set_nz st r; st.c <- !carry_out); set st rd r in
         let arith a b cin = (if s then add_flags st a b cin); set st rd (Bits.add32 a b cin) in
         let cin = if st.c then 1 else 0 in
-        match op with
+        (match op with
         | AND -> logical (a land b)
         | EOR -> logical (a lxor b)
         | ORR -> logical (a lor b)
@@ -447,7 +450,8 @@ let execute st ~addr ~svc i =
         | TST -> set_nz st (a land b); st.c <- !carry_out
         | TEQ -> set_nz st (a lxor b); st.c <- !carry_out
         | CMP -> add_flags st a (not32 b) 1
-        | CMN -> add_flags st a b 0
+        | CMN -> add_flags st a b 0);
+        if return then restore_spsr st
       end
   | Mul { cond; s; rd; rm; rs; acc } ->
       if cond_passed st cond then begin
@@ -475,33 +479,33 @@ let execute st ~addr ~svc i =
         let moved = Bits.mask32 (if up then base + off else base - off) in
         let a = match index with Pre -> moved | Post -> base in
         let m = st.mem in
-        (* through the MMU when on: bit 0 a write, bit 1 as user (ldrt) *)
-        let pa a w = if st.mmu then st.translate a (w lor if user then 2 else 0) else a in
-        (* the accesses first, then the base written back, then the
-         * register loaded (it wins over the base): an abort leaves the
-         * registers as they were *)
-        let wb () = if index = Post || writeback then (if rn <> 15 then st.r.(rn) <- moved) in
+        (* the accesses first (through the MMU when on), then the base
+         * written back, then the register loaded (it wins over the
+         * base): an abort leaves the registers as they were *)
+        let u = if user then 2 else 0 in
         if load then begin
+          let p = phys st a u in
           let v = match size with
-            | Word -> Memory.load32 m (pa a 0)
-            | Byte -> Memory.load8 m (pa a 0)
-            | Half -> Memory.load16 m (pa a 0)
-            | Sbyte -> Bits.mask32 (Bits.sign_extend 8 (Memory.load8 m (pa a 0)))
-            | Shalf -> Bits.mask32 (Bits.sign_extend 16 (Memory.load16 m (pa a 0)))
-            | Dword -> Memory.load32 m (pa a 0) in
-          let v2 = if size = Dword then Memory.load32 m (pa (Bits.mask32 (a + 4)) 0) else 0 in
-          wb ();
+            | Word -> Memory.load32 m p
+            | Byte -> Memory.load8 m p
+            | Half -> Memory.load16 m p
+            | Sbyte -> Bits.mask32 (Bits.sign_extend 8 (Memory.load8 m p))
+            | Shalf -> Bits.mask32 (Bits.sign_extend 16 (Memory.load16 m p))
+            | Dword -> Memory.load32 m p in
+          let v2 = if size = Dword then Memory.load32 m (phys st (Bits.mask32 (a + 4)) u) else 0 in
+          if (index = Post || writeback) && rn <> 15 then st.r.(rn) <- moved;
           set st rd v;
           if size = Dword then set st (rd + 1) v2
         end
         else begin
-          let value r = if r = 15 then Bits.mask32 (addr + 8) else st.r.(r) in
+          let p = phys st a (1 lor u) in
+          let v = if rd = 15 then Bits.mask32 (addr + 8) else st.r.(rd) in
           (match size with
-           | Word -> Memory.store32 m (pa a 1) (value rd)
-           | Byte -> Memory.store8 m (pa a 1) (value rd)
-           | Half | Sbyte | Shalf -> Memory.store16 m (pa a 1) (value rd)
-           | Dword -> Memory.store32 m (pa a 1) (value rd); Memory.store32 m (pa (Bits.mask32 (a + 4)) 1) (value (rd + 1)));
-          wb ()
+           | Word -> Memory.store32 m p v
+           | Byte -> Memory.store8 m p v
+           | Half | Sbyte | Shalf -> Memory.store16 m p v
+           | Dword -> Memory.store32 m p v; Memory.store32 m (phys st (Bits.mask32 (a + 4)) (1 lor u)) st.r.(rd + 1));
+          if (index = Post || writeback) && rn <> 15 then st.r.(rn) <- moved
         end
       end
   | Block { cond; load; rn; writeback; mode; regs; psr } ->
@@ -510,7 +514,6 @@ let execute st ~addr ~svc i =
          * exception return *)
         let returning = psr && load && regs land 0x8000 <> 0 in
         let user = psr && not returning in
-        let pa a w = if st.mmu then st.translate a w else a in
         let count = let rec go k acc = if k = 16 then acc else go (k + 1) (acc + ((regs lsr k) land 1)) in go 0 0 in
         let base = st.r.(rn) in
         let start = match mode with
@@ -520,8 +523,8 @@ let execute st ~addr ~svc i =
         let loaded = ref [] in
         for k = 0 to 15 do
           if (regs lsr k) land 1 = 1 then begin
-            if load then loaded := (k, Memory.load32 st.mem (pa !a 0)) :: !loaded
-            else Memory.store32 st.mem (pa !a 1) (if user then get_user st k else st.r.(k));
+            if load then loaded := (k, Memory.load32 st.mem (phys st !a 0)) :: !loaded
+            else Memory.store32 st.mem (phys st !a 1) (if user then get_user st k else st.r.(k));
             a := Bits.mask32 (!a + 4)
           end
         done;

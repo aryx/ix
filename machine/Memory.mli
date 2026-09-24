@@ -20,6 +20,15 @@ val create : unit -> t
 (* a zeroed segment *)
 val map : t -> base:int -> size:int -> string -> unit
 
+(* a segment of the caller's bytes (a board's RAM) *)
+val map_bytes : t -> base:int -> string -> Bytes.t -> unit
+
+(* a device: loads and stores of 1, 2 or 4 bytes by offset in its range
+ * (a board's registers); the last mapped wins where ranges overlap *)
+type device = { read : int -> int -> int; write : int -> int -> int -> unit }
+
+val map_device : t -> base:int -> size:int -> string -> device -> unit
+
 (* the segment's end grown or shrunk (brk); its end *)
 val resize : t -> string -> size:int -> unit
 val segment_end : t -> string -> int
