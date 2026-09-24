@@ -173,6 +173,15 @@ val node : op -> node option -> node option -> node
 (* a node, at the line being diagnosed *)
 val node1 : op -> node option -> node option -> node
 
+(* a name of s, of type t and class c, at off *)
+val name_of : sym -> typ option -> cls -> int -> node
+
+(* s as it is declared now *)
+val name_node : sym -> node
+
+(* a constant of type t *)
+val const_node : typ -> int64 -> node
+
 val copy_into : node -> node -> unit
 
 val dup : node -> node

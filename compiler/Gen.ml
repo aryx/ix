@@ -46,9 +46,8 @@ let fvn name et =
   match Hashtbl.find_opt fvns (name, et) with
   | Some n -> n
   | None ->
-      let n = node ONAME None None in
-      n.nsym <- Some (lookup name);
-      n.ntype <- Some (typ Tfunc (Some (ty et))); n.nclass <- Cglobl; n.addable <- Aname;
+      let n = name_of (lookup name) (Some (typ Tfunc (Some (ty et)))) Cglobl 0 in
+      n.addable <- Aname;
       Hashtbl.replace fvns (name, et) n;
       n
 
@@ -116,8 +115,7 @@ let com64 (n : node) =
             let a = fvn (List.assoc (List.assoc o asops) vbinops) Tvlong in
             let rec lhs (x : node) = if x.op = OFUNC then lhs (Tree.r x) else x in
             let x = lhs (Option.get l) in
-            let c = node OCONST None None in
-            c.vconst <- Int64.of_int (etconv (et x)); c.ntype <- Some (ty Tlong); c.addable <- Aconst;
+            let c = nodconst (Int64.of_int (etconv (et x))) in
             let args = node OLIST (Some (addr_of x)) (Some (node OLIST (Some { (addr_of a) with complex = 0 }) (Some (node OLIST (Some c) r)))) in
             call (fvn "_vasop" Tvlong) (Some args)
         | o -> diag (Some n) "unknown vlong %s" (opname o)
@@ -1090,9 +1088,7 @@ let codgen (body : node) (fn : node) =
   else begin
     match !Declare.firstarg, !Declare.firstargtype with
     | Some s, Some ft when (m ()).typeword ft.etype ->
-        let nod1 = node ONAME None None in
-        nod1.nsym <- Some s; nod1.ntype <- Some ft; nod1.nclass <- Cparam;
-        nod1.xoffset <- Declare.align 0 ft Aarg1; 
+        let nod1 = name_of s (Some ft) Cparam (Declare.align 0 ft Aarg1) in
         xcom nod1;
         gmove (nodreg nod1 (bk ()).regret) nod1
     | _ -> ()

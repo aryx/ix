@@ -22,20 +22,14 @@ open Tree
 
 let nw op l r = Some (node op l r)
 
-let cnst et v = let n = node OCONST None None in n.ntype <- Some (ty et); n.vconst <- v; n
+let cnst et v = const_node (ty et) v
 
 (* the declarator n, with the type and class of the words before it *)
 let dcl f n = Declare.dodecl f !Declare.lastclass (Option.get !Declare.lasttype) n
 
 let typed (t : typ) n = ignore (Declare.dodecl None Cxxx t n); !Declare.lastdcl
 
-(* a name: a use (mkstatic, aused) or a declarator's (tag) *)
-let name_node (s : sym) =
-  let n = node ONAME None None in
-  n.nsym <- Some s; n.ntype <- s.typ; n.xoffset <- s.soffset; n.nclass <- s.sclass;
-  
-  n
-
+(* a name's use (mkstatic, aused); a declarator's is its name_node *)
 let name s =
   let s = if s.sclass = Clocal then Declare.mkstatic s else s in
   s.aused <- true;

@@ -228,6 +228,12 @@ let node op l r = mk op l r
 (* new1: at the line being diagnosed *)
 let node1 op l r = let n = mk op l r in n.lineno <- !nearln; n
 
+(* a name of s, of type t and class c, at off *)
+let name_of (s : sym) t c off = let n = node ONAME None None in n.nsym <- Some s; n.ntype <- t; n.nclass <- c; n.xoffset <- off; n
+
+(* s as it is declared now *)
+let name_node (s : sym) = name_of s s.typ s.sclass s.soffset
+
 (* *n = *m *)
 let copy_into (n : node) (m : node) =
   n.left <- m.left; n.right <- m.right; n.pc <- m.pc; n.reg <- m.reg; n.xoffset <- m.xoffset; n.fconst <- m.fconst;
@@ -251,6 +257,9 @@ let init_types () =
     [ Tchar; Tuchar; Tshort; Tushort; Tint; Tuint; Tlong; Tulong; Tvlong; Tuvlong; Tfloat; Tdouble; Tvoid; Tenum ];
   set Tfunc (typ Tfunc (Some (ty Tint)));
   set Tind (typ Tind (Some (ty Tvoid)))
+
+(* a constant of type t *)
+let const_node t v = let n = node OCONST None None in n.ntype <- Some t; n.vconst <- v; n
 
 (* the accessors, where a C pointer is sure not to be nil *)
 let l n = Option.get n.left

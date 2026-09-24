@@ -69,7 +69,7 @@ let nextpc () =
 (* Operands (txt.c's naddr) *)
 (*****************************************************************************)
 
-let name_of (s : sym) = { A.sym = s.name; static = s.sclass = Cstatic }
+let asm_name (s : sym) = { A.sym = s.name; static = s.sclass = Cstatic }
 
 let sx32 v = Int64.of_int32 (Int64.to_int32 v)
 let mask32 v = Int64.logand v 0xffffffffL
@@ -173,7 +173,7 @@ let patch (q : prog) target = q.to_ <- Some (A.Target target)
 let gpseudo a (s : sym) (n : node) =
   let q = nextpc () in
   q.as_ <- a;
-  q.from <- Some (A.Mem { A.base = A.SB; name = Some (name_of s); off = 0L; index = None });
+  q.from <- Some (A.Mem { A.base = A.SB; name = Some (asm_name s); off = 0L; index = None });
   q.to_ <- Some (naddr n);
   if a = "DATA" || a = "GLOBL" then decr pc;
   q
@@ -182,7 +182,7 @@ let gpseudo a (s : sym) (n : node) =
 (* Nodes the generator makes (txt.c's ginit) *)
 (*****************************************************************************)
 
-let nodconst v = let n = node OCONST None None in n.ntype <- Some (ty Tlong); n.addable <- Aconst; n.vconst <- v; n
+let nodconst v = let n = const_node (ty Tlong) v in n.addable <- Aconst; n
 let nodfconst d = let n = node OCONST None None in n.ntype <- Some (ty Tdouble); n.addable <- Aconst; n.fconst <- d; n
 
 let nodreg (nn : node) r =
@@ -335,22 +335,17 @@ let init () =
   regs := Array.make (bk.nreg + bk.nfreg) 0;
   List.iter (fun r -> !regs.(r) <- 1) bk.reserved;
   resvreg := Array.copy !regs;
-  let s = lookup ".safe" in
-  let n = node ONAME None None in
-  n.nsym <- Some s; n.ntype <- Some (ty Tint); n.nclass <- Cauto;
+  let n = name_of (lookup ".safe") (Some (ty Tint)) Cauto 0 in
   Check.complex (Some n);
   nodsafe := Some n;
   let t = typ Tarray (Some (ty Tchar)) in
   let s = lookup ".rathole" in
   s.sclass <- Cglobl; s.typ <- Some t;
-  let n = node ONAME None None in
-  n.nsym <- Some s; n.ntype <- Some (ty Tind); n.nclass <- Cglobl;
+  let n = name_of s (Some (ty Tind)) Cglobl 0 in
   Check.complex (Some n);
   n.ntype <- Some t;
   nodrat := Some n;
-  let n = node ONAME None None in
-  n.nsym <- Some (lookup ".ret"); n.ntype <- Some (ty Tind); n.nclass <- Cparam;
-  let n = node OIND (Some n) None in
+  let n = node OIND (Some (name_of (lookup ".ret") (Some (ty Tind)) Cparam 0)) None in
   Check.complex (Some n);
   nodret := Some n
 

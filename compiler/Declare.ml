@@ -395,9 +395,7 @@ let revertdcl () : node option =
         | Name (s, t, c, o, bl, aused) ->
             (match s.typ with
              | Some tt when tt.garb land gvolatile <> 0 ->
-                 let n1 = node ONAME None None in
-                 n1.nsym <- Some s; n1.ntype <- s.typ; n1.xoffset <- s.soffset; n1.nclass <- s.sclass;
-                 let n1 = node OUSED (Some (node OADDR (Some n1) None)) None in
+                 let n1 = node OUSED (Some (node OADDR (Some (name_node s)) None)) None in
                  used := (match !used with None -> Some n1 | Some x -> Some (node OLIST (Some n1) (Some x)))
              | _ -> ());
             s.typ <- t; s.sclass <- c; s.soffset <- o; s.block <- bl; s.aused <- aused;
@@ -528,10 +526,7 @@ and init1 (s : sym) (t : typ) o exflag : node option =
           | None -> None
           | Some a ->
               if s.sclass = Cauto then begin
-                let l = node ONAME None None in
-                l.nsym <- Some s; l.ntype <- Some t; 
-                l.xoffset <- s.soffset + o; l.nclass <- s.sclass;
-                Some (node OASI (Some l) (Some a))
+                Some (node OASI (Some (name_of s (Some t) s.sclass (s.soffset + o))) (Some a))
               end
               else begin
                 Check.complex (Some a);
@@ -672,8 +667,7 @@ let contig (s : sym) (n : node option) v =
         p.ntype <- Some (typ Tind (Some zt)); p.xoffset <- s.soffset;
         let r = node OPOSTDEC (Some (dup p)) None in
         let q1 = node OIND (Some (dup p)) None in
-        let m0 = node OCONST None None in m0.vconst <- 0L; m0.ntype <- Some zt;
-        let r = node OLIST (Some r) (Some (node OAS (Some q1) (Some m0))) in
+        let r = node OLIST (Some r) (Some (node OAS (Some q1) (Some (const_node zt 0L)))) in
         let r = node ODWHILE (Some (dup p)) (Some r) in
         let q2 = dup p in
         q2.ntype <- (Tree.t q2).link; q2.xoffset <- q2.xoffset + !w;
