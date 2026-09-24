@@ -138,6 +138,31 @@ let ins a (f : node) (t : node) = ignore (gins a (Some f) (Some t))
 let is_mem (n : node) = match n.op with ONAME | OINDREG | OIND -> true | _ -> false
 let samaddr (f : node) (t : node) = f.op = OREGISTER && t.op = OREGISTER && f.reg = t.reg
 
+(* a comparison, both machines': a negative constant compared by CMN,
+ * unless small says its negation overflows *)
+let gcmp cmp ~fd ~small (f1 : node option) f2 =
+  let q = nextpc () in
+  q.as_ <- cmp;
+  q.from <- naddr_opt f1;
+  (match f1, q.from with
+   | Some { op = OCONST; _ }, Some (A.Imm v) when not fd && Int64.compare v 0L < 0 && not (small v) ->
+       q.as_ <- "CMN" ^ String.sub cmp 3 (String.length cmp - 3);
+       q.from <- Some (A.Imm (Int64.neg v))
+   | _ -> ());
+  raddr f2 q
+
+(* the branch of a relation; a float's not taken on a NaN when tr, the
+ * branch taken if true *)
+let grel o ~fd ~tr =
+  (nextpc ()).as_ <-
+    (match o with
+     | OEQ -> "BEQ" | ONE -> "BNE"
+     | OLT -> if fd && not tr then "BMI" else "BLT"
+     | OLE -> if fd && not tr then "BLS" else "BLE"
+     | OGE -> if fd && tr then "BPL" else "BGE"
+     | OGT -> if fd && tr then "BHI" else "BGT"
+     | OLO -> "BLO" | OLS -> "BLS" | OHS -> "BHS" | _ -> "BHI")
+
 let gbranch (o : op) =
   let q = nextpc () in
   q.as_ <- (match o with ORETURN -> (bk ()).ret | OGOTO -> "B" | _ -> diag None "bad in gbranch");

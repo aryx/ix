@@ -92,6 +92,13 @@ val is_mem : Tree.node -> bool
 
 val samaddr : Tree.node -> Tree.node -> bool
 
+(* a comparison, both machines': a negative constant compared by CMN,
+ * unless small says its negation overflows *)
+val gcmp : string -> fd:bool -> small:(int64 -> bool) -> Tree.node option -> Tree.node option -> unit
+
+(* the branch of a relation; a float's not taken on a NaN when tr *)
+val grel : Tree.op -> fd:bool -> tr:bool -> unit
+
 (* a branch, its target to patch *)
 val gbranch : Tree.op -> prog
 

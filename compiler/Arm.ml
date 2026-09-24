@@ -125,30 +125,11 @@ let gopcode (o : op) tr (f1 : node option) (f2 : node option) (t : node option) 
       (* c - x: a reverse subtract *)
       emit (fl et "RSB" "SUBF" "SUBD") f2 f1
   | OEQ | ONE | OLT | OLE | OGE | OGT | OLO | OLS | OHS | OHI | OCASE ->
-      let q = nextpc () in
-      q.as_ <- fl et "CMP" "CMPF" "CMPD";
-      q.from <- naddr_opt f1;
-      (match q.as_, f1, q.from with
-       | "CMP", Some { op = OCONST; _ }, Some (A.Imm v) when Int64.compare v 0L < 0 && v <> -2147483648L ->
-           q.as_ <- "CMN"; q.from <- Some (A.Imm (Int64.neg v))
-       | _ -> ());
-      raddr f2 q;
       let fd = typefd et in
-      let br =
-        match o with
-        | OEQ -> "BEQ" | ONE -> "BNE"
-        | OLT -> if fd && not tr then "BMI" else "BLT"
-        | OLE -> if fd && not tr then "BLS" else "BLE"
-        | OGE -> if fd && tr then "BPL" else "BGE"
-        | OGT -> if fd && tr then "BHI" else "BGT"
-        | OLO -> "BLO" | OLS -> "BLS" | OHS -> "BHS" | OHI -> "BHI"
-        | _ ->
-            let q = nextpc () in
-            q.as_ <- "CASE"; q.cond <- [ "LS" ]; q.from <- naddr_opt f2;
-            "BHI"
-      in
-      let q = nextpc () in
-      q.as_ <- br
+      gcmp (fl et "CMP" "CMPF" "CMPD") ~fd ~small:(fun v -> v = -2147483648L) f1 f2;
+      (* a switch's table: CASE.LS, then to the default *)
+      if o = OCASE then (let q = nextpc () in q.as_ <- "CASE"; q.cond <- [ "LS" ]; q.from <- naddr_opt f2);
+      grel o ~fd ~tr
   | _ ->
       let a =
         match o with

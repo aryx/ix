@@ -150,27 +150,10 @@ let gopcode (o : op) tr (f1 : node option) (f2 : node option) (t : node option) 
   match o with
   | OAS -> gmove (Option.get f1) (Option.get t)
   | OEQ | ONE | OLT | OLE | OGE | OGT | OLO | OLS | OHS | OHI ->
-      let q = nextpc () in
-      q.as_ <- fl "FCMPS" "FCMPD" (w32 "CMP");
-      q.from <- naddr_opt f1;
-      (match q.as_, f1, q.from with
-       | "CMPW", Some { op = OCONST; _ }, Some (A.Imm v) when Int64.compare v 0L < 0 && mask32 v <> 0x80000000L ->
-           q.as_ <- "CMNW"; q.from <- Some (A.Imm (Int64.neg v))
-       | "CMP", Some { op = OCONST; _ }, Some (A.Imm v) when Int64.compare v 0L < 0 && v <> Int64.min_int ->
-           q.as_ <- "CMN"; q.from <- Some (A.Imm (Int64.neg v))
-       | _ -> ());
-      raddr f2 q;
       let fd = typefd et in
-      let br =
-        match o with
-        | OEQ -> "BEQ" | ONE -> "BNE"
-        | OLT -> if fd && not tr then "BMI" else "BLT"
-        | OLE -> if fd && not tr then "BLS" else "BLE"
-        | OGE -> if fd && tr then "BPL" else "BGE"
-        | OGT -> if fd && tr then "BHI" else "BGT"
-        | OLO -> "BLO" | OLS -> "BLS" | OHS -> "BHS" | _ -> "BHI"
-      in
-      (nextpc ()).as_ <- br
+      let small v = if isv et then v = Int64.min_int else mask32 v = 0x80000000L in
+      gcmp (fl "FCMPS" "FCMPD" (w32 "CMP")) ~fd ~small f1 f2;
+      grel o ~fd ~tr
   | _ ->
       let a =
         match o with
