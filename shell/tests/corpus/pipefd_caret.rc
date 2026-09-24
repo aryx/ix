@@ -1,0 +1,3 @@
+# <{cmd} is a word: ^ joins it (rc's PIPEFD is a comword)
+cat <{echo pipefd}^''
+cat < {echo blank}

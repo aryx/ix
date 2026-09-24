@@ -14,7 +14,7 @@ exception Error of string
 type ctx = {
   var : string -> string list;
   backquote : string -> Ast.cmd -> string;
-  pipefd : bool -> Ast.cmd -> string;
+  pipefd : Ast.side -> Ast.cmd -> string;
 }
 
 let lit s : Glob.word = [ { Glob.text = s; literal = true } ]
@@ -80,7 +80,7 @@ let rec expand (ctx : ctx) (w : Ast.word) : Glob.word list =
         | Some w -> String.concat "" (List.map Glob.to_string (expand ctx w))
       in
       List.map lit (split seps (ctx.backquote seps c))
-  | Ast.Pipefd (read, c) -> [ lit (ctx.pipefd read c) ]
+  | Ast.Pipefd (side, c) -> [ lit (ctx.pipefd side c) ]
 
 (* $name: a variable, or $n, the nth argument *)
 and value ctx (w : Ast.word) : string list =

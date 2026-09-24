@@ -21,7 +21,7 @@ type word =
   | Paren of word list              (* (a b c) *)
   | Concat of word * word           (* a^b, or a free caret *)
   | Backquote of word option * cmd  (* `{cmd}, `sep{cmd} *)
-  | Pipefd of bool * cmd            (* <{cmd} (true: we read it), >{cmd} *)
+  | Pipefd of side * cmd            (* <{cmd}, >{cmd} *)
 
 and redir =
   | Open of rkind * int * word      (* >f >>f <f <>f, on an fd *)
@@ -34,6 +34,9 @@ and rkind = Write | Append | Read | RdWr
 (* a here document's body is read after its line, so the parser fills
  * it in later *)
 and heredoc = { tag : string; expand : bool; mutable body : string }
+
+(* <{cmd}: we read what cmd writes; >{cmd}: we write what it reads *)
+and side = Reads | Writes
 
 and cmd =
   | Empty
@@ -78,7 +81,7 @@ let rec word (b : Buffer.t) (w : word) : unit =
   | Paren ws -> p "("; words b ws; p ")"
   | Concat (a, c) -> word b a; p "^"; word b c
   | Backquote (sep, c) -> p "`"; Option.iter (word b) sep; p "{"; cmd b c; p "}"
-  | Pipefd (read, c) -> p (if read then "<{" else ">{"); cmd b c; p "}"
+  | Pipefd (side, c) -> p (match side with Reads -> "<{" | Writes -> ">{"); cmd b c; p "}"
 
 and words b ws = List.iteri (fun i w -> if i > 0 then Buffer.add_char b ' '; word b w) ws
 

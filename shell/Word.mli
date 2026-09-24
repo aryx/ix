@@ -43,7 +43,7 @@ exception Error of string
 type ctx = {
   var : string -> string list;              (* [] if unset *)
   backquote : string -> Ast.cmd -> string;  (* run it, its output *)
-  pipefd : bool -> Ast.cmd -> string;       (* <{cmd}: a /dev/fd name *)
+  pipefd : Ast.side -> Ast.cmd -> string;       (* <{cmd}: a /dev/fd name *)
 }
 
 (* the words a word expands to, each still knowing its quoting *)

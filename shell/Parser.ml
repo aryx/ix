@@ -38,6 +38,17 @@ let starts_word = function
 
 let is_redir = function L.REDIR _ | L.HERE _ | L.DUP _ | L.CLOSE _ -> true | _ -> false
 
+(* can a word start here: a word's token, or <{ and >{ (rc's PIPEFD is a
+ * comword) *)
+(* old: <{ and >{ recognised apart, at the start of a command and among
+ * its arguments, where they made a word without word's ^: <{true}^x was
+ * a syntax error *)
+let word_next p =
+  starts_word (peek p)
+  || match peek p with
+     | L.REDIR (Ast.Read, 0) | L.REDIR (Ast.Write, 1) -> let t = next p in let brace = peek p = L.LBRACE in unread p t; brace
+     | _ -> false
+
 (*****************************************************************************)
 (* Words *)
 (*****************************************************************************)
@@ -60,12 +71,12 @@ and comword p : word =
   | L.BACKQUOTE ->
       if peek p = L.LBRACE then Backquote (None, brace_body p)
       else let sep = word p in Backquote (Some sep, brace_body p)
-  | L.REDIR (Ast.Read, 0) when peek p = L.LBRACE -> Pipefd (true, brace_body p)
-  | L.REDIR (Ast.Write, 1) when peek p = L.LBRACE -> Pipefd (false, brace_body p)
+  | L.REDIR (Ast.Read, 0) when peek p = L.LBRACE -> Pipefd (Reads, brace_body p)
+  | L.REDIR (Ast.Write, 1) when peek p = L.LBRACE -> Pipefd (Writes, brace_body p)
   | t -> unread p t; error p
 
 and words p : word list =
-  if starts_word (peek p) then let w = word p in w :: words p else []
+  if word_next p then let w = word p in w :: words p else []
 
 (*****************************************************************************)
 (* Commands *)
@@ -118,25 +129,15 @@ and cmd p : cmd =
 
 (* the prefixes ! @ and redirections, before [rest]: a pipeline in
  * bang, one command on the right of a | *)
-and prefixed p ~(rest : p -> cmd) ~(first_word : word -> cmd) : cmd =
-  let again () = prefixed p ~rest ~first_word in
+and prefixed p ~(rest : p -> cmd) : cmd =
+  let again () = prefixed p ~rest in
   if is_kw p "!" then (ignore (next p); Not (again ()))
   else if is_kw p "@" then (ignore (next p); Subshell (again ()))
-  else match peek p with
-    | L.REDIR (Ast.Read, 0) | L.REDIR (Ast.Write, 1) ->
-        (* <{cmd} is a word, not a redirection *)
-        let t = next p in
-        if peek p = L.LBRACE then first_word (comword_after p t)
-        else (unread p t; let r = redir p in Redirect (r, again ()))
-    | t when is_redir t -> let r = redir p in Redirect (r, again ())
-    | _ -> rest p
+  (* <{cmd} is a word, not a redirection *)
+  else if is_redir (peek p) && not (word_next p) then (let r = redir p in Redirect (r, again ()))
+  else rest p
 
-and bang p : cmd = prefixed p ~rest:pipe ~first_word:(fun w -> pipe_from p (simple_from p w))
-
-(* the brace after <{ or >{ was peeked: finish that word *)
-and comword_after p (t : L.token) : word =
-  let c = brace_body p in
-  match t with L.REDIR (Ast.Read, _) -> Pipefd (true, c) | _ -> Pipefd (false, c)
+and bang p : cmd = prefixed p ~rest:pipe
 
 and pipe p : cmd = pipe_from p (unit p)
 
@@ -144,7 +145,7 @@ and pipe_from p (c : cmd) : cmd =
   match peek p with
   | L.PIPE (l, r) ->
       ignore (next p);
-      pipe_from p (Pipe (l, r, c, prefixed p ~rest:unit ~first_word:(simple_from p)))
+      pipe_from p (Pipe (l, r, c, prefixed p ~rest:unit))
   | _ -> c
 
 and unit p : cmd =
@@ -187,7 +188,7 @@ and unit p : cmd =
       let rs = ref [] in
       while is_redir (peek p) do rs := redir p :: !rs done;
       List.fold_left (fun c r -> Redirect (r, c)) c !rs
-  | t when starts_word t -> simple_from p (word p)
+  | _ when word_next p -> simple_from p (word p)
   | _ -> Empty
 
 and paren p : cmd =
@@ -201,20 +202,13 @@ and simple_from p (first : word) : cmd =
   if peek p = L.EQUAL then begin
     ignore (next p);
     let v = word p in
-    if starts_word (peek p) || is_redir (peek p) || peek p = L.LBRACE then Assign (first, v, Some (bang p))
+    if word_next p || is_redir (peek p) || peek p = L.LBRACE then Assign (first, v, Some (bang p))
     else Assign (first, v, None)
   end else begin
     let args = ref [ first ] and redirs = ref [] in
     let rec go () =
-      match peek p with
-      | L.REDIR (Ast.Read, 0) | L.REDIR (Ast.Write, 1) as t ->
-          ignore (next p);
-          if peek p = L.LBRACE then args := comword_after p t :: !args
-          else (unread p t; redirs := redir p :: !redirs);
-          go ()
-      | t when is_redir t -> redirs := redir p :: !redirs; go ()
-      | t when starts_word t -> args := word p :: !args; go ()
-      | _ -> ()
+      if word_next p then (args := word p :: !args; go ())
+      else if is_redir (peek p) then (redirs := redir p :: !redirs; go ())
     in
     go ();
     (* the first redirection is the outermost: applied first *)

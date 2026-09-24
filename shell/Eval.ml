@@ -73,11 +73,11 @@ let rec ctx t : Word.ctx = {
     (* the command's status is the backquote's *)
     set_status t (Process.wait t.caps pid);
     out);
-  pipefd = (fun read c ->
+  pipefd = (fun side c ->
     (* the command's end is a child's fd 1 (or 0); ours stays open, and
      * its name is the word *)
     let r, w = Process.pipe () in
-    let mine, theirs, fd = if read then r, w, 1 else w, r, 0 in
+    let mine, theirs, fd = match side with Reads -> r, w, 1 | Writes -> w, r, 0 in
     let _pid = Process.fork t.caps (fun () ->
       Process.close mine; Process.dup2 theirs fd; Process.close theirs; child t (fun () -> run t c)) in
     Process.close theirs;
