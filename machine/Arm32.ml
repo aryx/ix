@@ -334,7 +334,12 @@ let write_cpsr st v fields =
     if fields land 2 <> 0 then st.a_off <- (v lsr 8) land 1 = 1;
     if fields land 1 <> 0 then begin
       st.i_off <- (v lsr 7) land 1 = 1; st.f_off <- (v lsr 6) land 1 = 1;
-      set_mode st (v land 0x1f)
+      (* a mode this CPU lacks (monitor, 0x16, without the Security
+       * Extensions' secure state: QEMU's Non-secure Pi) leaves the mode
+       * as it was, the masks written (xv6's tvinit counts on it) *)
+      match v land 0x1f with
+      | (0x10 | 0x11 | 0x12 | 0x13 | 0x17 | 0x1b | 0x1f) as m -> set_mode st m
+      | _ -> ()
     end
   end
 

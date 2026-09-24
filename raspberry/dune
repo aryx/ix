@@ -1,0 +1,13 @@
+(library
+ (name ix_raspberry)
+ (modules Intc Systimer Pl011 Devices Board)
+ (flags (:standard -open Ix_machine))
+ (libraries ix_machine))
+
+(executable
+ (name Main)
+ (public_name tinypi)
+ (package ix)
+ (modules Main)
+ (flags (:standard -open Ix_machine))
+ (libraries ix_raspberry ix_machine ix_core caps fpath unix))
