@@ -49,6 +49,7 @@ let send (st : Store.t) (c : Proto.conn) o ~print ~eprint =
         advert () in
   advert ();
   let theirs = List.rev !theirs in
+  Proto.write_phase c;
   let send = ref o.force in
   List.iteri (fun i m ->
     let is_zero h = Hash.compare h Hash.zero = 0 in
@@ -72,6 +73,7 @@ let send (st : Store.t) (c : Proto.conn) o ~print ~eprint =
   else begin
     Proto.write_raw c (Packer.pack st ~heads:(List.map (fun m -> m.ours) map) ~have:theirs);
     if c.report then begin
+      Proto.read_phase c;
       let rec status () =
         match Proto.read_pkt c with
         | Flush -> ()

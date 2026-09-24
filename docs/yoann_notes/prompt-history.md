@@ -3096,3 +3096,35 @@ Claude rejected goken as impractical due to missing libsec and 9P filesystem sup
 **Yoann:**
 
 > maybe a new lib_compress/ or something next to lib_core
+
+**Claude (summary):**
+
+Claude wrote SHA-1 and zlib from scratch in lib_security and lib_compression, verified against Python's implementations.
+Claude implemented git's object layer: Hash, Object, Loose, Store, Delta, and Pack modules for reading objects.
+Claude built Query, Log, Fs for traversal, then Index9, Walk, Save for writes, plus diff and merge3.
+Claude implemented Get, Send, Serve modules for clone, push, pull, merge over local, git, and ssh.
+Claude created TinyVCS.ml with undoable atomic operations, committed all work in nine commits, complete test suite passes.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 16:54
+
+**Yoann:**
+
+> great! ok what's next?
+
+**Claude (summary):**
+
+Claude recommended the emulator TinyRaspberryPi as the next priority to close the toolchain loop.
+Claude outlined version control alternatives, including patch.c, export, import, rebase, hist, and http through curl.
+Yoann selected http through curl with Cap.exec to enable cloning the ix repository itself.
+Claude estimated version control work at roughly a third of a day.
+Two pending decisions remained about reporting OCaml bugs and redesign items.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 17:30
+
+**Yoann:**
+
+> let's do http(s) through curl (and Cap.exec?) so I can try it on github and clone the ix repo itself using ix

@@ -9,7 +9,7 @@
  *)
 (* See Commands.mli *)
 
-type caps = < Store.caps; Cap.stdout; Cap.stderr >
+type caps = < Store.caps; Cap.stdout; Cap.stderr; Cap.fork; Cap.exec; Cap.wait >
 
 exception Die of string
 
@@ -529,7 +529,7 @@ let proto_die what = function
   | e -> raise e
 
 let run_get (caps : caps) (r : Repo.t) (o : Get.opts) remote ~print =
-  let c = try Proto.connect ~print remote Upload with e -> proto_die ("could not dial " ^ remote) e in
+  let c = try Proto.connect caps ~print remote Upload with e -> proto_die ("could not dial " ^ remote) e in
   Fun.protect ~finally:(fun () -> Proto.close c) (fun () ->
     try Get.fetch r.store c o ~print ~eprint:(eprint caps) with e -> proto_die "fetch failed" e)
 
@@ -545,7 +545,7 @@ let get (caps : caps) args =
   | _ -> die "usage: git/get [-dl] [-b br] [-u upstream] remote"
 
 let run_send (caps : caps) (r : Repo.t) (o : Send.opts) remote ~print =
-  let c = try Proto.connect ~print remote Receive with e -> proto_die ("git connect: " ^ remote) e in
+  let c = try Proto.connect caps ~print remote Receive with e -> proto_die ("git connect: " ^ remote) e in
   Fun.protect ~finally:(fun () -> Proto.close c) (fun () ->
     (try Send.send r.store c o ~print ~eprint:(eprint caps) with e -> proto_die "send failed" e);
     Proto.close_write c)
@@ -568,7 +568,7 @@ let serve (caps : caps) args =
   let fl, _ = try Flags.parse ~flags:"dw" ~with_arg:"r" args with Flags.Usage -> die "usage: git/serve [-dw] [-r rel]" in
   let prefix = Flags.get fl 'r' in
   (match prefix with Some p when String.length p = 0 || p.[0] <> '/' -> die "path prefix must begin with '/'" | _ -> ());
-  let c = Proto.stdio () in
+  let c = Proto.stdio caps in
   (try Serve.serve (store_caps caps) ~allow_write:(Flags.has fl 'w') ~prefix c with
    | Serve.Fatal m -> die "%s" m
    | e -> proto_die "serve" e);

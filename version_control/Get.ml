@@ -82,8 +82,9 @@ let fetch (st : Store.t) (c : Proto.conn) o ~print ~eprint =
   let refs = List.rev !refs in
   let showrefs () =
     List.iter (fun (name, want, have) -> print (Printf.sprintf "remote %s %s local %s\n" name (Hash.to_hex want) (Hash.to_hex have))) refs in
-  if o.listonly then (Proto.flush c; showrefs ())
+  if o.listonly then ((match c.transport with Http _ -> () | _ -> Proto.flush c); showrefs ())
   else begin
+    Proto.write_phase c;
     (* the wants, the capabilities on the first *)
     let caps = ref ((if c.multiack then " multi_ack" else "") ^ (if c.sideband64k then " side-band-64k" else if c.sideband then " side-band" else "")) in
     let req = ref false in
@@ -117,6 +118,7 @@ let fetch (st : Store.t) (c : Proto.conn) o ~print ~eprint =
     Proto.write_pkt c "done\n";
     if not !req then showrefs ()
     else begin
+      Proto.read_phase c;
       eprint "fetching...  ";
       if c.multiack then begin
         let rec acks i =

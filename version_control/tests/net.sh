@@ -11,9 +11,11 @@
 # Phase 8: TinyGit's protocol against C git's, both ways.
 #
 #   tinygit clone from git daemon (git://), over ssh ($GIT_SSH: a
-#   stand-in running git-upload-pack here), and from a local C git
+#   stand-in running git-upload-pack here), over smart http (git
+#   http-backend behind http_backend.py; curl), and from a local C git
 #   repository: the work tree git clone checks out, the x bits, fsck;
-#   tinygit push to git daemon (receive-pack), C git reading the result;
+#   tinygit push to git daemon (receive-pack) and over http, C git
+#   reading the result;
 #   tinygit pull of commits C git pushed;
 #   C git clone and push through tinygit serve (git's ext:: transport,
 #   "tinygit serve %G/path"): fsck, and tinygit reading the push.
@@ -34,7 +36,9 @@ git clone -q --bare "$SRC" $W/src.git
 git clone -q $W/src.git $W/reference
 BR=$(git --git-dir=$W/src.git symbolic-ref --short HEAD)
 git daemon --reuseaddr --base-path=$W --export-all --enable=receive-pack --port=$PORT --listen=127.0.0.1 --pid-file=$W/daemon.pid $W 2> /dev/null &
-trap 'kill $(cat $W/daemon.pid) 2>/dev/null; rm -rf $W' EXIT
+HPORT=$((PORT + 1))
+python3 $(dirname "$0")/http_backend.py $W $HPORT & HPID=$!
+trap 'kill $(cat $W/daemon.pid) $HPID 2>/dev/null; rm -rf $W' EXIT
 for i in 1 2 3 4 5 6 7 8 9 10; do [ -f $W/daemon.pid ] && break; sleep 0.2; done
 sleep 0.3
 
@@ -55,6 +59,9 @@ same_tree $W/c_git "clone git://"
 printf '#!/bin/sh\nshift\nexec sh -c "$*"\n' > $W/fakessh; chmod +x $W/fakessh
 (cd $W && GIT_SSH=$W/fakessh $T clone localhost:$W/src.git c_ssh > /dev/null 2>&1) || fail "clone ssh"
 same_tree $W/c_ssh "clone ssh"
+for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null http://127.0.0.1:$HPORT/ && break; sleep 0.2; done
+(cd $W && $T clone http://127.0.0.1:$HPORT/src.git c_http > /dev/null 2>&1) || fail "clone http"
+same_tree $W/c_http "clone http"
 (cd $W && $T clone $W/reference c_local > /dev/null 2>&1) || fail "clone local"
 same_tree $W/c_local "clone local (git's repository, tinygit serve)"
 
@@ -66,6 +73,15 @@ GIT_AUTHOR_DATE="1700000000 +0000" $T commit -m "tinygit commit" . > /dev/null |
 out=$($T push 2>&1) || fail "push git://: $out"
 [ "$(git --git-dir=$W/src.git rev-parse $BR)" = "$($T query HEAD)" ] && ok "push git://" || fail "push git://: ref"
 git --git-dir=$W/src.git fsck --strict > /dev/null 2>&1 || fail "push git://: fsck of the server"
+
+# push over http, then C git pulls both
+cd $W/c_http
+$T pull > /dev/null 2>&1
+echo "over http" > httpfile && $T add httpfile
+GIT_AUTHOR_DATE="1700000100 +0000" $T commit -m "http commit" . > /dev/null || fail "commit"
+out=$($T push 2>&1) || fail "push http: $out"
+[ "$(git --git-dir=$W/src.git rev-parse $BR)" = "$($T query HEAD)" ] && ok "push http" || fail "push http: ref"
+git --git-dir=$W/src.git fsck --strict > /dev/null 2>&1 || fail "push http: fsck of the server"
 
 # C git pushes; tinygit pulls
 (cd $W/reference && git pull -q && echo "from C git" > cfile && git add cfile && git commit -q -m "C git commit" && git push -q) || fail "C git push"

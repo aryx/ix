@@ -10,13 +10,16 @@
 (* See Proto.mli *)
 
 type direction = Upload | Receive
-type transport = Local | Git | Ssh
+type http = { post : string; service : string; mutable request : string option; mutable temps : string list }
+type transport = Local | Git | Ssh | Http of http
+type caps = < Cap.fork; Cap.exec; Cap.wait >
 
 type conn = {
+  caps : caps;
   transport : transport;
-  rd : Unix.file_descr;
-  wr : Unix.file_descr;
-  child : int option;
+  mutable rd : Unix.file_descr;
+  mutable wr : Unix.file_descr;
+  mutable child : int option;
   mutable multiack : bool;
   mutable sideband : bool;
   mutable sideband64k : bool;
@@ -30,8 +33,8 @@ let error fmt = Printf.ksprintf (fun s -> raise (Error s)) fmt
 
 type pkt = Flush | Pkt of string
 
-let make transport rd wr child =
-  { transport; rd; wr; child; multiack = false; sideband = false; sideband64k = false; report = false; symref = None }
+let make caps transport rd wr child =
+  { caps = (caps :> caps); transport; rd; wr; child; multiack = false; sideband = false; sideband64k = false; report = false; symref = None }
 
 let read_raw c n =
   let b = Bytes.create n in
@@ -121,19 +124,78 @@ let handshake c host path dir =
                  (match host with Some h -> "host=" ^ h ^ "\000" | None -> ""))
 
 (* a child on one end of a socketpair, its standard input and output *)
-let spawn prog args transport =
+let spawn caps prog args transport =
   let mine, theirs = Unix.socketpair Unix.PF_UNIX Unix.SOCK_STREAM 0 in
   Unix.set_close_on_exec mine;
-  let pid = Unix.create_process prog (Array.of_list (prog :: args)) theirs theirs Unix.stderr in
+  let pid = Procs.spawn caps prog args ~stdin:theirs ~stdout:theirs in
   Unix.close theirs;
-  make transport mine mine (Some pid)
+  make caps transport mine mine (Some pid)
 
-let connect ~print uri dir =
+(*****************************************************************************)
+(* http, through curl *)
+(*****************************************************************************)
+
+let useragent = "git/2.24.1"
+
+(* curl's output as it comes; a pipe *)
+let curl caps args =
+  let rd, wr = Unix.pipe ~cloexec:true () in
+  let pid = Procs.spawn caps "curl" ([ "-s"; "-S"; "-L"; "--fail"; "-A"; useragent ] @ args) ~stdin:Unix.stdin ~stdout:wr in
+  Unix.close wr;
+  rd, pid
+
+let temp h = let f = Filename.temp_file "tinygit" "" in h.temps <- f :: h.temps; f
+
+let dial_http caps uri dir =
+  let service = service dir in
+  let url = if String.ends_with ~suffix:"/" uri then uri else uri ^ "/" in
+  let h = { post = Printf.sprintf "%sgit-%s-pack" url service; service; request = None; temps = [] } in
+  let body = temp h in
+  (* the references: the body to a file, the content type on stdout *)
+  let rd, pid = curl caps [ "-o"; body; "-w"; "%{content_type}"; Printf.sprintf "%sinfo/refs?service=git-%s-pack" url service ] in
+  let ctype = String.trim (Procs.read_all rd) in
+  Unix.close rd;
+  (match Procs.waitpid caps pid with
+   | WEXITED 0 -> ()
+   | _ -> error "http request failed: %s" uri);
+  if ctype <> Printf.sprintf "application/x-git-%s-pack-advertisement" service then error "dumb http protocol not supported";
+  let fd = Unix.openfile body [ Unix.O_RDONLY ] 0 in
+  let c = make caps (Http h) fd fd None in
+  (match read_pkt c with
+   | Pkt p when p = Printf.sprintf "# service=git-%s-pack\n" service -> ()
+   | _ -> error "invalid initial packet line");
+  (match read_pkt c with Flush -> () | Pkt _ -> error "protocol garble: expected flushpkt");
+  c
+
+let write_phase c =
+  match c.transport with
+  | Http h ->
+      (try Unix.close c.rd with Unix.Unix_error _ -> ());
+      let f = temp h in
+      h.request <- Some f;
+      c.wr <- Unix.openfile f [ Unix.O_WRONLY; Unix.O_TRUNC; Unix.O_CREAT ] 0o600
+  | Local | Git | Ssh -> ()
+
+let read_phase c =
+  match c.transport with
+  | Http ({ request = Some f; _ } as h) ->
+      (try Unix.close c.wr with Unix.Unix_error _ -> ());
+      h.request <- None;
+      let rd, pid = curl c.caps [
+        "-H"; Printf.sprintf "Content-Type: application/x-git-%s-pack-request" h.service;
+        "-H"; Printf.sprintf "Accept: application/x-git-%s-pack-result" h.service;
+        "--data-binary"; "@" ^ f; h.post ] in
+      c.rd <- rd;
+      c.wr <- rd;
+      c.child <- Some pid
+  | Http { request = None; _ } | Local | Git | Ssh -> ()
+
+let connect caps ~print uri dir =
   (* a local repository: its own server *)
   let local = Filename.concat uri ".git" in
   if Sys.file_exists local && Sys.is_directory local then begin
     let path = Unix.realpath uri in
-    let c = spawn Sys.executable_name [ "serve"; "-w" ] Local in
+    let c = spawn caps Sys.executable_name [ "serve"; "-w" ] Local in
     handshake c None path dir;
     c
   end
@@ -149,23 +211,33 @@ let connect ~print uri dir =
               let fd = Unix.socket a.ai_family a.ai_socktype a.ai_protocol in
               try Unix.connect fd a.ai_addr; fd with Unix.Unix_error _ -> Unix.close fd; dial rest) in
         let fd = dial addrs in
-        let c = make Git fd fd None in
+        let c = make caps Git fd fd None in
         handshake c (Some host) path dir;
         c
     | Some ("ssh", host, _, path) ->
         let ssh = match Sys.getenv_opt "GIT_SSH" with Some s when s <> "" -> s | _ -> "ssh" in
-        spawn ssh [ host; Printf.sprintf "git-%s-pack" (service dir); path ] Ssh
+        spawn caps ssh [ host; Printf.sprintf "git-%s-pack" (service dir); path ] Ssh
+    | Some (("http" | "https"), _, _, _) -> dial_http caps uri dir
     | Some (proto, _, _, _) -> error "unknown protocol %s" proto
   end
 
-let stdio () = make Local Unix.stdin Unix.stdout None
+let stdio caps = make caps Local Unix.stdin Unix.stdout None
 
-let close_write c = try Unix.shutdown c.wr Unix.SHUTDOWN_SEND with Unix.Unix_error _ -> (try Unix.close c.wr with Unix.Unix_error _ -> ())
+(* for http, the request posted and its reply drained: a push without
+ * report-status reads nothing back, yet must be sent *)
+let close_write c =
+  match c.transport with
+  | Http { request = Some _; _ } -> read_phase c; ignore (Procs.read_all c.rd)
+  | Http _ -> ()
+  | Local | Git | Ssh -> (try Unix.shutdown c.wr Unix.SHUTDOWN_SEND with Unix.Unix_error _ -> (try Unix.close c.wr with Unix.Unix_error _ -> ()))
 
 let close c =
   (try Unix.close c.rd with Unix.Unix_error _ -> ());
   if c.wr <> c.rd then (try Unix.close c.wr with Unix.Unix_error _ -> ());
-  Option.iter (fun pid -> ignore (Unix.waitpid [] pid)) c.child
+  Option.iter (fun pid -> ignore (Procs.waitpid c.caps pid)) c.child;
+  match c.transport with
+  | Http h -> List.iter (fun f -> try Sys.remove f with Sys_error _ -> ()) h.temps
+  | Local | Git | Ssh -> ()
 
 let okref name =
   let n = String.length name in

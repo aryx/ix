@@ -46,3 +46,20 @@ let split_env env =
     match String.index_opt kv '=' with
     | Some i -> Some (String.sub kv 0 i, String.sub kv (i + 1) (String.length kv - i - 1))
     | None -> None)
+
+let spawn caps prog args ~stdin ~stdout =
+  let candidates =
+    if String.contains prog '/' then [ prog ]
+    else
+      let path = Option.value (Sys.getenv_opt "PATH") ~default:"/bin:/usr/bin" in
+      List.map (fun d -> Filename.concat (if d = "" then "." else d) prog) (String.split_on_char ':' path) in
+  flush_all ();
+  match CapUnix.fork caps () with
+  | 0 ->
+      (* claude: in the child, the descriptors put in place, then exec *)
+      if stdin <> Unix.stdin then Unix.dup2 stdin Unix.stdin;
+      if stdout <> Unix.stdout then Unix.dup2 stdout Unix.stdout;
+      List.iter (fun f -> try CapUnix.execv caps f (Array.of_list (prog :: args)) with Unix.Unix_error _ -> ()) candidates;
+      prerr_endline (prog ^ ": not found");
+      Unix._exit 127
+  | pid -> pid

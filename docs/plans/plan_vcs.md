@@ -105,7 +105,7 @@ on Plan 9's `$path`); the flags and outputs are git9's.
 | `query [-cpr] expr` | the revision language: `^ ~ @ .. :` | kept (decision 6) |
 | `branch [-abrnsmM]` | list, create, switch, merging dirty files | kept |
 | `merge`, `revert` | three-way merge by merge3; files back from a commit | kept |
-| `get`, `clone`, `pull` | fetch: git://, ssh, local, smart http(s) | kept but http(s) (decision 9) |
+| `get`, `clone`, `pull` | fetch: git://, ssh, local, smart http(s) | kept, http(s) through curl (decision 9) |
 | `send`, `push` | push, fast-forward only unless `-f` | kept |
 | `serve [-w] [-r]` | the server side, on stdin/stdout | kept |
 | `repack` | all objects into one pack | kept |
@@ -254,15 +254,18 @@ the diff corpus (`diff/test/`, 28 cases) must pass, and every format
 9base's diff has (`-e -f -n -c -a`, the default) is compared with it
 on random files. patch (767 lines) waits for phase 9.
 
-### 9. Transports: git://, ssh, local; http later
+### 9. Transports: git://, ssh, local, and http(s) through curl
 
 git9 dials `git://` (TCP), `ssh` (`/bin/ssh host git-upload-pack
 path`), a local path (its own `serve` over a pipe), and http(s)
-through Plan 9's webfs. OCaml has no TLS in the standard library;
-smart http without TLS is testable (`git http-backend` through a
-small CGI runner) but GitHub is https. So http is phase 8b, through
-`curl` as a child process standing in for webfs, if the author wants
-it.
+through Plan 9's webfs. OCaml has no TLS in its standard library, so
+http(s) goes through `curl` as a child process standing in for webfs
+(through the capabilities, `Cap.fork` and `Cap.exec`, as every child
+TinyGit starts): a GET for the references, the request written to a
+file during git9's write phase, then one POST, its reply read as curl
+gives it. Checked against `git http-backend` (behind a small Python
+server, `tests/http_backend.py`) for clone and push, and against
+GitHub (`make test-github`: ix cloned by tinygit).
 
 ## Deliberate differences
 
@@ -283,6 +286,8 @@ it.
    reports it `R`, and the next commit removes the whole directory
    (found by `session.py`; git9's own tests commit only once after the
    change).
+7. http stays http: git9 dials https whatever the URL says; TinyGit
+   keeps the scheme, so a local `git http-backend` can test it.
 
 Each with a test case of its own.
 
@@ -351,8 +356,9 @@ pull give the same log.
 
 ## Status
 
-2026-09-24: phases 1 to 8 and 10 (`tiny/TinyVCS.ml`, see "Outside
-git9") done in a day; 8b (http) and 9 (patch and what uses it) left.
+2026-09-24: phases 1 to 8, 8b (http(s) through curl: ix cloned from
+GitHub by tinygit) and 10 (`tiny/TinyVCS.ml`, see "Outside git9")
+done in a day; 9 (patch and what uses it) left.
 
 **Size**: 3,609 lines of `.ml` (with 261 of copyright headers), the
 target's 3,600, against 10,627 twinned (git9's 7,912 of C and 1,406 of
@@ -383,8 +389,9 @@ file handling (cp, tar, walk, mkdir -p) being code here.
 - principia's own diff and merge3, built for Linux by goken
   (`build_plan9_diff.sh`), byte for byte on 14 of principia's 15 diff
   cases, its 13 merge cases, and 2,000 random ones (`diff_fuzz.py`);
-- the protocol both ways against `git daemon`, ssh, `ext::`
-  (`net.sh`);
+- the protocol both ways against `git daemon`, ssh, `ext::`, and
+  `git http-backend` for smart http (`net.sh`); ix cloned from GitHub
+  (`make test-github`);
 - git9's own tests, translated: add, diff, lca, range, noam, basic,
   ftype, merge (`git9_tests.sh`).
 
@@ -400,5 +407,4 @@ file handling (cp, tar, walk, mkdir -p) being code here.
 - an OCaml `if ... then let ... in if ... then ... else` read the
   raw pack's end as the start of a pkt-line (the dangling else).
 
-**Left**: http(s) through curl (8b); patch, export, import, rebase,
-hist (9).
+**Left**: patch, export, import, rebase, hist (9).

@@ -66,3 +66,10 @@ build-docker-ocaml5:
 	docker build -t "ix" --build-arg OCAML_VERSION=5.1.1 .
 
 .PHONY: all test test-differential test-goken test-chidb clean build-docker build-docker-ocaml5
+
+# TinyGit over the Internet: ix cloned from GitHub by tinygit (https,
+# through curl), checked by git fsck and walk.
+test-github: all
+	rm -rf /tmp/ix-github && ./_build/default/version_control/Main.exe clone https://github.com/aryx/ix /tmp/ix-github
+	git --git-dir=/tmp/ix-github/.git fsck --strict
+	cd /tmp/ix-github && $(CURDIR)/_build/default/version_control/Main.exe walk -q

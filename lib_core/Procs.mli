@@ -18,3 +18,9 @@ val wait_any : < Cap.wait; .. > -> (int * Unix.process_status) option
 (* an environment's NAME=value entries, split at the first =; the
  * entries without one dropped *)
 val split_env : string array -> (string * string) list
+
+(* a child running [prog] (looked up in $PATH when it has no '/') with
+ * [args] after it, its standard input and output the descriptors
+ * given, its standard error ours; its pid. A program that cannot be
+ * run exits 127 with a message, as a shell's child does. *)
+val spawn : < Cap.fork; Cap.exec; .. > -> string -> string list -> stdin:Unix.file_descr -> stdout:Unix.file_descr -> int

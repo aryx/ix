@@ -280,7 +280,17 @@ The server packs what the wants reach and the haves do not -- `paint`
 again. A push is the reverse: `OLD NEW REF` lines, then a pack, and a
 push that is not a fast-forward is refused unless forced. The
 transports only carry the bytes: a local repository (a `serve`
-process on a socketpair), TCP for `git://`, `ssh`.
+process on a socketpair), TCP for `git://`, `ssh`, and smart http,
+where the conversation is cut in two stateless requests -- a GET for
+the references, then one POST carrying the whole request (wants,
+haves, done), its reply the pack. TinyGit runs `curl` for http(s), as
+git9 uses Plan 9's webfs; that is how it clones ix from GitHub:
+
+```
+   $ tinygit clone https://github.com/aryx/ix ix
+   fetching...
+   checking out repository...
+```
 
 ## 9. diff and merge3
 

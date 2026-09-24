@@ -9,7 +9,7 @@
  *)
 (* See CLI.mli *)
 
-type caps = < Store.caps; Cap.stdout; Cap.stderr; Cap.argv >
+type caps = < Store.caps; Cap.stdout; Cap.stderr; Cap.argv; Cap.fork; Cap.exec; Cap.wait >
 
 exception Fatal of string
 
