@@ -61,6 +61,11 @@ plan restates only where it differs.
    against TinyMk's 1,398), so the one-file programs read as a set. Choosing its features is the hard part:
    fundamental enough to do real work, checked on a real input, and
    not too big.
+   Code that several programs really share may go into an intermediate
+   library: a top-level `lib_core/` for the programs (condition codes,
+   a regex engine...), or a `tiny/TinyLibXxx.ml` for the one-file
+   variants, which are then one file plus the libraries they name.
+   Factor what is duplicated in fact, not in advance.
 10. **Honest, and counted**: lines per module against the twins in the
     Status, the ceiling stated up front, a target set before and
     compared after (TinyMk missed its 750 by a factor of 2.4), and

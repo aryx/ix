@@ -2786,3 +2786,27 @@ All tests passed for builder and TinyBuildSystem; Claude planned next work targe
 **Yoann:**
 
 > but they have teaching value too, software engineering value to teach
+
+**Claude (summary):**
+
+Claude fixed TinyEd's crash where a backslash at end of input caused an issue by redesigning substitution decoding into immutable `Lit | Whole | Group` variants.
+Claude refactored the regex compiler from 307 to 275 lines by emitting each piece knowing what follows, eliminating `-1` placeholders and making `IOr` carry its own branch.
+Claude restructured TinyEditor's command types as variants so that invalid constructions like `,y p` are impossible in the type system.
+Claude established an `old:` convention for documenting what types replaced and what that enabled, applying it to earlier changes across multiple files.
+All 58 editor tests, 45 corpus cases, and TinyEditor's sam-based tests passed after these changes.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:29
+
+**Yoann:**
+
+> by the way, feel free to introduce intermediate libraries to factorize code, be it in a hypothetical lib_core/ at the toplevel, used by other projects, or for tiny/ some TinyLibXxx.ml
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:29
+
+**Yoann:**
+
+> (can update the README with those relaxing constraints)
