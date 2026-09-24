@@ -2925,3 +2925,15 @@ Said they'd await reports from six parallel component comparisons then rank impr
 **Yoann:**
 
 > in the mean time, let's start to use Fpath and Logs library, instead of using string for filename in many places, especially in this new Files.mli
+
+**Claude (summary):**
+
+Claude finished Fpath and Logs integration then ranked design improvements discovered from comparing ix with xix. Claude identified typed opcodes, suffix decoding, and operand class refactoring as top toolchain priorities, plus linker and compiler redesigns. Claude found two real bugs deserving priority: rc's exec fidelity issue and silent DATA overflow detection. Claude also identified refactoring needs in shell, builder, and editor, then asked what implementation order to follow. Yoann chose to save the entire ranked improvement list to an optional plan file instead of starting implementation.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:55
+
+**Yoann:**
+
+> let's save this in an optional plan instead and save that for later
