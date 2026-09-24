@@ -83,21 +83,27 @@ let files ~(readdir : string -> string list option) ~(exists : string -> bool) (
   if not (is_pattern w) then [ to_string w ]
   else
     let join dir name = if dir = "" then name else if dir = "/" then "/" ^ name else dir ^ "/" ^ name in
-    let literal comp = List.for_all (function Char _ -> true | _ -> false) comp in
-    let text comp = String.concat "" (List.map (function Char c -> String.make 1 c | _ -> "") comp) in
+    (* a component with no meta character: its text *)
+    let rec literal = function
+      | [] -> Some ""
+      | Char c :: rest -> Option.map (fun s -> String.make 1 c ^ s) (literal rest)
+      | (Any | Star | Set _) :: _ -> None
+    in
     (* each directory reached so far, component by component *)
     let rec walk dirs = function
       | [] -> dirs
       | [] :: rest -> walk (List.map (fun d -> if d = "" then "/" else d ^ "/") dirs) rest
-      | comp :: rest when literal comp -> walk (List.map (fun d -> join d (text comp)) dirs) rest
       | comp :: rest ->
           let next =
-            dirs |> List.concat_map (fun d ->
-              match readdir d with
-              | None -> []
-              | Some names ->
-                  List.filter (fun name -> match_elems comp name 0) (List.sort compare names)
-                  |> List.map (join d))
+            match literal comp with
+            | Some name -> List.map (fun d -> join d name) dirs
+            | None ->
+                dirs |> List.concat_map (fun d ->
+                  match readdir d with
+                  | None -> []
+                  | Some names ->
+                      List.filter (fun name -> match_elems comp name 0) (List.sort compare names)
+                      |> List.map (join d))
           in
           walk next rest
     in

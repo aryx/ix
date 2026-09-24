@@ -82,6 +82,7 @@ and word = piece list        (* the pieces, joined *)
 and cmd =
   | Empty
   | Simple of word list * redir list
+  | Match of word list * redir list             (* ~ subject pattern... *)
   | Seq of cmd * cmd
   | Async of cmd
   | And of cmd * cmd
@@ -203,9 +204,10 @@ let expect p t = if next p <> t then raise (Error "syntax error")
 let rec skipnl p = if peek p = NL then (ignore (next p); skipnl p)
 (* old: the keyword's string, matched as Some "if": a misspelling was
  * silently a command's name *)
-let keyword p : [ `Bang | `At | `If | `While | `For | `In | `Fn ] option =
+let keyword p : [ `Bang | `At | `If | `While | `For | `In | `Fn | `Tilde ] option =
   match peek p with
-  | WORD [ Lit (k, false) ] -> List.assoc_opt k [ "!", `Bang; "@", `At; "if", `If; "while", `While; "for", `For; "in", `In; "fn", `Fn ]
+  | WORD [ Lit (k, false) ] ->
+      List.assoc_opt k [ "!", `Bang; "@", `At; "if", `If; "while", `While; "for", `For; "in", `In; "fn", `Fn; "~", `Tilde ]
   | _ -> None
 let name p what = match next p with WORD [ Lit (x, _) ] -> x | _ -> raise (Error (what ^ ": a name"))
 
@@ -265,6 +267,7 @@ and unit p : cmd =
       skipnl p;
       For (x, list, and_or p)
   | Some `Fn, _ -> kw (); let f = name p "fn" in Fn (f, block p)
+  | Some `Tilde, _ -> kw (); let ws, rs = simple p in Match (ws, rs)
   | _, LBRACE -> let c = block p in Brace (c, redirs p)
   | _, WORD w when assignment w <> None ->
       ignore (next p);
@@ -279,15 +282,18 @@ and unit p : cmd =
       (match peek p with
        | WORD _ | BACKQ | REDIR _ | LBRACE -> Assign (x, value, Some (unit p))
        | _ -> Assign (x, value, None))
-  | _, (WORD _ | BACKQ | REDIR _) ->
-      let rec go ws rs =
-        match peek p with
-        | REDIR r -> ignore (next p); go ws (r :: rs)
-        | WORD _ | BACKQ -> go (one_word p :: ws) rs
-        | _ -> Simple (List.rev ws, List.rev rs)
-      in
-      go [] []
+  | _, (WORD _ | BACKQ | REDIR _) -> let ws, rs = simple p in Simple (ws, rs)
   | _ -> Empty
+
+(* a command's words and redirections, in any order *)
+and simple p =
+  let rec go ws rs =
+    match peek p with
+    | REDIR r -> ignore (next p); go ws (r :: rs)
+    | WORD _ | BACKQ -> go (one_word p :: ws) rs
+    | _ -> List.rev ws, List.rev rs
+  in
+  go [] []
 
 and redirs p = match peek p with REDIR r -> ignore (next p); r :: redirs p | _ -> []
 
@@ -508,7 +514,9 @@ let rec run (caps : caps) ~e (c : cmd) : unit =
       let last = status () in
       set_status (wait caps pid ^ "|" ^ last);
       check ~e
-  | Simple ([ Lit ("~", false) ] :: args, rs) ->
+  (* old: Simple with a first word "~", matched as a pattern in the
+   * tree, though ~ is a keyword as ! and @ are *)
+  | Match (args, rs) ->
       (* ~ subject pattern ...: the words as they are, not globbed *)
       with_fds (redirs caps rs) (fun () ->
         match List.concat_map (word caps) args with

@@ -2937,3 +2937,30 @@ Claude finished Fpath and Logs integration then ranked design improvements disco
 **Yoann:**
 
 > let's save this in an optional plan instead and save that for later
+
+**Claude (summary):**
+
+Claude saved redesign ideas as an optional plan in `docs/plans/plan_redesign.md` (commit aa4fa25).
+The plan identifies two bugs to fix: rc `exec >a` incorrectly writing files and linker DATA silently dropped.
+It outlines toolchain redesigns with typed opcodes, and separate smaller redesigns for shell, builder, and editor.
+Items marked "(ours)" distinguish original ideas; the plan notes what not to copy from xix.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:57
+
+**Yoann:**
+
+> let's call it maybe plan_redesign_xix_something to show its relation to xix? or it's past that now?
+
+**Claude (summary):**
+
+Claude argued ix had evolved beyond xix, so xix shouldn't be in the filename since strongest ideas came from independent review. The unifying concept was how C's lack of ADTs and pattern matching shaped ix's design decisions, not xix as model. Claude offered plan_redesign.md (since the body credits xix) or plan_redesign_c_shapes.md to foreground the C-limitations concept explicitly. Yoann chose to keep plan_redesign.md unchanged and move forward with committing the document. Claude noted that ix's strongest ideas came from independent engineering: typed opcodes, operand classes as range tests, and found bugs.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 11:58
+
+**Yoann:**
+
+> keep plan_redesign.md, let's commit and go back on the original track

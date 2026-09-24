@@ -38,7 +38,7 @@ let starts_word = function
   | L.WORD _ | L.DOLLAR | L.COUNT | L.JOIN | L.LPAREN | L.BACKQUOTE -> true
   | _ -> false
 
-let is_redir = function L.REDIR _ | L.HERE _ | L.DUP _ | L.CLOSE _ -> true | _ -> false
+let is_redir = function L.REDIR _ -> true | _ -> false
 
 (* can a word start here: a word's token, or <{ and >{ (rc's PIPEFD is a
  * comword) *)
@@ -48,7 +48,7 @@ let is_redir = function L.REDIR _ | L.HERE _ | L.DUP _ | L.CLOSE _ -> true | _ -
 let word_next p =
   starts_word (peek p)
   || match peek p with
-     | L.REDIR (Ast.Read, 0) | L.REDIR (Ast.Write, 1) -> let t = next p in let brace = peek p = L.LBRACE in unread p t; brace
+     | L.REDIR (Open (Ast.Read, 0) | Open (Ast.Write, 1)) -> let t = next p in let brace = peek p = L.LBRACE in unread p t; brace
      | _ -> false
 
 (*****************************************************************************)
@@ -73,8 +73,8 @@ and comword p : word =
   | L.BACKQUOTE ->
       if peek p = L.LBRACE then Backquote (None, brace_body p)
       else let sep = word p in Backquote (Some sep, brace_body p)
-  | L.REDIR (Ast.Read, 0) when peek p = L.LBRACE -> Pipefd (Reads, brace_body p)
-  | L.REDIR (Ast.Write, 1) when peek p = L.LBRACE -> Pipefd (Writes, brace_body p)
+  | L.REDIR (Open (Ast.Read, 0)) when peek p = L.LBRACE -> Pipefd (Reads, brace_body p)
+  | L.REDIR (Open (Ast.Write, 1)) when peek p = L.LBRACE -> Pipefd (Writes, brace_body p)
   | t -> unread p t; error p
 
 and words p : word list =
@@ -87,16 +87,16 @@ and words p : word list =
 (* a redirection token, and its file for > < >> <> << *)
 and redir p : redir =
   match next p with
-  | L.REDIR (k, fd) -> Open (k, fd, word p)
-  | L.HERE fd -> (
+  | L.REDIR (Open (k, fd)) -> Open (k, fd, word p)
+  | L.REDIR (Here fd) -> (
       match next p with
       | L.WORD (tag, quoted) ->
           let h = { tag; expand = not quoted; body = "" } in
           L.add_heredoc p.lx h;
           Here (fd, h)
       | t -> unread p t; error p)
-  | L.DUP (a, b) -> Dup (a, b)
-  | L.CLOSE a -> Close a
+  | L.REDIR (Dup (a, b)) -> Dup (a, b)
+  | L.REDIR (Close a) -> Close a
   | t -> unread p t; error p
 
 and brace_body p : cmd =

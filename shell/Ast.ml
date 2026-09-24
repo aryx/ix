@@ -83,15 +83,17 @@ let rec word (b : Buffer.t) (w : word) : unit =
   | Backquote (sep, c) -> p "`"; Option.iter (word b) sep; p "{"; cmd b c; p "}"
   | Pipefd (side, c) -> p (match side with Reads -> "<{" | Writes -> ">{"); cmd b c; p "}"
 
+(* a redirection's arrow, and the fd it means without [n] *)
+and arrow (k : rkind) = match k with Write -> ">", 1 | Append -> ">>", 1 | Read -> "<", 0 | RdWr -> "<>", 0
+
 and words b ws = List.iteri (fun i w -> if i > 0 then Buffer.add_char b ' '; word b w) ws
 
 and redir b (r : redir) =
   let p = Buffer.add_string b in
   match r with
   | Open (k, fd, w) ->
-      let arrow, default = match k with
-        | Write -> ">", 1 | Append -> ">>", 1 | Read -> "<", 0 | RdWr -> "<>", 0 in
-      p arrow;
+      let arr, default = arrow k in
+      p arr;
       if fd <> default then p (Printf.sprintf "[%d]" fd);
       word b w
   | Here (fd, h) ->

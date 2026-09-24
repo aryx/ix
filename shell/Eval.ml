@@ -213,7 +213,7 @@ and redirect t (r : redir) ~keep (f : unit -> unit) : unit =
           match words t [ w ] with
           | [ file ] -> file
           | l ->
-              let op = match k with Write -> ">" | Append -> ">>" | Read -> "<" | RdWr -> "<>" in
+              let op = fst (Ast.arrow k) in
               (* claude: 9base's messages for < and > (not >>) end with a
                * newline of their own *)
               raise (Error (op ^ (if l = [] then " requires file" else " requires singleton")

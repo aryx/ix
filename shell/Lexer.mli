@@ -21,8 +21,8 @@
  * Redirections come as one token with their file descriptors
  * (> >> < <> << and |, with [fd], [fd=], [fd=fd]):
  *
- *     >[2]   REDIR (Write, 2)       >[2=1]   DUP (2, 1)
- *     >[2=]  CLOSE 2                |[2]     PIPE (2, 0)
+ *     >[2]   REDIR (Open (Write, 2))    >[2=1]   REDIR (Dup (2, 1))
+ *     >[2=]  REDIR (Close 2)            |[2]     PIPE (2, 0)
  *
  * Input is read a line at a time, through [refill], which is told
  * whether the command is continued: that is how the terminal prompts
@@ -44,10 +44,12 @@ type token =
   | BACKQUOTE | EQUAL | SEMI | AMP | NEWLINE | EOF
   | ANDAND | OROR
   | PIPE of int * int
-  | REDIR of Ast.rkind * int
-  | HERE of int
-  | DUP of int * int
-  | CLOSE of int
+  | REDIR of rtok
+
+(* a redirection: > >> < <> with its fd, << with its fd, >[a=b], >[a=] *)
+(* old: four tokens, REDIR HERE DUP CLOSE, which the parser listed to
+ * know a redirection and matched with a catch-all after *)
+and rtok = Open of Ast.rkind * int | Here of int | Dup of int * int | Close of int
 
 type t
 

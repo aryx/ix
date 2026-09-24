@@ -17,12 +17,17 @@ type token =
   | BACKQUOTE | EQUAL | SEMI | AMP | NEWLINE | EOF
   | ANDAND | OROR
   | PIPE of int * int
-  | REDIR of Ast.rkind * int
-  | HERE of int
-  | DUP of int * int
-  | CLOSE of int
+  | REDIR of rtok
+
+and rtok = Open of Ast.rkind * int | Here of int | Dup of int * int | Close of int
 
 exception Error of string
+
+(* what the last token was: a word (a caret or a subscript may follow,
+ * free), a $ $# or dollar-quote (a name follows, up to punctuation),
+ * or another *)
+(* old: two bools, lastword and lastdol, of which at most one was true *)
+type last = After_word | After_dollar | Other
 
 type t = {
   refill : bool -> string option;
@@ -30,8 +35,7 @@ type t = {
   mutable pos : int;
   mutable eof : bool;
   mutable continued : bool;    (* inside a command: prompt 2 *)
-  mutable lastword : bool;     (* the last token was a word: carets, subscripts *)
-  mutable lastdol : bool;      (* the last token was $, $# or dollar-quote: a name follows *)
+  mutable last : last;
   mutable line : int;
   mutable raw : bool;          (* in a quote or a comment: no backslash-newline *)
   mutable heredocs : Ast.heredoc list;   (* to read after this line, reversed *)
@@ -39,7 +43,7 @@ type t = {
 
 let create ~refill = {
   refill; buf = ""; pos = 0; eof = false; continued = false;
-  lastword = false; lastdol = false; line = 1; raw = false; heredocs = [];
+  last = Other; line = 1; raw = false; heredocs = [];
 }
 
 let of_string s =
@@ -104,8 +108,7 @@ let rec skip_newlines lx =
   if peek lx = Some '\n' then (ignore (advance lx); skip_newlines lx)
 
 let skip_line lx =
-  lx.lastword <- false;
-  lx.lastdol <- false;
+  lx.last <- Other;
   lx.heredocs <- [];
   let rec go () = match advance lx with Some '\n' | None -> () | _ -> go () in
   go ()
@@ -138,15 +141,15 @@ let read_heredoc lx (h : Ast.heredoc) =
 (*****************************************************************************)
 
 (* what an arrow is: | a pipe, > >> < <> a redirection, << a here document *)
-type arrow = Pipe | Open of Ast.rkind | Here
+type arrow = To_pipe | To_file of Ast.rkind | To_here
 
 (* after > < | : an optional [fd], [fd=] or [fd=fd] *)
 (* old: the arrow's default token, with ~pipe:bool repeating its kind,
  * and a catch-all over the token for the [fd] case *)
 let fds lx (arrow : arrow) : token =
-  let pipe = arrow = Pipe in
-  let at fd = match arrow with Pipe -> PIPE (fd, 0) | Open k -> REDIR (k, fd) | Here -> HERE fd in
-  if not (next_is lx '[') then at (match arrow with Pipe | Open (Ast.Write | Ast.Append) -> 1 | Open (Ast.Read | Ast.RdWr) | Here -> 0)
+  let pipe = arrow = To_pipe in
+  let at fd = match arrow with To_pipe -> PIPE (fd, 0) | To_file k -> REDIR (Open (k, fd)) | To_here -> REDIR (Here fd) in
+  if not (next_is lx '[') then at (match arrow with To_pipe | To_file (Ast.Write | Ast.Append) -> 1 | To_file (Ast.Read | Ast.RdWr) | To_here -> 0)
   else
     let number () =
       let rec go n seen =
@@ -162,24 +165,23 @@ let fds lx (arrow : arrow) : token =
         match peek lx with
         | Some '0' .. '9' ->
             let b = number () in
-            if pipe then PIPE (a, b) else DUP (a, b)
-        | _ -> if pipe then raise (Error "pipe syntax") else CLOSE a
+            if pipe then PIPE (a, b) else REDIR (Dup (a, b))
+        | _ -> if pipe then raise (Error "pipe syntax") else REDIR (Close a)
       else at a
     in
     if not (next_is lx ']') then raise (Error (if pipe then "pipe syntax" else "redirection syntax"));
     t
 
 let token lx : token =
-  let lastword = lx.lastword in
-  lx.lastword <- false;
-  let d = if lastword then peek lx else None in
+  let last = lx.last in
+  lx.last <- Other;
+  let d = if last = After_word then peek lx else None in
   match d with
   | Some '(' -> ignore (advance lx); SUB
   | Some c when wordchr c || c = '\'' || c = '`' || c = '$' || c = '"' -> CARET
   | _ -> (
       skip_white lx;
-      let dol = lx.lastdol in
-      lx.lastdol <- false;
+      let dol = last = After_dollar in
       match advance lx with
       | None -> EOF
       | Some '\'' ->
@@ -194,17 +196,17 @@ let token lx : token =
           in
           go ();
           lx.raw <- false;
-          lx.lastword <- true;
+          lx.last <- After_word;
           WORD (Buffer.contents b, true)
       | Some '&' -> if next_is lx '&' then (skip_newlines lx; ANDAND) else AMP
       | Some '$' ->
-          lx.lastdol <- true;
+          lx.last <- After_dollar;
           if next_is lx '#' then COUNT else if next_is lx '"' then JOIN else DOLLAR
       | Some '|' ->
           if next_is lx '|' then (skip_newlines lx; OROR)
-          else (let t = fds lx Pipe in skip_newlines lx; t)
-      | Some '>' -> fds lx (Open (if next_is lx '>' then Ast.Append else Ast.Write))
-      | Some '<' -> fds lx (if next_is lx '<' then Here else Open (if next_is lx '>' then Ast.RdWr else Ast.Read))
+          else (let t = fds lx To_pipe in skip_newlines lx; t)
+      | Some '>' -> fds lx (To_file (if next_is lx '>' then Ast.Append else Ast.Write))
+      | Some '<' -> fds lx (if next_is lx '<' then To_here else To_file (if next_is lx '>' then Ast.RdWr else Ast.Read))
       | Some '\n' ->
           (* the here documents of this line follow it *)
           let hs = List.rev lx.heredocs in
@@ -231,7 +233,7 @@ let token lx : token =
           in
           go ();
           let s = Buffer.contents b in
-          lx.lastword <- not (is_keyword s);
+          if not (is_keyword s) then lx.last <- After_word;
           WORD (s, false))
 
 let show (t : token) : string =
@@ -241,4 +243,4 @@ let show (t : token) : string =
   | LPAREN -> "(" | RPAREN -> ")" | LBRACE -> "{" | RBRACE -> "}"
   | BACKQUOTE -> "`" | EQUAL -> "=" | SEMI -> ";" | AMP -> "&" | NEWLINE -> "\n" | EOF -> "EOF"
   | ANDAND -> "&&" | OROR -> "||"
-  | PIPE _ -> "|" | REDIR _ -> "redirection" | HERE _ -> "<<" | DUP _ | CLOSE _ -> ">[]"
+  | PIPE _ -> "|" | REDIR (Open _) -> "redirection" | REDIR (Here _) -> "<<" | REDIR (Dup _ | Close _) -> ">[]"
