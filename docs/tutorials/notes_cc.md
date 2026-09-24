@@ -264,7 +264,7 @@ sits beside the compiled ones.
 | back ends | one per machine, 3,600 to 3,900 lines each, plus 2,700 of optimizer | one, arm, mostly unwritten | one, with a record per machine |
 | objects | Plan 9's | xix's | TinyAsm's |
 | optimizer | registers, peephole | none | none (`-O0`) |
-| lines | about 22,000 (16,700 without the optimizers) | 5,553 | 5,391 (the target was 3,500) |
+| lines | about 22,000 (16,700 without the optimizers) | 5,553 | 5,328 (the target was 3,500) |
 
 ## 11. How it is tested
 

@@ -298,26 +298,39 @@ with `reg.c` and `peep.c`. Where TinyCompiler saves:
 | `compiler/Obj.ml`, `CLI.ml` | 150 | objects, `-S`, the command |
 | **total** | **about 3,500** | a fifth of goken's (without the optimizers), a sixth with |
 
-*As built (2026-09-24)*, with comments and blank lines (the `.mli`s,
+*As built (2026-09-24, after the second compaction)*, with comments and blank lines (the `.mli`s,
 894 lines, apart):
 
 | module | lines | against the target |
 |---|---:|---|
-| `Pre.ml` | 323 | 200: `#include`'s search, `#pragma profile` |
-| `Lexer.ml` | 233 | 250 |
-| `Parser.mly` | 576 | 650 |
-| `Tree.ml`, `Declare.ml`, `Check.ml` | 1,859 | 700: declarations and initializers are dcl.c's 1,500 lines of C, and the typing must print 5c's trees |
-| `Gen.ml`, `Multiply.ml` | 1,262 | 900: com64.c, mul.c's search and its hints |
-| `Arm64.ml` | 293 | 300 |
-| `Arm.ml` | 278 | 350 |
-| `Emit.ml`, `CLI.ml`, `Main.ml` | 567 | 150: the registers and the frame's areas are here, not in Gen, and the listing's format |
-| **total** | **5,391** | a third of goken's without the optimizers, a quarter with |
+| `Pre.ml` | 329 | 200: `#include`'s search, `#pragma profile` |
+| `Lexer.ml` | 220 | 250 |
+| `Parser.mly` | 571 | 650 |
+| `Tree.ml`, `Declare.ml`, `Check.ml` | 1,872 | 700: declarations and initializers are dcl.c's 1,500 lines of C, and the typing must print 5c's trees |
+| `Gen.ml`, `Multiply.ml` | 1,257 | 900: com64.c, mul.c's search and its hints |
+| `Arm64.ml` | 265 | 300 |
+| `Arm.ml` | 227 | 350 |
+| `Emit.ml`, `CLI.ml`, `Main.ml` | 587 | 150: the registers and the frame's areas are here, not in Gen, and the listing's format |
+| **total** | **5,328** | a third of goken's without the optimizers, a quarter with |
 
 The modules differ from decision 1's list: `Type` is `Tree` (with the
 tree and the symbols) and `Declare` (dcl.c's declarations, scopes and
 initializers); `Obj` is `Emit`, which also holds the instructions, their
 operands and the registers, shared by the two machines; `Multiply` is
 mul.c's search, arm's multiplications by a constant.
+
+The second compaction (the author: "using more variants and more elegant
+code instead of following the style of 5c/7c") kept the output byte for
+byte and changed the representation: types' kinds a variant with no
+bit sets or `Obj.magic` ranks, sub.c's operator tables predicates, the
+usual conversions a rule instead of a 13x13 table, one no-op-cast rule
+for both machines, a declaration's words a variant list, a node's
+addressability a variant instead of 20/10/11/12/2/3, the preprocessor
+and lexer on chars, the flags booleans and variants, the compare and
+its branch shared by the machines. What stayed 5c's is what the output
+depends on: register allocation's order, the terms' sort, Plan 9's
+`%.17e` (which is not the shortest round trip: 17% of random doubles
+print differently, so the emulation stays).
 
 ## Outside the compiler: the one-file variant
 
