@@ -2738,3 +2738,51 @@ Claude proposed continuing with builder's remaining string-to-variant conversion
 **Yoann:**
 
 > the hook is failing?
+
+**Claude (summary):**
+
+Claude fixed the hook to skip agent-message prompts, preventing the five 720-line audit entries from being recorded (commit ac55182).
+Past five entries stayed in prompt-history.md; future agent messages won't be recorded.
+Skip logic already existed in rebuild mode; Claude updated standard mode to match for consistency.
+Claude refactored builder recipe results and -d flags (2e2189f), TinyBuildSystem targets and node types (f0bfed8).
+All tests passed for builder and TinyBuildSystem; Claude planned next work targeting editor crash on backslash regex.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:17
+
+**Yoann:**
+
+> we can keep those past entries in the prompt history file, but let's not add more such message for the futur
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:17
+
+**Yoann:**
+
+> as you improve the code, maybe you can add comment saying how the code was before and how this is safer
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:18
+
+**Yoann:**
+
+> with an (* old: *) tag or something
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:18
+
+**Yoann:**
+
+> of course not too many of those old comment, as it takes space
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:18
+
+**Yoann:**
+
+> but they have teaching value too, software engineering value to teach

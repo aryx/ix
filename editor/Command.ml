@@ -11,8 +11,11 @@
 
 type caps = < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.open_out >
 
-(* a replacement, as compsub reads it: a \ before a character *)
-type rhs = Char of int | Escaped of int
+(* a replacement's pieces, decoded as compsub reads them: a character,
+ * & the match, \1..\8 a group *)
+(* old: Char | Escaped of int, decoded at each use; a \ at the end of
+ * the input stored Escaped eof, and dosub crashed on it *)
+type piece = Lit of int | Whole | Group of int
 
 type t = {
   caps : caps;
@@ -175,14 +178,18 @@ let compsub t =
   Address.read_pattern t.ad seof;
   let rec rhs acc =
     let c = getc t in
-    if c = ch '\\' then rhs (Escaped (getc t) :: acc)
+    if c = ch '\\' then begin
+      let c = getc t in
+      if c = Input.eof then error ();
+      rhs ((if c >= ch '1' && c <= ch '8' then Group (c - ch '0') else Lit c) :: acc)
+    end
     else if (c = Input.nl && not (Input.global_has_more (input t))) || c = Input.eof then begin
       unget t c;
       t.pflag <- true;
       List.rev acc
     end
     else if c = seof then List.rev acc
-    else rhs (Char c :: acc)
+    else rhs ((if c = ch '&' then Whole else Lit c) :: acc)
   in
   let r = rhs [] in
   let c = getc t in
@@ -193,17 +200,17 @@ let compsub t =
 
 (* ed.c's dosub: [line] with its match replaced; and where the search
  * goes on, the end of the replacement *)
-let dosub (rhs : rhs list) (line : string) (subs : (int * int) array) : string * int =
+let dosub (rhs : piece list) (line : string) (subs : (int * int) array) : string * int =
   let s, e = subs.(0) in
   let b = Buffer.create (String.length line + 16) in
   Buffer.add_string b (String.sub line 0 s);
   List.iter (function
-    | Char c when c = ch '&' -> Buffer.add_string b (String.sub line s (e - s))
-    | Escaped c when c >= ch '1' && c <= ch '8' ->
-        let gs, ge = subs.(c - ch '0') in
+    | Whole -> Buffer.add_string b (String.sub line s (e - s))
+    | Group g ->
+        let gs, ge = subs.(g) in
         if gs < 0 then error ();
         Buffer.add_string b (String.sub line gs (ge - gs))
-    | Char c | Escaped c -> add_rune b c) rhs;
+    | Lit c -> add_rune b c) rhs;
   let loc2 = Buffer.length b in
   Buffer.add_string b (String.sub line e (String.length line - e));
   Buffer.contents b, loc2

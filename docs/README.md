@@ -87,6 +87,11 @@ plan restates only where it differs.
       are 5c's and 7c's), yet keeps the C original's shape only where
       the output depends on it (allocation order, sort ties, number
       formats); `-x`'s dump became the ADT's own.
+    - **An `(* old: ... *)` note** on the new type says, in two or
+      three lines, what it replaced and what that allowed (a crash, a
+      catch-all, a sentinel): the software engineering lesson, kept
+      short (the history is in git), and marked, since other comments
+      describe the code as it is (principle 11).
     - Clarity first, fewer lines second: the rewrite of compiler/'s
       trees removed 134 uses of `Tree.l n`, 80 tests of `.op` and two
       thirds of the assignments to fields, for 75 lines fewer.
