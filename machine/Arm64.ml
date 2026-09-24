@@ -527,9 +527,11 @@ let set_nz st sf r =
 let add_flags st sf a b cin =
   match sf with
   | W ->
-      let r, c, v = Bits.add_carry (int32 a) (int32 b) cin in
+      let a = int32 a and b = int32 b in
+      let r = Bits.add32 a b cin in
+      st.c <- Bits.carry32 a r cin; st.v <- Bits.overflow32 a b r;
       let r = of32 r in
-      set_nz st W r; st.c <- c; st.v <- v; r
+      set_nz st W r; r
   | X ->
       let r = Int64.add (Int64.add a b) (Int64.of_int cin) in
       let u = Int64.unsigned_compare r a in

@@ -3368,3 +3368,19 @@ Three commits merged; next is phase 6 speed optimization toward 30 MIPS target.
 **Yoann:**
 
 > good. For later, maybe it's ok to rely on tsdl directly rather than the playground. we can always migrate to the playground later. What do you think?
+
+**Claude (summary):**
+
+Claude recommended a display record with present and poll functions to abstract TinyRaspberryPi from various screen backends.
+Three modules would implement this: Sdl_display for tsdl, Ppm_display for tests, and a swappable playground backend without changes to device code.
+This isolates C stubs to one module and avoids coupling TinyRaspberryPi to the playground API while it evolves.
+Claude offered to update plan_pi.md covering decision 9, phase B text, web phase notes, and dependency changes.
+As a side effect, TinyRaspberryPi would no longer be the only ix program depending on the playground.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 21:16
+
+**Yoann:**
+
+> yes update and move forward

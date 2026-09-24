@@ -412,3 +412,39 @@ MIPS; in a `Bytes` read with `get_int64_le`, 17.9; with the
 boxed. The array it is. (The shared register file for the Pi3's two
 modes, plan_pi.md, will take the same measurement.) 24 MIPS is under
 the 30 target: phase 6.
+
+**Phase 6 done** (2026-09-24): over 30 MIPS on both, measured by
+`machine/tests/bench.py 5|7` (a loop of 7 instructions, 140 million
+run; TinyArm's checksum equal to the CPU's), in dune's release profile:
+
+| | arm32 | arm64 |
+|---|---|---|
+| TinyArm, before phase 6 (dev profile) | 18.5 | 20.9 |
+| the same code, release profile | 24.8 | 29.2 |
+| TinyArm now, release profile | **36.0** | **34.5** |
+| TinyArm now, dev profile | 22.8 | 27.1 |
+| goken's 5i (`bench_plan9_arm.s`, its default build) | 6 | -- |
+| qemu-user (translation to host code) | 1,100 | 1,035 |
+| the CPU (Neoverse-N1) | ~5,000 | ~3,600 |
+
+Found with valgrind's callgrind (no perf on this machine):
+
+- **dune's dev profile compiles libraries with `-opaque`**, which stops
+  inlining across modules: `Bits.mask32`, `ult32` and the rest become
+  calls. Release (what `opam install` and `dune build --release`
+  build) inlines them; the speed is quoted for it.
+- **allocation on the hot path**: `Memory`'s lookup returned a pair
+  and an option on every access (now: the last segment's fields cached
+  in the memory record, the offset returned); arm32's shifter returned
+  a pair (value, carry out), `Bits.add_carry` a triple, a data
+  processing result an option and `set` a closure (now: the carry out
+  in a module-level `bool ref`, `add32`/`carry32`/`overflow32`,
+  `mul32` in ints: exact under js_of_ocaml too, whose multiplication
+  wraps at 32 bits).
+- arm64's register writes go through `caml_modify` (a boxed `Int64`
+  stored in an array); a Bigarray of `int64` avoids the barrier but
+  measured the same (34.7-35.3 against 34.6): kept the array.
+
+Not done, as not needed: flags computed lazily, a decode into
+closures, translation to OCaml bytecode or host code (decision 7's
+roads, the tutorial's exercises).

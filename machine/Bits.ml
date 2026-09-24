@@ -50,6 +50,15 @@ let add_carry a b cin =
   let v = (a lxor r) land (b lxor r) land top <> 0 in
   r, c, v
 
+(* the same, in three functions: no tuple allocated on the hot path *)
+let add32 a b cin = mask32 (a + b + cin)
+let carry32 a r cin = if cin = 0 then ult32 r a else ule32 r a
+let overflow32 a b r = (a lxor r) land (b lxor r) land top <> 0
+
+(* the low 32 bits of a product: OCaml's native multiplication wraps
+ * modulo 2^63, js_of_ocaml's modulo 2^32, the low bits the same *)
+let mul32 a b = mask32 (a * b)
+
 let mul64 ~signed a b =
   let ext w = if signed then Int64.of_int (signed32 w) else Int64.logand (Int64.of_int (signed32 w)) 0xffffffffL in
   let p = Int64.mul (ext a) (ext b) in

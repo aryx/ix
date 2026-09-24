@@ -42,6 +42,15 @@ val to_int32 : int -> int32
 val add_carry : int -> int -> int -> int * bool * bool
 
 (* the 64-bit product of two words, unsigned or signed: (low, high) *)
+(* add_carry's result, carry and overflow apart (no tuple: the
+ * interpreters' hot path) *)
+val add32 : int -> int -> int -> int
+val carry32 : int -> int -> int -> bool     (* a, the result, cin *)
+val overflow32 : int -> int -> int -> bool  (* a, b, the result *)
+
+(* the low 32 bits of a product *)
+val mul32 : int -> int -> int
+
 val mul64 : signed:bool -> int -> int -> int * int
 
 (* shifts of a word by 0-31 *)
