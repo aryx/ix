@@ -67,6 +67,29 @@ plan restates only where it differs.
     dates and names from memory marked as such.
 11. **Comments describe the code as it is**; new comments in existing
     code are tagged `claude:`.
+12. **The data are OCaml variants, checked by the compiler.** A closed
+    set -- operators, kinds, classes, storage, a statement's forms, a
+    node's addressability -- is a variant, never a string, an integer
+    code or a bit set: a misspelled `"<="` or a case forgotten is then
+    a compile error, not a wrong output. Concretely:
+    - **Split a type until every match is exhaustive** without a
+      catch-all or an `assert false` (TinyC's `binop = A of arith | R
+      of rel`: the machine matches arithmetic and relations apart).
+    - **Trees are ADTs** (an expression's kind with its attributes;
+      statements, declarators, initializers each a type of their own),
+      not one node with an op, a left and a right; **passes are
+      functions from a tree to a tree**, not rewrites in place.
+    - **Desugar to fewer forms** where the output allows it (TinyC's
+      `&&`, `||`, `!` as `?:`, `while` as `for`): fewer constructors,
+      fewer cases in every match.
+    - **The output is the contract, the representation is free**: a
+      twin matches its reference byte for byte (compiler/'s listings
+      are 5c's and 7c's), yet keeps the C original's shape only where
+      the output depends on it (allocation order, sort ties, number
+      formats); `-x`'s dump became the ADT's own.
+    - Clarity first, fewer lines second: the rewrite of compiler/'s
+      trees removed 134 uses of `Tree.l n`, 80 tests of `.op` and two
+      thirds of the assignments to fields, for 75 lines fewer.
 
 ## Bugs found in the references
 

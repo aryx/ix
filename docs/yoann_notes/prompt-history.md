@@ -1906,3 +1906,11 @@ Claude designed new OCaml ADT types for statements, expressions, declarators, an
 **Yoann:**
 
 > first let's commit the progress
+
+------------------------------------------------------------------------
+
+## 2026-09-24 07:00
+
+**Yoann:**
+
+> maybe we could extend docs/README.md with those new principles about the code, to help clarity
