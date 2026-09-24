@@ -74,11 +74,15 @@ answers a framebuffer's *physical* address where the firmware answers a
 bus address; its mini UART has no backend; its SP804 timer is a stub.
 The real-hardware paths are the ones never run.
 
-So TinyRaspberryPi has **two personalities**:
+So TinyRaspberryPi has **two personalities, both first-class**: QEMU
+is the convenient machine -- fast to run, scripted, the one every
+port's tests already use, the everyday path and `make test`'s -- and the
+boards are the ones that matter in the end; neither replaces the
+other:
 
-- **`-M raspi1ap` ... (QEMU's)**: QEMU's loader, QEMU's device
-  behaviour, its quirks included -- for the differential tests against
-  QEMU, and to run xv6's harnesses unchanged;
+- **`-M raspi1ap` ... (QEMU's, the default)**: QEMU's loader, QEMU's
+  device behaviour, its quirks included -- for the differential tests
+  against QEMU, to run xv6's harnesses unchanged, and for everyday use;
 - **`-hw pi1|pi2|pi4` (the board's)**: the firmware's boot and the
   silicon's behaviour -- the SD card's boot partition read as the
   firmware reads it (`config.txt`, `kernel.img`, `kernel7.img`,
