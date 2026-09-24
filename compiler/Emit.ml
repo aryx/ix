@@ -149,14 +149,18 @@ let gcmp cmp ~fd ~small (f1 : expr option) f2 =
 (* the branch of a relation; a float's not taken on a NaN when tr, the
  * branch taken if true *)
 let grel o ~fd ~tr =
-  (nextpc ()).as_ <-
-    (match o with
-     | Eq -> "BEQ" | Ne -> "BNE"
-     | Lt -> if fd && not tr then "BMI" else "BLT"
-     | Le -> if fd && not tr then "BLS" else "BLE"
-     | Ge -> if fd && tr then "BPL" else "BGE"
-     | Gt -> if fd && tr then "BHI" else "BGT"
-     | Lo -> "BLO" | Ls -> "BLS" | Hs -> "BHS" | _ -> "BHI")
+  let c : A.cond =
+    match o with
+    | Eq -> EQ | Ne -> NE
+    | Lt -> if fd && not tr then MI else LT
+    | Le -> if fd && not tr then LS else LE
+    | Ge -> if fd && tr then PL else GE
+    | Gt -> if fd && tr then HI else GT
+    | Lo -> LO | Ls -> LS | Hs -> HS | Hi -> HI
+    | Add | Sub | Mul | Div | Mod | Lmul | Ldiv | Lmod | And | Or | Xor | Ashl | Ashr | Lshr | Andand | Oror | Comma ->
+        invalid_arg "grel: not a relation"
+  in
+  (nextpc ()).as_ <- "B" ^ A.string_of_cond c
 
 (* a branch, its target to patch; a return *)
 let gbranch () = let q = nextpc () in q.as_ <- "B"; q

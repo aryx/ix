@@ -59,6 +59,25 @@ let register arch s =
       | _, Some f when f >= 0 && f <= 31 -> Some (FReg f)
       | _ -> None)
 
+type cond = EQ | NE | HS | LO | MI | PL | VS | VC | HI | LS | GE | LT | GT | LE
+
+let invert = function
+  | EQ -> NE | NE -> EQ | HS -> LO | LO -> HS | MI -> PL | PL -> MI | VS -> VC | VC -> VS
+  | HI -> LS | LS -> HI | GE -> LT | LT -> GE | GT -> LE | LE -> GT
+
+(* the machines' codes *)
+let cond_bits = function
+  | EQ -> 0 | NE -> 1 | HS -> 2 | LO -> 3 | MI -> 4 | PL -> 5 | VS -> 6 | VC -> 7
+  | HI -> 8 | LS -> 9 | GE -> 10 | LT -> 11 | GT -> 12 | LE -> 13
+
+let string_of_cond = function
+  | EQ -> "EQ" | NE -> "NE" | HS -> "HS" | LO -> "LO" | MI -> "MI" | PL -> "PL" | VS -> "VS" | VC -> "VC"
+  | HI -> "HI" | LS -> "LS" | GE -> "GE" | LT -> "LT" | GT -> "GT" | LE -> "LE"
+
+let cond_of_string =
+  let all = List.map (fun c -> string_of_cond c, c) [ EQ; NE; HS; LO; MI; PL; VS; VC; HI; LS; GE; LT; GT; LE ] in
+  function "CS" -> Some HS | "CC" -> Some LO | s -> List.assoc_opt s all
+
 (* the objects: marshalled, with a version, as xix's *)
 let version = 2
 

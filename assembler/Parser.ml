@@ -14,8 +14,8 @@ module L = Lexer
 
 exception Error of int * string
 
-(* arm64's condition names, as operands (CSEL, CSET...) *)
-let conditions = [ "EQ"; "NE"; "HS"; "CS"; "LO"; "CC"; "MI"; "PL"; "VS"; "VC"; "HI"; "LS"; "GE"; "LT"; "GT"; "LE"; "AL"; "NV" ]
+(* arm64's condition names, as operands (CSEL, CSET...): Asm's, AL and NV *)
+let is_condition s = cond_of_string s <> None || s = "AL" || s = "NV"
 
 type state = {
   arch : arch;
@@ -173,7 +173,7 @@ let rec operand st : operand =
           | None -> Reg r)
       | Some o -> o
       | None -> assert false)
-  | L.Ident s when List.mem s conditions -> ignore (next st); Special s
+  | L.Ident s when is_condition s -> ignore (next st); Special s
   | L.Ident s when not (Hashtbl.mem st.consts s) -> (
       ignore (next st);
       match named st s with

@@ -47,16 +47,11 @@ type sym = {
   created : int;              (* the order of creation, for the data's layout *)
 }
 
-(* the conditions both machines test, as 5a and 7a name them; CS and CC
- * are HS and LO *)
-type cond = EQ | NE | HS | LO | MI | PL | VS | VC | HI | LS | GE | LT | GT | LE
+(* Asm's conditions, here for the machines (which open Link) *)
+type cond = Asm.cond = EQ | NE | HS | LO | MI | PL | VS | VC | HI | LS | GE | LT | GT | LE
 
-(* the opposite condition *)
 val invert : cond -> cond
-
-(* the code both machines give a condition (arm's always is 14) *)
 val cond_bits : cond -> int
-
 val cond_of_string : string -> cond option
 val string_of_cond : cond -> string
 

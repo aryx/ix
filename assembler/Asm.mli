@@ -103,6 +103,21 @@ type obj = { arch : arch; file : string; items : (item * int) array (* and its l
 (* the register names: R0-R15, SP, PC on arm; R0-R30, ZR, RSP on arm64 *)
 val register : arch -> string -> operand option
 
+(* the conditions both machines test, as 5a and 7a name them (CS and
+ * CC are HS and LO); shared by the assembler, the linkers and the
+ * compiler *)
+(* old: strings in each, and in each linker a table inverting them *)
+type cond = EQ | NE | HS | LO | MI | PL | VS | VC | HI | LS | GE | LT | GT | LE
+
+(* the opposite condition *)
+val invert : cond -> cond
+
+(* the code both machines give it (arm's always is 14) *)
+val cond_bits : cond -> int
+
+val cond_of_string : string -> cond option
+val string_of_cond : cond -> string
+
 (* the objects, marshalled with a version; the files through the
  * capabilities *)
 val save : < Cap.open_out; .. > -> string -> obj -> unit

@@ -20,21 +20,10 @@ type sym = {
   created : int;
 }
 
-type cond = EQ | NE | HS | LO | MI | PL | VS | VC | HI | LS | GE | LT | GT | LE
+type cond = Asm.cond = EQ | NE | HS | LO | MI | PL | VS | VC | HI | LS | GE | LT | GT | LE
 
-let invert = function
-  | EQ -> NE | NE -> EQ | HS -> LO | LO -> HS | MI -> PL | PL -> MI | VS -> VC | VC -> VS
-  | HI -> LS | LS -> HI | GE -> LT | LT -> GE | GT -> LE | LE -> GT
-
-let conds = [ "EQ", EQ; "NE", NE; "HS", HS; "LO", LO; "MI", MI; "PL", PL; "VS", VS; "VC", VC;
-              "HI", HI; "LS", LS; "GE", GE; "LT", LT; "GT", GT; "LE", LE ]
-
-let cond_bits c =
-  let rec find i = function (_, c') :: rest -> if c = c' then i else find (i + 1) rest | [] -> assert false in
-  find 0 conds
-
-let cond_of_string = function "CS" -> Some HS | "CC" -> Some LO | s -> List.assoc_opt s conds
-let string_of_cond c = fst (List.find (fun (_, c') -> c = c') conds)
+let invert = Asm.invert and cond_bits = Asm.cond_bits
+let cond_of_string = Asm.cond_of_string and string_of_cond = Asm.string_of_cond
 
 type 'm op = Func | Nop | B | Bl | Bcond of cond | Bcase | Ins of 'm
 
