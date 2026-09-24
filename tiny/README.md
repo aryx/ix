@@ -15,6 +15,7 @@ files, children and pipes they share with the twins come from
 | `TinyC.ml` | `compiler/` (TinyCompiler; 5c, 7c) | a C subset through a stack machine of its own, the stack in registers, 7c's calling convention so it links with goken's libc |
 | `TinyDatabase.ml` | `database/` (TinyDb; chidb) | the relational algebra as the query language, a pipeline (`t \| where ... \| group ... \| sort ...`); a copy-on-write B-tree, so every statement is atomic by one header write |
 | `TinyArm.ml` | `machine/` (TinyArm; 5i) | a computer in one file: an arm32 subset assembled (GNU as's syntax and bytes), run word by word by an interpreter, written as an ELF the CPU runs too; one instruction variant read by the parser, the encoder, the decoder, the printer and the executor |
+| `TinyMachine.ml` | `machine/` (TinyArm; 5i), with Knuth's MIX and MMIX | a machine of our own design, for teaching: 16 registers, r0 zero, no flags, one instruction format, every case defined; an assembler, an interpreter (the definition) and a translator to arm32 (the guest's registers in memory, a table for indirect jumps), the two agreeing |
 | `TinyVCS.ml` | `version_control/` (TinyGit; git9) | git's objects, trees and DAG; the repository as one hash (an operation log, so every command is atomic and undoable); no staging area; merges that always succeed, conflicts committed as data |
 
 Each has its tests beside it, `TinyXxx_test.sh`, run by `make test`

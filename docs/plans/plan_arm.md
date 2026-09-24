@@ -517,3 +517,29 @@ and sub, cmp and cmn, and and bic, adc and sbc); `ldr =` as a mov or
 mvn when the value fits one, the pool deduplicated, after everything;
 a single-register push or pop as a str or ldr, but for `push {sp}`
 (whose store would write back the register it stores), kept a block.
+
+**Phase 9b done** (2026-09-25): `tiny/TinyMachine.ml` (`tinymachine`,
+590 lines), a machine of our own for teaching (MIX's and MMIX's road):
+16 registers of 32 bits, r0 zero, 2^20 bytes of memory taken modulo
+its size, no flags (a branch compares two registers; slt), one 32-bit
+format (an 8-bit opcode, two registers, a 16-bit immediate naming the
+third), every case defined (division by zero and its overflow as
+RISC-V answers them); an assembler with li, la, call, ret; an
+interpreter, which is the definition; and a static translator to
+arm32 writing a Linux ELF: each instruction a fixed ARM sequence, the
+guest's registers in memory, its memory an array (the modulo by a
+shift left then right), jalr through a table of every word's
+translation, division by a shift-and-subtract routine (machine/'s
+arm32 has no divide). What only the interpreter can run: code the
+program writes.
+
+Checked by `tiny/TinyMachine_test.sh`: seven programs
+(`TinyMachine_tests/`: hello, fib, recursive factorials, a sieve, an
+insertion sort, upper-casing standard input, calls through a table)
+print their `.expected` (computed by Python), and their translations
+print and exit the same on the CPU and under machine/'s `tinyarm`; 200
+random programs in `make test` (3,000 tried), straight lines of every
+instruction with branches and jal over one, their registers dumped:
+interpreted and translated, the same bytes. The random programs catch
+a translated sar made logical (22 of 100) and a division by zero made
+0 (14 of 100).

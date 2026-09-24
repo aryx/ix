@@ -52,3 +52,10 @@
  (package ix)
  (modules TinyArm)
  (libraries ix_core fpath caps))
+
+(executable
+ (name TinyMachine)
+ (public_name tinymachine)
+ (package ix)
+ (modules TinyMachine)
+ (libraries ix_core fpath caps))
