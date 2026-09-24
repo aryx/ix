@@ -15,9 +15,6 @@ open Emit
 (* the complexity of a call: more than any expression's *)
 let fnx = 100
 
-(* the addressable: a name, a register, a constant... (5c's INDEXED) *)
-let indexed = 9
-
 (* what differs between 5c's and 7c's generators, beyond the
  * instructions: set by the machine's module *)
 type hooks = {
@@ -51,7 +48,7 @@ let fvn name et =
   | None ->
       let n = node ONAME None None in
       n.nsym <- Some (lookup name);
-      n.ntype <- Some (typ Tfunc (Some (ty et))); n.nclass <- Cglobl; n.addable <- 10;
+      n.ntype <- Some (typ Tfunc (Some (ty et))); n.nclass <- Cglobl; n.addable <- Aname;
       Hashtbl.replace fvns (name, et) n;
       n
 
@@ -120,7 +117,7 @@ let com64 (n : node) =
             let rec lhs (x : node) = if x.op = OFUNC then lhs (Tree.r x) else x in
             let x = lhs (Option.get l) in
             let c = node OCONST None None in
-            c.vconst <- Int64.of_int (etconv (et x)); c.ntype <- Some (ty Tlong); c.addable <- 20;
+            c.vconst <- Int64.of_int (etconv (et x)); c.ntype <- Some (ty Tlong); c.addable <- Aconst;
             let args = node OLIST (Some (addr_of x)) (Some (node OLIST (Some { (addr_of a) with complex = 0 }) (Some (node OLIST (Some c) r)))) in
             call (fvn "_vasop" Tvlong) (Some args)
         | o -> diag (Some n) "unknown vlong %s" (opname o)
@@ -136,7 +133,7 @@ let com64 (n : node) =
 let bool64 (n : node) =
   if not ((m ()).machcap None) && typev (et n) then begin
     let n1 = dup n in
-    n.right <- Some n1; n.left <- Some (testv ()); n.complex <- fnx; n.addable <- 0; n.op <- OFUNC; n.ntype <- Some (ty Tlong)
+    n.right <- Some n1; n.left <- Some (testv ()); n.complex <- fnx; n.addable <- Anone; n.op <- OFUNC; n.ntype <- Some (ty Tlong)
   end
 
 (*****************************************************************************)
@@ -183,17 +180,16 @@ let simplifyshift (n : node) =
        | _ -> ())
   | _ -> ()
 
-(* addressable: 20 a constant, 10 a name, 11 a register, 12 an indirect
- * register; 2 $name, 3 $(reg)+offset. complex: the registers needed.
+(* addressable: see Tree's addr; complex: the registers needed.
  * And by a power of 2, a multiplication is a shift, an unsigned
  * division too, an unsigned remainder a mask *)
 let rec xcom (n : node) =
   let l = n.left and r = n.right in
-  n.addable <- 0;
+  n.addable <- Anone;
   n.complex <- 0;
   Option.iter xcom l;
   Option.iter xcom r;
-  let a (x : node option) = match x with Some x -> x.addable | None -> 0 in
+  let a (x : node option) = match x with Some x -> x.addable | None -> Anone in
   let pow2 (x : node option) o' ~mask =
     let x = Option.get x in
     let t = Check.vlog x in
@@ -205,15 +201,17 @@ let rec xcom (n : node) =
   in
   let shifts () = if (h ()).shifts then simplifyshift n in
   (match n.op with
-   | OCONST -> n.addable <- 20
-   | OREGISTER -> n.addable <- 11
-   | OINDREG -> n.addable <- 12
-   | ONAME -> n.addable <- 10
-   | OADDR -> if a l = 10 then n.addable <- 2 else if a l = 12 then n.addable <- 3
-   | OIND -> if a l = 11 || a l = 3 then n.addable <- 12 else if a l = 2 then n.addable <- 10
-   | OADD ->
-       if a l = 20 && (a r = 2 || a r = 3) then n.addable <- a r;
-       if a r = 20 && (a l = 2 || a l = 3) then n.addable <- a l
+   | OCONST -> n.addable <- Aconst
+   | OREGISTER -> n.addable <- Areg
+   | OINDREG -> n.addable <- Aindreg
+   | ONAME -> n.addable <- Aname
+   | OADDR -> (match a l with Aname -> n.addable <- Aaddr_name | Aindreg -> n.addable <- Aaddr_reg | _ -> ())
+   | OIND -> (match a l with Areg | Aaddr_reg -> n.addable <- Aindreg | Aaddr_name -> n.addable <- Aname | _ -> ())
+   | OADD -> (
+       match a l, a r with
+       | Aconst, (Aaddr_name | Aaddr_reg) -> n.addable <- a r
+       | (Aaddr_name | Aaddr_reg), Aconst -> n.addable <- a l
+       | _ -> ())
    | OASLMUL | OASMUL -> ignore (pow2 r OASASHL ~mask:false)
    | OMUL | OLMUL ->
        ignore (pow2 r OASHL ~mask:false);
@@ -225,7 +223,7 @@ let rec xcom (n : node) =
    | OASLMOD -> ignore (pow2 r OASAND ~mask:true)
    | OLMOD -> ignore (pow2 r OAND ~mask:true)
    | _ -> ());
-  if n.addable < 10 then begin
+  if not (addressable n) then begin
     (* claude: l and r as they are now: OMUL's swap changes them *)
     let l = n.left and r = n.right in
     (match l with Some l -> n.complex <- l.complex | None -> ());
@@ -273,7 +271,7 @@ and cgenrel (n : node) (nn : node option) inrel =
   match n.ntype with
   | None -> ()
   | Some nt when (m ()).typecmplx nt.etype -> sugen n nn nt.width
-  | Some _ when n.addable >= indexed -> Option.iter (gmove n) nn
+  | Some _ when addressable n -> Option.iter (gmove n) nn
   | Some _ ->
       let curs = !cursafe in
       (match cgen1 n nn inrel with () -> cursafe := curs | exception Return -> ())
@@ -290,8 +288,8 @@ and spill_right (n : node) ~rel =
   { n with right = Some nod1 }
 
 (* an lvalue in a register unless it is addressable; its release *)
-and lvalue (l : node) = if l.addable < indexed then reglcgen l None else l
-and unlvalue (l : node) nod = if l.addable < indexed then regfree nod
+and lvalue (l : node) = if not (addressable l) then reglcgen l None else l
+and unlvalue (l : node) nod = if not (addressable l) then regfree nod
 
 (* c ? a : b, a and b generating themselves *)
 and ifelse (c : node) a b =
@@ -380,8 +378,8 @@ and cgen1 (n : node) (nn : node option) inrel =
   match o with
   | OAS ->
       let l = l () and r = r () in
-      if l.addable >= indexed && l.complex < fnx then begin
-        if nn = None && r.addable >= indexed then gmove r l
+      if addressable l && l.complex < fnx then begin
+        if nn = None && addressable r then gmove r l
         else begin
           let nod = if r.complex >= fnx && nn = None then regret r else regalloc r nn in
           cgen r (Some nod);
@@ -390,7 +388,7 @@ and cgen1 (n : node) (nn : node option) inrel =
           regfree nod
         end
       end
-      else if l.complex >= r.complex && r.addable >= indexed then begin
+      else if l.complex >= r.complex && addressable r then begin
         let nod1 = reglcgen l None in
         gmove r nod1;
         Option.iter (gmove r) nn;
@@ -457,7 +455,7 @@ and cgen1 (n : node) (nn : node option) inrel =
       let regarg = (bk ()).regret in
       let o = !regs.(regarg) in
       gargs n.right;
-      if l.addable < indexed then (let nod = reglcgen l None in gopcode OFUNC None None (Some nod); regfree nod)
+      if not (addressable l) then (let nod = reglcgen l None in gopcode OFUNC None None (Some nod); regfree nod)
       else gopcode OFUNC None None (Some l);
       if o <> !regs.(regarg) then !regs.(regarg) <- !regs.(regarg) - 1;
       Option.iter (fun nn -> let nod = regret n in gmove nod nn; regfree nod) nn
@@ -573,7 +571,7 @@ and lcgen (n : node) (nn : node option) =
     | OCOMMA -> cgen (Tree.l n) n.left; lcgen (Tree.r n) (Some nn)
     | OIND -> cgen (Tree.l n) (Some nn)
     | OCOND -> ifelse (Tree.l n) (fun () -> lcgen (Tree.l (Tree.r n)) (Some nn)) (fun () -> lcgen (Tree.r (Tree.r n)) (Some nn))
-    | _ when n.addable < indexed -> ignore (diag (Some n) "unknown op in lcgen: %s" (opname n.op))
+    | _ when not (addressable n) -> ignore (diag (Some n) "unknown op in lcgen: %s" (opname n.op))
     | _ -> gmove { n with op = OADDR; left = Some n; right = None; ntype = Some (ty Tind) } nn
   end
 
@@ -679,7 +677,7 @@ and sugen (n : node) (nn : node option) w =
         regfree nod1
     | ODOT, _ -> dot n nn (fun nod -> sugen nod nn w)
     | OSTRUCT, _ -> diag (Some n) "structure constructors are not in the subset"
-    | OAS, None -> if n.addable < indexed then sugen (Tree.r n) n.left w
+    | OAS, None -> if not (addressable n) then sugen (Tree.r n) n.left w
     | OAS, Some _ -> sugen (Tree.r n) (Some rat) w; sugen rat n.left w; sugen rat nn w
     | OFUNC, None -> sugen n (Some rat) w
     | OFUNC, Some nnn ->

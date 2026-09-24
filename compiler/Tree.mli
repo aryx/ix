@@ -63,121 +63,24 @@ val arith_tab : etype -> etype -> etype
 (* the integral promotion: Plan 9's, unsigned preserving *)
 val promote : etype -> etype
 
-type cls =
-    Cxxx
-  | Cauto
-  | Cextern
-  | Cglobl
-  | Cstatic
-  | Clocal
-  | Ctypedef
-  | Ctypestr
-  | Cparam
-  | Cselem
-  | Clabel
-  | Cexreg
+(* storage classes, and qualifiers (GCONSTNT...) *)
+type cls = Cxxx | Cauto | Cextern | Cglobl | Cstatic | Clocal | Ctypedef | Ctypestr | Cparam | Cselem | Clabel | Cexreg
 
 val cname : cls -> string
 
+(* a type's qualifiers, as bits *)
 val gconstnt : int
-
 val gvolatile : int
 
 type op =
-    OXXX
-  | OADD
-  | OADDR
-  | OAND
-  | OANDAND
-  | OARRAY
-  | OAS
-  | OASI
-  | OASADD
-  | OASAND
-  | OASASHL
-  | OASASHR
-  | OASDIV
-  | OASHL
-  | OASHR
-  | OASLDIV
-  | OASLMOD
-  | OASLMUL
-  | OASLSHR
-  | OASMOD
-  | OASMUL
-  | OASOR
-  | OASSUB
-  | OASXOR
-  | OBIT
-  | OBREAK
-  | OCASE
-  | OCAST
-  | OCOMMA
-  | OCOND
-  | OCONST
-  | OCONTINUE
-  | ODIV
-  | ODOT
-  | ODOTDOT
-  | ODWHILE
-  | OENUM
-  | OEQ
-  | OFOR
-  | OFUNC
-  | OGE
-  | OGOTO
-  | OGT
-  | OHI
-  | OHS
-  | OIF
-  | OIND
-  | OINDREG
-  | OINIT
-  | OLABEL
-  | OLDIV
-  | OLE
-  | OLIST
-  | OLMOD
-  | OLMUL
-  | OLO
-  | OLS
-  | OLSHR
-  | OLT
-  | OMOD
-  | OMUL
-  | ONAME
-  | ONE
-  | ONOT
-  | OOR
-  | OOROR
-  | OPOSTDEC
-  | OPOSTINC
-  | OPREDEC
-  | OPREINC
-  | OPROTO
-  | OREGISTER
-  | ORETURN
-  | OSET
-  | OSIGN
-  | OSIZE
-  | OSTRING
-  | OLSTRING
-  | OSTRUCT
-  | OSUB
-  | OSWITCH
-  | OUNION
-  | OUSED
-  | OWHILE
-  | OXOR
-  | ONEG
-  | OCOM
-  | OPOS
-  | OELEM
-  | OTST
-  | OINDEX
-  | OFAS
-  | OREGPAIR
-  | OEXREG
+  | OXXX | OADD | OADDR | OAND | OANDAND | OARRAY | OAS | OASI | OASADD | OASAND | OASASHL | OASASHR | OASDIV
+  | OASHL | OASHR | OASLDIV | OASLMOD | OASLMUL | OASLSHR | OASMOD | OASMUL | OASOR | OASSUB | OASXOR | OBIT
+  | OBREAK | OCASE | OCAST | OCOMMA | OCOND | OCONST | OCONTINUE | ODIV | ODOT | ODOTDOT | ODWHILE | OENUM
+  | OEQ | OFOR | OFUNC | OGE | OGOTO | OGT | OHI | OHS | OIF | OIND | OINDREG | OINIT | OLABEL | OLDIV | OLE
+  | OLIST | OLMOD | OLMUL | OLO | OLS | OLSHR | OLT | OMOD | OMUL | ONAME | ONE | ONOT | OOR | OOROR
+  | OPOSTDEC | OPOSTINC | OPREDEC | OPREINC | OPROTO | OREGISTER | ORETURN | OSET | OSIGN | OSIZE | OSTRING
+  | OLSTRING | OSTRUCT | OSUB | OSWITCH | OUNION | OUSED | OWHILE | OXOR | ONEG | OCOM | OPOS | OELEM
+  | OTST | OINDEX | OFAS | OREGPAIR | OEXREG
 
 val opname : op -> string
 
@@ -186,19 +89,20 @@ type sym = {
   mutable typ : typ option;
   mutable suetag : typ option;
   mutable tenum : typ option;
-  mutable macro : string option;
+  mutable macro : string option;     (* its first char is its number of arguments + 1, as mac.c *)
   mutable soffset : int;
   mutable svconst : int64;
   mutable sfconst : float;
   mutable label : node option;
-  mutable lexical : int;
+  mutable lexical : int;              (* the token: a name or a keyword *)
   mutable block : int;
   mutable sueblock : int;
   mutable sclass : cls;
   mutable aused : bool;
 }
+
 and typ = {
-  mutable tsym : sym option;
+  mutable tsym : sym option;          (* a structure element's name *)
   mutable tag : sym option;
   mutable link : typ option;
   mutable down : typ option;
@@ -207,6 +111,15 @@ and typ = {
   mutable etype : etype;
   mutable garb : int;
 }
+
+(* how a node can be an instruction's operand as it is; the others
+ * are computed into a register (sgen.c's addable numbers) *)
+and addr =
+  | Anone
+  | Alvalue                           (* the typechecker's: an l-value *)
+  | Aaddr_name | Aaddr_reg            (* $name, $offset(reg) *)
+  | Aname | Areg | Aindreg | Aconst   (* name, stack slot; reg; offset(reg); $c *)
+
 and node = {
   mutable left : node option;
   mutable right : node option;
@@ -222,19 +135,20 @@ and node = {
   mutable op : op;
   mutable nclass : cls;
   mutable complex : int;
-  mutable addable : int;
+  mutable addable : addr;
   mutable ngarb : int;
 }
 
-(* what the front end asks of the back end: sizes, which types are words, the no-op casts, what it computes itself *)
+(* the machine, as the front end sees it: widths and alignment
+ * (goken's ewidth, align, maxround in each back end's swt.c and gc.h) *)
 type machine = {
   thechar : char;
   sz_ind : int;
-  maxalign : int;
-  typecmplx : etype -> bool;
-  typeword : etype -> bool;
+  maxalign : int;                     (* SZ_LONG on arm, SZ_VLONG on arm64 *)
+  typecmplx : etype -> bool;             (* returned through a pointer *)
+  typeword : etype -> bool;              (* passed in a register *)
   typeswitch : etype -> bool;
-  machcap : node option -> bool;
+  machcap : node option -> bool;      (* what the back end does itself *)
 }
 
 val mach : machine option ref
@@ -302,6 +216,9 @@ val snap : typ -> unit
 val sametype : typ option -> typ option -> bool
 
 val show_type : typ option -> string
+
+(* an operand as it is, needing no instruction *)
+val addressable : node -> bool
 
 val fnname : node option -> string
 

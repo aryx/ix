@@ -456,14 +456,15 @@ let argmark (n : node) pass =
 let dcllabel (s : sym) f =
   match s.label with
   | Some n ->
-      if f then (if n.complex <> 0 then ignore (diag None "label reused: %s" s.name); n.complex <- 1) else n.addable <- 1;
+      if f then (if n.complex <> 0 then ignore (diag None "label reused: %s" s.name); n.complex <- 1) else n.addable <- Alvalue;
       n
   | None ->
       labels := s :: !labels;
       let n = node OXXX None None in
       n.nsym <- Some s;
+      (* defined: complex 1; used: addable, which -x prints as 5c's <1> *)
       n.complex <- (if f then 1 else 0);
-      n.addable <- (if f then 0 else 1);
+      if not f then n.addable <- Alvalue;
       s.label <- Some n;
       n
 

@@ -146,6 +146,14 @@ and typ = {
   mutable garb : int;
 }
 
+(* how a node can be an instruction's operand as it is; the others
+ * are computed into a register (sgen.c's addable numbers) *)
+and addr =
+  | Anone
+  | Alvalue                           (* the typechecker's: an l-value *)
+  | Aaddr_name | Aaddr_reg            (* $name, $offset(reg) *)
+  | Aname | Areg | Aindreg | Aconst   (* name, stack slot; reg; offset(reg); $c *)
+
 and node = {
   mutable left : node option;
   mutable right : node option;
@@ -161,7 +169,7 @@ and node = {
   mutable op : op;
   mutable nclass : cls;
   mutable complex : int;
-  mutable addable : int;
+  mutable addable : addr;
   mutable ngarb : int;
 }
 
@@ -214,7 +222,7 @@ let nearln = ref 0
 let mk op l r =
   let lineno = match l, r with Some l, _ when op <> OGOTO -> l.lineno | _, Some r -> r.lineno | _ -> !lineno in
   { left = l; right = r; pc = 0; reg = 0; xoffset = 0; fconst = 0.; vconst = 0L; cstring = ""; nsym = None; ntype = None;
-    lineno; op; nclass = Cxxx; complex = 0; addable = 0; ngarb = 0 }
+    lineno; op; nclass = Cxxx; complex = 0; addable = Anone; ngarb = 0 }
 
 let node op l r = mk op l r
 (* new1: at the line being diagnosed *)
@@ -387,6 +395,13 @@ let rec show_type (t : typ option) =
   go t;
   Buffer.contents b
 
+(* 5c's number, which -x prints *)
+let addr_code = function
+  | Anone -> 0 | Alvalue -> 1 | Aaddr_name -> 2 | Aaddr_reg -> 3 | Aname -> 10 | Areg -> 11 | Aindreg -> 12 | Aconst -> 20
+
+(* an operand as it is: no instruction to compute it *)
+let addressable (n : node) = match n.addable with Aname | Areg | Aindreg | Aconst -> true | _ -> false
+
 let fnname (n : node option) =
   match n with Some ({ op = ONAME | ODOT | OELEM; nsym = Some s; _ }) -> s.name | _ -> "<indirect>"
 
@@ -416,7 +431,7 @@ let prtree (n : node option) title =
               Buffer.add_string b (if typefd (et n) then Printf.sprintf " \"%.8e\"" n.fconst else Printf.sprintf " \"%Ld\"" n.vconst); 0
           | _ -> 3
         in
-        if n.addable <> 0 then Buffer.add_string b (Printf.sprintf " <%d>" n.addable);
+        if n.addable <> Anone then Buffer.add_string b (Printf.sprintf " <%d>" (addr_code n.addable));
         if n.ntype <> None then Buffer.add_string b (" " ^ show_type n.ntype);
         if n.complex <> 0 then Buffer.add_string b (Printf.sprintf " (%d)" n.complex);
         Buffer.add_string b (Printf.sprintf " %d\n" n.lineno);

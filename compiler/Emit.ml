@@ -157,15 +157,15 @@ let gpseudo a (s : sym) (n : node) =
 (* Nodes the generator makes (txt.c's ginit) *)
 (*****************************************************************************)
 
-let nodconst v = let n = node OCONST None None in n.ntype <- Some (ty Tlong); n.addable <- 20; n.vconst <- v; n
-let nodfconst d = let n = node OCONST None None in n.ntype <- Some (ty Tdouble); n.addable <- 20; n.fconst <- d; n
+let nodconst v = let n = node OCONST None None in n.ntype <- Some (ty Tlong); n.addable <- Aconst; n.vconst <- v; n
+let nodfconst d = let n = node OCONST None None in n.ntype <- Some (ty Tdouble); n.addable <- Aconst; n.fconst <- d; n
 
 let nodreg (nn : node) r =
   let n = node OREGISTER None None in
-  n.nclass <- Cexreg; n.reg <- r; n.addable <- 11; n.ntype <- nn.ntype; n.lineno <- nn.lineno;
+  n.nclass <- Cexreg; n.reg <- r; n.addable <- Areg; n.ntype <- nn.ntype; n.lineno <- nn.lineno;
   n
 
-let regnode () = let n = node OREGISTER None None in n.nclass <- Cexreg; n.reg <- (bk ()).regtmp; n.addable <- 11; n.ntype <- Some (ty Tlong); n
+let regnode () = let n = node OREGISTER None None in n.nclass <- Cexreg; n.reg <- (bk ()).regtmp; n.addable <- Areg; n.ntype <- Some (ty Tlong); n
 
 (* .safe (temporaries), .rathole (a struct thrown away), .ret (where a
  * struct is returned): made again for each file *)
@@ -250,7 +250,7 @@ let regaalloc1 (nn : node) = argument nn (fun () -> let r = (bk ()).regret in !r
 let regaalloc (nn : node) =
   argument nn (fun () ->
     let n = dup nn in
-    n.op <- OINDREG; n.reg <- (bk ()).regsp; n.xoffset <- !curarg + (bk ()).word; n.complex <- 0; n.addable <- 20;
+    n.op <- OINDREG; n.reg <- (bk ()).regsp; n.xoffset <- !curarg + (bk ()).word; n.complex <- 0; n.addable <- Aconst;
     n)
 
 let regind (n : node) (nn : node) =

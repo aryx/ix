@@ -113,7 +113,7 @@ let stcompat (n : node) (t1 : typ option) (t2 : typ option) ttab =
 let tcompat n t1 t2 ttab =
   stcompat n t1 t2 ttab && diag (Some n) "incompatible types: \"%s\" and \"%s\" for op \"%s\"" (show_type t1) (show_type t2) (opname n.op)
 
-let tlvalue (n : node) = n.addable = 0 && diag (Some n) "not an l-value"
+let tlvalue (n : node) = n.addable = Anone && diag (Some n) "not an l-value"
 
 let rec members (t : typ option) = match t with None -> [] | Some t -> t :: members t.down
 
@@ -134,7 +134,7 @@ let rec dotsearch (s : sym) (tt : typ option) (n : node) : (typ * int) option =
  * offset (sub.c's makedot) *)
 let makedot (n : node) (tt : typ) o =
   n.addable <- (l n).addable;
-  if n.addable = 0 then (n.right <- Some (konst (Int64.of_int o) (ty Tlong)); n.ntype <- Some tt)
+  if n.addable = Anone then (n.right <- Some (konst (Int64.of_int o) (ty Tlong)); n.ntype <- Some tt)
   else begin
     (l n).ntype <- Some tt;
     if o = 0 then copy_into n (l n)
@@ -298,7 +298,7 @@ and tcomo (n : node) f : bool = try tcomo1 n f; false with Bad -> n.ntype <- Non
 
 and tcomo1 (n : node) f =
   let chk b = if b then raise Bad in
-  n.addable <- 0;
+  n.addable <- Anone;
   let l = n.left and r = n.right in
   let ll () = Option.get l and rr () = Option.get r in
   let both () = let o = tcom (ll ()) in chk (o || tcom (rr ())) in
@@ -428,7 +428,7 @@ and tcomo1 (n : node) f =
          if typefd (et n) then n.fconst <- (sym n).sfconst else n.vconst <- (sym n).svconst
        end
        else if n.nclass = Cexreg then ignore (diag (Some n) "extern register is not in the subset")
-       else n.addable <- 1
+       else n.addable <- Alvalue
    | OSTRING | OLSTRING ->
        (* in .string: runes 4 bytes aligned, as pswt.c's outlstring;
         * a string of other than chars, aligned on 4 *)
@@ -437,7 +437,7 @@ and tcomo1 (n : node) f =
        else if link (t n) != ty Tchar then (let o = ref o in while !o land 3 <> 0 do ignore (!outstring "\000" 1); o := !outstring "" 0 done);
        n.op <- ONAME;
        n.xoffset <- !outstring n.cstring (t n).width;
-       n.addable <- 1
+       n.addable <- Alvalue
    | OCONST -> ()
    | ODOT ->
        chk (tcom (ll ()));
@@ -455,7 +455,7 @@ and tcomo1 (n : node) f =
        chk (tcom (ll ()));
        chk (tcompat n None (lt ()) tindir);
        n.ntype <- (t (ll ())).link;
-       n.addable <- 1
+       n.addable <- Alvalue
    | OSTRUCT -> diag (Some n) "structure constructors are not in the subset"
    | o -> diag (Some n) "unknown op in type complex: %s" (opname o));
   let tt = match n.ntype with Some tt -> tt | None -> raise Bad in
@@ -465,7 +465,7 @@ and tcomo1 (n : node) f =
     chk (tlvalue n);
     let l1 = wrap n OADDR in
     if (t l1).etype = Tarray then l1.ntype <- (t l1).link;
-    n.addable <- 0;
+    n.addable <- Anone;
     n.ntype <- Some (typ Tind l1.ntype);
     (t n).width <- (ty Tind).width
   end
@@ -496,7 +496,7 @@ and tcoma (l : node) (n : node option) (tt : typ option) f : bool =
               (match promote x.etype with Some p -> Some p | None -> tt)
           | None -> (match promote (et n) with Some p -> Some p | None -> if et n = Tfloat then Some (ty Tdouble) else None)
         in
-        (match tt with Some _ when not (sametype tt n.ntype) -> ignore (wrap n OCAST); n.ntype <- tt; n.addable <- 0 | _ -> ());
+        (match tt with Some _ when not (sametype tt n.ntype) -> ignore (wrap n OCAST); n.ntype <- tt; n.addable <- Anone | _ -> ());
         false
       end
 
