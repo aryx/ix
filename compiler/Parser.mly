@@ -444,15 +444,15 @@ elist:
 /* a structure's body, parsed in a state of its own */
 sbody:
   sbody_open edecl RBRACE
-    { let body = !Declare.strf in
-      let f, l, t, c = $1 in
-      Declare.strf := f; Declare.strl := l; Declare.lasttype := t; Declare.lastclass := c;
+    { let body = Declare.chain (List.rev !Declare.elems) in
+      let e, t, c = $1 in
+      Declare.elems := e; Declare.lasttype := t; Declare.lastclass := c;
       body }
 ;
 sbody_open:
   LBRACE
-    { let saved = !Declare.strf, !Declare.strl, !Declare.lasttype, !Declare.lastclass in
-      Declare.strf := None; Declare.strl := None; Declare.lastclass := Cxxx; Declare.lasttype := None;
+    { let saved = !Declare.elems, !Declare.lasttype, !Declare.lastclass in
+      Declare.elems := []; Declare.lastclass := Cxxx; Declare.lasttype := None;
       saved }
 ;
 

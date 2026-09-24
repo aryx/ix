@@ -34,9 +34,8 @@ val lastclass : Tree.cls ref
 
 val lastfield : int ref
 
-val strf : Tree.typ option ref
-
-val strl : Tree.typ option ref
+(* a structure's elements, the last first *)
+val elems : Tree.typ list ref
 
 val taggen : int ref
 
@@ -99,6 +98,9 @@ val pdecl : Tree.cls -> Tree.typ -> Tree.sym option -> unit
 val xdecl : Tree.cls -> Tree.typ -> Tree.sym option -> unit
 
 val edecl : Tree.cls -> Tree.typ -> Tree.sym option -> unit
+
+(* the elements, linked by down: a structure's body *)
+val chain : Tree.typ list -> Tree.typ option
 
 val sualign : Tree.typ -> unit
 

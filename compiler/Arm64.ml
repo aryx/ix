@@ -181,20 +181,20 @@ let gopcode (o : op) tr (f1 : node option) (f2 : node option) (t : node option) 
 (* c words from f to t, two registers in turn (7c's layout); cn, the
  * loop's count, set on the way *)
 let rec layout (f : node) (t : node) c cv (cn : node option) =
-  let c = ref c in
-  while !c > 3 do layout f t 2 0 None; c := !c - 2 done;
-  let c = !c in
-  let t1 = regalloc (regnode ()) None and t2 = regalloc (regnode ()) None in
-  let move = Gen.gmove in
-  if c > 0 then (move f t1; f.xoffset <- f.xoffset + 4);
-  Option.iter (fun cn -> move (nodconst (Int64.of_int cv)) cn) cn;
-  if c > 1 then (move f t2; f.xoffset <- f.xoffset + 4);
-  if c > 0 then (move t1 t; t.xoffset <- t.xoffset + 4);
-  if c > 2 then (move f t1; f.xoffset <- f.xoffset + 4);
-  if c > 1 then (move t2 t; t.xoffset <- t.xoffset + 4);
-  if c > 2 then (move t1 t; t.xoffset <- t.xoffset + 4);
-  regfree t1;
-  regfree t2
+  if c > 3 then (layout f t 2 0 None; layout f t (c - 2) cv cn)
+  else begin
+    let t1 = regalloc (regnode ()) None and t2 = regalloc (regnode ()) None in
+    let move = Gen.gmove in
+    if c > 0 then (move f t1; f.xoffset <- f.xoffset + 4);
+    Option.iter (fun cn -> move (nodconst (Int64.of_int cv)) cn) cn;
+    if c > 1 then (move f t2; f.xoffset <- f.xoffset + 4);
+    if c > 0 then (move t1 t; t.xoffset <- t.xoffset + 4);
+    if c > 2 then (move f t1; f.xoffset <- f.xoffset + 4);
+    if c > 1 then (move t2 t; t.xoffset <- t.xoffset + 4);
+    if c > 2 then (move t1 t; t.xoffset <- t.xoffset + 4);
+    regfree t1;
+    regfree t2
+  end
 
 (* the bytes past the words, then the words unrolled, or in a loop *)
 let sucopy (n : node) (nn : node) w =

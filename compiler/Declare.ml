@@ -29,8 +29,7 @@ let lastdcl : typ option ref = ref None
 let lasttype : typ option ref = ref None
 let lastclass = ref Cxxx
 let lastfield = ref 0
-let strf : typ option ref = ref None
-let strl : typ option ref = ref None
+let elems : typ list ref = ref []      (* a structure's, the last first *)
 let taggen = ref 0
 let firstarg : sym option ref = ref None
 let firstargtype : typ option ref = ref None
@@ -303,9 +302,11 @@ let edecl c (t : typ) (s : sym option) =
    | Some _ -> ());
   if c <> Cxxx then ignore (diag None "structure element cannot have class");
   let t = copytyp t in
-  t.tsym <- s; t.down <- None;
-  (match !strf with None -> strf := Some t | Some _ -> (Option.get !strl).down <- Some t);
-  strl := Some t
+  t.tsym <- s;
+  elems := t :: !elems
+
+(* the elements, linked by down: a structure's body *)
+let rec chain (ts : typ list) = match ts with [] -> None | t :: rest -> t.down <- chain rest; Some t
 
 (* the offsets of a structure's elements, its width (dcl.c's sualign) *)
 let sualign (t : typ) =
