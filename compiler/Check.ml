@@ -282,8 +282,6 @@ let invert (n : node option) =
 (* Typechecking (com.c's tcom) *)
 (*****************************************************************************)
 
-let addrof = 1 and castof = 2 and addrop = 4
-
 (* the operators' tables, and their unsigned forms *)
 let op_table = function
   | OADD -> tadd | OSUB -> tsub | OMUL | OLMUL | ODIV | OLDIV -> tmul | OASADD | OASSUB -> tasadd
@@ -292,11 +290,12 @@ let unsigned_op o = match List.assoc_opt o [ ODIV, OLDIV; OMUL, OLMUL; OMOD, OLM
 
 exception Bad
 
-let rec tcom n = tcomo n addrof
+(* the typing of n; ~addr: an array or a function used is its address *)
+let rec tcom n = tcomo n ~addr:true
 
-and tcomo (n : node) f : bool = try tcomo1 n f; false with Bad -> n.ntype <- None; true
+and tcomo (n : node) ~addr : bool = try tcomo1 n ~addr; false with Bad -> n.ntype <- None; true
 
-and tcomo1 (n : node) f =
+and tcomo1 (n : node) ~addr =
   let chk b = if b then raise Bad in
   n.addable <- Anone;
   let l = n.left and r = n.right in
@@ -308,7 +307,7 @@ and tcomo1 (n : node) f =
    | ODOTDOT -> copy_into n (ll ()); if n.ntype = None then raise Bad
    | OCAST ->
        if n.ntype <> None then begin
-         chk (if (t n).width = (ty Tlong).width then tcomo (ll ()) (addrof lor castof) else tcom (ll ()));
+         chk (tcom (ll ()));
          chk (tcompat n (lt ()) n.ntype tcast)
        end
    | ORETURN ->
@@ -405,7 +404,7 @@ and tcomo1 (n : node) f =
    | OCOMMA -> both (); n.ntype <- rt ()
    | OSIGN -> diag (Some n) "signof is not in the subset"
    | OSIZE ->
-       Option.iter (fun (l : node) -> if l.op <> OSTRING && l.op <> OLSTRING then chk (tcomo l 0); n.ntype <- l.ntype) l;
+       Option.iter (fun (l : node) -> if l.op <> OSTRING && l.op <> OLSTRING then chk (tcomo l ~addr:false); n.ntype <- l.ntype) l;
        if n.ntype = None then raise Bad;
        if (t n).width <= 0 then ignore (diag (Some n) "sizeof undefined type");
        if et n = Tfunc then ignore (diag (Some n) "sizeof function");
@@ -413,7 +412,7 @@ and tcomo1 (n : node) f =
        n.vconst <- convvtox (Int64.of_int (t n).width) Tint;
        n.ntype <- Some (ty Tint)
    | OFUNC ->
-       chk (tcomo (ll ()) 0);
+       chk (tcomo (ll ()) ~addr:false);
        (* a pointer to a function called through it *)
        let ft = t (ll ()) in
        if ft.etype = Tind && (link ft).etype = Tfunc then n.left <- Some (mkt OIND l None ft.link);
@@ -446,7 +445,7 @@ and tcomo1 (n : node) f =
         | None -> ignore (diag (Some n) "not a member of struct/union: %s" (fnname (Some n)))
         | Some (tt, o) -> makedot n tt o)
    | OADDR ->
-       chk (tcomo (ll ()) addrop);
+       chk (tcomo (ll ()) ~addr:false);
        chk (tlvalue (ll ()));
        if (ll ()).op = OREGISTER then ignore (diag (Some n) "address of a register");
        n.ntype <- Some (typ Tind (lt ()));
@@ -460,7 +459,7 @@ and tcomo1 (n : node) f =
    | o -> diag (Some n) "unknown op in type complex: %s" (opname o));
   let tt = match n.ntype with Some tt -> tt | None -> raise Bad in
   if tt.width < 0 then (snap tt; if tt.width < 0 then ignore (diag (Some n) "structure not fully declared"));
-  if typeaf tt.etype && f land addrof <> 0 then begin
+  if typeaf tt.etype && addr then begin
     (* an array or a function, used: its address *)
     chk (tlvalue n);
     let l1 = wrap n OADDR in

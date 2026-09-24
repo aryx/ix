@@ -418,25 +418,24 @@ let prtree (n : node option) title =
         Buffer.add_string b (opname n.op);
         let kids =
           match n.op with
-          | ONAME -> Buffer.add_string b (Printf.sprintf " \"%s\" %d" (fnname (Some n)) (n.xoffset land 0xffffffff)); 0
-          | OINDREG -> Buffer.add_string b (Printf.sprintf " %d(R%d)" n.xoffset n.reg); 0
-          | OREGISTER -> Buffer.add_string b (if n.xoffset <> 0 then Printf.sprintf " %d+R%d" n.xoffset n.reg else Printf.sprintf " R%d" n.reg); 0
+          | ONAME -> Buffer.add_string b (Printf.sprintf " \"%s\" %d" (fnname (Some n)) (n.xoffset land 0xffffffff)); false
+          | OINDREG -> Buffer.add_string b (Printf.sprintf " %d(R%d)" n.xoffset n.reg); false
+          | OREGISTER -> Buffer.add_string b (if n.xoffset <> 0 then Printf.sprintf " %d+R%d" n.xoffset n.reg else Printf.sprintf " R%d" n.reg); false
           | OSTRING ->
               (* %s: up to a NUL *)
               let s = match String.index_opt n.cstring '\000' with Some i -> String.sub n.cstring 0 i | None -> n.cstring in
-              Buffer.add_string b (Printf.sprintf " \"%s\"" s); 0
-          | OLSTRING -> Buffer.add_string b " \"...\""; 0
-          | ODOT | OELEM -> Buffer.add_string b (Printf.sprintf " \"%s\"" (fnname (Some n))); 3
+              Buffer.add_string b (Printf.sprintf " \"%s\"" s); false
+          | OLSTRING -> Buffer.add_string b " \"...\""; false
+          | ODOT | OELEM -> Buffer.add_string b (Printf.sprintf " \"%s\"" (fnname (Some n))); true
           | OCONST ->
-              Buffer.add_string b (if typefd (et n) then Printf.sprintf " \"%.8e\"" n.fconst else Printf.sprintf " \"%Ld\"" n.vconst); 0
-          | _ -> 3
+              Buffer.add_string b (if typefd (et n) then Printf.sprintf " \"%.8e\"" n.fconst else Printf.sprintf " \"%Ld\"" n.vconst); false
+          | _ -> true
         in
         if n.addable <> Anone then Buffer.add_string b (Printf.sprintf " <%d>" (addr_code n.addable));
         if n.ntype <> None then Buffer.add_string b (" " ^ show_type n.ntype);
         if n.complex <> 0 then Buffer.add_string b (Printf.sprintf " (%d)" n.complex);
         Buffer.add_string b (Printf.sprintf " %d\n" n.lineno);
-        if kids land 2 <> 0 then go n.left d true;
-        if kids land 1 <> 0 then go n.right d true
+        if kids then (go n.left d true; go n.right d true)
   in
   go n 0 false;
   Buffer.add_string b "\n";

@@ -131,11 +131,11 @@ fnhead:
       Declare.thisfn := !Declare.lastdcl;
       Declare.markdcl ();
       let n = Option.get $2 in
-      Declare.argmark n 0;
+      Declare.argmark n ~declared:false;
       n }
 ;
 fnparams:
-  fnhead pdecl                          { Declare.argmark $1 1; $1 }
+  fnhead pdecl                          { Declare.argmark $1 ~declared:true; $1 }
 ;
 
 xdlist:

@@ -780,9 +780,10 @@ let nbreak = ref 0
 let ncontin = ref 0
 let canreach = ref true
 
-let noretval k =
-  if k land 1 <> 0 then (gins "NOP" None None).to_ <- Some (Ix_asm.Asm.Reg (bk ()).regret);
-  if k land 2 <> 0 then (gins "NOP" None None).to_ <- Some (Ix_asm.Asm.FReg (bk ()).fregret)
+(* the result registers that hold no value, as NOPs for the optimizer *)
+let noretval ~r ~f =
+  if r then (gins "NOP" None None).to_ <- Some (Ix_asm.Asm.Reg (bk ()).regret);
+  if f then (gins "NOP" None None).to_ <- Some (Ix_asm.Asm.FReg (bk ()).fregret)
 
 (* a statement no label enters (sub.c's deadhead) *)
 let rec deadhead (n : node option) caseok =
@@ -904,17 +905,17 @@ let rec gen (n : node option) =
           Check.complex (Some n);
           if n.ntype <> None then begin
             (match uncomma n.left with
-             | None -> noretval 3
+             | None -> noretval ~r:true ~f:true
              | Some l when (m ()).typecmplx (et n) ->
                  let nod = node OAS !nodret (Some l) in
                  nod.ntype <- n.ntype; nod.complex <- l.complex;
                  cgen nod None;
-                 noretval 3
+                 noretval ~r:true ~f:true
              | Some l ->
                  let nod = regret n in
                  cgen l (Some nod);
                  regfree nod;
-                 noretval (if typefd (et n) then 1 else 2));
+                 noretval ~r:(typefd (et n)) ~f:(not (typefd (et n))));
             ignore (gbranch ORETURN)
           end
       | OLABEL ->
@@ -1099,7 +1100,7 @@ let codgen (body : node) (fn : node) =
   canreach := true;
   gen (Some body);
   if !canreach && ret.etype <> Tvoid then ignore (diag None "no return at end of function: %s" (sym n1).name);
-  noretval 3;
+  noretval ~r:true ~f:true;
   ignore (gbranch ORETURN);
   if (bk ()).arch = Ix_asm.Asm.Arm64 then maxargsafe := Declare.round !maxargsafe 8;
   sp.to_ <- add_off sp.to_ !maxargsafe

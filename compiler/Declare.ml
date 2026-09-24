@@ -188,20 +188,18 @@ let rec dodecl (f : (cls -> typ -> sym option -> unit) option) c (t : typ) (n : 
   loop t n
 
 (* the arguments' types, from a prototype (dcl.c's fnproto) *)
+(* whether the parameters have prototypes, and plain names *)
 and anyproto (n : node option) =
-  let rec go (n : node option) r =
-    match n with
-    | None -> r
-    | Some ({ op = OLIST; _ } as n) -> go n.right (r lor go n.left 0)
-    | Some { op = ODOTDOT | OPROTO; _ } -> r lor 1
-    | Some _ -> r lor 2
-  in
-  go n 0
+  match n with
+  | None -> false, false
+  | Some ({ op = OLIST; _ } as n) -> let a, b = anyproto n.left and c, d = anyproto n.right in a || c, b || d
+  | Some { op = ODOTDOT | OPROTO; _ } -> true, false
+  | Some _ -> false, true
 
 and fnproto (n : node) =
-  let r = anyproto n.right in
-  if r = 0 || r land 2 <> 0 then (if r land 1 <> 0 then ignore (diag (Some n) "mixed ansi/old function declaration"); None)
-  else fnproto1 n.right
+  match anyproto n.right with
+  | true, false -> fnproto1 n.right
+  | ansi, old -> if ansi && old then ignore (diag (Some n) "mixed ansi/old function declaration"); None
 
 and fnproto1 (n : node option) : typ option =
   match n with
@@ -409,32 +407,32 @@ let revertdcl () : node option =
   go ();
   !used
 
-let rec walkparam (n : node option) pass =
+let rec walkparam (n : node option) ~declared =
   match n with
   | Some { op = OPROTO; left = None; ntype = Some t; _ } when t == ty Tvoid -> ()
   | None -> ()
-  | Some ({ op = OLIST; _ } as n) -> walkparam n.left pass; walkparam n.right pass
+  | Some ({ op = OLIST; _ } as n) -> walkparam n.left ~declared; walkparam n.right ~declared
   | Some ({ op = OPROTO; _ } as n) ->
       let rec name (n1 : node option) = match n1 with None -> None | Some ({ op = ONAME; _ } as x) -> Some x | Some x -> name x.left in
       (match name (Some n) with
        | Some n1 ->
-           if pass = 0 then (let s = sym n1 in push1 s; s.soffset <- -1)
+           if not declared then (let s = sym n1 in push1 s; s.soffset <- -1)
            else ignore (dodecl (Some pdecl) Cparam (Tree.t n) n.left)
        | None ->
-           if pass <> 0 then begin
+           if declared then begin
              ignore (dodecl None Cparam (Tree.t n) n.left);
              pdecl Cparam (Option.get !lastdcl) None
            end)
   | Some { op = ODOTDOT; _ } -> ()
   | Some ({ op = ONAME; _ } as n) ->
       let s = sym n in
-      if pass = 0 then (push1 s; s.soffset <- -1)
+      if not declared then (push1 s; s.soffset <- -1)
       else if s.soffset <> -1 then param (Some s) (Option.get s.typ)
       else ignore (dodecl (Some pdecl) Cxxx (ty Tint) (Some n))
   | Some n -> ignore (diag (Some n) "argument not a name/prototype")
 
-(* the parameters' offsets; pass 1 after their old-style declarations *)
-let argmark (n : node) pass =
+(* the parameters' offsets; ~declared, after their old-style declarations *)
+let argmark (n : node) ~declared =
   autoffset := align 0 (link (Option.get !thisfn)) Aarg0;
   stkoff := 0;
   let rec go (n : node) =
@@ -442,8 +440,8 @@ let argmark (n : node) pass =
     | None -> ()
     | Some l ->
         if n.op = OFUNC && l.op = ONAME then begin
-          walkparam n.right pass;
-          if pass <> 0 && anyproto n.right = 2 then ignore (diag (Some n) "old-style parameters are not in the subset")
+          walkparam n.right ~declared;
+          if declared && anyproto n.right = (false, true) then ignore (diag (Some n) "old-style parameters are not in the subset")
         end
         else go l
   in

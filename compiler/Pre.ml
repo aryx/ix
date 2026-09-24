@@ -134,8 +134,9 @@ let macdef () =
       in
       let c = if is_space c && c <> 10 then getnsc () else c in
       let base = Buffer.create 64 in
-      let rec body c ischr =
-        if ischr = 0 && (is_alpha c || c = 95) then begin
+      (* q: the quote of the string or the constant c is in *)
+      let rec body c q =
+        if q = None && (is_alpha c || c = 95) then begin
           let w = Buffer.create 16 in
           let rec word c = if is_alnum c || c = 95 then (Buffer.add_char w (chr c); word (getc ())) else c in
           let c = word c in
@@ -143,35 +144,35 @@ let macdef () =
           (match index_of w !args with
            | Some i -> Buffer.add_char base '#'; Buffer.add_char base (chr (97 + i))
            | None -> Buffer.add_string base w);
-          body c ischr
+          body c q
         end
-        else if ischr <> 0 && c = 92 then (Buffer.add_char base (chr c); let c = getc () in Buffer.add_char base (chr c); body (next ()) ischr)
-        else if ischr <> 0 && c = ischr then (Buffer.add_char base (chr c); body (next ()) 0)
-        else if ischr = 0 && (c = 34 || c = 39) then (Buffer.add_char base (chr c); body (getc ()) c)
-        else if ischr = 0 && c = 47 then begin
+        else if q <> None && c = 92 then (Buffer.add_char base (chr c); let c = getc () in Buffer.add_char base (chr c); body (next ()) q)
+        else if q = Some c then (Buffer.add_char base (chr c); body (next ()) None)
+        else if q = None && (c = 34 || c = 39) then (Buffer.add_char base (chr c); body (getc ()) (Some c))
+        else if q = None && c = 47 then begin
           let c = getc () in
-          if c = 47 then (let rec eol c = if c <> 10 then eol (getc ()) else c in body (eol (getc ())) ischr)
+          if c = 47 then (let rec eol c = if c <> 10 then eol (getc ()) else c in body (eol (getc ())) q)
           else if c = 42 then begin
             let rec skip c =
               if c = 42 then (let c = getc () in if c <> 47 then skip c else getc ())
               else if c = 10 then error_at !lineno "comment and newline in define: %s" s.name
               else skip (getc ())
             in
-            body (skip (getc ())) ischr
+            body (skip (getc ())) q
           end
-          else (Buffer.add_char base '/'; body c ischr)
+          else (Buffer.add_char base '/'; body c q)
         end
         else if c = 92 then begin
           let c = getc () in
-          if c = 10 then body (getc ()) ischr
-          else if c = 13 then (let c = getc () in if c = 10 then body (getc ()) ischr else (Buffer.add_char base '\\'; body c ischr))
-          else (Buffer.add_char base '\\'; body c ischr)
+          if c = 10 then body (getc ()) q
+          else if c = 13 then (let c = getc () in if c = 10 then body (getc ()) q else (Buffer.add_char base '\\'; body c q))
+          else (Buffer.add_char base '\\'; body c q)
         end
         else if c = 10 then ()
         else begin
           if c = 35 && !n > 0 then Buffer.add_char base '#';
           Buffer.add_char base (chr c);
-          body (next ()) ischr
+          body (next ()) q
         end
       and next () =
         let c = raw () in
@@ -179,7 +180,7 @@ let macdef () =
         if c = eof then error_at !lineno "eof in a macro: %s" s.name;
         c
       in
-      body c 0;
+      body c None;
       let head = (!n + 1) lor (if !dots then varmac else 0) in
       s.macro <- Some (String.make 1 (chr head) ^ Buffer.contents base)
 
@@ -272,6 +273,8 @@ let macinc () =
   | None -> (match !read_file f with Some t -> push t | None -> error_at !lineno "cannot open include file %s" f)
 
 (* #ifdef, #ifndef, #else: skip what is not taken *)
+type cond = Ifdef | Ifndef | Else
+
 let macif f =
   let skip () =
     let rec go bol l =
@@ -283,18 +286,18 @@ let macif f =
         | None -> go bol l
         | Some { name = "endif"; _ } -> if l > 0 then go bol (l - 1) else macend ()
         | Some { name = "ifdef" | "ifndef"; _ } -> go bol (l + 1)
-        | Some { name = "else"; _ } when l = 0 && f <> 2 -> macend ()
+        | Some { name = "else"; _ } when l = 0 && f <> Else -> macend ()
         | Some _ -> go bol l
     in
     go true 0
   in
-  if f = 2 then skip ()
+  if f = Else then skip ()
   else
     match getsym () with
     | None -> error_at !lineno "syntax in #if(n)def"
     | Some s ->
         if getcom () <> 10 then error_at !lineno "syntax in #if(n)def";
-        if (s.macro <> None) <> (f = 1) then () else skip ()
+        if (s.macro <> None) <> (f = Ifndef) then () else skip ()
 
 (* #pragma profile: off makes TEXT's flag NOPROF *)
 let profile = ref true
@@ -302,9 +305,9 @@ let profile = ref true
 let domacro () =
   let s = match getsym () with Some s -> s | None -> lookup "endif" in
   match s.name with
-  | "ifdef" -> macif 0
-  | "ifndef" -> macif 1
-  | "else" -> macif 2
+  | "ifdef" -> macif Ifdef
+  | "ifndef" -> macif Ifndef
+  | "else" -> macif Else
   | "define" -> macdef ()
   | "include" -> macinc ()
   | "undef" -> (match getsym () with Some s -> macend (); s.macro <- None | None -> error_at !lineno "syntax in #undef")

@@ -114,7 +114,7 @@ val markdcl : unit -> unit
 (* a block's end: what it hid restored *)
 val revertdcl : unit -> Tree.node option
 
-val argmark : Tree.node -> int -> unit
+val argmark : Tree.node -> declared:bool -> unit
 
 val dcllabel : Tree.sym -> bool -> Tree.node
 
