@@ -14,7 +14,8 @@
  * the table is sql.l's, so CROSS, INTERSECT and EXCEPT, which sql.y
  * mentions but sql.l does not, are identifiers. A number with a sign
  * is one token (x -1 is x and -1). The line count is global, as flex's
- * yylineno: it goes on from one statement to the next. *)
+ * yylineno: it goes on from one statement to the next, and so does
+ * being inside a comment. *)
 open Parser
 
 let line = Ast.line
@@ -37,11 +38,22 @@ let () =
 let atoi s = Int32.to_int (Int32.of_int (int_of_string (if s.[0] = '+' then String.sub s 1 (String.length s - 1) else s)))
 
 let newlines s = String.iter (fun c -> if c = '\n' then incr line) s
+
+(* flex's start condition: inside a -- or a /* comment. Like the line
+ * count it is global, and a new text does not reset it: after a line
+ * "-- a comment" (the shell's lines have no newline), chidb goes on
+ * reading the next statements as the comment's, until a newline *)
+type state = Initial | Line_comment | Block_comment
+
+let state = ref Initial
+
+(* the comment's first line; flex's warning increments it (++) *)
+let comment_start = ref 0
 }
 
-rule token = parse
-  | "/*" { comment !line lexbuf }
-  | "--" [^ '\n']* { token lexbuf }
+rule initial = parse
+  | "/*" { comment_start := !line; state := Block_comment; comment lexbuf }
+  | "--" { state := Line_comment; line_comment lexbuf }
   | "!=" | "<>" { NEQ }
   | ">=" { GEQ }
   | "<=" { LEQ }
@@ -52,16 +64,27 @@ rule token = parse
   | '"' ([^ '"']* as s) '"' | '\'' ([^ '\'']* as s) '\'' { newlines s; STRING_LITERAL s }
   | ['+' '-']? ['0'-'9']+ as n { INT_LITERAL (atoi n) }
   | ['0'-'9']* '.' ['0'-'9']+ (['e' 'E'] ['-' '+']? ['0'-'9']+)? as d { DOUBLE_LITERAL (float_of_string d) }
-  | [' ' '\t' '\r']+ { token lexbuf }
-  | '\n' { incr line; token lexbuf }
+  | [' ' '\t' '\r']+ { initial lexbuf }
+  | '\n' { incr line; initial lexbuf }
   | ';' { SEMI } | ',' { COMMA } | '(' { LPAREN } | ')' { RPAREN } | '.' { DOT }
   | '*' { STAR } | '+' { PLUS } | '-' { MINUS } | '/' { SLASH }
   | '=' { EQ } | '<' { LT } | '>' { GT }
   | _ { OTHER }
   | eof { EOF }
 
-and comment start = parse
-  | "*/" { token lexbuf }
-  | '\n' { incr line; comment start lexbuf }
-  | eof { Printf.eprintf "Warning: unclosed comment beginning on line %d\n" (start + 1); EOF }
-  | _ { comment start lexbuf }
+and line_comment = parse
+  | '\n' { incr line; state := Initial; initial lexbuf }
+  | eof { EOF }
+  | _ { line_comment lexbuf }
+
+and comment = parse
+  | "*/" { state := Initial; initial lexbuf }
+  | '\n' { incr line; comment lexbuf }
+  | eof { incr comment_start; Printf.eprintf "Warning: unclosed comment beginning on line %d\n%!" !comment_start; EOF }
+  | _ { comment lexbuf }
+
+{
+(* the next token, in the state the last one left *)
+let token lexbuf =
+  match !state with Initial -> initial lexbuf | Line_comment -> line_comment lexbuf | Block_comment -> comment lexbuf
+}

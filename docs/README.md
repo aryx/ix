@@ -110,7 +110,10 @@ tested against, for their authors to decide:
 [`plan_bugs_goken.md`](plan_bugs_goken.md) (goken's toolchain and
 sources, principia's C, 9base and plan9port) and
 [`plan_bugs_xix.md`](plan_bugs_xix.md) (xix's omk and orc, and what
-its toolchain doesn't do yet that goken's output depends on).
+its toolchain doesn't do yet that goken's output depends on). TinyDb's found some in chidb
+([`plan_bugs_chidb.md`](plan_bugs_chidb.md)), and its fuzzer one in
+OCaml's arm64 native code generator
+([`plan_bugs_ocaml.md`](plan_bugs_ocaml.md)).
 
 ## References in the code
 

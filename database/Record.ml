@@ -58,9 +58,14 @@ let pack (vs : value list) : string =
 let types b off =
   let size = Char.code (Bytes.get b off) in
   let rec go pos acc =
+    (* claude: the byte read once, into a variable: reading it again after
+     * the list cell's allocation miscompiles on arm64 (OCaml 4.11 to 5.3),
+     * the second read reusing an address a minor GC made stale
+     * (docs/plan_bugs_ocaml.md) *)
     if pos >= size then List.rev acc
-    else if Char.code (Bytes.get b (off + pos)) land 0x80 <> 0 then go (pos + 4) (get_varint32 b (off + pos) :: acc)
-    else go (pos + 1) (Char.code (Bytes.get b (off + pos)) :: acc)
+    else
+      let c = Char.code (Bytes.get b (off + pos)) in
+      if c land 0x80 <> 0 then go (pos + 4) (get_varint32 b (off + pos) :: acc) else go (pos + 1) (c :: acc)
   in
   size, go 1 []
 

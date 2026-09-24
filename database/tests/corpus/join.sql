@@ -1,0 +1,46 @@
+CREATE TABLE d(id INTEGER PRIMARY KEY, name TEXT);
+CREATE TABLE c(code INTEGER PRIMARY KEY, title TEXT, id INTEGER);
+INSERT INTO d VALUES(1, "Engineering");
+INSERT INTO d VALUES(2, "Math");
+INSERT INTO d VALUES(3, "Art");
+INSERT INTO c VALUES(100, "Intro", 1);
+INSERT INTO c VALUES(200, "Calculus", 2);
+INSERT INTO c VALUES(300, "Algebra", 2);
+INSERT INTO c VALUES(400, "Orphan", 9);
+SELECT * FROM c NATURAL JOIN d;
+SELECT * FROM d NATURAL JOIN c;
+SELECT title, name FROM c NATURAL JOIN d;
+SELECT c.title, d.name, id FROM c NATURAL JOIN d;
+SELECT x.title FROM c AS x NATURAL JOIN d y WHERE y.name = "Math";
+SELECT title FROM c NATURAL JOIN d WHERE code > 150;
+SELECT title FROM c NATURAL JOIN d WHERE name = "Math" AND code < 250;
+SELECT title FROM c NATURAL JOIN d WHERE id = 2;
+SELECT title FROM c NATURAL JOIN d WHERE c.id = 2;
+SELECT title FROM c NATURAL JOIN d WHERE d.id = 1;
+SELECT title FROM c NATURAL JOIN d WHERE code > 150 AND code < 350;
+SELECT title FROM c |><| d;
+SELECT title FROM c NATURAL JOIN nosuch;
+SELECT nosuch FROM c NATURAL JOIN d;
+.opt "SELECT title FROM c NATURAL JOIN d WHERE code > 150 AND name = 'Math' AND id = 2;"
+.opt "SELECT title FROM c AS x NATURAL JOIN d WHERE x.code > 1;"
+.opt "SELECT title FROM c NATURAL JOIN d WHERE code > 1 OR code < 5;"
+.opt "SELECT title FROM c NATURAL JOIN d;"
+.opt "SELECT title FROM c WHERE code > 1;"
+CREATE INDEX icode ON c(code);
+CREATE INDEX iid ON d(id);
+SELECT title FROM c NATURAL JOIN d WHERE code = 200;
+SELECT title FROM c NATURAL JOIN d WHERE code > 150;
+SELECT title FROM c NATURAL JOIN d WHERE code < 350;
+SELECT title FROM c NATURAL JOIN d WHERE code > 150 AND code < 350;
+SELECT title FROM c NATURAL JOIN d WHERE d.id = 2;
+SELECT title FROM c NATURAL JOIN d WHERE d.id > 1;
+SELECT title FROM c NATURAL JOIN d WHERE code > 150 AND d.id < 3;
+SELECT title FROM c NATURAL JOIN d WHERE code = 999;
+SELECT title FROM c NATURAL JOIN d WHERE code > 999;
+.explain on
+EXPLAIN SELECT * FROM c NATURAL JOIN d;
+EXPLAIN SELECT title FROM c NATURAL JOIN d WHERE code = 200;
+EXPLAIN SELECT title FROM c NATURAL JOIN d WHERE code > 150 AND d.id < 3;
+EXPLAIN SELECT title FROM c NATURAL JOIN d WHERE code > 150 AND code < 350 AND d.id > 1 AND d.id < 3;
+EXPLAIN SELECT title FROM c NATURAL JOIN d WHERE d.id <= 2 AND code >= 100;
+EXPLAIN SELECT title FROM c NATURAL JOIN d WHERE name = "Math" AND title = "Calculus";
