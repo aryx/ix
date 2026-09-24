@@ -132,7 +132,6 @@ type sym = {
   mutable suetag : typ option;
   mutable tenum : typ option;
   mutable macro : string option;     (* its first char is its number of arguments + 1, as mac.c *)
-  mutable varlineno : int;
   mutable soffset : int;
   mutable svconst : int64;
   mutable sfconst : float;
@@ -151,8 +150,6 @@ and typ = {
   mutable down : typ option;
   mutable width : int;
   mutable offset : int;
-  mutable shift : int;
-  mutable nbits : int;
   mutable etype : etype;
   mutable garb : int;
 }
@@ -170,13 +167,9 @@ and node = {
   mutable ntype : typ option;
   mutable lineno : int;
   mutable op : op;
-  mutable oldop : op;
-  mutable xcast : bool;
   mutable nclass : cls;
-  mutable netype : etype;
   mutable complex : int;
   mutable addable : int;
-  mutable scale : int;
   mutable ngarb : int;
 }
 
@@ -223,7 +216,7 @@ let nearln = ref 0
 let mk op l r =
   let lineno = match l, r with Some l, _ when op <> OGOTO -> l.lineno | _, Some r -> r.lineno | _ -> !lineno in
   { left = l; right = r; pc = 0; reg = 0; xoffset = 0; fconst = 0.; vconst = 0L; cstring = ""; nsym = None; ntype = None;
-    lineno; op; oldop = OXXX; xcast = false; nclass = Cxxx; netype = Txxx; complex = 0; addable = 0; scale = 0; ngarb = 0 }
+    lineno; op; nclass = Cxxx; complex = 0; addable = 0; ngarb = 0 }
 
 let node op l r = mk op l r
 (* new1: at the line being diagnosed *)
@@ -233,13 +226,12 @@ let node1 op l r = let n = mk op l r in n.lineno <- !nearln; n
 let copy_into (n : node) (m : node) =
   n.left <- m.left; n.right <- m.right; n.pc <- m.pc; n.reg <- m.reg; n.xoffset <- m.xoffset; n.fconst <- m.fconst;
   n.vconst <- m.vconst; n.cstring <- m.cstring; n.nsym <- m.nsym; n.ntype <- m.ntype; n.lineno <- m.lineno;
-  n.op <- m.op; n.oldop <- m.oldop; n.xcast <- m.xcast; n.nclass <- m.nclass; n.netype <- m.netype;
-  n.complex <- m.complex; n.addable <- m.addable; n.scale <- m.scale; n.ngarb <- m.ngarb
+  n.op <- m.op; n.nclass <- m.nclass; n.complex <- m.complex; n.addable <- m.addable; n.ngarb <- m.ngarb
 
 let dup (m : node) = { m with op = m.op }
 
 let typ et d =
-  { tsym = None; tag = None; link = d; down = None; width = ewidth et; offset = 0; shift = 0; nbits = 0; etype = et; garb = 0 }
+  { tsym = None; tag = None; link = d; down = None; width = ewidth et; offset = 0; etype = et; garb = 0 }
 
 let copytyp (t : typ) = { t with etype = t.etype }
 
@@ -281,7 +273,7 @@ let lookup name =
   match List.find_opt (fun s -> s.name = name) hash.(h) with
   | Some s -> s
   | None ->
-      let s = { name; typ = None; suetag = None; tenum = None; macro = None; varlineno = 0; soffset = 0; svconst = 0L;
+      let s = { name; typ = None; suetag = None; tenum = None; macro = None; soffset = 0; svconst = 0L;
                 sfconst = 0.; label = None; lexical = 0; block = 0; sueblock = 0; sclass = Cxxx; aused = false } in
       hash.(h) <- s :: hash.(h);
       s
@@ -392,7 +384,6 @@ let rec show_type (t : typ option) =
           let n = match t.link with Some l when l.width <> 0 -> t.width / l.width | _ -> t.width in
           Buffer.add_string b (Printf.sprintf "[%d]" n)
         end;
-        if t.nbits <> 0 then Buffer.add_string b (Printf.sprintf " %d:%d" t.shift t.nbits);
         if typesu (t.etype) then Buffer.add_string b (match t.tag with Some s -> " " ^ s.name | None -> " {}")
         else go t.link
   in

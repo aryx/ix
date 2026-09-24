@@ -234,7 +234,7 @@ let regsalloc (nn : node) =
   maxargsafe := Declare.maxround !maxargsafe (!cursafe + !curarg);
   let n = dup (Option.get !nodsafe) in
   n.xoffset <- - (!Declare.stkoff + !cursafe);
-  n.ntype <- nn.ntype; n.netype <- et nn; n.lineno <- nn.lineno;
+  n.ntype <- nn.ntype; n.lineno <- nn.lineno;
   n
 
 (* the first argument, in a register *)
@@ -314,19 +314,19 @@ let init () =
   resvreg := Array.copy !regs;
   let s = lookup ".safe" in
   let n = node ONAME None None in
-  n.nsym <- Some s; n.ntype <- Some (ty Tint); n.netype <- Tint; n.nclass <- Cauto;
+  n.nsym <- Some s; n.ntype <- Some (ty Tint); n.nclass <- Cauto;
   Check.complex (Some n);
   nodsafe := Some n;
   let t = typ Tarray (Some (ty Tchar)) in
   let s = lookup ".rathole" in
   s.sclass <- Cglobl; s.typ <- Some t;
   let n = node ONAME None None in
-  n.nsym <- Some s; n.ntype <- Some (ty Tind); n.netype <- Tvoid; n.nclass <- Cglobl;
+  n.nsym <- Some s; n.ntype <- Some (ty Tind); n.nclass <- Cglobl;
   Check.complex (Some n);
   n.ntype <- Some t;
   nodrat := Some n;
   let n = node ONAME None None in
-  n.nsym <- Some (lookup ".ret"); n.ntype <- Some (ty Tind); n.netype <- Tind; n.nclass <- Cparam;
+  n.nsym <- Some (lookup ".ret"); n.ntype <- Some (ty Tind); n.nclass <- Cparam;
   let n = node OIND (Some n) None in
   Check.complex (Some n);
   nodret := Some n

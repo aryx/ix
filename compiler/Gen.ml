@@ -51,7 +51,7 @@ let fvn name et =
   | None ->
       let n = node ONAME None None in
       n.nsym <- Some (lookup name);
-      n.ntype <- Some (typ Tfunc (Some (ty et))); n.netype <- et; n.nclass <- Cglobl; n.addable <- 10;
+      n.ntype <- Some (typ Tfunc (Some (ty et))); n.nclass <- Cglobl; n.addable <- 10;
       Hashtbl.replace fvns (name, et) n;
       n
 
@@ -1080,7 +1080,7 @@ let codgen (body : node) (fn : node) =
     let n1 = Tree.l (Option.get !nodret) in
     if n1.ntype = None || link (t n1) != ret then begin
       n1.ntype <- Some (typ Tind (Some ret));
-      n1.netype <- Tind;
+      
       let r = node OIND (Some n1) None in
       Check.complex (Some r);
       nodret := Some r
@@ -1093,7 +1093,7 @@ let codgen (body : node) (fn : node) =
     | Some s, Some ft when (m ()).typeword ft.etype ->
         let nod1 = node ONAME None None in
         nod1.nsym <- Some s; nod1.ntype <- Some ft; nod1.nclass <- Cparam;
-        nod1.xoffset <- Declare.align 0 ft Declare.aarg1; nod1.netype <- ft.etype;
+        nod1.xoffset <- Declare.align 0 ft Declare.aarg1; 
         xcom nod1;
         gmove (nodreg nod1 (bk ()).regret) nod1
     | _ -> ()

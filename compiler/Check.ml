@@ -84,7 +84,7 @@ let evconst (n : node) =
         (match v with
          | `F d -> if isf then n.fconst <- d else n.vconst <- convvtox (Int64.of_float d) ty.etype
          | `V v -> if isf then n.fconst <- Int64.to_float v else n.vconst <- convvtox v ty.etype);
-        n.oldop <- o;
+        
         n.op <- OCONST) res
 
 (*****************************************************************************)
@@ -95,12 +95,12 @@ let etype_of (t : typ option) = match t with Some t -> t.etype | None -> Txxx
 
 (* a cast that makes no code: a same-size move (sub.c's nocast) *)
 let nocast (t1 : typ option) (t2 : typ option) =
-  match t1 with Some a when a.nbits <> 0 -> false | _ -> b (etype_of t2) land (m ()).ncast (etype_of t1) <> 0
+  b (etype_of t2) land (m ()).ncast (etype_of t1) <> 0
 
 (* a cast that means nothing: small to large (sub.c's nilcast) *)
 let nilcast (t1 : typ option) (t2 : typ option) =
   match t1, t2 with
-  | Some a, Some b when a.nbits = 0 ->
+  | Some a, Some b ->
       let e1 = a.etype and e2 = b.etype in
       e1 = e2 || ((typefd e1 && typefd e2 || typechlp e1 && typechlp e2) && ewidth e1 < ewidth e2)
   | _ -> false
@@ -572,7 +572,6 @@ let rec ccom (n : node option) =
       | OREGISTER | OINDREG | OCONST | ONAME -> ()
       | OADDR | OIND ->
           ccom l;
-          if n.op = OADDR then (ll ()).netype <- Tvoid;
           (* &*x and *&x as x *)
           if (ll ()).op = (if n.op = OADDR then OIND else OADDR) then ((Tree.l (ll ())).ntype <- n.ntype; becomes (Tree.l (ll ()))) else common ()
       | OEQ | ONE | OLE | OGE | OLT | OGT | OLS | OHS | OLO | OHI -> ccom l; ccom r; relcon (ll ()) (rr ()); relcon (rr ()) (ll ()); common ()
@@ -669,7 +668,7 @@ and acom2 (n : node) (tt : typ) (trm : term array) =
   let j = ref false in
   for i = 1 to nt - 1 do if trm.(i).mult <> 0L then Option.iter (fun l -> j := true; acom l) trm.(i).tnode done;
   let c1 = trm.(0).mult in
-  if not !j then (n.oldop <- n.op; n.op <- OCONST; n.vconst <- c1)
+  if not !j then (n.op <- OCONST; n.vconst <- c1)
   else begin
     let e = tt.etype in
     let neg x = Int64.compare x 0L < 0 in

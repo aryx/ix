@@ -45,13 +45,13 @@ let en_floatenum = ref 0.
  * declarations its names hid, the tags; a function's labels at its end *)
 type undo =
   | Mark of int * int                 (* the offset of the autos, the block *)
-  | Name of sym * typ option * cls * int * int * int * bool   (* its type, class, offset, block, line, used *)
+  | Name of sym * typ option * cls * int * int * bool   (* its type, class, offset, block, used *)
   | Tag of sym * typ option * int
 
 let dclstack : undo list ref = ref []
 let labels : sym list ref = ref []
 
-let push1 (s : sym) = dclstack := Name (s, s.typ, s.sclass, s.soffset, s.block, s.varlineno, s.aused) :: !dclstack
+let push1 (s : sym) = dclstack := Name (s, s.typ, s.sclass, s.soffset, s.block, s.aused) :: !dclstack
 
 (*****************************************************************************)
 (* Alignment, by the machine (each back end's swt.c) *)
@@ -178,8 +178,8 @@ let rec dodecl (f : (cls -> typ -> sym option -> unit) option) c (t : typ) (n : 
                  f c t (Some s);
                  let s = if s.sclass = Clocal then mkstatic s else s in
                  nn.nsym <- Some s; nn.ntype <- s.typ; nn.xoffset <- s.soffset; nn.nclass <- s.sclass;
-                 nn.netype <- (match nn.ntype with Some t -> t.etype | None -> Tvoid);
-                 s.varlineno <- !lineno);
+                 
+                 );
             lastdcl := Some t;
             n
         | o -> diag n "unknown declarator: %s" (opname o))
@@ -322,7 +322,7 @@ let sualign (t : typ) =
     t.offset <- 0;
     let w = List.fold_left (fun w (e : typ) ->
       if e.width <= 0 then ignore (diag None "incomplete union element");
-      e.offset <- 0; e.shift <- 0;
+      e.offset <- 0;
       max w (align (align 0 e ael1) e ael2)) 0 (els t.link) in
     t.width <- align w t asu2
   end
@@ -391,15 +391,15 @@ let revertdcl () : node option =
         | Mark (o, bn) ->
             autoffset := o; autobn := bn;
             if rest = [] then (List.iter (fun (s : sym) -> s.label <- None) !labels; labels := [])
-        | Name (s, t, c, o, bl, line, aused) ->
+        | Name (s, t, c, o, bl, aused) ->
             (match s.typ with
              | Some tt when tt.garb land gvolatile <> 0 ->
                  let n1 = node ONAME None None in
-                 n1.nsym <- Some s; n1.ntype <- s.typ; n1.netype <- tt.etype; n1.xoffset <- s.soffset; n1.nclass <- s.sclass;
+                 n1.nsym <- Some s; n1.ntype <- s.typ; n1.xoffset <- s.soffset; n1.nclass <- s.sclass;
                  let n1 = node OUSED (Some (node OADDR (Some n1) None)) None in
                  used := (match !used with None -> Some n1 | Some x -> Some (node OLIST (Some n1) (Some x)))
              | _ -> ());
-            s.typ <- t; s.sclass <- c; s.soffset <- o; s.block <- bl; s.varlineno <- line; s.aused <- aused;
+            s.typ <- t; s.sclass <- c; s.soffset <- o; s.block <- bl; s.aused <- aused;
             go ()
         | Tag (s, t, bl) -> s.suetag <- t; s.sueblock <- bl; go ()
   in
@@ -532,7 +532,7 @@ and init1 (s : sym) (t : typ) o exflag : node option =
           | Some a ->
               if s.sclass = Cauto then begin
                 let l = node ONAME None None in
-                l.nsym <- Some s; l.ntype <- Some t; l.netype <- (match s.typ with Some st -> st.etype | None -> Tvoid);
+                l.nsym <- Some s; l.ntype <- Some t; 
                 l.xoffset <- s.soffset + o; l.nclass <- s.sclass;
                 Some (node OASI (Some l) (Some a))
               end

@@ -25,7 +25,7 @@ let typed (t : typ) n = ignore (Declare.dodecl None Cxxx t n); !Declare.lastdcl
 let name_node (s : sym) =
   let n = node ONAME None None in
   n.nsym <- Some s; n.ntype <- s.typ; n.xoffset <- s.soffset; n.nclass <- s.sclass;
-  n.netype <- (match s.typ with Some t -> t.etype | None -> Tvoid);
+  
   n
 
 let name s =
@@ -37,7 +37,7 @@ let string_node op et len s =
   let n = node op None None in
   let t = typ Tarray (Some (ty et)) in
   t.width <- len;
-  n.ntype <- Some t; n.cstring <- s; n.nsym <- Some (lookup ".string"); n.netype <- Tarray; n.nclass <- Cstatic;
+  n.ntype <- Some t; n.cstring <- s; n.nsym <- Some (lookup ".string"); n.nclass <- Cstatic;
   n
 
 (* struct, union: a tag's body *)
@@ -376,7 +376,7 @@ expr:
 xuexpr:
   uexpr                                 { $1 }
 | LPAREN tlist abdecor RPAREN xuexpr
-    { let n = node OCAST (Some $5) None in n.ntype <- typed $2 $3; n.xcast <- true; n }
+    { let n = node OCAST (Some $5) None in n.ntype <- typed $2 $3; n }
 | LPAREN tlist abdecor RPAREN LBRACE ilist RBRACE
     { let n = node OSTRUCT $6 None in n.ntype <- typed $2 $3; n }
 ;
