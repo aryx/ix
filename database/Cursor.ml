@@ -10,10 +10,12 @@
 (* See Cursor.mli *)
 
 type entry = Row of { key : int; data : Bytes.t } | Entry of { key : int; pkey : int }
-type t = { entries : entry array; mutable pos : int }
+type t = { root : int; entries : entry array; mutable pos : int }
 type seek = Eq | Gt | Ge | Lt | Le
 
 let key = function Row r -> r.key | Entry e -> e.key
+
+let root t = t.root
 
 let open_ bt root =
   let _, cells = Btree.cells bt root in
@@ -21,7 +23,7 @@ let open_ bt root =
     | Btree.Table_leaf { key; data } -> Some (Row { key; data })
     | Btree.Index_leaf { key; pkey } | Btree.Index_internal { key; pkey; _ } -> Some (Entry { key; pkey })
     | Btree.Table_internal _ -> None) cells in
-  { entries = Array.of_list entries; pos = -1 }
+  { root; entries = Array.of_list entries; pos = -1 }
 
 let rewind t =
   let empty = Array.length t.entries = 0 in

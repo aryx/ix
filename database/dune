@@ -1,4 +1,4 @@
 (library
  (name ix_db)
- (modules Pager Record Btree Cursor)
+ (modules Pager Record Btree Cursor Dbm Dbmfile)
  (libraries ix_core fpath unix caps logs))

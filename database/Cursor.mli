@@ -24,6 +24,9 @@ type seek = Eq | Gt | Ge | Lt | Le
 
 val open_ : Btree.t -> int -> t
 
+(* the tree's root page *)
+val root : t -> int
+
 (* to the first entry; false (and unpositioned) if there is none *)
 val rewind : t -> bool
 

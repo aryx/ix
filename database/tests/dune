@@ -2,3 +2,8 @@
  (name Btree_check)
  (modules Btree_check)
  (libraries ix_db caps fpath))
+
+(executable
+ (name Test)
+ (modules Test)
+ (libraries ix_db caps fpath testo alcotest unix))
