@@ -41,6 +41,32 @@ type 'j instr =
   | Scopy of reg * reg
   | Halt
 
+let map_jump f = function
+  | Rewind (c, j) -> Rewind (c, f j)
+  | Next (c, j) -> Next (c, f j)
+  | Prev (c, j) -> Prev (c, f j)
+  | Seek (k, c, j, r) -> Seek (k, c, f j, r)
+  | Cmp (k, a, j, b) -> Cmp (k, a, f j, b)
+  | Idx_cmp (k, c, j, r) -> Idx_cmp (k, c, f j, r)
+  | Noop -> Noop
+  | Open_read (c, r, n) -> Open_read (c, r, n)
+  | Open_write (c, r, n) -> Open_write (c, r, n)
+  | Close c -> Close c
+  | Column (c, i, r) -> Column (c, i, r)
+  | Key (c, r) -> Key (c, r)
+  | Integer (v, r) -> Integer (v, r)
+  | String (n, r, s) -> String (n, r, s)
+  | Null r -> Null r
+  | Result_row (r, n) -> Result_row (r, n)
+  | Make_record (r, n, d) -> Make_record (r, n, d)
+  | Insert (c, d, k) -> Insert (c, d, k)
+  | Idx_pkey (c, r) -> Idx_pkey (c, r)
+  | Idx_insert (c, k, p) -> Idx_insert (c, k, p)
+  | Create (t, r) -> Create (t, r)
+  | Copy (a, b) -> Copy (a, b)
+  | Scopy (a, b) -> Scopy (a, b)
+  | Halt -> Halt
+
 type row = { opcode : string; p1 : int; p2 : int; p3 : int; p4 : string option }
 
 let seek_name : Cursor.seek -> string = function Eq -> "Seek" | Gt -> "SeekGt" | Ge -> "SeekGe" | Lt -> "SeekLt" | Le -> "SeekLe"

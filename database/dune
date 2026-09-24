@@ -1,4 +1,15 @@
 (library
  (name ix_db)
- (modules Pager Record Btree Cursor Dbm Dbmfile)
+ (modules Pager Record Btree Cursor Dbm Dbmfile Ast Lexer Parser Sql Schema Codegen Optimizer Shell CLI)
  (libraries ix_core fpath unix caps logs))
+
+(ocamllex Lexer)
+
+(ocamlyacc Parser)
+
+(executable
+ (name Main)
+ (public_name tinydb)
+ (package ix)
+ (modules Main)
+ (libraries ix_db ix_core caps))

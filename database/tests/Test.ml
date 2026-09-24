@@ -44,9 +44,17 @@ let check_register m (n, (e : Dbmfile.expected)) =
   | String None, Text _ -> ()
   | _, v -> Alcotest.failf "%s: of type %s" where (match v with Unspecified -> "unspecified" | Null -> "null" | Int _ -> "integer" | Text _ -> "string" | Record _ -> "binary")
 
-let run caps (case : Dbmfile.t) program =
+let run caps (case : Dbmfile.t) =
   let dir = temp_dir () in
   let bt = Btree.open_file caps (Fpath.v (setup dir case.db)) in
+  let program = match case.program with
+    | Instructions rows -> Array.of_list (List.map Dbm.of_row rows)
+    | Sql lines ->
+        (* each line compiled against the database's schema; the last kept, as chidb's *)
+        List.fold_left (fun _ line ->
+          match Sql.parse caps line with
+          | Some stmt -> let schema = Schema.load bt in (Codegen.compile schema (Optimizer.optimize schema stmt)).code
+          | None -> Alcotest.failf "does not parse: %s" line) [||] lines in
   let m = Dbm.create bt program in
   let rec rows acc = match Dbm.step m with Dbm.Row -> rows (Dbmfile.show_row (Dbm.result_row m) :: acc) | Done -> List.rev acc in
   let got = rows [] in
@@ -61,11 +69,6 @@ let corpus caps =
     find (Filename.concat files "dbm-programs") |> List.map (fun path ->
       let name = Filename.chop_suffix (Filename.basename path) ".dbmf" in
       let case = Dbmfile.parse (In_channel.with_open_bin path In_channel.input_all) in
-      match case.program with
-      | Instructions rows ->
-          Testo.create ("dbmf: " ^ name) (fun () ->
-            run caps case (Array.of_list (List.map Dbm.of_row rows));
-            Testo.Promise.return ())
-      | Sql _ -> Testo.create ~skipped:"no compiler yet" ("dbmf: " ^ name) (fun () -> Testo.Promise.return ()))
+      Testo.create ("dbmf: " ^ name) (fun () -> run caps case; Testo.Promise.return ()))
 
 let () = Cap.main (fun (caps : Cap.all_caps) -> Testo.interpret_argv ~project_name:"ix-db" (fun _env -> corpus caps))

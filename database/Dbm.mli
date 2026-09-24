@@ -75,6 +75,9 @@ type 'j instr =
   | Scopy of reg * reg
   | Halt
 
+(* the instruction with its jump target changed *)
+val map_jump : ('a -> 'b) -> 'a instr -> 'b instr
+
 (* an instruction as EXPLAIN prints it and .dbmf files write it *)
 type row = { opcode : string; p1 : int; p2 : int; p3 : int; p4 : string option }
 
