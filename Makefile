@@ -11,6 +11,7 @@ test: all
 	./_build/default/editor/tests/Test.exe
 	./tiny/TinyEditor_test.sh
 	./linker/tests/golden.sh
+	./_build/default/database/tests/Test.exe
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.
@@ -34,6 +35,16 @@ test-goken: all
 	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
 	./compiler/tests/fuzz.sh $(GOKEN_W)/fuzz 150
 
+# The database against chidb (~/github/chidb, built): the course's
+# .dbmf cases (in make test too, when chidb's checkout is there), the
+# SQL corpus (stdout, stderr, the file, and SQLite reading it), the
+# B-trees alone, and random sessions; see database/tests/.
+test-chidb: all
+	./_build/default/database/tests/Test.exe
+	./database/tests/differential.sh
+	./database/tests/btree_differential.sh
+	./database/tests/fuzz.py 1 40
+
 clean:
 	dune clean
 
@@ -45,4 +56,4 @@ build-docker:
 build-docker-ocaml5:
 	docker build -t "ix" --build-arg OCAML_VERSION=5.1.1 .
 
-.PHONY: all test test-differential test-goken clean build-docker build-docker-ocaml5
+.PHONY: all test test-differential test-goken test-chidb clean build-docker build-docker-ocaml5

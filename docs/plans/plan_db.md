@@ -304,8 +304,54 @@ in the code"), checked, not from memory:
 
 ## Status
 
-Not started (2026-09-24): this plan, the tutorial and the related-work
-note are phase 1.
+2026-09-24, phases 1 to 7 done in a day; phase 8 (TinyDatabase.ml) to
+do.
+
+**Size**: 2,394 lines of `.ml`, `.mll` and `.mly` against the target's
+2,600 (8% under; chidb's C about 10,800):
+
+| module | target | actual |
+|---|---|---|
+| Pager, Record, Btree, Cursor | 510 | 465 |
+| Ast, Lexer, Parser, Sql | 620 | 714 |
+| Schema, Dbm, Dbmfile | 580 | 416 |
+| Codegen, Optimizer | 630 | 502 |
+| Shell, CLI, Main | 290 | 297 |
+
+The parser went over: chidb's whole grammar, rule for rule, is 389
+lines (decision 5 kept it); the machine and codegen came under, the
+variants doing what C's tables and patches did.
+
+**Checked against chidb**, all identical: the course's 131 `.dbmf`
+cases (`database/tests/Test.exe`); the B-tree layer alone, byte for
+byte, up to 3,000 shuffled rows and a 6,000-entry index
+(`btree_differential.sh`); six SQL sessions over every statement
+shape, WHERE and index form, the commands and their errors, and
+`.parse` over the whole grammar, compared on stdout, stderr and the
+file, with SQLite reading every table (`differential.sh`); 160 random
+sessions (`fuzz.py`, seeds 1 to 4). `make test` runs the corpus,
+`make test-chidb` the rest.
+
+**What the design got wrong, and the tests found**:
+- the plan had pages as bytes for the free space; a subtler reason
+  showed in the code: whether a child is "full" counts the new leaf
+  cell at the child's page type's size (8 bytes against a table's
+  internal node), which changes where internal nodes split;
+- chidb's lexer keeps being inside a comment from one statement to the
+  next (flex's start condition is never reset): kept, as the lexer's
+  global state;
+- the schema's stored SQL needs the `;` the parser adds;
+- chidb crashes or prints garbage in five places
+  ([`../plan_bugs_chidb.md`](../plan_bugs_chidb.md)); TinyDb's
+  deliberate differences are those;
+- the fuzzer found a miscompilation in OCaml's arm64 native code
+  (4.11 to 5.3), a stale derived pointer after a minor GC
+  ([`../plan_bugs_ocaml.md`](../plan_bugs_ocaml.md)), worked around in
+  `Record.types`.
+
+**Left**: `tiny/TinyDatabase.ml`; `.dbmrun` and `-c` are not in the
+differential corpus yet; the tutorial is to be checked against the
+code, as the earlier ones were.
 
 ## Verification
 
