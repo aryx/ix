@@ -3384,3 +3384,35 @@ As a side effect, TinyRaspberryPi would no longer be the only ix program dependi
 **Yoann:**
 
 > yes update and move forward
+
+**Claude (summary):**
+
+Claude completed phase 6, hitting target speeds of 36.0 MIPS arm32 and 34.5 arm64 through release-build optimization and eliminating allocations.
+Claude presented remaining phases: 7 (floating point, conditional), 8 (Plan 9 mode with `a.out`), and two options for 9.
+Phase 9a would be a one-file arm32 subset interpreter with assembler; phase 9b, a toy teaching machine like MMIX.
+Yoann chose phase 8 next, then phase 9b; Claude will implement Plan 9 mode and syscall testing before the teaching machine.
+Claude also updated plan_pi.md to put the display backend behind a function record, unifying tsdl and ppm implementations.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 21:34
+
+**Yoann:**
+
+> let's do phase 8, and then Phase 9b
+
+------------------------------------------------------------------------
+
+## 2026-09-24 21:37
+
+**Yoann:**
+
+> maybe can do a TinyArm.ml 9a and a TinyMachine 9b
+
+------------------------------------------------------------------------
+
+## 2026-09-24 21:37
+
+**Yoann:**
+
+> both

@@ -25,6 +25,7 @@ type host = {
   openat : int option -> string -> int -> int -> int r;
   close : int -> unit r;
   fstat : int -> stat r;
+  stat : string -> stat r;
   lseek : int -> int -> int -> int r;
   unlink : string -> unit r;
   rmdir : string -> unit r;
@@ -158,6 +159,7 @@ let write_stat64 mem a st =
 let pending : int list ref = ref []
 let signal_waiting = ref false
 let raise_signal n = pending := !pending @ [ n ]; signal_waiting := true
+let take_signals () = let l = !pending in pending := []; l
 
 let string_list mem a =
   let rec go a acc = match Memory.load32 mem a with 0 -> List.rev acc | p -> go (Bits.mask32 (a + 4)) (Memory.read_cstring mem p :: acc) in

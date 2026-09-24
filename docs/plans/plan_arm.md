@@ -286,7 +286,11 @@ the same IEEE doubles, the same output).
 7. **FPA** (if a program needs it), against arm64 native.
 8. **Optional: 5i's personality**, Plan 9's a.out and system calls,
    against goken's 5i on its Plan 9 test binaries.
-9. **`tiny/TinyArm.ml`.**
+9. **The free variants**, two (the author: "maybe can do a TinyArm.ml
+   9a and a TinyMachine 9b"; "both"): **9a, `tiny/TinyArm.ml`**, an
+   arm32 subset interpreter and a matching assembler in one file;
+   **9b, `tiny/TinyMachine.ml`**, a toy load-store machine of our own
+   design, as a teaching machine (MIX's and MMIX's road).
 
 ## Outside 5i: TinyArm.ml
 
@@ -448,3 +452,42 @@ Found with valgrind's callgrind (no perf on this machine):
 Not done, as not needed: flags computed lazily, a decode into
 closures, translation to OCaml bytecode or host code (decision 7's
 roads, the tutorial's exercises).
+
+**Phase 8 done** (2026-09-24): `Plan9`, 5i's personality: the arm
+a.out (`-H2`) loaded as 5i's `initmemory`/`initstk` lay it out, the
+system calls of principia's `sys.h` the libc makes (arguments on the
+stack from sp+4, errors as strings, `errstr` exchanging them), and the
+files Plan 9's libc reaches the system through, the emulator's own:
+`#c/pid`, `/dev/bintime`, `/env/NAME` (the environment kept across
+exec, as Plan 9 keeps it outside the program), `/proc/PID/note`.
+Directories read as 9P stat records; notes are delivered as
+principia's kernel does (a Ureg and the note on the stack, the
+`notify` handler called, `noted(NCONT)` putting the Ureg back, a note
+no one handles killing); a child's exit string reaches its parent's
+`await` through a pipe `rfork` makes. `tinyarm` tells an a.out from an
+ELF by its magic.
+
+The corpus: goken's 17 `hello_libc` programs, built with `GOOS=plan9`
+(`linker/tests/libc.sh`, now `H=-H2`: goken's 5l and ix's tinyld write
+all 17 byte for byte the same). Checked by `machine/tests/plan9.py`:
+each run under TinyArm, under 5i, and as the same C program's Linux
+build on the CPU (the tests print the same lines everywhere). **17 of
+17 as expected**:
+
+- 13 print what the Linux build prints;
+- `fork` and `notify` as Plan 9 means, not Linux: `exit(42)` is
+  `exits("error")` (Plan 9 has no exit codes), so wait's message is
+  "fork.exe PID: error", not "42"; a note no handler accepts kills the
+  process (`noted(NDFLT)`), where Linux's postnote of an unknown note
+  just fails;
+- `atexit` as 5i: goken's Plan 9 `exits` is the raw system call, so no
+  atexit handler runs (real Plan 9's `exits` runs them, then
+  `_exits`): a goken libc bug;
+- `dirread` by its own checks: **its Linux build fails natively**, arm32
+  and arm64, creating directories with garbage names (`mkdir("\7")`,
+  strace) -- a goken bug that `corpus.py` counted as agreement, TinyArm
+  reproducing the native failure faithfully.
+
+5i agrees with TinyArm on 10 of the 17; the other 7 need system calls
+5i lacks (`alarm`, `rfork`, `fstat`) or files it does not provide
+(`#c/pid`, `/env`, `/proc/PID/note`).

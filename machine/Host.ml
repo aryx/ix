@@ -36,6 +36,10 @@ let linux_signal s = List.find_map (fun (n, s') -> if s' = s then Some n else No
 let kind : Unix.file_kind -> Linux.kind = function
   | S_REG -> Reg | S_DIR -> Dir | S_CHR -> Chr | S_BLK -> Blk | S_FIFO -> Fifo | S_LNK -> Lnk | S_SOCK -> Sock
 
+let stat_of (s : Unix.LargeFile.stats) : Linux.stat =
+  { dev = s.st_dev; ino = s.st_ino; kind = kind s.st_kind; perm = s.st_perm; nlink = s.st_nlink; uid = s.st_uid;
+    gid = s.st_gid; rdev = s.st_rdev; size = Int64.to_int s.st_size; atime = s.st_atime; mtime = s.st_mtime; ctime = s.st_ctime }
+
 let create (caps : caps) : Linux.host =
   let dirs = Hashtbl.create 4 in
   let dir_of n =
@@ -62,10 +66,8 @@ let create (caps : caps) : Linux.host =
     close = (fun f -> wrap (fun () ->
       (match Hashtbl.find_opt dirs f with Some (d, _) -> Unix.closedir d; Hashtbl.remove dirs f | None -> ());
       Unix.close (fd f)));
-    fstat = (fun f -> wrap (fun () ->
-      let s = Unix.LargeFile.fstat (fd f) in
-      { Linux.dev = s.st_dev; ino = s.st_ino; kind = kind s.st_kind; perm = s.st_perm; nlink = s.st_nlink; uid = s.st_uid;
-        gid = s.st_gid; rdev = s.st_rdev; size = Int64.to_int s.st_size; atime = s.st_atime; mtime = s.st_mtime; ctime = s.st_ctime }));
+    fstat = (fun f -> wrap (fun () -> stat_of (Unix.LargeFile.fstat (fd f))));
+    stat = (fun p -> wrap (fun () -> stat_of (Unix.LargeFile.stat p)));
     lseek = (fun f off whence -> wrap (fun () ->
       Unix.lseek (fd f) off (match whence with 0 -> SEEK_SET | 1 -> SEEK_CUR | _ -> SEEK_END)));
     unlink = (fun p -> wrap (fun () -> Unix.unlink p));

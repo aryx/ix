@@ -51,6 +51,8 @@ test-goken: all
 	P9DIFF=$(GOKEN_W)/p9diff ./version_control/tests/diff_fuzz.py 500
 	./machine/tests/corpus.py 5 $(GOKEN_W)/libc5/*/*.exe
 	./machine/tests/corpus.py 7 $(GOKEN_W)/libc7/*/*.exe
+	GOOS=plan9 H=-H2 ./linker/tests/libc.sh 5 $(GOKEN_W)/plan9_5 $(HOME)/goken/tests/c/hello_libc/*.c
+	./machine/tests/plan9.py $(GOKEN_W)/plan9_5 $(GOKEN_W)/libc5
 
 # The database against chidb (~/github/chidb, built): the course's
 # .dbmf cases (in make test too, when chidb's checkout is there), the

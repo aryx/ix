@@ -6,6 +6,8 @@
 # usage: libc.sh 5|7 workdir prog.c...   (needs goken, and dune build in ix)
 # The libc is built once per workdir: remove it to rebuild.
 # GOOS=darwin H=-H6: macOS's libc and Mach-O (compared, not run).
+# GOOS=plan9 H=-H2: Plan 9's libc and a.out (compared, not run here:
+# machine/tests/plan9.py runs them under 5i and TinyArm).
 # TINYCC=1: ix's C is compiled by tinycc into objects, not 5c -S and
 # tinyasm (5c -O0 for goken's then, the same code).
 set -u
@@ -66,7 +68,7 @@ for c in "${progs[@]}"; do
   (cd $LIBC && ${O}l ${H:--H7} -s -o $W/g/$b.exe $W/g/$b.$O $W/g/libc.a) > $W/g/$b.log 2>&1 || { echo "${O}l-FAIL $b: $(head -1 $W/g/$b.log)"; continue; }
   $IX/linker/Main.exe -m $O ${H:--H7} -o $W/t/$b.exe $W/t/$b.$O $W/t/libc.a 2> $W/t/$b.log || { echo "TINYLD-FAIL $b: $(head -1 $W/t/$b.log)"; continue; }
   # the same bytes, and the same output
-  if [ "${H:--H7}" = -H6 ]; then
+  if [ "${H:--H7}" = -H6 ] || [ "${H:--H7}" = -H2 ]; then
     if cmp -s $W/g/$b.exe $W/t/$b.exe; then echo "$b: SAME"; else echo "$b: DIFF $(cmp $W/g/$b.exe $W/t/$b.exe | head -1)"; fi
     continue
   fi

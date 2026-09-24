@@ -11,6 +11,9 @@
  *   signed32 0xff000000 = -16777216 *)
 
 (* bits lo .. lo+n-1 of w, n < 31 *)
+(* true natively (63-bit ints), false under js_of_ocaml (32) *)
+val native : bool
+
 val field : int -> int -> int -> int
 val bit : int -> int -> bool
 

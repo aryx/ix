@@ -47,6 +47,7 @@ type host = {
   openat : int option -> string -> int -> int -> int r;  (* a directory fd (not AT_FDCWD), path, Linux's flags, mode *)
   close : int -> unit r;
   fstat : int -> stat r;
+  stat : string -> stat r;                      (* by path, following links *)
   lseek : int -> int -> int -> int r;
   unlink : string -> unit r;
   rmdir : string -> unit r;
@@ -95,6 +96,10 @@ val syscall64 : proc -> Arm64.state -> unit
 
 (* a signal the host received *)
 val raise_signal : int -> unit
+
+(* the signals received and not yet delivered, taken (another
+ * personality delivers them its own way: Plan9's notes) *)
+val take_signals : unit -> int list
 val signal_waiting : bool ref
 
 (* the pending signals delivered at [pc], the next instruction *)

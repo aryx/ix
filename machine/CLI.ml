@@ -14,7 +14,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr; 
   | [] -> Console.eprint caps "usage: tinyarm [-t] [-s] program [args...]\n"; 2
   | args ->
       let trace = List.mem "-t" args and stats_on = List.mem "-s" args in
-      if List.mem "-y" args then Linux.log_calls := true;
+      if List.mem "-y" args then (Linux.log_calls := true; Plan9.log_calls := true);
       let args = List.filter (fun a -> a <> "-t" && a <> "-s" && a <> "-y") args in
       let host = Host.create (caps :> Host.caps) in
       let stats = { Cpu.instructions = 0 } in
@@ -30,6 +30,22 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr; 
       let rec run prog argv env =
         let file = try Files.read caps (Fpath.v prog) with Sys_error m -> Console.eprint caps ("tinyarm: " ^ m ^ "\n"); exit 127 in
         match (try Some (Elf.parse file) with Elf.Bad _ -> None) with
+        | None when Plan9.parse file <> None -> (
+            (* a Plan 9 a.out: 5i's personality *)
+            let aout = Option.get (Plan9.parse file) in
+            let mem = Memory.create () in
+            let proc, entry, sp, tos = Plan9.load host mem aout file argv env in
+            let st = Arm32.create mem in
+            st.r.(13) <- sp;
+            st.r.(0) <- tos;
+            try Cpu.run32 ?trace:tr st ~pc:entry ~svc:(fun st _ -> Plan9.syscall proc st)
+                  ~signal:(fun st pc -> Plan9.deliver proc st ~pc) stats; 0 with
+            | Linux.Exit code -> report (); code
+            | Linux.Exec (path, argv, env) -> run path argv env
+            | Arm32.Unimplemented (w, a) ->
+                Console.eprint caps (Printf.sprintf "tinyarm: unimplemented instruction %08x at %x in %s\n" (Bits.unsigned32 w) a prog); report (); 134
+            | Memory.Fault a ->
+                Console.eprint caps (Printf.sprintf "tinyarm: segmentation fault at %s in %s\n" (Bits.to_hex32 a) prog); report (); 139)
         | Some ({ machine = Arm; _ } as elf) -> (
             let mem = Memory.create () in
             let proc, entry, sp = Linux.load host mem elf file argv env in
