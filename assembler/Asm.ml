@@ -12,7 +12,8 @@
 type arch = Arm | Arm64
 type name = { sym : string; static : bool }
 type base = R of int | SB | FP | SP | PC
-type shift = { reg : int; kind : int; by : [ `Imm of int | `Reg of int ] }
+type shift_kind = Lsl | Lsr | Asr | Ror
+type shift = { reg : int; kind : shift_kind; by : [ `Imm of int | `Reg of int ] }
 type mem = { base : base; name : name option; off : int64; index : shift option }
 
 type operand =
@@ -59,7 +60,7 @@ let register arch s =
       | _ -> None)
 
 (* the objects: marshalled, with a version, as xix's *)
-let version = 1
+let version = 2
 
 let read_file (caps : < Cap.open_in; .. >) file =
   let ic = CapStdlib.open_in caps file in
@@ -78,7 +79,7 @@ let load caps file : obj =
 let show_name (n : name) = if n.static then n.sym ^ "<>" else n.sym
 
 let show_shift (s : shift) =
-  Printf.sprintf "R%d%s%s" s.reg [| "<<"; ">>"; "->"; "@>" |].(s.kind)
+  Printf.sprintf "R%d%s%s" s.reg (match s.kind with Lsl -> "<<" | Lsr -> ">>" | Asr -> "->" | Ror -> "@>")
     (match s.by with `Imm n -> string_of_int n | `Reg r -> Printf.sprintf "R%d" r)
 
 let show_mem (m : mem) =

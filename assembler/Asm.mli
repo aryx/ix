@@ -61,8 +61,12 @@ type name = { sym : string; static : bool }
 (* what a memory reference is relative to *)
 type base = R of int | SB | FP | SP | PC
 
-type shift = { reg : int; kind : int; by : [ `Imm of int | `Reg of int ] }
-(* kind: 0 << (lsl), 1 >> (lsr), 2 -> (asr), 3 @> (ror) *)
+(* << >> -> @> *)
+type shift_kind = Lsl | Lsr | Asr | Ror
+(* old: an int, 0 to 3, the one the machines encode, indexing a table
+ * of the arrows to print *)
+
+type shift = { reg : int; kind : shift_kind; by : [ `Imm of int | `Reg of int ] }
 
 type mem = {
   base : base;

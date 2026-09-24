@@ -85,6 +85,9 @@ exception Error of string
 (* raise Error, printf-style *)
 val error : ('a, unit, string, 'b) format4 -> 'a
 
+(* a shift's kind, as both machines encode it *)
+val shift_bits : Asm.shift_kind -> int
+
 val create : Asm.arch -> text_start:int -> t
 
 (* [lookup t name version]: 5l's lookup; created as Undefined *)

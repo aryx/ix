@@ -587,7 +587,7 @@ let encode_prog ctx (p : prog) lastcase : int list =
   | 1 -> [ oprrr v.as_ lor (rf lsl 16) lor (r lsl 5) lor rt ]
   | 2 -> [ oaddi (opirr v.as_) (off v.from) r rt ]
   | 3 ->
-      let s = match v.from with Some (A.Shifted { reg; kind; by = `Imm n }) -> (kind lsl 22) lor (reg lsl 16) lor ((n land 63) lsl 10) | _ -> 0 in
+      let s = match v.from with Some (A.Shifted { reg; kind; by = `Imm n }) -> (Link.shift_bits kind lsl 22) lor (reg lsl 16) lor ((n land 63) lsl 10) | _ -> 0 in
       let r = if v.as_ = "MVN" || v.as_ = "MVNW" then reg_zero else r in
       [ oprrr v.as_ lor s lor (r lsl 5) lor rt ]
   | 4 ->

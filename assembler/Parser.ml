@@ -82,7 +82,7 @@ let shift_after st r =
   match peek st with
   | L.Punct (("<<" | ">>" | "->" | "@>") as p) ->
       ignore (next st);
-      let kind = match p with "<<" -> 0 | ">>" -> 1 | "->" -> 2 | _ -> 3 in
+      let kind = match p with "<<" -> Lsl | ">>" -> Lsr | "->" -> Asr | _ -> Ror in
       let by = match peek st with
         | L.Ident s when (match register st.arch s with Some (Reg _) -> true | _ -> false) -> `Reg (reg st)
         | _ -> `Imm (Int64.to_int (unary st))
@@ -110,7 +110,7 @@ let index st =
   | (L.Punct "(", _) :: (L.Ident s, _) :: _ when (match register st.arch s with Some (Reg _) -> true | _ -> false) ->
       ignore (next st);
       let r = reg st in
-      let s = match shift_after st r with Some s -> s | None -> { reg = r; kind = 0; by = `Imm 0 } in
+      let s = match shift_after st r with Some s -> s | None -> { reg = r; kind = Lsl; by = `Imm 0 } in
       expect st ")";
       Some s
   | _ -> None

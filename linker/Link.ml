@@ -53,6 +53,9 @@ type t = {
 exception Error of string
 
 let error fmt = Printf.ksprintf (fun s -> raise (Error s)) fmt
+
+(* a shift's kind, as both machines encode it *)
+let shift_bits : Asm.shift_kind -> int = function Lsl -> 0 | Lsr -> 1 | Asr -> 2 | Ror -> 3
 (* v rounded up to a multiple of r, negatives too (5l's rnd) *)
 let rnd v r = let v = v + r - 1 in let c = v mod r in v - (if c < 0 then c + r else c)
 

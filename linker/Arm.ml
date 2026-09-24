@@ -562,7 +562,7 @@ let regof = function Some (A.Reg r) -> r | Some (A.Mem { base = R r; _ }) -> r |
 
 (* a shift operand as 5a encodes it: reg | amount or reg<<8|1<<4 | kind<<5 *)
 let shift_bits (s : A.shift) =
-  s.reg lor (s.kind lsl 5) lor (match s.by with `Imm n -> (n land 31) lsl 7 | `Reg r -> (r lsl 8) lor (1 lsl 4))
+  s.reg lor (Link.shift_bits s.kind lsl 5) lor (match s.by with `Imm n -> (n land 31) lsl 7 | `Reg r -> (r lsl 8) lor (1 lsl 4))
 
 let shift_of = function Some (A.Shifted s) -> s | Some (A.Mem { index = Some s; _ }) -> s | _ -> error "not a shift"
 
