@@ -298,13 +298,7 @@ let order (root : node) : node list =
 (* The outside world *)
 (*****************************************************************************)
 
-let read_file (caps : < Cap.open_in; .. >) (file : string) : string option =
-  if not (Sys.file_exists file) then None
-  else
-    let ic = CapStdlib.open_in caps file in
-    let s = really_input_string ic (in_channel_length ic) in
-    close_in ic;
-    Some s
+let read_file caps file = if Sys.file_exists file then Some (Files.read caps file) else None
 
 let digest_file (_ : < Cap.open_in; .. >) (file : string) : string option =
   if Sys.file_exists file && not (Sys.is_directory file) then Some (Digest.to_hex (Digest.file file))
@@ -358,7 +352,9 @@ let build (caps : < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.env; .. >)
         Hashtbl.replace running (start caps (Array.of_list (own @ env)) text) n
   in
   let wait () =
-    let pid, st = CapUnix.wait caps () in
+    match Procs.wait_any caps with
+    | None -> ()
+    | Some (pid, st) ->
     match Hashtbl.find_opt running pid with
     | None -> ()
     | Some n ->
@@ -422,11 +418,7 @@ let main (caps : Cap.all_caps) : int =
         end
         else build caps ~vars ~stamps ~jobs:(max 1 !jobs) ~dry:!dry root) targets
     in
-    if not !dry then begin
-      let oc = open_out stampfile in
-      Hashtbl.iter (fun k v -> Printf.fprintf oc "%s %s\n" k v) stamps;
-      close_out oc
-    end;
+    if not !dry then Files.write caps stampfile (Hashtbl.fold (fun k v acc -> acc ^ Printf.sprintf "%s %s\n" k v) stamps "");
     if ok then 0 else 1
   with Error msg -> Printf.eprintf "tinybuild: %s\n" msg; 1
 

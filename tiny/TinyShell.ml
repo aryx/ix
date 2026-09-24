@@ -395,8 +395,7 @@ let describe = function
 (* Processes and fds *)
 (*****************************************************************************)
 
-let rec wait (caps : < Cap.wait; .. >) pid =
-  try describe (snd (CapUnix.waitpid caps [] pid)) with Unix.Unix_error (Unix.EINTR, _, _) -> wait caps pid
+let wait caps pid = describe (Procs.waitpid caps pid)
 
 let die m = prerr_endline ("tinyshell: " ^ m); "error"
 
@@ -587,17 +586,14 @@ let source caps (text : string) =
 
 let main (caps : Cap.all_caps) : int =
   (* the environment, with rc's lists split back *)
-  CapUnix.environment caps () |> Array.iter (fun kv ->
-    match String.index_opt kv '=' with
-    | Some i -> set (String.sub kv 0 i) (String.split_on_char '\001' (String.sub kv (i + 1) (String.length kv - i - 1)))
-    | None -> ());
+  Procs.split_env (CapUnix.environment caps ()) |> List.iter (fun (k, v) -> set k (String.split_on_char '\001' v));
   set "pid" [ string_of_int (Unix.getpid ()) ];
   let rec flags = function
     | a :: rest when String.length a > 1 && a.[0] = '-' && String.for_all (fun c -> String.contains "-eIi" c) a ->
         if String.contains a 'e' then eflag := true;
         flags rest
     | "-c" :: cmd :: args -> set "*" args; cmd
-    | file :: args -> set "*" args; In_channel.with_open_bin file In_channel.input_all
+    | file :: args -> set "*" args; Files.read caps file
     | [] -> In_channel.input_all stdin
   in
   let st =

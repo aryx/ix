@@ -2,7 +2,9 @@
 
 The free variants of ix's programs, one file each: what is left of a
 program when compatibility is dropped and only its idea is kept,
-written after its faithful twin and from what that one taught.
+written after its faithful twin and from what that one taught. The
+files, children and pipes they share with the twins come from
+`lib_core/` (`Files`, `Procs`), not copied into each.
 
 | file | its twin | the idea kept |
 |---|---|---|
