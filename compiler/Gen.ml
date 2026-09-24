@@ -1093,7 +1093,7 @@ let codgen (body : node) (fn : node) =
     | Some s, Some ft when (m ()).typeword ft.etype ->
         let nod1 = node ONAME None None in
         nod1.nsym <- Some s; nod1.ntype <- Some ft; nod1.nclass <- Cparam;
-        nod1.xoffset <- Declare.align 0 ft Declare.aarg1; 
+        nod1.xoffset <- Declare.align 0 ft Aarg1; 
         xcom nod1;
         gmove (nodreg nod1 (bk ()).regret) nod1
     | _ -> ()

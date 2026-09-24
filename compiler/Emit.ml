@@ -228,30 +228,30 @@ let regfree (n : node) =
 
 (* a temporary on the stack, below the locals *)
 let regsalloc (nn : node) =
-  cursafe := Declare.align !cursafe (t nn) Declare.aaut3;
+  cursafe := Declare.align !cursafe (t nn) Aaut3;
   maxargsafe := Declare.maxround !maxargsafe (!cursafe + !curarg);
   let n = dup (Option.get !nodsafe) in
   n.xoffset <- - (!Declare.stkoff + !cursafe);
   n.ntype <- nn.ntype; n.lineno <- nn.lineno;
   n
 
-(* the first argument, in a register *)
-let regaalloc1 (nn : node) =
-  let n = nodreg nn (bk ()).regret in
-  !regs.((bk ()).regret) <- !regs.((bk ()).regret) + 1;
-  curarg := Declare.align !curarg (t nn) Declare.aarg1;
-  curarg := Declare.align !curarg (t nn) Declare.aarg2;
+(* an argument's place, made by f at its offset, the next one's after *)
+let argument (nn : node) f =
+  curarg := Declare.align !curarg (t nn) Aarg1;
+  let n = f () in
+  curarg := Declare.align !curarg (t nn) Aarg2;
   maxargsafe := Declare.maxround !maxargsafe (!cursafe + !curarg);
   n
 
+(* the first argument, in a register *)
+let regaalloc1 (nn : node) = argument nn (fun () -> let r = (bk ()).regret in !regs.(r) <- !regs.(r) + 1; nodreg nn r)
+
 (* the others, above the return address *)
 let regaalloc (nn : node) =
-  curarg := Declare.align !curarg (t nn) Declare.aarg1;
-  let n = dup nn in
-  n.op <- OINDREG; n.reg <- (bk ()).regsp; n.xoffset <- !curarg + (bk ()).word; n.complex <- 0; n.addable <- 20;
-  curarg := Declare.align !curarg (t nn) Declare.aarg2;
-  maxargsafe := Declare.maxround !maxargsafe (!cursafe + !curarg);
-  n
+  argument nn (fun () ->
+    let n = dup nn in
+    n.op <- OINDREG; n.reg <- (bk ()).regsp; n.xoffset <- !curarg + (bk ()).word; n.complex <- 0; n.addable <- 20;
+    n)
 
 let regind (n : node) (nn : node) =
   if n.op <> OREGISTER then ignore (diag (Some n) "regind not OREGISTER");

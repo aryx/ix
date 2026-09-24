@@ -56,15 +56,12 @@ type undo =
       int * int * bool
   | Tag of Tree.sym * Tree.typ option * int
 
-val aarg1 : int
-
-val aarg2 : int
-
-val aaut3 : int
+type align = Ael1 | Ael2 | Asu2 | Aarg0 | Aarg1 | Aarg2 | Aaut3
 
 val round : int -> int -> int
 
-val align : int -> Tree.typ -> int -> int
+(* i rounded up for t, as op says *)
+val align : int -> Tree.typ -> align -> int
 
 val maxround : int -> int -> int
 

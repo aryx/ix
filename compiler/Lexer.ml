@@ -57,6 +57,9 @@ let rune c =
   let rec go n v = if n = 0 then v else go (n - 1) ((v lsl 6) lor (getc () land 0x3f)) in
   go n v
 
+(* a hex digit's value, 99 if c is none *)
+let hexval c = if is_digit c then c - 48 else if c >= 97 && c <= 102 then c - 87 else if c >= 65 && c <= 70 then c - 55 else 99
+
 (* a character in a string or a constant, or None at its end
  * (lex.c's escchar); an escape gives a byte, not a rune *)
 let escchar e longflg =
@@ -70,10 +73,7 @@ let escchar e longflg =
         if i = 0 then v
         else
           let c = getc () in
-          if is_digit c then hex (i - 1) ((v * 16) + c - 48)
-          else if c >= 97 && c <= 102 then hex (i - 1) ((v * 16) + c - 87)
-          else if c >= 65 && c <= 70 then hex (i - 1) ((v * 16) + c - 55)
-          else (unget c; v)
+          if hexval c < 16 then hex (i - 1) ((v * 16) + hexval c) else (unget c; v)
       in
       Some (hex (if longflg then 6 else 2) 0, true)
     end
@@ -102,8 +102,7 @@ let mpatov s =
     let rec go i v =
       if i >= n then Some v
       else
-        let c = Char.code s.[i] in
-        let d = if is_digit c then c - 48 else if c >= 97 && c <= 102 then c - 87 else if c >= 65 && c <= 70 then c - 55 else 99 in
+        let d = hexval (Char.code s.[i]) in
         if d >= base && base <> 8 then None
         else
           let nv = Int64.add (Int64.mul v (Int64.of_int base)) (Int64.of_int d) in
@@ -114,6 +113,7 @@ let mpatov s =
   let r = if n > 1 && s.[0] = '0' then (if s.[1] = 'x' || s.[1] = 'X' then parse 16 2 else parse 8 1) else parse 10 0 in
   match r with Some v -> v | None -> -1L
 
+(* a number, from its first digit or its point *)
 let number c =
   let b = Buffer.create 16 in
   let add c = Buffer.add_char b (chr c) in
@@ -154,7 +154,7 @@ let number c =
     let c = getc () in
     if c = 120 || c = 88 then begin
       add c;
-      let rec hex c = if is_digit c || (c >= 97 && c <= 102) || (c >= 65 && c <= 70) then (add c; hex (getc ())) else c in
+      let rec hex c = if hexval c < 16 then (add c; hex (getc ())) else c in
       integer (hex (getc ()))
     end
     else if c >= 48 && c <= 55 then (let rec oct c = if c >= 48 && c <= 55 then (add c; oct (getc ())) else c in integer (oct c))
@@ -203,7 +203,7 @@ let rec token () : P.token =
   end
   else if c = 46 then begin
     let c1 = raw () in
-    if is_digit c1 then (peekc := Some c1; number_dot ())
+    if is_digit c1 then (peekc := Some c1; number c)
     else if c1 = 46 then (let c2 = raw () in if c2 = 46 then op "..." else (peekc := Some c2; punct '.'))
     else (peekc := Some c1; punct '.')
   end
@@ -214,25 +214,6 @@ let rec token () : P.token =
     else if List.mem p pairs then op p
     else (peekc := Some c1; punct (chr c))
   end
-
-(* .5: a float from its point *)
-and number_dot () =
-  let b = Buffer.create 16 in
-  Buffer.add_char b '.';
-  let rec digits c = if is_digit c then (Buffer.add_char b (chr c); digits (getc ())) else c in
-  let c = digits (getc ()) in
-  let c =
-    if c = 101 || c = 69 then begin
-      Buffer.add_char b 'e';
-      let c = getc () in
-      let c = if c = 43 || c = 45 then (Buffer.add_char b (chr c); getc ()) else c in
-      digits c
-    end
-    else c
-  in
-  let et, c = if c = 76 || c = 108 then Tdouble, getc () else if c = 70 || c = 102 then Tfloat, getc () else Tdouble, c in
-  unget c;
-  P.LFCONST (float_of_string ("0" ^ Buffer.contents b), et)
 
 and word c =
   let b = Buffer.create 16 in

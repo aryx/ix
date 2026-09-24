@@ -57,7 +57,10 @@ let push1 (s : sym) = dclstack := Name (s, s.typ, s.sclass, s.soffset, s.block, 
 (* Alignment, by the machine (each back end's swt.c) *)
 (*****************************************************************************)
 
-let ael1 = 1 and ael2 = 2 and asu2 = 3 and aarg0 = 4 and aarg1 = 5 and aarg2 = 6 and aaut3 = 7
+(* an element's start and end, a structure's end, the frame's
+ * first parameter (a structure's result's address), a parameter's start
+ * and end, an auto *)
+type align = Ael1 | Ael2 | Asu2 | Aarg0 | Aarg1 | Aarg2 | Aaut3
 
 let round v w =
   if w <= 0 || w > 8 then ignore (diag None "rounding by %d" w);
@@ -67,19 +70,17 @@ let round v w =
 let rec align i (t : typ) op =
   let ma = (m ()).maxalign in
   let o, w =
-    if op = asu2 then i, ma
-    else if op = ael1 then begin
-      let rec base (v : typ) = if v.etype = Tarray then base (link v) else v in
-      let w = ewidth (base t).etype in
-      i, if w <= 0 || w >= ma then ma else w
-    end
-    else if op = ael2 then i + t.width, 1
-    else if op = aarg0 then
-      (if (m ()).typecmplx (t.etype) then align (align i (ty Tind) aarg1) (ty Tind) aarg2 else i), 1
-    else if op = aarg1 then (let w = ewidth t.etype in i, if w <= 0 || w >= ma then ma else 1)
-    else if op = aarg2 then i + t.width, ma
-    else if op = aaut3 then align (align i t ael2) t ael1, 4
-    else diag None "unknown align opcode %d" op
+    match op with
+    | Asu2 -> i, ma
+    | Ael1 ->
+        let rec base (v : typ) = if v.etype = Tarray then base (link v) else v in
+        let w = ewidth (base t).etype in
+        i, if w <= 0 || w >= ma then ma else w
+    | Ael2 -> i + t.width, 1
+    | Aarg0 -> (if (m ()).typecmplx t.etype then align (align i (ty Tind) Aarg1) (ty Tind) Aarg2 else i), 1
+    | Aarg1 -> let w = ewidth t.etype in i, if w <= 0 || w >= ma then ma else 1
+    | Aarg2 -> i + t.width, ma
+    | Aaut3 -> align (align i t Ael2) t Ael1, 4
   in
   round o w
 
@@ -250,6 +251,13 @@ let tmerge (t1 : typ) (s : sym) =
   in
   go (Some t1) s.typ
 
+(* a parameter's offset, after the previous one's *)
+let param (s : sym option) (t : typ) =
+  if !autoffset = 0 then (firstarg := s; firstargtype := Some t);
+  autoffset := align !autoffset t Aarg1;
+  Option.iter (fun s -> s.soffset <- !autoffset) s;
+  autoffset := align !autoffset t Aarg2
+
 let adecl c (t : typ) (s : sym option) =
   let c = if c = Cstatic then Clocal else c in
   let c =
@@ -263,16 +271,11 @@ let adecl c (t : typ) (s : sym option) =
        s.block <- !autobn; s.soffset <- 0; s.typ <- Some t; s.sclass <- c; s.aused <- false
    | None -> ());
   if c = Cauto then begin
-    autoffset := align !autoffset t aaut3;
+    autoffset := align !autoffset t Aaut3;
     stkoff := maxround !stkoff !autoffset;
     Option.iter (fun s -> s.soffset <- - !autoffset) s
   end
-  else if c = Cparam then begin
-    if !autoffset = 0 then (firstarg := s; firstargtype := Some t);
-    autoffset := align !autoffset t aarg1;
-    Option.iter (fun s -> s.soffset <- !autoffset) s;
-    autoffset := align !autoffset t aarg2
-  end
+  else if c = Cparam then param s t
 
 let pdecl c (t : typ) (s : sym option) =
   (match s with Some s when s.soffset <> -1 -> ignore (diag None "not a parameter: %s" s.name) | _ -> ());
@@ -313,18 +316,18 @@ let sualign (t : typ) =
     t.offset <- 0;
     let w = List.fold_left (fun w (e : typ) ->
       if e.width < 0 || (e.width = 0 && e.down <> None) then ignore (diag None "incomplete structure element");
-      let w = align w e ael1 in
+      let w = align w e Ael1 in
       e.offset <- w;
-      align w e ael2) 0 (els t.link) in
-    t.width <- align w t asu2
+      align w e Ael2) 0 (els t.link) in
+    t.width <- align w t Asu2
   end
   else if t.etype = Tunion then begin
     t.offset <- 0;
     let w = List.fold_left (fun w (e : typ) ->
       if e.width <= 0 then ignore (diag None "incomplete union element");
       e.offset <- 0;
-      max w (align (align 0 e ael1) e ael2)) 0 (els t.link) in
-    t.width <- align w t asu2
+      max w (align (align 0 e Ael1) e Ael2)) 0 (els t.link) in
+    t.width <- align w t Asu2
   end
   else ignore (diag None "unknown type in sualign")
 
@@ -426,18 +429,13 @@ let rec walkparam (n : node option) pass =
   | Some ({ op = ONAME; _ } as n) ->
       let s = sym n in
       if pass = 0 then (push1 s; s.soffset <- -1)
-      else if s.soffset <> -1 then begin
-        if !autoffset = 0 then (firstarg := Some s; firstargtype := s.typ);
-        autoffset := align !autoffset (Option.get s.typ) aarg1;
-        s.soffset <- !autoffset;
-        autoffset := align !autoffset (Option.get s.typ) aarg2
-      end
+      else if s.soffset <> -1 then param (Some s) (Option.get s.typ)
       else ignore (dodecl (Some pdecl) Cxxx (ty Tint) (Some n))
   | Some n -> ignore (diag (Some n) "argument not a name/prototype")
 
 (* the parameters' offsets; pass 1 after their old-style declarations *)
 let argmark (n : node) pass =
-  autoffset := align 0 (link (Option.get !thisfn)) aarg0;
+  autoffset := align 0 (link (Option.get !thisfn)) Aarg0;
   stkoff := 0;
   let rec go (n : node) =
     match n.left with
@@ -550,17 +548,14 @@ and init1 (s : sym) (t : typ) o exflag : node option =
                   if a.op <> OCONST then ignore (diag (Some a) "initializer is not a constant: %s" s.name);
                   if Check.vconst (Some a) = 0 then None else (!gextern s a o t.width; None)
                 end
-                else if t.etype = Tind then begin
-                  let rec uncast (a : node) = if a.op = OCAST then uncast (Tree.l a) else a in
-                  let a = uncast a in
-                  if not (sametype (Some t) a.ntype) then ignore (diag (Some a) "initialization of incompatible pointers: %s" s.name);
-                  let a = if a.op = OADDR then Tree.l a else a in
-                  !gextern s a o t.width; None
-                end
                 else begin
                   let rec uncast (a : node) = if a.op = OCAST then uncast (Tree.l a) else a in
                   let a = uncast a in
-                  if a.op = OADDR then (!gextern s (Tree.l a) o t.width; None)
+                  if t.etype = Tind then begin
+                    if not (sametype (Some t) a.ntype) then ignore (diag (Some a) "initialization of incompatible pointers: %s" s.name);
+                    !gextern s (if a.op = OADDR then Tree.l a else a) o t.width; None
+                  end
+                  else if a.op = OADDR then (!gextern s (Tree.l a) o t.width; None)
                   else diag (Some a) "initializer is not a constant: %s" s.name
                 end
               end
@@ -661,7 +656,7 @@ let contig (s : sym) (n : node option) v =
       if v <> w then begin
         if v <> 0 then ignore (diag n "automatic adjustable array: %s" s.name);
         let v = s.soffset in
-        autoffset := align !autoffset (Option.get s.typ) aaut3;
+        autoffset := align !autoffset (Option.get s.typ) Aaut3;
         s.soffset <- - !autoffset;
         stkoff := maxround !stkoff !autoffset;
         symadjust s nn (v - s.soffset)
