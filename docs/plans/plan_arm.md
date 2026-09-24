@@ -175,6 +175,15 @@ stored in a `Bytes` of 32 × 8 (read and written with `get_int64_le`,
 unboxed), a choice measured in phase 5 against a plain `Int64.t
 array`.
 
+One more constraint, from the web (plan_pi.md, decision 9): compiled
+by js_of_ocaml, OCaml's `int` has 32 bits, not 63, and `Int64` is
+emulated. So the arithmetic that depends on the width -- masking to 32
+bits, carries and overflows, 64-bit values -- is in `Bits` and nowhere
+else, written to give the same results under both (a carry computed by
+unsigned comparison, never as `a + b > 0xffffffff`), and tested under
+both; the cores use no C stubs, and `Unix` only at the edges (`Linux`,
+the CLI).
+
 TinyRaspberryPi constrains this from the start (plan_pi.md, decision
 2): xv6's arm-pi3 enters AArch64 and drops to AArch32 on the same core,
 whose 32-bit registers are the low halves of x0-x14. So the two cores

@@ -303,7 +303,15 @@ its native backends on Cairo and SDL, its graphics and GUI libraries);
 TinyArm does not, nor any other ix program. A playground window shows
 the framebuffer's RAM at each vertical refresh (60 times a simulated
 second) -- which of its APIs (an image redrawn, or a raw-pixel
-primitive if it lacks one) is chosen in phase B, reading it then; a key pressed in the window becomes a USB HID report the
+primitive if it lacks one) is chosen in phase B, reading it then.
+The playground's web backend brings a second target for free: **the
+whole Pi in a browser**, compiled by js_of_ocaml (JSLinux's road, for
+TinyEMU). That is a constraint from the first line of `machine/`: the
+cores and devices use no C stubs, and nothing of `Unix` (the host --
+files, console, window, clock -- stays behind a record of functions at
+the edge), and the arithmetic that depends on OCaml's integer width
+(63 bits native, 32 under js_of_ocaml, `Int64` emulated and slow there)
+is in `Bits` alone (plan_arm.md, decision 3); a key pressed in the window becomes a USB HID report the
 emulated keyboard delivers when the kernel's driver polls. Headless
 (the tests), the framebuffer is written as PPM on request, and the
 graphical tests compare pictures: the console's text drawn in pixels.
@@ -339,6 +347,9 @@ graphical tests compare pictures: the console's text drawn in pixels.
   author's Pi4. The Pi4's framebuffer (property tags) and USB (xHCI on
   PCIe) when a kernel drives them.
 - **H. Optional: virt.** xv6 arm64 on `virt`: GICv3, PSCI, virtio-blk.
+- **H'. The web.** The machine compiled by js_of_ocaml with the
+  playground's web backend: a Pi1 with xv6 in a browser page, the card
+  image fetched; its speed measured.
 - **I. `tiny/TinyPi.ml`.**
 
 Each phase checked by the kernels' own tests, by QEMU's trace for the

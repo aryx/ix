@@ -3316,3 +3316,11 @@ With this setup, Claude readied the TinyArm project for phase 1 development.
 **Yoann:**
 
 > not sure TinyMachineARM need to
+
+------------------------------------------------------------------------
+
+## 2026-09-24 19:46
+
+**Yoann:**
+
+> the good think of using the playground is that we can also target jsoo and the web!
