@@ -122,7 +122,6 @@ fnhead:
        | _ -> ignore (diag $2 "not a function"));
       Declare.thisfn := !Declare.lastdcl;
       Declare.markdcl ();
-      Declare.firstdcl := !Declare.dclstack;
       let n = Option.get $2 in
       Declare.argmark n 0;
       n }

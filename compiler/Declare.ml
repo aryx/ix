@@ -41,33 +41,17 @@ let en_cenum : typ option ref = ref None
 let en_lastenum = ref 0L
 let en_floatenum = ref 0.
 
-(* the declaration stack, undone at the end of a block *)
-type decl = {
-  mutable dlink : decl option;
-  mutable dsym : sym option;
-  mutable dtype : typ option;
-  mutable dvarlineno : int;
-  mutable doffset : int;
-  mutable dval : int;
-  mutable dblock : int;
-  mutable dclass : cls;
-  mutable daused : bool;
-}
+(* what the end of a block undoes, the last first: its mark, the
+ * declarations its names hid, the tags; a function's labels at its end *)
+type undo =
+  | Mark of int * int                 (* the offset of the autos, the block *)
+  | Name of sym * typ option * cls * int * int * int * bool   (* its type, class, offset, block, line, used *)
+  | Tag of sym * typ option * int
 
-let dmark = 0 and dauto = 1 and dsue = 2 and dlabel = 3
-let dclstack : decl option ref = ref None
-let firstdcl : decl option ref = ref None
+let dclstack : undo list ref = ref []
+let labels : sym list ref = ref []
 
-let push () =
-  let d = { dlink = !dclstack; dsym = None; dtype = None; dvarlineno = 0; doffset = 0; dval = 0; dblock = 0; dclass = Cxxx; daused = false } in
-  dclstack := Some d;
-  d
-
-let push1 (s : sym) =
-  let d = push () in
-  d.dsym <- Some s; d.dval <- dauto; d.dtype <- s.typ; d.dclass <- s.sclass; d.doffset <- s.soffset;
-  d.dblock <- s.block; d.dvarlineno <- s.varlineno; d.daused <- s.aused;
-  d
+let push1 (s : sym) = dclstack := Name (s, s.typ, s.sclass, s.soffset, s.block, s.varlineno, s.aused) :: !dclstack
 
 (*****************************************************************************)
 (* Alignment, by the machine (each back end's swt.c) *)
@@ -228,13 +212,8 @@ and fnproto1 (n : node option) : typ option =
   | Some ({ op = OPROTO; _ } as n) ->
       lastdcl := None;
       ignore (dodecl None Cxxx (Tree.t n) n.left);
-      let t = typ Txxx None in
-      (match !lastdcl with
-       | Some ld -> let p = paramconv ld true in
-           t.tsym <- p.tsym; t.tag <- p.tag; t.link <- p.link; t.down <- p.down; t.width <- p.width; t.offset <- p.offset;
-           t.shift <- p.shift; t.nbits <- p.nbits; t.etype <- p.etype; t.garb <- p.garb
-       | None -> ());
-      Some t
+      (* a copy: the prototype's list is its own *)
+      Some (match !lastdcl with Some ld -> copytyp (paramconv ld true) | None -> typ Txxx None)
   | Some ({ op = ONAME; _ } as n) -> ignore (diag (Some n) "incomplete argument prototype"); Some (typ Tint None)
   | Some { op = ODOTDOT; _ } -> Some (typ Tdot None)
   | Some n -> diag (Some n) "unknown op in fnproto"
@@ -280,7 +259,7 @@ let adecl c (t : typ) (s : sym option) =
    | Some s ->
        if (s.sclass = Cauto || s.sclass = Cparam || s.sclass = Clocal) && s.block = !autobn then
          ignore (diag None "auto redeclaration of: %s" s.name);
-       if c <> Cparam then ignore (push1 s);
+       if c <> Cparam then push1 s;
        s.block <- !autobn; s.soffset <- 0; s.typ <- Some t; s.sclass <- c; s.aused <- false
    | None -> ());
   if c = Cauto then begin
@@ -363,11 +342,7 @@ let rec tcopy (t : typ option) : typ option =
       else Some t
 
 let dotag (s : sym) et bn =
-  if bn <> 0 && bn <> s.sueblock then begin
-    let d = push () in
-    d.dsym <- Some s; d.dval <- dsue; d.dtype <- s.suetag; d.dblock <- s.sueblock;
-    s.suetag <- None
-  end;
+  if bn <> 0 && bn <> s.sueblock then (dclstack := Tag (s, s.suetag, s.sueblock) :: !dclstack; s.suetag <- None);
   if s.suetag = None then (s.suetag <- Some (typ et None); s.sueblock <- !autobn);
   let st = Option.get s.suetag in
   if st.etype <> et then ignore (diag None "tag used for more than one type: %s" s.name);
@@ -386,7 +361,7 @@ let doenum (s : sym) (n : node option) =
        en_tenum := maxtype !en_cenum !en_tenum;
        if not (typefd ((Option.get !en_cenum).etype)) then en_lastenum := n.vconst else en_floatenum := n.fconst
    | None -> ());
-  if !dclstack <> None then ignore (push1 s);
+  if !dclstack <> [] then push1 s;
   xdecl Cxxx (ty Tenum) (Some s);
   if !en_cenum = None then (en_tenum := Some (ty Tint); en_cenum := Some (ty Tint); en_lastenum := 0L);
   s.tenum <- !en_cenum;
@@ -400,40 +375,36 @@ let doenum (s : sym) (n : node option) =
 
 let markdcl () =
   incr blockno;
-  let d = push () in
-  d.dval <- dmark; d.doffset <- !autoffset; d.dblock <- !autobn;
+  dclstack := Mark (!autoffset, !autobn) :: !dclstack;
   autobn := !blockno
 
-(* undo a block's declarations; what a volatile needs, used *)
+(* a block's declarations undone, to its mark (and at the function's,
+ * the bottom one, its labels); the volatiles' USED, to be kept *)
 let revertdcl () : node option =
-  let n = ref None in
+  let used = ref None in
   let rec go () =
     match !dclstack with
-    | None -> ignore (diag None "pop off dcl stack")
-    | Some d ->
-        dclstack := d.dlink;
-        let s = d.dsym in
-        if d.dval = dmark then (autoffset := d.doffset; autobn := d.dblock)
-        else begin
-          (if d.dval = dauto then begin
-             let s = Option.get s in
-             (match s.typ with
-              | Some tt when tt.garb land gvolatile <> 0 ->
-                  let n1 = node ONAME None None in
-                  n1.nsym <- Some s; n1.ntype <- s.typ; n1.netype <- tt.etype; n1.xoffset <- s.soffset; n1.nclass <- s.sclass;
-                  let n1 = node OUSED (Some (node OADDR (Some n1) None)) None in
-                  n := (match !n with None -> Some n1 | Some x -> Some (node OLIST (Some n1) (Some x)))
-              | _ -> ());
-             s.typ <- d.dtype; s.sclass <- d.dclass; s.soffset <- d.doffset; s.block <- d.dblock;
-             s.varlineno <- d.dvarlineno; s.aused <- d.daused
-           end
-           else if d.dval = dsue then (let s = Option.get s in s.suetag <- d.dtype; s.sueblock <- d.dblock)
-           else if d.dval = dlabel then (Option.get s).label <- None);
-          go ()
-        end
+    | [] -> ignore (diag None "pop off dcl stack")
+    | u :: rest ->
+        dclstack := rest;
+        match u with
+        | Mark (o, bn) ->
+            autoffset := o; autobn := bn;
+            if rest = [] then (List.iter (fun (s : sym) -> s.label <- None) !labels; labels := [])
+        | Name (s, t, c, o, bl, line, aused) ->
+            (match s.typ with
+             | Some tt when tt.garb land gvolatile <> 0 ->
+                 let n1 = node ONAME None None in
+                 n1.nsym <- Some s; n1.ntype <- s.typ; n1.netype <- tt.etype; n1.xoffset <- s.soffset; n1.nclass <- s.sclass;
+                 let n1 = node OUSED (Some (node OADDR (Some n1) None)) None in
+                 used := (match !used with None -> Some n1 | Some x -> Some (node OLIST (Some n1) (Some x)))
+             | _ -> ());
+            s.typ <- t; s.sclass <- c; s.soffset <- o; s.block <- bl; s.varlineno <- line; s.aused <- aused;
+            go ()
+        | Tag (s, t, bl) -> s.suetag <- t; s.sueblock <- bl; go ()
   in
   go ();
-  !n
+  !used
 
 let rec walkparam (n : node option) pass =
   match n with
@@ -444,7 +415,7 @@ let rec walkparam (n : node option) pass =
       let rec name (n1 : node option) = match n1 with None -> None | Some ({ op = ONAME; _ } as x) -> Some x | Some x -> name x.left in
       (match name (Some n) with
        | Some n1 ->
-           if pass = 0 then (let s = sym n1 in ignore (push1 s); s.soffset <- -1)
+           if pass = 0 then (let s = sym n1 in push1 s; s.soffset <- -1)
            else ignore (dodecl (Some pdecl) Cparam (Tree.t n) n.left)
        | None ->
            if pass <> 0 then begin
@@ -454,7 +425,7 @@ let rec walkparam (n : node option) pass =
   | Some { op = ODOTDOT; _ } -> ()
   | Some ({ op = ONAME; _ } as n) ->
       let s = sym n in
-      if pass = 0 then (ignore (push1 s); s.soffset <- -1)
+      if pass = 0 then (push1 s; s.soffset <- -1)
       else if s.soffset <> -1 then begin
         if !autoffset = 0 then (firstarg := Some s; firstargtype := s.typ);
         autoffset := align !autoffset (Option.get s.typ) aarg1;
@@ -482,7 +453,7 @@ let argmark (n : node) pass =
   autoffset := 0;
   stkoff := 0
 
-(* a label, declared (f) or used, reverted with the function
+(* a label, declared (f) or used, forgotten at the function's end
  * (dcl.c's dcllabel) *)
 let dcllabel (s : sym) f =
   match s.label with
@@ -490,18 +461,7 @@ let dcllabel (s : sym) f =
       if f then (if n.complex <> 0 then ignore (diag None "label reused: %s" s.name); n.complex <- 1) else n.addable <- 1;
       n
   | None ->
-      (* a DLABEL just after the function's mark *)
-      let d = push () in
-      d.dsym <- Some s; d.dval <- dlabel;
-      dclstack := d.dlink;
-      let fd = Option.get !firstdcl in
-      let saved = { fd with dlink = fd.dlink } in
-      fd.dlink <- d.dlink; fd.dsym <- d.dsym; fd.dtype <- d.dtype; fd.dvarlineno <- d.dvarlineno; fd.doffset <- d.doffset;
-      fd.dval <- d.dval; fd.dblock <- d.dblock; fd.dclass <- d.dclass; fd.daused <- d.daused;
-      d.dlink <- saved.dlink; d.dsym <- saved.dsym; d.dtype <- saved.dtype; d.dvarlineno <- saved.dvarlineno;
-      d.doffset <- saved.doffset; d.dval <- saved.dval; d.dblock <- saved.dblock; d.dclass <- saved.dclass; d.daused <- saved.daused;
-      fd.dlink <- Some d;
-      firstdcl := Some d;
+      labels := s :: !labels;
       let n = node OXXX None None in
       n.nsym <- Some s;
       n.complex <- (if f then 1 else 0);
