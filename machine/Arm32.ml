@@ -29,8 +29,9 @@ type t =
   | Branch of { cond : cond; link : bool; offset : int }
   | Bx of { cond : cond; link : bool; rm : reg }
   | Clz of { cond : cond; rd : reg; rm : reg }
-  | Mrs of { cond : cond; rd : reg }
-  | Msr of { cond : cond; fields : int; src : operand }
+  | Mrs of { cond : cond; rd : reg; spsr : bool }
+  | Msr of { cond : cond; spsr : bool; fields : int; src : operand }
+  | Coproc of { cond : cond; load : bool; cp : int; opc1 : int; crn : int; crm : int; opc2 : int; rd : reg }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 
@@ -96,12 +97,12 @@ let decode w =
         else if field w 4 4 = 3 && field w 21 2 = 1 && field w 8 12 = 0xfff then Bx { cond; link = true; rm = field w 0 4 }
         else if field w 4 4 = 1 && field w 21 2 = 3 && field w 16 4 = 15 && field w 8 4 = 15 then Clz { cond; rd; rm = field w 0 4 }
         (* the status register: CPSR only, SPSR (bit 22) is privileged *)
-        else if field w 20 5 = 0b10000 && field w 16 4 = 15 && field w 0 12 = 0 then Mrs { cond; rd }
-        else if field w 20 5 = 0b10010 && rd = 15 && field w 4 8 = 0 then Msr { cond; fields = rn; src = Sreg (field w 0 4, No_shift) }
+        else if (not (bit w 21)) && field w 16 4 = 15 && field w 0 12 = 0 then Mrs { cond; rd; spsr = bit w 22 }
+        else if bit w 21 && rd = 15 && field w 4 8 = 0 then Msr { cond; spsr = bit w 22; fields = rn; src = Sreg (field w 0 4, No_shift) }
         else Undefined w
     | 0 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = shifted w }
-    | 1 when field w 20 5 = 0b10010 && rd = 15 && rn <> 0 ->
-        Msr { cond; fields = rn; src = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
+    | 1 when field w 23 2 = 2 && field w 20 2 = 2 && rd = 15 && rn <> 0 ->
+        Msr { cond; spsr = bit w 22; fields = rn; src = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
     | 1 when field w 23 2 = 2 && not (bit w 20) -> Undefined w
     | 1 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
     | (2 | 3) as c ->
@@ -116,6 +117,10 @@ let decode w =
         Block { cond; load = bit w 20; rn; writeback = bit w 21; mode; regs = field w 0 16; psr = bit w 22 }
     | 5 -> Branch { cond; link = bit w 24; offset = Bits.sign_extend 24 (field w 0 24) * 4 }
     | 7 when bit w 24 -> Svc { cond; imm = field w 0 24 }
+    (* mcr, mrc to the system's coprocessors, 14 and 15 (10 and 11 are
+     * VFP's; the others the Pi's cores lack) *)
+    | 7 when bit w 4 && field w 9 3 = 7 ->
+        Coproc { cond; load = bit w 20; cp = field w 8 4; opc1 = field w 21 3; crn = rn; crm = field w 0 4; opc2 = field w 5 3; rd }
     | _ -> Undefined w
 
 (*****************************************************************************)
@@ -201,8 +206,8 @@ let print ~addr (i : t) =
        * on pc (writing back to pc is unpredictable) *)
       let extra = size <> Word && size <> Byte in
       let writeback = writeback && not (rn = 15 && extra && (match offset with Off_imm _ -> true | Off_reg _ -> false)) in
-      (* and it shows a halfword's zero offset when writing back *)
-      let off = match off, offset with None, Off_imm 0 when extra && writeback -> Some "#0" | o, _ -> o in
+      (* and it shows a zero offset when writing back *)
+      let off = match off, offset with None, Off_imm 0 when writeback -> Some "#0" | o, _ -> o in
       let addr_text = match index, off with
         | Pre, None -> Printf.sprintf "[%s]%s" (reg_name rn) (if writeback then "!" else "")
         | Pre, Some o -> Printf.sprintf "[%s, %s]%s" (reg_name rn) o (if writeback then "!" else "")
@@ -229,11 +234,14 @@ let print ~addr (i : t) =
       m ((if link then "bl" else "b") ^ cond_name cond) (Bits.to_hex32 (addr + 8 + offset))
   | Bx { cond; link; rm } -> m ((if link then "blx" else "bx") ^ cond_name cond) (reg_name rm)
   | Clz { cond; rd; rm } -> m ("clz" ^ cond_name cond) (reg_name rd ^ ", " ^ reg_name rm)
-  | Mrs { cond; rd } -> m ("mrs" ^ cond_name cond) (reg_name rd ^ ", CPSR")
-  | Msr { cond; fields; src } ->
+  | Mrs { cond; rd; spsr } -> m ("mrs" ^ cond_name cond) (reg_name rd ^ if spsr then ", SPSR" else ", CPSR")
+  | Coproc { cond; load; cp; opc1; crn; crm; opc2; rd } ->
+      m ((if load then "mrc" else "mcr") ^ cond_name cond)
+        (Printf.sprintf "%d, %d, %s, cr%d, cr%d, {%d}" cp opc1 (if load && rd = 15 then "APSR_nzcv" else reg_name rd) crn crm opc2)
+  | Msr { cond; spsr; fields; src } ->
       let names = String.concat "" (List.filter_map (fun (b, c) -> if fields land b <> 0 then Some c else None)
                                       [ 8, "f"; 4, "s"; 2, "x"; 1, "c" ]) in
-      m ("msr" ^ cond_name cond) ("CPSR_" ^ names ^ ", " ^ operand_text src)
+      m ("msr" ^ cond_name cond) ((if spsr then "SPSR_" else "CPSR_") ^ names ^ ", " ^ operand_text src)
   | Svc { cond; imm } -> m ("svc" ^ cond_name cond) (Printf.sprintf "0x%08x" imm)
   | Undefined w -> Printf.sprintf ".word\t0x%08x" (Bits.unsigned32 w)
 
@@ -249,11 +257,99 @@ type state = {
   mutable v : bool;
   mutable next : int;
   mem : Memory.t;
+  (* the privileged state (a system's; user mode keeps usr and no MMU) *)
+  mutable mode : int;
+  mutable a_off : bool;
+  mutable i_off : bool;
+  mutable f_off : bool;
+  banked : int array;
+  fiq_banked : int array;
+  spsr : int array;
+  mutable mmu : bool;
+  mutable translate : int -> int -> int;
+  mutable coproc : state -> t -> unit;
+  mutable vectors : int;
 }
 
 exception Unimplemented of int * int
+exception Abort of int * int
 
-let create mem = { r = Array.make 16 0; n = false; z = false; c = false; v = false; next = 0; mem }
+let create mem =
+  { r = Array.make 16 0; n = false; z = false; c = false; v = false; next = 0; mem;
+    mode = 0x10; a_off = false; i_off = false; f_off = false;
+    banked = Array.make 12 0; fiq_banked = Array.make 10 0; spsr = Array.make 6 0;
+    mmu = false; translate = (fun a _ -> a); coproc = (fun st _ -> raise (Unimplemented (0, st.r.(15) - 8))); vectors = 0 }
+
+(*****************************************************************************)
+(* The privileged state: modes, banks, the CPSR, exceptions *)
+(*****************************************************************************)
+
+(* the modes' banks of r13 and r14: usr and sys share the first *)
+let bank_of = function 0x13 -> 1 | 0x17 -> 2 | 0x1b -> 3 | 0x12 -> 4 | 0x11 -> 5 | _ -> 0
+
+(* a mode change: the outgoing mode's r13, r14 (and r8-r12, for FIQ)
+ * saved, the incoming one's put in their place *)
+let set_mode st m =
+  let old_b = bank_of st.mode and new_b = bank_of m in
+  if old_b <> new_b then begin
+    st.banked.(2 * old_b) <- st.r.(13); st.banked.((2 * old_b) + 1) <- st.r.(14);
+    st.r.(13) <- st.banked.(2 * new_b); st.r.(14) <- st.banked.((2 * new_b) + 1);
+    if (old_b = 5) <> (new_b = 5) then begin
+      let save, load = if new_b = 5 then 0, 5 else 5, 0 in
+      for k = 0 to 4 do st.fiq_banked.(save + k) <- st.r.(8 + k); st.r.(8 + k) <- st.fiq_banked.(load + k) done
+    end
+  end;
+  st.mode <- m
+
+let cpsr st =
+  let b f k = if f then 1 lsl k else 0 in
+  b st.n 31 lor b st.z 30 lor b st.c 29 lor b st.v 28 lor b st.a_off 8 lor b st.i_off 7 lor b st.f_off 6 lor st.mode
+
+(* the CPSR written, its fields f s x c as masked: the flags always; the
+ * masks and the mode only when privileged *)
+let write_cpsr st v fields =
+  if fields land 8 <> 0 then begin
+    st.n <- (v lsr 31) land 1 = 1; st.z <- (v lsr 30) land 1 = 1;
+    st.c <- (v lsr 29) land 1 = 1; st.v <- (v lsr 28) land 1 = 1
+  end;
+  if st.mode <> 0x10 then begin
+    if fields land 2 <> 0 then st.a_off <- (v lsr 8) land 1 = 1;
+    if fields land 1 <> 0 then begin
+      st.i_off <- (v lsr 7) land 1 = 1; st.f_off <- (v lsr 6) land 1 = 1;
+      set_mode st (v land 0x1f)
+    end
+  end
+
+(* an exception return: the CPSR from the mode's SPSR *)
+let restore_spsr st = let b = bank_of st.mode in if b <> 0 then write_cpsr st st.spsr.(b) 0xf
+
+type exn_kind = Reset | Undefined_instruction | Supervisor_call | Prefetch_abort | Data_abort | Irq | Fiq
+
+(* an exception taken: the CPSR into the new mode's SPSR, the return
+ * address into its lr, interrupts masked, the vector *)
+let take st kind ~ret =
+  let m, off = match kind with
+    | Reset -> 0x13, 0 | Undefined_instruction -> 0x1b, 4 | Supervisor_call -> 0x13, 8
+    | Prefetch_abort -> 0x17, 0xc | Data_abort -> 0x17, 0x10 | Irq -> 0x12, 0x18 | Fiq -> 0x11, 0x1c in
+  let saved = cpsr st in
+  set_mode st m;
+  st.spsr.(bank_of m) <- saved;
+  st.r.(14) <- Bits.mask32 ret;
+  st.i_off <- true;
+  (match kind with Reset | Fiq -> st.f_off <- true | _ -> ());
+  (match kind with Undefined_instruction | Supervisor_call -> () | _ -> st.a_off <- true);
+  st.next <- Bits.mask32 (st.vectors + off)
+
+(* the user mode's registers, from a privileged mode (ldm and stm with ^) *)
+let get_user st k =
+  if (k = 13 || k = 14) && bank_of st.mode <> 0 then st.banked.(k - 13)
+  else if k >= 8 && k <= 12 && st.mode = 0x11 then st.fiq_banked.(k - 8)
+  else st.r.(k)
+
+let set_user st k v =
+  if (k = 13 || k = 14) && bank_of st.mode <> 0 then st.banked.(k - 13) <- v
+  else if k >= 8 && k <= 12 && st.mode = 0x11 then st.fiq_banked.(k - 8) <- v
+  else st.r.(k) <- v
 
 let cond_passed st = function
   | EQ -> st.z | NE -> not st.z | CS -> st.c | CC -> not st.c | MI -> st.n | PL -> not st.n
@@ -327,6 +423,11 @@ let execute st ~addr ~svc i =
       if cond_passed st cond then begin
         let b = operand st op2 in
         let a = st.r.(rn) in
+        (* movs pc, subs pc: a result into pc and the CPSR from the SPSR,
+         * the flags not set *)
+        let return = s && rd = 15 && (match op with TST | TEQ | CMP | CMN -> false | _ -> true) in
+        let s = s && not return in
+        let set st rd v = set st rd v; if return then restore_spsr st in
         let logical r = if s then (set_nz st r; st.c <- !carry_out); set st rd r in
         let arith a b cin = (if s then add_flags st a b cin); set st rd (Bits.add32 a b cin) in
         let cin = if st.c then 1 else 0 in
@@ -367,35 +468,49 @@ let execute st ~addr ~svc i =
         set st rdlo lo;
         set st rdhi hi
       end
-  | Mem { cond; load; size; rd; rn; offset; up; index; writeback; user = _ } ->
+  | Mem { cond; load; size; rd; rn; offset; up; index; writeback; user } ->
       if cond_passed st cond then begin
         let off = match offset with Off_imm n -> n | Off_reg (rm, sh) -> shifted_value st rm sh in
         let base = st.r.(rn) in
         let moved = Bits.mask32 (if up then base + off else base - off) in
         let a = match index with Pre -> moved | Post -> base in
         let m = st.mem in
-        (* the base written back before the load, so that a load into
-         * the base register wins *)
-        if index = Post || writeback then (if rn <> 15 then st.r.(rn) <- moved);
-        if load then
-          match size with
-          | Word -> set st rd (Memory.load32 m a)
-          | Byte -> set st rd (Memory.load8 m a)
-          | Half -> set st rd (Memory.load16 m a)
-          | Sbyte -> set st rd (Bits.mask32 (Bits.sign_extend 8 (Memory.load8 m a)))
-          | Shalf -> set st rd (Bits.mask32 (Bits.sign_extend 16 (Memory.load16 m a)))
-          | Dword -> set st rd (Memory.load32 m a); set st (rd + 1) (Memory.load32 m (Bits.mask32 (a + 4)))
-        else
+        (* through the MMU when on: bit 0 a write, bit 1 as user (ldrt) *)
+        let pa a w = if st.mmu then st.translate a (w lor if user then 2 else 0) else a in
+        (* the accesses first, then the base written back, then the
+         * register loaded (it wins over the base): an abort leaves the
+         * registers as they were *)
+        let wb () = if index = Post || writeback then (if rn <> 15 then st.r.(rn) <- moved) in
+        if load then begin
+          let v = match size with
+            | Word -> Memory.load32 m (pa a 0)
+            | Byte -> Memory.load8 m (pa a 0)
+            | Half -> Memory.load16 m (pa a 0)
+            | Sbyte -> Bits.mask32 (Bits.sign_extend 8 (Memory.load8 m (pa a 0)))
+            | Shalf -> Bits.mask32 (Bits.sign_extend 16 (Memory.load16 m (pa a 0)))
+            | Dword -> Memory.load32 m (pa a 0) in
+          let v2 = if size = Dword then Memory.load32 m (pa (Bits.mask32 (a + 4)) 0) else 0 in
+          wb ();
+          set st rd v;
+          if size = Dword then set st (rd + 1) v2
+        end
+        else begin
           let value r = if r = 15 then Bits.mask32 (addr + 8) else st.r.(r) in
-          match size with
-          | Word -> Memory.store32 m a (value rd)
-          | Byte -> Memory.store8 m a (value rd)
-          | Half | Sbyte | Shalf -> Memory.store16 m a (value rd)
-          | Dword -> Memory.store32 m a (value rd); Memory.store32 m (Bits.mask32 (a + 4)) (value (rd + 1))
+          (match size with
+           | Word -> Memory.store32 m (pa a 1) (value rd)
+           | Byte -> Memory.store8 m (pa a 1) (value rd)
+           | Half | Sbyte | Shalf -> Memory.store16 m (pa a 1) (value rd)
+           | Dword -> Memory.store32 m (pa a 1) (value rd); Memory.store32 m (pa (Bits.mask32 (a + 4)) 1) (value (rd + 1)));
+          wb ()
+        end
       end
   | Block { cond; load; rn; writeback; mode; regs; psr } ->
       if cond_passed st cond then begin
-        if psr then raise (Unimplemented (0, addr));
+        (* with ^: the user mode's registers, or with pc loaded, an
+         * exception return *)
+        let returning = psr && load && regs land 0x8000 <> 0 in
+        let user = psr && not returning in
+        let pa a w = if st.mmu then st.translate a w else a in
         let count = let rec go k acc = if k = 16 then acc else go (k + 1) (acc + ((regs lsr k) land 1)) in go 0 0 in
         let base = st.r.(rn) in
         let start = match mode with
@@ -405,13 +520,14 @@ let execute st ~addr ~svc i =
         let loaded = ref [] in
         for k = 0 to 15 do
           if (regs lsr k) land 1 = 1 then begin
-            if load then loaded := (k, Memory.load32 st.mem !a) :: !loaded
-            else Memory.store32 st.mem !a st.r.(k);
+            if load then loaded := (k, Memory.load32 st.mem (pa !a 0)) :: !loaded
+            else Memory.store32 st.mem (pa !a 1) (if user then get_user st k else st.r.(k));
             a := Bits.mask32 (!a + 4)
           end
         done;
         if writeback then st.r.(rn) <- Bits.mask32 final;
-        List.iter (fun (k, v) -> set st k v) (List.rev !loaded)
+        List.iter (fun (k, v) -> if user then set_user st k v else set st k v) (List.rev !loaded);
+        if returning then restore_spsr st
       end
   | Branch { cond; link; offset } ->
       if cond_passed st cond then begin
@@ -432,14 +548,18 @@ let execute st ~addr ~svc i =
       end
   (* user mode sees N, Z, C, V and the mode (0x10, usr); it writes
    * only the flags *)
-  | Mrs { cond; rd } ->
-      if cond_passed st cond then
-        let b f k = if f then 1 lsl k else 0 in
-        set st rd (b st.n 31 lor b st.z 30 lor b st.c 29 lor b st.v 28 lor 0x10)
-  | Msr { cond; fields; src } ->
-      if cond_passed st cond && fields land 8 <> 0 then begin
+  | Mrs { cond; rd; spsr } ->
+      if cond_passed st cond then set st rd (if spsr then st.spsr.(bank_of st.mode) else cpsr st)
+  | Msr { cond; spsr; fields; src } ->
+      if cond_passed st cond then begin
         let v = operand st src in
-        st.n <- (v lsr 31) land 1 = 1; st.z <- (v lsr 30) land 1 = 1;
-        st.c <- (v lsr 29) land 1 = 1; st.v <- (v lsr 28) land 1 = 1
+        if spsr then begin
+          let b = bank_of st.mode in
+          let mask = List.fold_left (fun acc (bit, m) -> if fields land bit <> 0 then acc lor m else acc) 0
+                       [ 8, 0xff lsl 24; 4, 0xff lsl 16; 2, 0xff lsl 8; 1, 0xff ] in
+          if b <> 0 then st.spsr.(b) <- Bits.mask32 ((st.spsr.(b) land lnot mask) lor (v land mask))
+        end
+        else write_cpsr st v fields
       end
+  | Coproc { cond; _ } -> if cond_passed st cond then st.coproc st i
   | Svc { cond; imm } -> if cond_passed st cond then svc st imm

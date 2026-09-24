@@ -57,7 +57,8 @@ if randomized:
         elif k < 0.8: body = (3 << 25) | (r.randrange(1 << 25) & ~0x10)  # 011, bit 4 clear
         elif k < 0.88: body = (4 << 25) | r.randrange(1 << 25)           # 100
         elif k < 0.96: body = (5 << 25) | r.randrange(1 << 25)           # 101
-        else: body = (0xf << 24) | r.randrange(1 << 24)                  # svc
+        elif k < 0.98: body = (0xf << 24) | r.randrange(1 << 24)         # svc
+        else: body = (0xe << 24) | r.randrange(1 << 24) | 0x10           # mcr, mrc
         return "%08x" % (cond | body)
     words = [(word64 if a64 else word32)() for _ in range(n)]
     words_file = os.path.join(tmp, "words.txt")

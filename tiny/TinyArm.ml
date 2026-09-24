@@ -234,7 +234,7 @@ let print i =
   | Mem (c, load, byte, rd, rn, off, index) ->
       let name = (if load then "ldr" else "str") ^ (if byte then "b" else "") ^ cn c in
       let off_text = match off with
-        | Ioff 0 when index <> Post -> None
+        | Ioff 0 when index = Offset -> None     (* written back, objdump shows #0 *)
         | Ioff n -> Some (Printf.sprintf "#%d" n)
         | Roff (sub, rm, sh, n) -> Some ((if sub then "-" else "") ^ r rm ^ shift_text sh n) in
       let a = match index, off_text with

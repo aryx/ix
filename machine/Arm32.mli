@@ -60,8 +60,12 @@ type t =
   | Bx of { cond : cond; link : bool; rm : reg }
   | Clz of { cond : cond; rd : reg; rm : reg }
   (* the status register, CPSR; [fields]: the mask, bits f s x c *)
-  | Mrs of { cond : cond; rd : reg }
-  | Msr of { cond : cond; fields : int; src : operand }
+  (* the CPSR, or the mode's SPSR ([spsr]) *)
+  | Mrs of { cond : cond; rd : reg; spsr : bool }
+  | Msr of { cond : cond; spsr : bool; fields : int; src : operand }
+  (* mcr ([load] false), mrc: a coprocessor's register (CP15's, the
+   * system's), cp <> 10, 11 *)
+  | Coproc of { cond : cond; load : bool; cp : int; opc1 : int; crn : int; crm : int; opc2 : int; rd : reg }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 
@@ -90,9 +94,31 @@ type state = {
   mutable v : bool;
   mutable next : int;
   mem : Memory.t;
+  (* the privileged state, a system's (plan_pi.md, decision 1); user
+   * mode keeps usr (0x10), no MMU. [mode]: the CPSR's mode bits; the
+   * A, I, F masks; [banked]: r13 and r14 of each bank not current (usr
+   * and sys, svc, abt, und, irq, fiq); [fiq_banked]: r8-r12, the other
+   * modes' (0-4) or FIQ's (5-9), whichever is not current; [spsr] per
+   * bank. [translate]: the MMU, a virtual address and an access (bit
+   * 0 a write, bit 1 as user) to a physical one, or Abort, used when
+   * [mmu]; [coproc]: mcr and mrc; [vectors]: 0 or 0xffff0000 *)
+  mutable mode : int;
+  mutable a_off : bool;
+  mutable i_off : bool;
+  mutable f_off : bool;
+  banked : int array;
+  fiq_banked : int array;
+  spsr : int array;
+  mutable mmu : bool;
+  mutable translate : int -> int -> int;
+  mutable coproc : state -> t -> unit;
+  mutable vectors : int;
 }
 
 exception Unimplemented of int * int  (* the word, its address *)
+
+(* a translation fault: the address, the fault status (FSR's) *)
+exception Abort of int * int
 
 val create : Memory.t -> state
 
@@ -101,3 +127,13 @@ val create : Memory.t -> state
 val execute : state -> addr:int -> svc:(state -> int -> unit) -> t -> unit
 
 val cond_passed : state -> cond -> bool
+
+(* the privileged state *)
+val cpsr : state -> int
+val write_cpsr : state -> int -> int -> unit     (* the value, the fields f s x c *)
+val set_mode : state -> int -> unit
+
+type exn_kind = Reset | Undefined_instruction | Supervisor_call | Prefetch_abort | Data_abort | Irq | Fiq
+
+(* an exception taken, [ret] into the new mode's lr; st.next the vector *)
+val take : state -> exn_kind -> ret:int -> unit

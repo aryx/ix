@@ -3416,3 +3416,19 @@ Claude also updated plan_pi.md to put the display backend behind a function reco
 **Yoann:**
 
 > both
+
+**Claude (summary):**
+
+Claude implemented Phase 8 by adding Plan 9 ARM executable support to tinyarm with special files and notes.
+Claude built Phase 9a (TinyArm assembler) matching GNU as bytes and objdump disassembly on 120,000+ random instructions.
+Claude built Phase 9b (TinyMachine) with interpreter and ARM translator, 3,000 random programs tested.
+Claude found two goken bugs: missing atexit handlers in Plan 9 exits, garbage directory names in dirread.
+Claude committed all work: phases 8, 9a, 9b complete and tested, floating-point phase 7 remains.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 22:09
+
+**Yoann:**
+
+> let's do it!
