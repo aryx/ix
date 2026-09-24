@@ -75,7 +75,9 @@ Those of [`../README.md`](../README.md), and three of its own:
   and the book, not for behaviour (it has no V flag, no ADC/SBC, and
   Plan 9's system calls).
 - **The corpus decides the instruction set.** What ix's, goken's and
-  xix's toolchains emit and the corpus runs is implemented; any other
+  xix's toolchains emit and the corpus runs is implemented (for the
+  Pi, what 9pi's and xv6's gcc-built kernels run too: plan_pi.md's
+  census adds a Thumb-2 subset, VFP and system instructions); any other
   word stops the emulator with "unimplemented instruction WORD at PC"
   and the program's name. Principle 1's "every feature kept" becomes
   "every instruction the toolchains emit": gcc's Thumb-2 and NEON,
@@ -171,6 +173,13 @@ local arithmetic but boxes in arrays; so arm64's register file is
 stored in a `Bytes` of 32 × 8 (read and written with `get_int64_le`,
 unboxed), a choice measured in phase 5 against a plain `Int64.t
 array`.
+
+TinyRaspberryPi constrains this from the start (plan_pi.md, decision
+2): xv6's arm-pi3 enters AArch64 and drops to AArch32 on the same core,
+whose 32-bit registers are the low halves of x0-x14. So the two cores
+share one register file (the 64-bit one), the AArch32 core reading and
+writing the low halves; the phase 5 measurement decides its
+representation for both.
 
 ### 4. Memory: segments of Bytes behind a bus
 

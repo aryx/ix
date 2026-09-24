@@ -16,7 +16,7 @@ where it sits among the real systems). `yoann_notes/` is the author's.
 | TinyDb, the relational database | [plan_db.md](plans/plan_db.md) | [notes_db.md](tutorials/notes_db.md) | [notes_db_related_work.md](related-work/notes_db_related_work.md) | `database/`, `tiny/TinyDatabase.ml` |
 | TinyGit and TinyDiff, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
 | TinyArm, the ARM emulator (arm32, arm64, Linux system calls) | [plan_arm.md](plans/plan_arm.md) | [notes_arm.md](tutorials/notes_arm.md) | [notes_arm_related_work.md](related-work/notes_arm_related_work.md) | `machine/` (planned) |
-| TinyRaspberryPi, the Pi emulator (Pi1, then 64-bit) | [plan_pi.md](plans/plan_pi.md) | [notes_pi.md](tutorials/notes_pi.md) | [notes_pi_related_work.md](related-work/notes_pi_related_work.md) | `raspberry/` (planned) |
+| TinyRaspberryPi, the Pi emulator (9pi, 9pi2, xv6's six Pi ports) | [plan_pi.md](plans/plan_pi.md) | [notes_pi.md](tutorials/notes_pi.md) | [notes_pi_related_work.md](related-work/notes_pi_related_work.md) | `raspberry/` (planned) |
 
 ## The principles
 
