@@ -22,6 +22,8 @@ test: all
 	./tiny/TinyVCS_test.sh 10
 	./machine/tests/decode_check.py
 	./machine/tests/decode_check.py --random 5000
+	./machine/tests/decode_check.py -64
+	./machine/tests/decode_check.py -64 --random 5000
 	./machine/tests/random_blocks.py 3000 30
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when

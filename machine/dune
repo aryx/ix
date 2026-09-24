@@ -1,7 +1,7 @@
 ; claude: TinyArm (plan_arm.md): the CPU cores, the process, the CLI
 (library
  (name ix_machine)
- (modules Bits Memory Elf Arm32 Linux Host Cpu CLI)
+ (modules Bits Memory Elf Arm32 Arm64 Linux Host Cpu CLI)
  (libraries ix_core caps fpath unix))
 
 (executable
