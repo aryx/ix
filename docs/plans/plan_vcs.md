@@ -273,6 +273,16 @@ it.
    kept for printing, not dropped.
 4. Dates print in GMT (git9 prints Plan 9's `ctime` in the machine's
    zone).
+5. `commit` takes its date from `GIT_AUTHOR_DATE` when set, as C git
+   does (git9's `save -d` exists, but `commit.rc` does not pass it):
+   the tests' way to make both give the same hash.
+6. `walk` counts a path as checked in only if it is a *file* of the
+   commit. git9 tests it with `access()` in `HEAD/tree`, which a
+   directory passes: after a file becomes a directory, `commit.rc`
+   leaves a `T` line for the old file path, every later `walk`
+   reports it `R`, and the next commit removes the whole directory
+   (found by `session.py`; git9's own tests commit only once after the
+   change).
 
 Each with a test case of its own.
 

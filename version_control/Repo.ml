@@ -23,3 +23,21 @@ let find caps =
     else up (Filename.dirname dir) (rel + 1) (Filename.basename dir :: below)
   in
   up (Sys.getcwd ()) 0 []
+
+let cleanname path =
+  let abs = String.length path > 0 && path.[0] = '/' in
+  let parts = List.filter (fun p -> p <> "" && p <> ".") (String.split_on_char '/' path) in
+  let rev = List.fold_left (fun acc p ->
+    match p, acc with
+    | "..", x :: rest when x <> ".." -> rest
+    | "..", [] when abs -> []
+    | p, acc -> p :: acc) [] parts in
+  let s = String.concat "/" (List.rev rev) in
+  if abs then "/" ^ s else if s = "" then "." else s
+
+let relative t arg =
+  let root = Fpath.to_string t.root in
+  if String.length arg > 0 && arg.[0] = '/' then
+    if String.starts_with ~prefix:root arg then Some (cleanname ("./" ^ String.sub arg (String.length root) (String.length arg - String.length root)))
+    else None
+  else Some (cleanname ("./" ^ t.cwd ^ "/" ^ arg))

@@ -52,7 +52,8 @@ val hash : t -> Hash.t
 val mode_bits : mode -> int
 
 (* git's order of a tree's entries: by name, a directory's as if it
- * ended with '/' (so "a.c" < "a/" < "a0") *)
+ * ended with '/' (so "a.c" < "a/" < "a0"); a file and a directory of
+ * the same name are not equal, the file first (git9's entcmp) *)
 val compare_entries : entry -> entry -> int
 
 (* git9's notion of time: seconds plus the zone's offset, so that

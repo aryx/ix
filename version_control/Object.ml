@@ -39,7 +39,7 @@ let mode_of_bits m =
 
 let compare_entries a b =
   let key e = if e.mode = Dir || e.mode = Submodule then e.name ^ "/" else e.name in
-  if a.name = b.name then 0 else String.compare (key a) (key b)
+  String.compare (key a) (key b)
 
 (*****************************************************************************)
 (* Parsing *)

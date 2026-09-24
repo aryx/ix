@@ -115,6 +115,22 @@ let paint (t : Store.t) heads tails mode =
   | Range -> List.filter (fun h -> not (mem drop h) && not (mem skip h)) !range
   | Twixt -> List.filter (fun h -> not (mem drop h) && not (mem skip h)) (elements keep)
 
+let history t h =
+  let q = { a = [||]; len = 0 } and seen = Hashtbl.create 64 in
+  let enqueue h = match commit t h with
+    | Some c -> put q { h; color = Keep; time = Object.local_time c.committer }
+    | None -> error "%s: not a commit" (Hash.to_hex h) in
+  enqueue h;
+  let rec next () =
+    if q.len = 0 then Seq.Nil
+    else
+      let e = pop q in
+      let c = Option.get (commit t e.h) in
+      List.iter (fun p -> if not (Hashtbl.mem seen p) then (Hashtbl.add seen p (); enqueue p)) c.parents;
+      Seq.Cons ((e.h, c), next)
+  in
+  next
+
 let lca t a b = match paint t [ a ] [ b ] Lca with [ h ] -> Some h | _ -> None
 let twixt t heads tails = paint t heads tails Twixt
 

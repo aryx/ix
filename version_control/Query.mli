@@ -35,6 +35,10 @@ val lca : Store.t -> Hash.t -> Hash.t -> Hash.t option
  * set's order (what a pack must hold: git9's findtwixt) *)
 val twixt : Store.t -> Hash.t list -> Hash.t list -> Hash.t list
 
+(* a commit and its ancestors, newest first by git9's heap, each once
+ * (log's walk) *)
+val history : Store.t -> Hash.t -> (Hash.t * Object.commit) Seq.t
+
 (* the empty tree, 4b825dc642cb6eb9a060e54bf8d69288fbee4904 *)
 val empty_tree : Hash.t
 
