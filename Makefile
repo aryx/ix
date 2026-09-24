@@ -20,9 +20,10 @@ test-differential: all
 # The toolchain against goken (~/goken, built, with its libcs): C
 # programs with its libc, byte for byte and run; see linker/tests/
 # (golden.sh record re-records the fixtures' bytes from goken). The
-# compiler's trees against cck's, and its listings against 5c -O0's and
-# 7c -O0's; see compiler/tests/ (and TINYCC=1 linker/tests/libc.sh for
-# the executables tinycc and tinyld make).
+# compiler's listings against 5c -O0's and 7c -O0's, on the corpus, on
+# compiler/tests/c/ and on random programs; see compiler/tests/ (and
+# TINYCC=1 linker/tests/libc.sh for the executables tinycc and tinyld
+# make).
 GOKEN_W = /tmp/ix-goken
 test-goken: all
 	./linker/tests/libc.sh 5 $(GOKEN_W)/libc5 $(HOME)/goken/tests/c/hello_libc/*.c
@@ -36,4 +37,12 @@ test-goken: all
 clean:
 	dune clean
 
-.PHONY: all test test-differential test-goken clean
+# Build and test in a fresh Ubuntu, as GitHub Actions does
+# (.github/workflows/docker.yml).
+build-docker:
+	docker build -t "ix" .
+
+build-docker-ocaml5:
+	docker build -t "ix" --build-arg OCAML_VERSION=5.1.1 .
+
+.PHONY: all test test-differential test-goken clean build-docker build-docker-ocaml5

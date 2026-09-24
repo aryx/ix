@@ -29,6 +29,8 @@ are goken's `5c -O0` and `7c -O0`'s instruction for instruction. Each
 also has a free one-file variant in [`tiny/`](tiny/) (the compiler's
 is TinyC, a C subset through an intermediate language of its own). Their plans, tutorials and related-work notes are
 indexed in [docs/README.md](docs/README.md).
+`make build-docker` builds and tests ix in a fresh Ubuntu (the
+`Dockerfile`, which GitHub Actions runs with OCaml 4.14.2 and 5.1.1).
 See [docs/history.md](docs/history.md) for how the project came to be
 and how it got its name.
 

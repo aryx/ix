@@ -1914,3 +1914,39 @@ Claude designed new OCaml ADT types for statements, expressions, declarators, an
 **Yoann:**
 
 > maybe we could extend docs/README.md with those new principles about the code, to help clarity
+
+**Claude (summary):**
+
+Claude made operators variants (binop = A of arith | R of rel), statements a tree with separate lower pass. Claude made places, storage, struct tags variants; recursion replaced refs; desugaring reduced constructs; code clearer at 879 lines. Claude added Principle 12 to docs/README.md: closed sets are variants with exhaustive matching, trees are ADTs, desugar. Testing showed all 8 tests passing, 399 of 400 fuzz programs working; changes in commits 983f85a, af6a76c, bf5b346.
+
+------------------------------------------------------------------------
+
+## 2026-09-24 07:10
+
+**Yoann:**
+
+> ok given those new principles, maybe we should redo a past on the previous programs? as well as their TinyXxx.ml ?
+
+------------------------------------------------------------------------
+
+## 2026-09-24 07:11
+
+**Yoann:**
+
+> actually let's make a Dockerfile first
+
+------------------------------------------------------------------------
+
+## 2026-09-24 07:11
+
+**Yoann:**
+
+> and a make build-docker
+
+------------------------------------------------------------------------
+
+## 2026-09-24 07:11
+
+**Yoann:**
+
+> as well as a .github/workflows/docker.yml

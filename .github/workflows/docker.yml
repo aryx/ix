@@ -1,0 +1,21 @@
+# Build and test ix via docker (see the Dockerfile at the root).
+
+name: docker
+
+on:
+  pull_request: {}
+  workflow_dispatch: null
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ocaml:
+          - 4.14.2
+          - 5.1.1
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag "ix" --build-arg OCAML_VERSION=${{matrix.ocaml}} .
