@@ -2722,3 +2722,19 @@ Claude proposed continuing with builder's remaining string-to-variant conversion
 **Yoann:**
 
 > I agree with your assessments
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:13
+
+**Yoann:**
+
+> also the prompt-history.md seems to have very big agent-message section. You're supposed to just record a 5 lines summary I think each time instead of the whole reasoning
+
+------------------------------------------------------------------------
+
+## 2026-09-24 08:13
+
+**Yoann:**
+
+> the hook is failing?

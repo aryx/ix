@@ -103,18 +103,30 @@
 (* Types *)
 (*****************************************************************************)
 
+(* a rule's target: a name, or a pattern, the text around its % *)
+type target = Exact of string | Pattern of string * string
+
 type rule = {
-  target : string;         (* may contain one %, the stem *)
+  target : target;
   prereqs : string list;
-  recipe : string;         (* "" when none *)
+  recipe : string option;
 }
 
 type node = {
   name : string;
   deps : node list;
-  recipe : string;
-  stem : string;
+  make : make;
 }
+
+(* a node is a source, or made by a recipe (a pattern's, with its stem) *)
+and make = Source | Recipe of { text : string; stem : string }
+
+let target_of (s : string) =
+  match String.index_opt s '%' with
+  | None -> Exact s
+  | Some i -> Pattern (String.sub s 0 i, String.sub s (i + 1) (String.length s - i - 1))
+
+let show_target = function Exact s -> s | Pattern (pre, suf) -> pre ^ "%" ^ suf
 
 exception Error of string
 
@@ -193,7 +205,8 @@ let parse ~(read : string -> string option) (text : string) :
             in
             let body, rest = recipe [] rest in
             let prereqs = after j in
-            before j |> List.iter (fun target -> rules := { target; prereqs; recipe = body } :: !rules);
+            let recipe = if body = "" then None else Some body in
+            before j |> List.iter (fun t -> rules := { target = target_of t; prereqs; recipe } :: !rules);
             go rest
         | _ ->
             if String.trim l <> "" then error "not a rule nor a variable: %s" l;
@@ -206,12 +219,11 @@ let parse ~(read : string -> string option) (text : string) :
 (* The graph *)
 (*****************************************************************************)
 
-(* does pattern p (with one %) match name? the stem if so *)
-let matches (p : string) (name : string) : string option =
-  match String.index_opt p '%' with
-  | None -> if p = name then Some "" else None
-  | Some i ->
-      let pre = String.sub p 0 i and suf = String.sub p (i + 1) (String.length p - i - 1) in
+(* does a target match name? the stem if so, "" for an exact one *)
+let matches (t : target) (name : string) : string option =
+  match t with
+  | Exact s -> if s = name then Some "" else None
+  | Pattern (pre, suf) ->
       let n = String.length name and np = String.length pre and ns = String.length suf in
       if np + ns <= n && String.sub name 0 np = pre && String.sub name (n - ns) ns = suf
       then Some (String.sub name np (n - np - ns)) else None
@@ -223,18 +235,18 @@ let subst stem (p : string) = String.concat stem (String.split_on_char '%' p)
  * whose prerequisites can all be made. *)
 let graph (rules : rule list) ~(exists : string -> bool) (target : string) : node =
   let memo = Hashtbl.create 101 in
-  let exact, patterns = List.partition (fun r -> not (String.contains r.target '%')) rules in
+  let exact, patterns = List.partition (fun r -> match r.target with Exact _ -> true | Pattern _ -> false) rules in
   let rec node path used name =
     match Hashtbl.find_opt memo name with
     | Some n -> n
     | None ->
         if List.mem name path then
           error "cycle: %s" (String.concat " -> " (List.rev (name :: path)));
-        let mine = List.filter (fun r -> r.target = name) exact in
+        let mine = List.filter (fun r -> r.target = Exact name) exact in
         let prereqs = List.concat_map (fun r -> r.prereqs) mine in
-        let recipe, stem, extra, used =
-          match List.filter (fun (r : rule) -> r.recipe <> "") mine with
-          | [ r ] -> r.recipe, "", [], used
+        let make, extra, used =
+          match List.filter_map (fun (r : rule) -> r.recipe) mine with
+          | [ text ] -> Recipe { text; stem = "" }, [], used
           | _ :: _ :: _ -> error "two recipes for %s" name
           | [] ->
               let candidates =
@@ -246,17 +258,19 @@ let graph (rules : rule list) ~(exists : string -> bool) (target : string) : nod
                     | _ -> None)
               in
               (match candidates with
-               | [] -> "", "", [], used
-               | [ (r, stem) ] -> r.recipe, stem, List.map (subst stem) r.prereqs, r :: used
+               | [] -> Source, [], used
+               | [ (r, stem) ] ->
+                   let make = match r.recipe with Some text -> Recipe { text; stem } | None -> Source in
+                   make, List.map (subst stem) r.prereqs, r :: used
                | _ -> error "ambiguous: several patterns make %s" name)
         in
-        let n = { name; recipe; stem; deps = List.map (node (name :: path) used) (prereqs @ extra) } in
-        if recipe = "" && n.deps = [] && not (exists name) then error "don't know how to make %s" name;
+        let n = { name; make; deps = List.map (node (name :: path) used) (prereqs @ extra) } in
+        if make = Source && n.deps = [] && not (exists name) then error "don't know how to make %s" name;
         Hashtbl.replace memo name n;
         n
   (* can this name be made: a file, or a target of some rule? *)
   and makeable path used name =
-    exists name || List.exists (fun r -> r.target = name) exact
+    exists name || List.exists (fun r -> r.target = Exact name) exact
     || List.exists (fun r ->
          not (List.memq r used) && not (List.mem name path)
          && match matches r.target name with
@@ -317,28 +331,29 @@ let build (caps : < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.env; .. >)
     Array.to_list (CapUnix.environment caps ())
     @ Hashtbl.fold (fun k v acc -> (k ^ "=" ^ String.concat " " v) :: acc) vars []
   in
+  (* a source's recipe is "", as .tinybuild's stamps have it *)
   let stamp n =
-    Digest.to_hex (Digest.string (String.concat "\n" (n.recipe :: List.map (fun d ->
+    let recipe = match n.make with Source -> "" | Recipe r -> r.text in
+    Digest.to_hex (Digest.string (String.concat "\n" (recipe :: List.map (fun d ->
       d.name ^ " " ^ Hashtbl.find digests d.name) n.deps)))
   in
   (* a node is done: its digest is its file's, or, without one, its stamp *)
   let finish n = Hashtbl.replace digests n.name
       (match digest_file caps n.name with Some d -> d | None -> stamp n) in
   let decide n =
-    if n.recipe = "" then finish n
-    else if digest_file caps n.name <> None && Hashtbl.find_opt stamps n.name = Some (stamp n) then
-      finish n
-    else begin
-      let own = [ "target", [ n.name ]; "stem", [ n.stem ]; "prereq", List.map (fun d -> d.name) n.deps ] in
+    match n.make with
+    | Source -> finish n
+    | Recipe _ when digest_file caps n.name <> None && Hashtbl.find_opt stamps n.name = Some (stamp n) -> finish n
+    | Recipe { text; stem } ->
+      let own = [ "target", [ n.name ]; "stem", [ stem ]; "prereq", List.map (fun d -> d.name) n.deps ] in
       let shown = Hashtbl.copy vars in
       List.iter (fun (k, v) -> Hashtbl.replace shown k v) own;
-      print_endline (expand ~keep:true shown n.recipe);
+      print_endline (expand ~keep:true shown text);
       incr ran;
       if dry then Hashtbl.replace digests n.name ("dry " ^ n.name)
       else
         let own = List.map (fun (k, v) -> k ^ "=" ^ String.concat " " v) own in
-        Hashtbl.replace running (start caps (Array.of_list (own @ env)) n.recipe) n
-    end
+        Hashtbl.replace running (start caps (Array.of_list (own @ env)) text) n
   in
   let wait () =
     let pid, st = CapUnix.wait caps () in
@@ -383,7 +398,7 @@ let main (caps : Cap.all_caps) : int =
     let rules, vars = parse ~read:(read_file caps) text in
     let targets =
       match !targets, rules with
-      | [], r :: _ -> [ r.target ]
+      | [], r :: _ -> [ show_target r.target ]
       | [], [] -> error "nothing to build"
       | ts, _ -> ts
     in
