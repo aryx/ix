@@ -206,16 +206,23 @@ let search_back re text p =
 (* Commands *)
 (*****************************************************************************)
 
-type addr =
-  | Chars of int
-  | Line of int
-  | Search of bool * string        (* forward, pattern *)
-  | Dot
-  | Dollar
-  | Rel of int                     (* + or - *)
-  | Compound of char * addr list option * addr list option   (* , or ; *)
+(* #n n /re/ ?re? . $ *)
+type simple = Chars of int | Line of int | Search of dir * string | Dot | Dollar
+and dir = Fwd | Back
 
-type cmd = { addr : addr list option; op : op }
+(* a first simple address, then steps each relative to the one before
+ * in its direction; a step without an address is a line: 3+/re/-, -2 *)
+type chain = { first : simple option; steps : (dir * simple option) list }
+
+(* a,b and a;b (b from a), right to left: a,b,c is a,(b,c) *)
+(* old: sam's C list, simple addresses and Rel markers in one list, a +
+ * inserted between two addresses by the parser (under a guard), the
+ * direction an int carried along, and a look ahead in the evaluator to
+ * know if a sign stood alone; , and ; were chars, compared twice *)
+type addr = Chain of chain | Range of sep * chain option * addr option
+and sep = Comma | Semi
+
+type cmd = { addr : addr option; op : op }
 
 and op =
   | Text of where * string         (* a i c *)
@@ -223,7 +230,7 @@ and op =
   | Subst of int * string * string * bool
   | Print
   | Eq of bool                     (* =, =# *)
-  | Move of bool * addr list       (* m, or t *)
+  | Move of bool * chain          (* m, or t *)
   | Loop of loop * cmd
   | Block of cmd list
   | File of file * string
@@ -287,33 +294,36 @@ let rhs delim ~s =
   go ();
   Buffer.contents b
 
-let rec simple () : addr list option =
-  let one =
-    match skipbl () with
-    | '#' -> incr ip; Some (Chars (num ()))
-    | '0' .. '9' -> Some (Line (num ()))
-    | ('/' | '?') as c -> incr ip; Some (Search (c = '/', regexp c))
-    | '.' -> incr ip; Some Dot
-    | '$' -> incr ip; Some Dollar
-    | '+' -> incr ip; Some (Rel 1)
-    | '-' -> incr ip; Some (Rel (-1))
-    | _ -> None
-  in
-  match one with
-  | None -> None
-  | Some a -> (
-      match simple () with
-      | None -> Some [ a ]
-      (* 3/re/ is 3+/re/: the + is implied *)
-      | Some ((Line _ | Chars _ | Search _) :: _ as rest) when (match a with Rel _ -> false | _ -> true) -> Some (a :: Rel 1 :: rest)
-      | Some ((Dot | Dollar) :: _) -> raise (Error "bad address")
-      | Some rest -> Some (a :: rest))
-
-let rec compound () : addr list option =
-  let left = simple () in
+let simple () : simple option =
   match skipbl () with
-  | (',' | ';') as c -> incr ip; Some [ Compound (c, left, compound ()) ]
-  | _ -> left
+  | '#' -> incr ip; Some (Chars (num ()))
+  | '0' .. '9' -> Some (Line (num ()))
+  | ('/' | '?') as c -> incr ip; Some (Search ((if c = '/' then Fwd else Back), regexp c))
+  | '.' -> incr ip; Some Dot
+  | '$' -> incr ip; Some Dollar
+  | _ -> None
+
+let chain () : chain option =
+  (* . and $ only first *)
+  let later s = match s with Some (Dot | Dollar) -> raise (Error "address") | _ -> s in
+  let first = simple () in
+  let rec steps () =
+    match skipbl () with
+    | '+' -> incr ip; let s = later (simple ()) in (Fwd, s) :: steps ()
+    | '-' -> incr ip; let s = later (simple ()) in (Back, s) :: steps ()
+    (* 3/re/ is 3+/re/: the + is implied *)
+    | _ -> (match later (simple ()) with Some s -> (Fwd, Some s) :: steps () | None -> [])
+  in
+  match first, steps () with
+  | None, [] -> None
+  | first, steps -> Some { first; steps }
+
+let rec compound () : addr option =
+  let left = chain () in
+  match skipbl () with
+  | ',' -> incr ip; Some (Range (Comma, left, compound ()))
+  | ';' -> incr ip; Some (Range (Semi, left, compound ()))
+  | _ -> Option.map (fun c -> Chain c) left
 
 let rec parse () : cmd option =
   let addr = compound () in
@@ -360,7 +370,7 @@ let rec parse () : cmd option =
           Subst (n, re, t, g)
       | 'p' -> atnl (); Print
       | '=' -> let chars = peekc () = '#' in if chars then incr ip; atnl (); Eq chars
-      | 'm' | 't' -> (match simple () with Some a -> atnl (); Move (c = 'm', a) | None -> raise (Error "bad address"))
+      | 'm' | 't' -> (match chain () with Some a -> atnl (); Move (c = 'm', a) | None -> raise (Error "address"))
       | 'x' when (let n = peekc () in n = ' ' || n = '\t' || n = '\n') -> Loop (Lines, sub ())
       | 'x' | 'y' | 'g' | 'v' ->
           let re = regexp (delim ()) in
@@ -479,35 +489,35 @@ let next_match pat (q0, q1) forward =
     | Some c -> (c.(0), c.(1))
   end
 
-(* address.c's address(): a chain of simple addresses, each relative
- * to the one before in the direction of the last + or - *)
-let rec address (chain : addr list) (a : int * int) (sign : int) : int * int =
-  match chain with
-  | [] -> a
-  | x :: rest ->
-      let a, sign =
-        match x with
-        | Chars n ->
-            let q0, q1 = a in
-            let r = if sign = 0 then (n, n) else if sign < 0 then (q0 - n, q0 - n) else (q1 + n, q1 + n) in
-            if fst r < 0 || snd r > len () then raise (Error "address range");
-            r, sign
-        | Line n -> lineaddr n a sign, sign
-        | Search (fwd, pat) -> next_match pat a (if fwd then sign >= 0 else sign < 0), sign
-        | Dot -> !dot, sign
-        | Dollar -> (len (), len ()), sign
-        | Rel s ->
-            (* a + or - with nothing after it is a line *)
-            let a = match rest with [] | Rel _ :: _ -> lineaddr 1 a s | _ -> a in
-            a, s
-        | Compound (c, l, r) ->
-            let a1 = match l with Some l -> address l a 0 | None -> (0, 0) in
-            if c = ';' then dot := a1;
-            let a2 = match r with Some r -> address r (if c = ';' then a1 else a) 0 | None -> (len (), len ()) in
-            if snd a2 < fst a1 then raise (Error "address order");
-            (fst a1, snd a2), 0
-      in
-      address rest a sign
+(* address.c's address(): a simple address, absolute (sign 0) or
+ * relative to a in a direction (1 or -1) *)
+let simple_address (s : simple) (a : int * int) (sign : int) : int * int =
+  match s with
+  | Chars n ->
+      let q0, q1 = a in
+      let r = if sign = 0 then (n, n) else if sign < 0 then (q0 - n, q0 - n) else (q1 + n, q1 + n) in
+      if fst r < 0 || snd r > len () then raise (Error "address range");
+      r
+  | Line n -> lineaddr n a sign
+  | Search (d, pat) -> next_match pat a (if d = Fwd then sign >= 0 else sign < 0)
+  | Dot -> !dot
+  | Dollar -> (len (), len ())
+
+let chain_address (c : chain) (a : int * int) : int * int =
+  let a = match c.first with Some s -> simple_address s a 0 | None -> a in
+  List.fold_left (fun a (d, s) ->
+    let sign = if d = Fwd then 1 else -1 in
+    match s with Some s -> simple_address s a sign | None -> lineaddr 1 a sign) a c.steps
+
+let rec address (ad : addr) (a : int * int) : int * int =
+  match ad with
+  | Chain c -> chain_address c a
+  | Range (sep, l, r) ->
+      let a1 = match l with Some l -> chain_address l a | None -> (0, 0) in
+      if sep = Semi then dot := a1;
+      let a2 = match r with Some r -> address r (if sep = Semi then a1 else a) | None -> (len (), len ()) in
+      if snd a2 < fst a1 then raise (Error "address order");
+      (fst a1, snd a2)
 
 (*****************************************************************************)
 (* Running commands *)
@@ -532,7 +542,7 @@ let menu name = Printf.sprintf "%c-. %s\n" (if !modified then '\'' else ' ') nam
 let read_file name = try Some (In_channel.with_open_bin name In_channel.input_all) with Sys_error _ -> None
 
 let rec exec (c : cmd) : unit =
-  let a = match c.addr, c.op with None, File (Write, _) -> (0, len ()) | None, _ -> !dot | Some ad, _ -> address ad !dot 0 in
+  let a = match c.addr, c.op with None, File (Write, _) -> (0, len ()) | None, _ -> !dot | Some ad, _ -> address ad !dot in
   let q0, q1 = a in
   match c.op with
   | Text (w, s) ->
@@ -584,13 +594,15 @@ let rec exec (c : cmd) : unit =
   | Print -> Buffer.add_string out (String.sub !text q0 (q1 - q0)); dot := a
   | Eq chars -> print_posn a chars
   | Move (m, dest) ->
-      let d = address dest !dot 0 in
+      let d = chain_address dest !dot in
       let s = String.sub !text q0 (q1 - q0) in
       let p = snd d in
       if m then begin
-        if p < q0 then (change p p s; change q0 q1 "")
-        else if p >= q1 then (change q0 q1 ""; change p p s)
-        else raise (Error "move overlaps itself");
+        (* claude: as sam's move: after the range, or before it (its
+         * start included: 2m1 is allowed) *)
+        if q1 <= p then (change q0 q1 ""; change p p s)
+        else if q0 >= p then (change p p s; change q0 q1 "")
+        else raise (Error "addresses overlap");
         dot := (shift p - (if p >= q1 then q1 - q0 else 0), shift p - (if p >= q1 then q1 - q0 else 0) + String.length s)
       end
       else (change p p s; dot := (p, p + String.length s))

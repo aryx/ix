@@ -73,6 +73,34 @@ same "relative addresses" '2+p
 -
 1+/o/p
 $-/t/p'
+same "address steps" '2+-p
+3/e/p
+$-2p
+--p
+.3p
++p
+-p
+#2+p
+1;+p
+,p
+2-/o/p
+3.p
+2$p
++.p
+m
+2m'
+same "moves" '2m1
+,p
+2,3m1
+,p
+1,2m1
+,p
+1,2m2
+,p
+2m3
+,p
+3m0
+,p'
 same "compound addresses" '2,3p
 2;+1p
 ,2p
