@@ -4408,3 +4408,87 @@ Claude booted the kernel, verified with tests passing, and updated documentation
 **Yoann:**
 
 > great work! Let's commit this. Also can we change the toplevel tiny-machine to also offer a list of kernel to boot, here maybe v0 and v6?
+
+**Claude (summary):**
+
+Claude removed the idle-core optimization by manually editing, not git revert, preserving original commit a526d12.
+Added note to plan_pi.md detailing: the rule saved 66s in a rare case, missed xv6's scheduler loop.
+Identified that the idle rule never actually qualified because it didn't catch memory-preserving turns as expected.
+The better fix is in the kernel with wfi instruction—now an exercise in notes_pi.md for later work.
+Tested the revert: decoder passes, Pi4 tests pass on one and four cores, committed as 4d6093d.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:45
+
+**Yoann:**
+
+> ok, what's next?
+
+**Claude (summary):**
+
+Claude presented five next steps for Pi work, recommending test validation first. Option three was a web phase: running Pi1 with xv6 in a browser. This would use js_of_ocaml and require a canvas display and kernel image fetching. Claude emphasized this approach was visible and provided value for teaching. Other choices ranged from testing real Pi1 with serial cable to kernel development.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:49
+
+**Yoann:**
+
+> can we do a tiny version of this v6/, still in C, where we don't have to follow xv6 (or unix) but provide similar features to the user and developer?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:49
+
+**Yoann:**
+
+> what do you think? analyze and report
+
+**Claude (summary):**
+
+Claude recommended proceeding with tiny-os (t6) but revealed his original estimate was significantly optimistic about LOC count.
+Claude identified no-kernel-stack as strongest but found all system calls must return short counts and restart after blocking.
+Claude noted fixed partitions need machine modifications and FAT requires memory-resident tables plus separate mkfs mode outside budget.
+Claude presented spawn-versus-fork as trade-off between Unix contrast or shared programs, noting single-core trades multicore teaching capability.
+He budgeted 1,100-1,150 lines total and left the spawn-versus-fork choice to Yoann, emphasizing explicit trade-off statements.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:52
+
+**Yoann:**
+
+> ok we just finished tiny/tiny-os/v6/ in another session, with a kernel at around 2600 LOC, in C. Now, do you think a mini-xv6, in OCaml, following again xv6 would be clearer and shorter? I know C was designed for making kernel; not really OCaml, but can we design DSL in OCaml for low level memory adjustments and precise page table byte setting? Also we will need to adapt the runtime and probably rely on ~/ocaml-light/ which has a simpler runtime than modern OCaml which could make it easier to integrate. Note that I already tried in the past to write an xv6 like kernel in OCaml in ~/xix/kernel/, linking some principia/plan9 C library for graphics and low level booting stuff. Analyze and report what you think
+
+**Claude (summary):**
+
+Claude advised pursuing OCaml mini-xv6, finding it clearer and noticeably shorter than xv6's 5,540 lines of code.
+Claude identified three critical constraints: target Pi4 arm64 for 63-bit ints, use native compilation, and design non-preemptible kernel.
+Claude outlined a four-step de-risking plan: bare-metal OCaml on mini-qemu with UART output, plus traps and user syscalls.
+Claude specified later steps as multiple kernel stacks for processes and xv6-compatible file system structure for running user programs.
+Claude identified runtime plumbing as the chief risk, noting it had stalled the xix kernel project before processes ran.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:34
+
+**Yoann:**
+
+> let's try your spawn idea, and possibly other original one, including for academic research in OS, with nice refs, like you did with TinyDatabase.ml and the LLMDB simplification for immutable btree. let's do tiny-os/t6/ and see how things go; we can always revert or refine
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:37
+
+**Yoann:**
+
+> ok let's try first your derisk approach; but let's use ocaml-light; it will be simpler to interact with its runtime and set it up like I did in xix
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:38
+
+**Yoann:**
+
+> I would opt for Pi1 insead of Pi4

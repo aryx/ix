@@ -73,6 +73,9 @@
  * - {b The console's input} at -8(r0), and its interrupt; {b a disk}
  *   (-d image), 1 KB blocks moved at once, and its interrupt.
  *
+ * And t6 (tiny-os's free kernel) one more: status's bit 16, the window
+ * relocating (a user address plus base, below bound).
+ *
  * The CPU's hooks carry all of it (TinyLibCPU's [env]): the fetch, the
  * load and the store go through the pages or the window and find the
  * devices; sys raises a trap; a word the CPU does not know is csrr,
@@ -107,6 +110,10 @@ let read_only k = k = time || k = hartid || k = ip
 (* status: the mode, the interrupts' bit, and the two as they were
  * before the trap *)
 let supervisor_bit = 1 and ie = 2 and ps = 4 and pie = 8
+(* t6's (plan_tiny_os.md): the window relocates, as the 360's and the
+ * PDP-10's did: a user address a is base + a, below bound, a size.
+ * Kept through traps and eret, as it is the kernel's choice *)
+let relocate = 16
 
 (* an interrupt's cause is 4, its sources in tval: the bits of ip and
  * ie, the timer's the first (v0's only one) *)
@@ -193,7 +200,7 @@ let supervisor mc = mc.csr.(status) land supervisor_bit <> 0
 let trap mc cause_v tval_v epc_v =
   let c = mc.csr and st = mc.csr.(status) in
   c.(epc) <- epc_v; c.(cause) <- cause_v; c.(tval) <- tval_v;
-  c.(status) <- supervisor_bit lor (if st land supervisor_bit <> 0 then ps else 0) lor (if st land ie <> 0 then pie else 0);
+  c.(status) <- supervisor_bit lor (if st land supervisor_bit <> 0 then ps else 0) lor (if st land ie <> 0 then pie else 0) lor (st land relocate);
   mc.cpu.pc <- TinyLibCPU.addr c.(tvec)
 
 (*****************************************************************************)
@@ -202,8 +209,10 @@ let trap mc cause_v tval_v epc_v =
 
 let check mc a =
   let a = TinyLibCPU.addr a in
-  if not (supervisor mc) && (a < mc.csr.(base) || a >= mc.csr.(bound)) then raise (Trap (c_fault, a));
-  a
+  if supervisor mc then a
+  else if mc.csr.(status) land relocate <> 0 then (if a >= mc.csr.(bound) then raise (Trap (c_fault, a)); TinyLibCPU.addr (mc.csr.(base) + a))
+  else if a < mc.csr.(base) || a >= mc.csr.(bound) then raise (Trap (c_fault, a))
+  else a
 
 (* Pages (v6's): Sv32, RISC-V's 32-bit scheme, xv6's vm.c's. With satp's
  * top bit set, an address is 10 bits of the root table's index, 10 of
@@ -283,7 +292,7 @@ let extra caps mc (m : TinyLibCPU.machine) w =
         next ()
     | _ ->
         let st = c.(status) in
-        c.(status) <- (if st land ps <> 0 then supervisor_bit else 0) lor (if st land pie <> 0 then ie else 0);
+        c.(status) <- (if st land ps <> 0 then supervisor_bit else 0) lor (if st land pie <> 0 then ie else 0) lor (st land relocate);
         m.pc <- TinyLibCPU.addr c.(epc)
   end
 

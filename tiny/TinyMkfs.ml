@@ -34,7 +34,26 @@
  * little-endian and 4 bytes, as the kernel's C reads them.
  *
  * Only the kernel's C and this must agree on the format; mini-xv6, in
- * OCaml, could start from it (its xv6 format adds the log and nlink). *)
+ * OCaml, could start from it (its xv6 format adds the log and nlink).
+ *
+ * With -fat, t6's file system (tiny-os's free kernel), MS-DOS's idea:
+ *
+ *     tiny-mkfs -fat fs.img cat sh ...   the same, in the FAT format
+ *     tiny-mkfs -l fs.img                reads either
+ *
+ *     0             the superblock: a magic, the size in blocks, where
+ *                   the FAT starts, its blocks, the root's first block
+ *     1 .. 8        the FAT: a word per block of the disk, 0 free,
+ *                   0xffffffff a chain's end, else the next block of
+ *                   the file (the superblock's and the FAT's own blocks
+ *                   are chains' ends, so never free)
+ *     9 ..          the data: the root directory, then the files
+ *
+ * A directory is a chain of 32-byte entries: a name of at most 20
+ * bytes, a type (0 free, 1 a directory, 2 a file, 3 a device), the
+ * file's first block (0 when it has none) and its size. No inodes: a
+ * file is its entry, so it has one name; no "." or "..": t6 resolves
+ * ".." in a path by its text, as Plan 9's cleanname. *)
 
 let bsize = 1024
 let nblocks = 2048                        (* 2 MB *)
@@ -97,13 +116,63 @@ let make files =
   done;
   Bytes.to_string disk
 
+(* the FAT format *)
+let fat_magic = 0x7f5f0006
+let fatstart = 1 and fatblocks = nblocks * 4 / bsize
+let fat_data = fatstart + fatblocks
+
+let make_fat files =
+  let disk = Bytes.make (nblocks * bsize) '\000' in
+  let put32 at v = Bytes.set_int32_le disk at (Int32.of_int v) in
+  let fat b v = put32 ((fatstart * bsize) + (4 * b)) v in
+  let next = ref fat_data in
+  (* data in a chain of fresh blocks, its first returned (0 if empty) *)
+  let chain data =
+    let n = (String.length data + bsize - 1) / bsize in
+    if !next + n > nblocks then failwith "the disk is full";
+    let first = if n = 0 then 0 else !next in
+    for k = 0 to n - 1 do
+      let b = !next + k in
+      Bytes.blit_string data (k * bsize) disk (b * bsize) (min bsize (String.length data - (k * bsize)));
+      fat b (if k = n - 1 then 0xffffffff else b + 1)
+    done;
+    next := !next + n;
+    first in
+  let entry name typ first size =
+    if String.length name > 20 then failwith ("a name longer than 20: " ^ name);
+    let b = Bytes.make 32 '\000' in
+    Bytes.blit_string name 0 b 0 (String.length name);
+    List.iteri (fun k v -> Bytes.set_int32_le b (20 + (4 * k)) (Int32.of_int v)) [ typ; first; size ];
+    Bytes.to_string b in
+  let root = !next in
+  incr next;
+  let entries = List.map (fun (name, data) -> entry name t_file (chain data) (String.length data)) files in
+  let dir = String.concat "" (entries @ [ entry "console" t_dev 0 0 ]) in
+  if String.length dir > bsize then failwith "too many files for the root's block";
+  Bytes.blit_string dir 0 disk (root * bsize) (String.length dir);
+  fat root 0xffffffff;
+  for b = 0 to fat_data - 1 do fat b 0xffffffff done;
+  List.iteri (fun k v -> put32 (4 * k) v) [ fat_magic; nblocks; fatstart; fatblocks; root ];
+  Bytes.to_string disk
+
 (*****************************************************************************)
 (* Reading back *)
 (*****************************************************************************)
 
+let list_fat disk =
+  let get32 at = Int32.to_int (String.get_int32_le disk at) land 0xffffffff in
+  let root = get32 16 in
+  List.init (bsize / 32) (fun e ->
+    let at = (root * bsize) + (e * 32) in
+    let name = String.sub disk at 20 in
+    let name = match String.index_opt name '\000' with Some i -> String.sub name 0 i | None -> name in
+    if get32 (at + 20) = 0 then "" else Printf.sprintf "%-20s %d %4d %d\n" name (get32 (at + 20)) (get32 (at + 24)) (get32 (at + 28)))
+  |> String.concat ""
+
 let list disk =
   let get32 at = Int32.to_int (String.get_int32_le disk at) land 0xffffffff in
-  if get32 0 <> magic then failwith "not a tiny-os v6 file system";
+  if get32 0 = fat_magic then list_fat disk else begin
+  if get32 0 <> magic then failwith "not a tiny-os file system";
   let inode inum = (get32 (4 * 3) * bsize) + (inum * 64) in
   let block ino k = if k < ndirect then get32 (ino + 12 + (4 * k)) else get32 ((get32 (ino + 12 + (4 * ndirect)) * bsize) + (4 * (k - ndirect))) in
   let root = inode 1 in
@@ -116,15 +185,17 @@ let list disk =
     let ino = inode inum in
     Printf.sprintf "%-12s %2d %d %d\n" name inum (get32 ino) (get32 (ino + 8)))
   |> String.concat ""
+  end
 
 let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr; .. >) =
   let read f = Files.read caps (Fpath.v f) in
   try
     match List.tl (Array.to_list (CapSys.argv caps)) with
     | [ "-l"; img ] -> Console.print caps (list (read img)); 0
+    | "-fat" :: img :: files -> Files.write caps (Fpath.v img) (make_fat (List.map (fun f -> Filename.basename f, read f) files)); 0
     | img :: files when img.[0] <> '-' ->
         Files.write caps (Fpath.v img) (make (List.map (fun f -> Filename.basename f, read f) files)); 0
-    | _ -> Console.eprint caps "usage: tiny-mkfs fs.img file... | tiny-mkfs -l fs.img\n"; 2
+    | _ -> Console.eprint caps "usage: tiny-mkfs [-fat] fs.img file... | tiny-mkfs -l fs.img\n"; 2
   with Failure e | Sys_error e -> Console.eprint caps ("tiny-mkfs: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))
