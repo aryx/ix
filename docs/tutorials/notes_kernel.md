@@ -200,6 +200,50 @@ kernel's code turns inside out); OCaml 5's effects and fibers (the
 runtime does the stack switching; a much larger runtime than
 ocaml-light's).
 
+## 5b. Steps 4 and 5: the MMU and the timer (`kernel/step4/`, `step5/`)
+
+**The layout is xv6 arm-pi1's**, and it is what makes OCaml's ints
+enough: a user's addresses from 0 to 1GB (TTBR0, a 4KB table per
+process: TTBCR's N = 2), the kernel at KERNBASE, 0x80000000 (TTBR1,
+1MB sections), the devices at 0xFE000000, the vectors at 0xFFFF0000
+(address 0 is the user's). The kernel is linked at KERNBASE + 0x8000
+and loaded at 0x8000: its boot runs at the physical addresses, fills
+the kernel's table, turns the MMU on and jumps to the linked ones.
+OCaml never holds a kernel address: it reaches physical memory by
+physical address (below 512MB), and C adds KERNBASE.
+
+```
+  0           the user's program (a copy, its own pages)
+  (a page)    the guard: not mapped
+  then        the user's stack
+  < 1GB       the user's end (1GB itself is not a 31-bit int)
+  0x80000000  the kernel: its code, the OCaml heap, the processes' pages
+  0xFE000000  the devices
+  0xFFFF0000  the vectors
+```
+
+Two bugs on the way are worth knowing. `0x40000000`, written as the
+user's bound, is not an OCaml int on the Pi1 (the largest is
+0x3fffffff): it wrapped to `min_int`, and every address looked out of
+bounds. And the boot first pointed TTBR0 at the empty user table, then
+set N = 2: in between, the kernel's own addresses went through the
+empty table. QEMU let it pass, its TLB still holding them; mini-qemu,
+which empties its TLB on every TTBR write, faulted: the stricter
+emulator found the kernel's bug.
+
+**Page table entries are records**: `L1_fault | Coarse of int` for
+the first level, `L2_fault | Page of page` with `{ pa; perm; xn }` for
+the second, `encode` and `decode` the only places that know the bits.
+`walk`, `map`, `copyin` (a system call's buffer read only where the
+user could) and freeing a space are short functions over them.
+
+**The timer** (step 5) interrupts user mode only: the kernel runs with
+IRQs masked, so no interrupt lands in the kernel or in the collector.
+When nothing can run, the scheduler waits with `wfi` (a pending
+interrupt ends it, masked or not) and handles the tick itself. A tick
+wakes sleepers and preempts the running process; a spinning process
+that never makes a system call no longer keeps the CPU.
+
 ## 6. Memory as data: a small language of views
 
 The kernel handles memory the OCaml heap does not own: user pages, page

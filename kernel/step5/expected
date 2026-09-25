@@ -1,0 +1,12 @@
+mini-xv6: step 5, the timer: a tick every 10ms
+process 1: spinning, without a system call
+process 2: sleeping 5 ticks
+process 3: hello
+process 3, round 1
+process 3, round 2
+process 3, round 3
+process 2: awake; killing process 1
+mini-xv6: process 2 exited, status 20
+mini-xv6: process 1 killed
+mini-xv6: process 3 exited, status 30
+mini-xv6: no process left to run, after 7 ticks; 49152 pages free

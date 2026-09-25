@@ -253,3 +253,22 @@ Found on the way:
 - OCaml 1.07 has no inline records, field punning, `; _` in record
   patterns, labeled arguments, `_` as a `for` variable, `_` in number
   literals, `String.iter`: the kernel is written in 1.07's OCaml.
+
+**Step 5 done** (2026-09-25): `kernel/step5/`, the timer, under
+mini-qemu and QEMU the same. The BCM2835's system timer (compare 3, as
+xv6 arm-pi1) every 10ms on IRQ 3; the IRQ taken from user mode only
+(the kernel runs with IRQs masked, so an interrupt never lands in the
+kernel or the collector); with nothing to run, the scheduler waits with
+`wfi`, IRQs still masked (a pending interrupt ends it anyway), and
+handles the tick itself. A tick wakes the sleepers whose time has come
+and preempts the running process (xv6's yield); `sleep(n)` is n ticks,
+`kill` marks a process, which dies on its way back to user mode.
+`user.s`: process 1 spins without a system call (only preemption lets
+the others run), process 2 sleeps 5 ticks then kills it, process 3
+runs three rounds 2 ticks apart; the order of their lines depends on
+tick counts only (the same under QEMU's clock, which follows the
+host's time, and mini-qemu's, which follows the instructions), 7 ticks
+in all.
+
+The ladder is done: OCaml bare-metal, a trap, processes and the
+collector, the MMU, the timer. Next: `kernel/xv6/`, mini-xv6 itself.
