@@ -1,20 +1,10 @@
 (* mini-xv6's data (plan_kernel.md): the types every module shares, as
- * xv6's headers (proc.h, file.h, fs.h, mmu.h) are, but as OCaml says
+ * xv6's headers (proc.h, file.h, fs.h) are (a page's: kernel/lib's
+ * Page), but as OCaml says
  * them. A process's state carries what matters in it (what it sleeps
  * on); a file is a pipe's end, an inode, or a device, not a tag and
  * three pointers; what a process waits for is a channel, a variant
  * compared by what it names (xv6's is any address). *)
-
-(*****************************************************************************)
-(* Memory *)
-(*****************************************************************************)
-
-(* a page of a process's: its physical address, who may use it (the
- * guard page below the stack: the kernel only). Each board's Arch
- * encodes it in its page table entries *)
-type perm = Kernel_rw | User_ro | User_rw
-
-type page = { pa : int; perm : perm }
 
 (*****************************************************************************)
 (* Files *)

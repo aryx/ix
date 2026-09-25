@@ -4991,3 +4991,134 @@ The commit would proceed once both boards' full test suites completed with USB r
 **Yoann:**
 
 > what's the first step? Let's review it together
+
+**Claude (summary):**
+
+Claude waited for full `make check` on both boards, fixing session.py's screendump hang caused by QMP's single-client limitation.
+All Pi1 regression tests passed: xv6 graphics, 9pi console, and USB session with mouse movements.
+Committed as 95212da without pushing, with all tests passing.
+Began surveying principia's 9pi structure, system calls, networking, and boot flow to plan mini-9pi.
+Will write docs/plans/plan_9pi.md with staging and decisions once the survey completes.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:00
+
+**Yoann:**
+
+> ok
+
+**Claude (summary):**
+
+Claude reported the survey agent was running and awaiting its final report.
+Claude planned to write docs/plans/plan_9pi.md once the survey completed.
+Claude committed to presenting the key decisions that report would specify.
+The survey results would serve as a critical blocking prerequisite to proceed.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:02
+
+**Yoann:**
+
+> I'm ok with all your recommendations
+
+**Claude (summary):**
+
+Claude wrote docs/plans/plan_9pi.md from the survey showing 9pi is 67,500 lines, proposing six key design decisions.
+Yoann approved putting kernel/9pi on mini-xv6's Pi1 layer with shared parts moved to kernel/lib.
+Yoann said mini-9pi doesn't need byte-for-byte fidelity and some syscalls like shared segments can be postponed.
+Yoann approved using OCaml records and variants for 9P, referencing his own approach in ~/xix/.
+Yoann approved linking C pixel libraries first to reach rio, then porting them to OCaml.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:06
+
+**Yoann:**
+
+> 1. ok with kernel/lib, 2. does not have to be byte for byte; of the 40 syscalls, there are a few we can postpone (e.g., shared segment stuff). 3: yes use records and variants, as appropriate, for 9p you can also look what I did in ~/xix/. 4. yes, good strategey to first use the C pixel libs to reach rio sooner.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:06
+
+**Yoann:**
+
+> and then port to ocaml
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:06
+
+**Yoann:**
+
+> I like your plan
+
+**Claude (summary):**
+
+Claude would extract shared machine code from pi1/ into kernel/lib/, moving start.s, runtime.c, libc.c, usb.c, and OCaml modules.
+Stage A would implement the first Plan 9 process: the a.out loader, Tos structure, basic syscalls, and /boot/echo.
+Mini-xv6's make check must continue passing unchanged after the extraction to validate no regression from the refactoring.
+The 9P design would follow Yoann's xix Protocol_9P approach with variants for requests and responses, records for messages.
+Two stage E decisions on networking and principia remained open, not blocking earlier extraction and Stage A work.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:11
+
+**Yoann:**
+
+> sounds good; we can always unfactorize later if needed
+
+**Claude (summary):**
+
+Claude found Vec3 needs graphics_3d_geometry in 2D package, then began implementing ray tracing.
+Claude created Ray module wrapping Vec3-based geometry and Material module in geometry directory.
+Claude made Collide3d's ray functions wrap the new Ray module, keeping existing signatures.
+Claude implemented the -raytrace flag and "y" key in software backend, then added Povray rendering way.
+Full test suite ran with two failures; one was timing noise, other unrelated.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:37
+
+**Yoann:**
+
+> go for it
+
+**Claude (summary):**
+
+Claude implemented Solid and Raytrace modules for comprehensive pixel-by-pixel rendering comparison testing. Measured alignment differences between approaches: perspective rendering 2 pixels off, orthographic 162. Proposed generating golden images by ray-tracing Cubes3d at quarter resolution. Verified new ray tracer output against the ICFP spheres.gml example case. Started full test suite with results pending to confirm work before phase 2.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:56
+
+**Yoann:**
+
+> add a TODO in the code for now instead of regenerating all the golden which takes time. We can do it later. Then let's move to phase 2
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:57
+
+**Yoann:**
+
+> ideal we can get the examples Povray spheres rendered gradually with more complex algo but keep the ability to also get the past simpler version
+
+------------------------------------------------------------------------
+
+## 2026-09-25 22:58
+
+**Yoann:**
+
+> so one can compare the evolution with the same images rendered differently side by side
+
+------------------------------------------------------------------------
+
+## 2026-09-25 23:00
+
+**Yoann:**
+
+> let's commit and move forward

@@ -9,10 +9,6 @@
  *)
 (* See Types.mli *)
 
-type perm = Kernel_rw | User_ro | User_rw
-
-type page = { pa : int; perm : perm }
-
 type itype = Free | Dir | File | Devnode
 
 type inode = { inum : int; mutable iref : int }

@@ -21,7 +21,8 @@ own machines, the kernels, the code that is not OCaml):
 | mini-git, mini-diff and mini-merge3, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
 | mini-5i, the ARM emulator (arm32, arm64; Linux's or Plan 9's system calls) | [plan_arm.md](plans/plan_arm.md) | [notes_arm.md](tutorials/notes_arm.md) | [notes_arm_related_work.md](related-work/notes_arm_related_work.md) | `machine/`, `tiny/TinyCPUArm.ml`, `tiny/TinyLibArm.ml`, `tiny/TinyCPU.ml`, `tiny/TinyLibCPU.ml`, `tiny/TinyMachine.ml` |
 | mini-qemu, the Pi emulator (the Pi1 with 9pi and xv6; the Pi4 with xv6, one to four cores) | [plan_pi.md](plans/plan_pi.md) | [notes_pi.md](tutorials/notes_pi.md) | [notes_pi_related_work.md](related-work/notes_pi_related_work.md) | `raspberry/`, `mini-pi` |
-| mini-xv6, an xv6 in OCaml on the Pi1 (steps: OCaml bare-metal, a trap; processes next) | [plan_kernel.md](plans/plan_kernel.md) | [notes_kernel.md](tutorials/notes_kernel.md) | [notes_kernel_related_work.md](related-work/notes_kernel_related_work.md) | `kernel/` |
+| mini-xv6, an xv6 in OCaml on the Pi1 and the Pi4 (the ladder kernel/step1-5, then kernel/xv6: xv6's own programs, usertests, the screen, USB) | [plan_kernel.md](plans/plan_kernel.md) | [notes_kernel.md](tutorials/notes_kernel.md) | [notes_kernel_related_work.md](related-work/notes_kernel_related_work.md) | `kernel/` |
+| mini-9pi, principia's Plan 9 kernel in OCaml on the Pi1 (stage A: principia's echo runs; next rc, rio, networking) | [plan_9pi.md](plans/plan_9pi.md) | | | `kernel/9pi/` |
 | tiny-os, an OS for tiny-machine: v0 (a page of assembly), v6 (xv6 on it, in C) | [plan_tiny_os.md](plans/plan_tiny_os.md) | (to write) | (to write) | `tiny/tiny-os/` |
 
 ## The principles

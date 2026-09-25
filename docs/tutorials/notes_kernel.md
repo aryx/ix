@@ -370,7 +370,7 @@ does), the console compared with the step's `expected`. It is part of
 from a clone of ~/ocaml-light (`kernel/ocaml-light.sh`).
 
 mini-xv6 is tested against xv6's C kernel, ix's usual differential
-test: `kernel/xv6/session.py` types a shell session at sh's prompts,
+test: `kernel/lib/session.py` types a shell session at sh's prompts,
 under mini-qemu and QEMU; its transcript must be the C kernel's, byte
 for byte (`expected`, made from the C kernel by `make expected`). Then
 usertests must pass (`make check`; under mini-qemu, `make

@@ -14,9 +14,9 @@
 # qemu-system-arm is here), the console the same as stepN/expected; then
 # mini-xv6 itself on both boards (xv6/: its Makefile's check, BOARD=pi1
 # and pi4, a shell session the same as the xv6 port's C kernel's, and
-# usertests).
+# usertests); then mini-9pi (9pi/: its Makefile's check, plan_9pi.md).
 #
-# Usage: test.sh [stepN... xv6]
+# Usage: test.sh [stepN... xv6 9pi]
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 M=$HERE/../_build/default/raspberry/Main.exe
@@ -26,7 +26,7 @@ failures=0
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
 $HERE/ocaml-light.sh arm > /dev/null || { echo "test.sh: no ocaml-light for arm"; exit 1; }
 $HERE/ocaml-light.sh arm64 > /dev/null || { echo "test.sh: no ocaml-light for arm64"; exit 1; }
-steps=${@:-$(cd $HERE && ls -d step* xv6)}
+steps=${@:-$(cd $HERE && ls -d step* xv6 9pi)}
 for step in $steps; do
   d=$HERE/$step
   if [ $step = xv6 ]; then
@@ -34,6 +34,11 @@ for step in $steps; do
       make -C $d BOARD=$board check > $W/check.log 2>&1 || fail "xv6 $board: $(tail -5 $W/check.log)"
       grep '^ok' $W/check.log
     done
+    continue
+  fi
+  if [ $step = 9pi ]; then
+    make -C $d check > $W/check.log 2>&1 || fail "9pi: $(tail -5 $W/check.log)"
+    grep '^ok' $W/check.log
     continue
   fi
   make -C $d > $W/make.log 2>&1 || { fail "$step: not built"; tail -5 $W/make.log; continue; }

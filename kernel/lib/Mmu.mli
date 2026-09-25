@@ -2,7 +2,7 @@
  * a process's address space: its bytes [0, sz) through its own
  * translation table (TTBR0), a radix tree whose levels and entries are
  * the board's (Arch: the Pi1's two levels of ARMv6 descriptors, the
- * Pi4's three of ARMv8's). Pages are records (Types.page); only Arch
+ * Pi4's three of ARMv8's). Pages are records (Page.t); only Arch
  * knows the bits. *)
 
 val pgsize : int

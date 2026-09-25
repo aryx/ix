@@ -521,3 +521,12 @@ Found on the way:
 - OCaml 1.07: no labeled arguments (again), no negative number
   patterns, no `include` in a structure; and an `if ... then match`
   swallowing the outer match's last case (a Match_failure on the Pi4).
+
+**The machine moves to `kernel/lib/`** (2026-09-26, for mini-9pi:
+[`plan_9pi.md`](plan_9pi.md), decision 1): the boards (`lib/pi1/`,
+`lib/pi4/`), `runtime.c`, `libc.c`, `usb.c`, the OCaml `Machine`,
+`Screen`, `Arch`, `Mmu` and a new `Page` (the page types, out of xv6's
+`Types`), `session.py`, the font (`font1.bin`, now in the repo), and
+the build (`lib/kernel.mk`, which a kernel's Makefile includes after
+naming its modules and its disk image). `kernel/xv6/` keeps xv6's
+modules, its Makefile and its expected files; `make check` the same.

@@ -46,8 +46,8 @@ val get_entry : int -> int
 val set_entry : int -> int -> unit
 val encode_table : int option -> int
 val decode_table : int -> int option
-val encode_page : Types.page option -> int
-val decode_page : int -> Types.page option
+val encode_page : Page.t option -> int
+val decode_page : int -> Page.t option
 
 (*****************************************************************************)
 (* The trap frame, the calling convention *)

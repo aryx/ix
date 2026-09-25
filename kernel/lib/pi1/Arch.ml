@@ -10,7 +10,7 @@
 (* See Arch.mli: the Pi1's (ARMv6, arm32; xv6 arm-pi1's layout,
  * kernel/step4) *)
 
-open Types
+open Page
 
 let name = "pi1"
 

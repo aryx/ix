@@ -9,7 +9,7 @@
  *)
 (* See Arch.mli: the Pi4's (ARMv8, arm64; xv6 arm64-pi4's layout) *)
 
-open Types
+open Page
 
 let name = "pi4"
 

@@ -9,7 +9,7 @@
  *)
 (* See Mmu.mli *)
 
-open Types
+open Page
 
 module Phys = Machine.Phys
 
