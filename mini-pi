@@ -20,7 +20,8 @@
 #   ./mini-pi mini-xv6-pi1   ix's mini-xv6 (kernel/xv6/: xv6 in OCaml) on the
 #                       Pi1, with xv6 arm-pi1's fs.img; built first
 #   ./mini-pi mini-xv6-pi4   the same kernel on the Pi4, with xv6
-#                       arm64-pi4's fs.img (one core)
+#                       arm64-pi4's fs.img (one core); -g for both: its
+#                       console drawn in a window, a USB keyboard and mouse
 #
 # Options:
 #   -g   a window: the framebuffer (and for xv6, a USB keyboard: type in
@@ -81,18 +82,21 @@ case $1 in
   mini-xv6-pi1|mini-xv6-pi4)
     board=${1#mini-xv6-}
     dir=$ROOT/kernel/xv6
-    [ $graphics = 1 ] && { echo "mini-pi: mini-xv6 has no graphics"; exit 1; }
     if [ $build = 1 ]; then
       arch=arm; [ $board = pi4 ] && arch=arm64
       $ROOT/kernel/ocaml-light.sh $arch > /dev/null && make -C $dir BOARD=$board XV6=$XV6 > /dev/null || { echo "mini-pi: mini-xv6 not built"; exit 1; }
     fi
+    # -g: a window, its framebuffer console (Screen.ml: the console's
+    # output drawn), a USB keyboard and mouse (Usbhost.ml: type in the
+    # window or the terminal; the mouse moves the screen's cursor)
+    display=(-nographic); [ $graphics = 1 ] && display=(-serial mon:stdio -device usb-kbd -device usb-mouse)
     if [ $board = pi1 ]; then
       image=kernel-pi1.img
-      args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on -nographic)
+      args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on "${display[@]}")
     else
       image=kernel-pi4.elf
       smp=1; [ $qemu = 1 ] && smp=4
-      args=(-cpu cortex-a72 -M raspi4b -kernel $image -m 2G -smp $smp -nographic)
+      args=(-cpu cortex-a72 -M raspi4b -kernel $image -m 2G -smp $smp "${display[@]}")
     fi
     ;;
   9pi)
@@ -129,7 +133,10 @@ else
   say "console:  the PL011 (serial 0)"
   [ $1 = xv6-pi4 ] && [ $qemu = 0 ] && say "cores:    $cores of the Pi4's four (-smp $cores); the boot takes about $((20 * cores))s (kinit fills 128MB)"
 fi
-[ $graphics = 1 ] && say "display:  a window, and a USB keyboard$( [ $1 = 9pi ] && echo ' and mouse (a click grabs it, Ctrl-Alt-G lets it go)')"
+[ $graphics = 1 ] && case $1 in
+  mini-xv6-*) say "display:  a window, the console drawn there, a USB keyboard and mouse (a click grabs it, Ctrl-Alt-G lets it go)";;
+  *) say "display:  a window, and a USB keyboard$( [ $1 = 9pi ] && echo ' and mouse (a click grabs it, Ctrl-Alt-G lets it go)')";;
+esac
 say "command:  (cd $dir && $emulator ${args[*]})"
 say "quit:     Ctrl-A then x$( [ $graphics = 1 ] && echo ', or close the window')"
 

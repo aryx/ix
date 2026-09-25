@@ -85,9 +85,18 @@ void *memcpy(void *d, const void *s, size_t n)
   return d;
 }
 
+/* claude: a word at a time when both ends and the length are aligned
+ * (a framebuffer's scroll moves a megabyte and a half), else a byte */
 void *memmove(void *d, const void *s, size_t n)
 {
   char *dd = d; const char *ss = s;
+  if ((((unsigned long)dd | (unsigned long)ss | n) & (sizeof(long) - 1)) == 0) {
+    long *dw = d; const long *sw = s;
+    size_t k = n / sizeof(long);
+    if (dd < ss) while (k--) *dw++ = *sw++;
+    else { dw += k; sw += k; while (k--) *--dw = *--sw; }
+    return d;
+  }
   if (dd < ss) while (n--) *dd++ = *ss++;
   else { dd += n; ss += n; while (n--) *--dd = *--ss; }
   return d;

@@ -796,3 +796,31 @@ in it -- 11 screens, each byte for byte QEMU's.
   lets it go, as QEMU's window does; each poll's events synced as one.
   `./mini-pi -g 9pi` attaches the keyboard and the mouse, as `mk run`
   does: 9pi's console, and rio from it, used by hand.
+
+**Phase J, the Pi4's framebuffer** (2026-09-25): mini-qemu's raspi4b has
+the mailbox (0xFE00B880) and its framebuffer, as QEMU's: the same model
+as the Pi1's (`Devices.mailbox`, its board revision now a parameter:
+the Pi4 B 2GB's 0xb03115), the VideoCore's 64MB where QEMU puts them,
+min (RAM - 64MB, 1GB - 64MB) (0x3C000000 with 2GB), the framebuffer
+1MB into it; its window and QMP's screendump (`Qmp` now asks a record
+of the machine, the Pi1's board's or the Pi4's; the Pi4 has no USB).
+Its first user is mini-xv6's framebuffer console (plan_kernel.md): its
+screen after a shell session is **byte for byte QEMU's raspi4b's**
+(`kernel/xv6`'s `make BOARD=pi4 check`).
+
+**Phase J, the Pi4's USB, and a WFI fix** (2026-09-25): mini-qemu's
+raspi4b has the DWC2 (0xFE980000, SPI 73) with the hub and the devices
+of `-device usb-kbd`, `usb-mouse`, as QEMU's raspi4b does (its own
+ports' xHCI is not modelled, nor by QEMU); the window's and QMP's keys
+and mouse go there. Its first user is mini-xv6's USB driver
+(plan_kernel.md): a session typed on the keyboard, the mouse moved, the
+screen byte for byte QEMU's on both boards.
+
+**The Pi1's WFI** (a bug, found by mini-xv6 idle for some seconds):
+the board ran its batch of instructions to the end after a WFI, which
+only set a flag, and skipped the time to the next compare there -- in
+the middle of whatever came after the WFI. mini-xv6's tick read the
+counter, the batch ended, 10ms were skipped, and the compare written
+next was already past: the timer never matched again (until the
+counter wrapped, 71 minutes). A WFI now ends the batch where it is, as
+a core stops there, and the time is counted by the instructions run.

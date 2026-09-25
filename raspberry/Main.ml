@@ -153,12 +153,17 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
         | image -> image
         | exception Sys_error m -> Console.eprint caps ("mini-qemu: " ^ m ^ "\n"); exit 1 in
       if !machine = "raspi4b" then begin
-        let board = Pi4.create { ram_size = !ram; ips = !ips; log; serial = target 0; trace = !trace; cores = !smp } in
+        let board = Pi4.create { ram_size = !ram; ips = !ips; log; serial = target 0; trace = !trace; cores = !smp; usb_devices = !usb } in
         (match kernel with
          | Some k -> (try Pi4.load_elf board (read k) with Elf.Bad m -> Console.eprint caps ("mini-qemu: " ^ k ^ ": " ^ m ^ " (raspi4b: an ELF kernel)\n"); exit 1)
          | None -> Console.eprint caps "mini-qemu: raspi4b: -kernel only\n"; exit 2);
-        loop caps ~out ~graphics:false ~qmp:None ~run:(fun () -> Pi4.run board ~batch:4096) ~input:(Pi4.input board)
-          ~frame:(fun () -> None) ~key:(fun _ _ -> ()) ~pointer:(fun _ -> ()) ~qmp_poll:(fun _ ~quit:_ -> ())
+        (* claude: the Pi4's framebuffer in the window and QMP's
+         * screendump; the USB keyboard and mouse on its DWC2 *)
+        let machine = { Qmp.screen = (fun () -> Pi4.screen board); send_keys = Pi4.send_keys board;
+                        key = Pi4.key board; pointer = Pi4.pointer board } in
+        loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Pi4.run board ~batch:4096) ~input:(Pi4.input board)
+          ~frame:(fun () -> Pi4.frame board) ~key:(Pi4.key board) ~pointer:(Pi4.pointer board)
+          ~qmp_poll:(fun q ~quit -> Qmp.poll q machine ~quit)
       end
       else begin
         let console = match List.nth_opt serials 1 with Some ("stdio" | "mon:stdio") -> 1 | _ -> 0 in
@@ -170,7 +175,9 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
          | Some k, None -> Board.load_kernel board (read k)
          | None, None -> ());
         loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Board.run board ~batch:4096) ~input:(Board.input board)
-          ~frame:(fun () -> Board.frame board) ~key:(Board.key board) ~pointer:(Board.pointer board) ~qmp_poll:(fun q ~quit -> Qmp.poll q board ~quit)
+          ~frame:(fun () -> Board.frame board) ~key:(Board.key board) ~pointer:(Board.pointer board) ~qmp_poll:(fun q ~quit ->
+            Qmp.poll q { Qmp.screen = (fun () -> Board.screen board); send_keys = Board.send_keys board;
+                         key = Board.key board; pointer = Board.pointer board } ~quit)
       end
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

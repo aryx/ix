@@ -4899,3 +4899,95 @@ Claude added USB endpoint 1 support to mini-qemu's keyboard driver following QEM
 **Yoann:**
 
 > let;s commit
+
+**Claude (summary):**
+
+Claude committed the changes as `d9b956a` with a clean working tree. The commit included mini-qemu USB keyboard and mouse support with SDL input handling. It added the test `raspberry/tests/9pi_graphics.py` and updated plan_pi.md and plan_kernel.md. The `mini-pi -g 9pi` command now attaches keyboard and mouse devices. Claude proposed next building the Pi4 framebuffer in mini-qemu and then a framebuffer console for mini-xv6.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 20:19
+
+**Yoann:**
+
+> yes
+
+**Claude (summary):**
+
+Claude implemented the Pi4's framebuffer in mini-qemu with a graphics window for console display. Mini-xv6's screen output matched xv6's C kernel byte-for-byte on Pi1 and identically between QEMU and mini-qemu. The Screen.ml module is 49 lines, a pixel-for-pixel port of xv6's framebuffer console in 1024×768 16-bit display. Tests now compare screenshots and pass on both Pi1 and Pi4 boards against expected and C kernel references. Claude noted mini-xv6 lacks a USB keyboard driver, so keyboard input doesn't reach the graphics window.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 20:43
+
+**Yoann:**
+
+> the keyboard in the graphics window does not seem to work
+
+**Claude (summary):**
+
+Claude identified mini-xv6's graphics keyboard doesn't work because it lacks a USB driver and only reads the serial console input. Claude proposed implementing a DWC2 USB keyboard driver with hub enumeration and HID boot protocol as the real fix. Claude noted xHCI would be needed on Pi4 and mentioned serial port forwarding as a smaller alternative. Yoann chose to implement USB keyboard support for mini-xv6 rather than the workaround. Yoann also extended the scope to add mouse support.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 20:44
+
+**Yoann:**
+
+> let's add usb keyboard for mini-xv6, and a mouse
+
+------------------------------------------------------------------------
+
+## 2026-09-25 21:25
+
+**Yoann:**
+
+> would be good to have a make loc like in ~/playground
+
+**Claude (summary):**
+
+Claude added USB keyboard and mouse to mini-xv6 using the shared DWC2 controller on both boards.
+The implementation was usb.c with 58 lines of C and Usbhost.ml with 127 lines of OCaml.
+Both boards under QEMU and mini-qemu now handle USB keyboard input and mouse cursor movement correctly.
+Claude also fixed a real mini-qemu bug where idle Pi1 kernels could lose timers during wfi.
+The mini-pi -g flag now attaches USB peripherals; make check tests run but nothing is committed yet.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 21:39
+
+**Yoann:**
+
+> excellent! Let's commit
+
+------------------------------------------------------------------------
+
+## 2026-09-25 21:51
+
+**Yoann:**
+
+> ok let's start mini-9pi? We probably want a plan to this one? and to address graphics and networking this time?
+
+**Claude (summary):**
+
+Claude waited for background `make check` runs on both boards to finish before committing.
+Pi1 regression tests for xv6 graphics and 9pi.py already pass on the new wfi code.
+Fixed session.py's QMP screendump hang by keeping one persistent connection per test session.
+Started mini-9pi planning with a survey of principia's 9pi component structure and boot sequence.
+The commit would proceed once both boards' full test suites completed with USB regression passing.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 21:56
+
+**Yoann:**
+
+> let's start the raytracing teaching plan
+
+------------------------------------------------------------------------
+
+## 2026-09-25 21:56
+
+**Yoann:**
+
+> what's the first step? Let's review it together

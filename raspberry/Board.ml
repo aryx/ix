@@ -149,7 +149,7 @@ let create cfg =
   let dev base size name d = Memory.map_device mem ~base:(io + base) ~size name d in
   dev 0x3000 0x1c "systimer" (Systimer.device timer);
   dev 0xb200 0x28 "intc" (Intc.device intc);
-  dev 0xb880 0x40 "mailbox" (Devices.mailbox ~mem ~ram_size:cfg.ram_size ~vc_base:(cfg.ram_size - vc_size) ~on_framebuffer:(Framebuffer.configure fb));
+  dev 0xb880 0x40 "mailbox" (Devices.mailbox ~mem ~ram_size:cfg.ram_size ~vc_base:(cfg.ram_size - vc_size) ~board_rev:0x900021 ~on_framebuffer:(Framebuffer.configure fb));
   dev 0x200000 0xb4 "gpio" (Devices.regs ());
   dev 0x201000 0x1000 "uart0" (Pl011.device uart);
   dev 0x215000 0x100 "aux" (Miniuart.device mini);
@@ -231,7 +231,14 @@ let run t ~batch =
   let st = t.st in
   let svc st _ = Arm32.take st Arm32.Supervisor_call ~ret:(st.Arm32.r.(15) - 4) in
   let mask = (1 lsl cache_bits) - 1 in
-  for _ = 1 to batch do
+  (* claude: a WFI ends the batch where it is (the core waits there):
+   * the time skipped at the WFI, not later in the batch between two
+   * instructions -- mini-xv6's tick read the counter, the batch went
+   * on to its end, 10ms were skipped there, and the compare it then
+   * wrote was already past: no tick ever again *)
+  let executed = ref 0 in
+  while !executed < batch && not t.wfi do
+    incr executed;
     let pc = st.next in
     if (not st.f_off) && Intc.fiq t.intc then Arm32.take st Arm32.Fiq ~ret:(pc + 4)
     else if (not st.i_off) && Intc.irq t.intc then Arm32.take st Arm32.Irq ~ret:(pc + 4)
@@ -269,6 +276,7 @@ let run t ~batch =
     t.wfi <- false;
     if not (Intc.irq t.intc || Intc.fiq t.intc) then Systimer.advance t.timer (min 10000 (max 1 (Systimer.until_next t.timer)))
   end;
+  let batch = !executed in
   t.instructions <- t.instructions + batch;
   let ticks = t.time_left + batch in
   Systimer.advance t.timer (ticks / t.cfg.ips);

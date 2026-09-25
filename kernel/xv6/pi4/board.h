@@ -30,3 +30,8 @@
  * pages above are the processes') */
 #define UART_BASE (KERNBASE + 0xFE201000UL)
 #define HEAP_LIMIT (KERNBASE + 0x10000000UL)
+
+/* usb.c's: the peripherals (0xFE000000) seen from KERNBASE; the
+ * VideoCore's address of the RAM (a DMA's) */
+#define IO_BASE (KERNBASE + 0xFE000000UL)
+#define BUS_ALIAS 0xC0000000UL

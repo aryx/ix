@@ -31,7 +31,7 @@
 @ (4KB, 1024 entries), the rest through TTBR1.
 
 	.equ	KERNBASE, 0x80000000
-	.equ	RAM_MB, 448			@ the RAM mapped at KERNBASE
+	.equ	RAM_MB, 512			@ the RAM mapped at KERNBASE: all of it (the GPU's part: the framebuffer QEMU gives)
 	.equ	SECTION, 0x402			@ a section, AP 01 (kernel read-write), domain 0
 	.equ	DEVICE, 0x412			@ the same, XN: the devices'
 
@@ -257,6 +257,13 @@ swtch:
 fs_image:
 	.incbin	"build/pi1/fs.img"
 fs_image_end:
+
+@ the console's font, xv6 arm-pi1's (font1.bin: 128 characters, 16 bytes
+@ each, a row a byte, its bit 0 the leftmost pixel)
+	.balign	16
+	.global	font_image
+font_image:
+	.incbin	"build/pi1/font.bin"
 
 @ the page tables of the boot: the kernel's (16KB, 16KB aligned), the
 @ vectors' second-level table (1KB) and page, the empty user table

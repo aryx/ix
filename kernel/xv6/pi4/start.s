@@ -282,6 +282,13 @@ fs_image:
 	.incbin	"build/pi4/fs.img"
 fs_image_end:
 
+// the console's font, xv6 arm-pi1's (font1.bin: 128 characters, 16 bytes
+// each, a row a byte, its bit 0 the leftmost pixel)
+	.balign	16
+	.global	font_image
+font_image:
+	.incbin	"build/pi4/font.bin"
+
 // the tables: the kernel's, the boot's, the empty one (TTBR0 when no
 // process runs); cleared with the bss
 	.bss

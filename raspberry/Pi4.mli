@@ -34,6 +34,7 @@ type config = {
   serial : char -> unit;               (* the PL011 *)
   trace : int;                         (* the first N instructions to the log, or every -N-th; 0 none *)
   cores : int;                         (* 1 to 4 *)
+  usb_devices : string list;           (* -device usb-kbd, usb-mouse, in order *)
 }
 
 type t
@@ -54,3 +55,15 @@ val run : t -> batch:int -> unit
 
 (* the time, in instructions of a core *)
 val instructions : t -> int
+
+(* the framebuffer (the mailbox's): as RGB (QMP's screendump), as the
+ * kernel wrote it (the window); None before a kernel asks for one *)
+val screen : t -> (int * int * string) option
+val frame : t -> (Framebuffer.geometry * string) option
+
+(* the USB keyboard and mouse (-device usb-kbd, usb-mouse, on the DWC2):
+ * a key now, keys pressed then released (QMP's send-key), the mouse's
+ * input *)
+val key : t -> int -> bool -> unit
+val send_keys : t -> int list -> hold:int -> unit
+val pointer : t -> Usb.input list -> unit

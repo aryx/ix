@@ -18,6 +18,10 @@
 #include <mlvalues.h>
 #include <alloc.h>
 #include <string.h>
+#include "board.h"
+
+#define MAILBOX 0x2000B880UL
+#define REG(pa) (*(volatile unsigned *)((unsigned long)(pa) + 0xDE000000UL))   /* the devices at 0xFE000000 */
 
 void exit(int status);
 extern unsigned long *cur_tf;
@@ -27,7 +31,6 @@ void user_fault(int ec, unsigned long esr, unsigned long elr, unsigned long far)
 /* The primitives */
 /*****************************************************************************/
 
-#define KERNBASE 0x80000000u
 #define P2V(pa) ((volatile unsigned char *)((unsigned)(pa) + KERNBASE))
 
 /* physical memory: bytes and words (a word's bit 31 lost: Int32 when it
@@ -105,6 +108,47 @@ value uart_rx_enable(value unit)
 value machine_halt(value unit) { (void)unit; exit(0); return Val_unit; }
 
 /*****************************************************************************/
+/* The framebuffer (the mailbox's channel 1, as xv6 arm-pi1's initframebuf) */
+/*****************************************************************************/
+
+/* the request: width, height, virtual width and height, pitch, depth,
+ * offsets x and y, the buffer and its size (the last three answered) */
+static volatile unsigned fbinfo[10] __attribute__((aligned(16)));
+static unsigned fb_pitch_;
+
+/* a framebuffer of [w] x [h] pixels of [depth] bits: its physical
+ * address, or 0. The request's address is the VideoCore's (BUS_ALIAS);
+ * the answer is one too on the board (its alias masked off), a physical
+ * one under QEMU. (On the real board the data cache would need a clean
+ * around the exchange; the emulators have none.) */
+value fb_init(value w, value h, value depth)
+{
+  unsigned long a = (unsigned long)fbinfo - KERNBASE;
+  int k;
+  fbinfo[0] = Long_val(w); fbinfo[1] = Long_val(h); fbinfo[2] = Long_val(w); fbinfo[3] = Long_val(h);
+  fbinfo[5] = Long_val(depth);
+  for (k = 4; k < 10; k++) if (k != 5) fbinfo[k] = 0;
+  while (REG(MAILBOX + 0x18) & 0x80000000)        /* FULL */
+    ;
+  REG(MAILBOX + 0x20) = (unsigned)((a + BUS_ALIAS) & 0xfffffff0) | 1;
+  for (;;) {
+    unsigned v;
+    while (REG(MAILBOX + 0x18) & 0x40000000)      /* EMPTY */
+      ;
+    v = REG(MAILBOX);
+    if ((v & 0xf) == 1) break;
+  }
+  fb_pitch_ = fbinfo[4];
+  return Val_long(fbinfo[8] & 0x3fffffff);
+}
+
+value fb_pitch(value unit) { (void)unit; return Val_long(fb_pitch_); }
+
+/* the font (start.s): its physical address */
+extern char font_image[];
+value font_base(value unit) { (void)unit; return Val_long((unsigned long)font_image - KERNBASE); }
+
+/*****************************************************************************/
 /* The timer */
 /*****************************************************************************/
 
@@ -171,4 +215,13 @@ void kfault(int kind, unsigned lr)
   puthex(far);
   puts_("\n");
   exit(3);
+}
+
+/* a delay of [us] microseconds: the system timer's counter (CLO) */
+void delay_us(unsigned us)
+{
+  volatile unsigned *clo = (volatile unsigned *)(IO_BASE + 0x3004);
+  unsigned t = *clo;
+  while (*clo - t < us)
+    ;
 }

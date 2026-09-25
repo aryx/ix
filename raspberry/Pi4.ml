@@ -9,7 +9,8 @@
  *)
 (* See Pi4.mli *)
 
-type config = { ram_size : int; ips : int; log : string -> unit; serial : char -> unit; trace : int; cores : int }
+type config = { ram_size : int; ips : int; log : string -> unit; serial : char -> unit; trace : int; cores : int;
+                usb_devices : string list }
 
 (* a generic timer: CTL (enable 1, mask 2), the compare value *)
 type timer = { mutable ctl : int; mutable cval : int64; ppi : int }
@@ -37,6 +38,9 @@ type t = {
   mem : Memory.t;
   gic : Gic.t;
   uart : Pl011.t;
+  fb : Framebuffer.t;                  (* claude: the mailbox's (phase J) *)
+  keyboard : Usb.device option;        (* claude: on the DWC2's hub *)
+  mouse : Usb.device option;
   cfg : config;
   (* the time: the instructions a core has run since the reset (the
    * cores run side by side: a round of turns is one quantum of time),
@@ -171,6 +175,25 @@ let create (cfg : config) =
   let dev base size name d = Memory.map_device mem ~base ~size name d in
   dev 0xfe200000 0x100 "gpio" (Devices.regs ());
   dev 0xfe201000 0x1000 "uart0" (Pl011.device uart);
+  (* claude: the mailbox and its framebuffer, as QEMU's raspi4b: the
+   * VideoCore's 64MB below 1GB (min (RAM - 64MB, 1GB - 64MB):
+   * hw/arm/bcm2835_peripherals.c), the framebuffer 1MB into it, the
+   * board revision a Pi 4 B's with 2GB (hw/arm/raspi4b.c) *)
+  let fb = Framebuffer.create mem in
+  let vc_size = 64 * 1024 * 1024 in
+  let vc_base = min (ram - vc_size) (0x40000000 - vc_size) in
+  dev 0xfe00b880 0x40 "mailbox"
+    (Devices.mailbox ~mem ~ram_size:ram ~vc_base ~board_rev:0xb03115 ~on_framebuffer:(Framebuffer.configure fb));
+  (* claude: the second USB controller, the DWC2 (QEMU's raspi4b has
+   * it, the Pi4's own ports are on the xHCI): its hub, the devices of
+   * -device on its ports in order; its interrupt SPI 73 (id 105) *)
+  let devices = List.mapi (fun i name ->
+    let path = Printf.sprintf "1.%d" (i + 1) in
+    name, (if name = "usb-mouse" then Usb.mouse ~path () else Usb.keyboard ~path ())) cfg.usb_devices in
+  let keyboard = List.assoc_opt "usb-kbd" devices and mouse = List.assoc_opt "usb-mouse" devices in
+  let root = if devices = [] then None else Some (Usb.hub ~path:"1" (List.map snd devices)) in
+  let clock = ref (fun () -> 0) in
+  dev 0xfe980000 0x10000 "usb" (Dwc2.device (Dwc2.create ~mem ~root ~line:(fun on -> Gic.set gic 105 on) ~now:(fun () -> !clock ())));
   dev 0xff841000 0x1000 "gicd" (Gic.distributor gic);
   dev 0xff842000 0x2000 "gicc" (Gic.cpu_interface gic);
   let core id =
@@ -179,7 +202,9 @@ let create (cfg : config) =
     { id; st = Arm64.create mem; mmu; virt = { ctl = 0; cval = 0L; ppi = 27 }; phys = { ctl = 0; cval = 0L; ppi = 30 };
       regs = Hashtbl.create 16; sleep = Awake; event = false;
       tags = Array.make (1 lsl cache_bits) (-1); code = Array.make (1 lsl cache_bits) (Arm64.Undefined 0) } in
-  let t = { cores = Array.init cfg.cores core; mem; gic; uart; cfg; now = 0; skipped = 0; undefined = []; inq = Queue.create () } in
+  let t = { cores = Array.init cfg.cores core; mem; gic; uart; fb; keyboard; mouse; cfg; now = 0; skipped = 0; undefined = [];
+            inq = Queue.create () } in
+  clock := (fun () -> Int64.to_int (count t) * 2 / 125);
   Array.iter (fun c ->
     c.st.read_sysreg <- read_sysreg t c;
     c.st.write_sysreg <- write_sysreg t c;
@@ -326,3 +351,14 @@ let run t ~batch =
     update_timers t
   end;
   feed t
+
+(* claude: the framebuffer, as the window and QMP's screendump see it *)
+let screen t = Framebuffer.rgb t.fb
+let frame t = Framebuffer.raw t.fb
+
+(* claude: the USB keyboard and mouse's input (the window's, QMP's): a
+ * key now, keys pressed and released (queued: each reported), the
+ * mouse's motion and buttons *)
+let key t usage down = Option.iter (fun k -> Usb.key k usage down) t.keyboard
+let send_keys t usages ~hold:_ = List.iter (fun u -> key t u true) usages; List.iter (fun u -> key t u false) usages
+let pointer t inputs = Option.iter (fun m -> Usb.pointer m inputs) t.mouse

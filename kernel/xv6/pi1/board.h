@@ -16,6 +16,9 @@
 #define TF_PSR 16
 #define TF_USER_PSR 0x10        /* USR, IRQs and FIQs on (no FIQ is ever enabled) */
 
+/* the kernel's addresses: the RAM seen from KERNBASE (start.s) */
+#define KERNBASE 0x80000000UL
+
 #define CONTEXT_REGS 10
 #define CONTEXT_SP 8
 #define CONTEXT_LR 9
@@ -24,3 +27,8 @@
  * heap's end (KERNBASE + 256MB: the pages above are the processes') */
 #define UART_BASE 0xFE201000UL
 #define HEAP_LIMIT 0x90000000UL
+
+/* usb.c's: the peripherals (0x20000000) where start.s maps them; the
+ * VideoCore's address of the RAM (a DMA's) */
+#define IO_BASE 0xFE000000UL
+#define BUS_ALIAS 0x40000000UL

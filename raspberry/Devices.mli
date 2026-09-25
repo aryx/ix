@@ -20,6 +20,7 @@ val unassigned : log:(string -> int -> unit) -> Memory.device
  * at once on MAIL0 (0x00, EMPTY in 0x18) -- channel 8's property tags
  * (the ARM's and VideoCore's memory, revisions, clocks, power),
  * channel 1's framebuffer (at vc_base + 1MB, as QEMU's) -- channel 0
- * never, as QEMU. Buffers by bus address (the top two bits dropped). *)
-val mailbox : mem:Memory.t -> ram_size:int -> vc_base:int -> on_framebuffer:(Framebuffer.geometry -> unit) -> Memory.device
+ * never, as QEMU. Buffers by bus address (the top two bits dropped).
+ * [board_rev] the board revision it says (the Pi1's, the Pi4's). *)
+val mailbox : mem:Memory.t -> ram_size:int -> vc_base:int -> board_rev:int -> on_framebuffer:(Framebuffer.geometry -> unit) -> Memory.device
 

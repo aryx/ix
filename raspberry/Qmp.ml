@@ -58,14 +58,22 @@ let ok = `Assoc [ "return", `Assoc [] ]
 let error desc = `Assoc [ "error", `Assoc [ "class", `String "GenericError"; "desc", `String desc ] ]
 
 (* one command, its answer *)
-let execute board ~quit json =
+(* claude: what QMP asks of a machine: the Pi1's board, the Pi4's *)
+type machine = {
+  screen : unit -> (int * int * string) option;
+  send_keys : int list -> hold:int -> unit;
+  key : int -> bool -> unit;
+  pointer : Usb.input list -> unit;
+}
+
+let execute (board : machine) ~quit json =
   let open Yojson.Safe.Util in
   let args = try member "arguments" json with _ -> `Null in
   match (try member "execute" json |> to_string with _ -> "") with
   | "qmp_capabilities" -> ok
   | "query-status" -> `Assoc [ "return", `Assoc [ "running", `Bool true; "status", `String "running" ] ]
   | "screendump" ->
-      (match Board.screen board, (try args |> member "filename" |> to_string with _ -> "") with
+      (match board.screen (), (try args |> member "filename" |> to_string with _ -> "") with
        | _, "" -> error "screendump: no filename"
        | None, _ -> error "no framebuffer yet"
        | Some s, f -> Out_channel.with_open_bin f (fun oc -> output_string oc (Framebuffer.ppm s)); ok)
@@ -74,7 +82,7 @@ let execute board ~quit json =
       let hold = try args |> member "hold-time" |> to_int with _ -> 100 in
       let usages = List.filter_map (fun k -> try usage_of_qcode (k |> member "data" |> to_string) with _ -> None) keys in
       if List.length usages <> List.length keys then error "send-key: an unknown key"
-      else (Board.send_keys board usages ~hold:(hold * 1000); ok)
+      else (board.send_keys usages ~hold:(hold * 1000); ok)
   | "input-send-event" ->
       (* claude: QEMU's input events: relative motion and buttons to the
        * mouse (then synced, as one QMP command is), keys to the
@@ -107,16 +115,16 @@ let execute board ~quit json =
       if List.mem None parsed then error "input-send-event: an event not handled"
       else begin
         let parsed = List.filter_map Fun.id parsed in
-        List.iter (function `Key (u, down) -> Board.key board u down | _ -> ()) parsed;
+        List.iter (function `Key (u, down) -> board.key u down | _ -> ()) parsed;
         let inputs = List.filter_map (function `Pointer i -> Some i | _ -> None) parsed in
-        if inputs <> [] then Board.pointer board inputs;
+        if inputs <> [] then board.pointer inputs;
         ok
       end
   | "quit" -> quit (); ok
   | c -> `Assoc [ "error", `Assoc [ "class", `String "CommandNotFound"; "desc", `String ("The command " ^ c ^ " has not been found") ] ]
 
 (* new clients greeted, complete lines run *)
-let poll t board ~quit =
+let poll t (board : machine) ~quit =
   (match Unix.accept t.server with
    | fd, _ -> Unix.set_nonblock fd; send fd greeting; t.clients <- (fd, Buffer.create 256) :: t.clients
    | exception Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) -> ());

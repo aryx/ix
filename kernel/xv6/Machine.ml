@@ -53,10 +53,16 @@ external halt : unit -> unit = "machine_halt"
 (* the file system's image *)
 external fs_base : unit -> int = "fs_base"
 external fs_size : unit -> int = "fs_size"
+external fb_init : int -> int -> int -> int = "fb_init"
+external fb_pitch : unit -> int = "fb_pitch"
+external font_base : unit -> int = "font_base"
 
 (* the console's output, as it is (xv6-riscv's: no CR added before a
  * newline, as xv6 arm-pi1's uartputc did) *)
-let putc c = uart_putc (Char.code c)
+(* the screen's console, once there is one (Screen.init) *)
+let screen = ref (fun (_ : char) -> ())
+
+let putc c = uart_putc (Char.code c); !screen c
 let print s = for i = 0 to String.length s - 1 do putc s.[i] done
 
 (* the kernel's end: xv6's panic *)

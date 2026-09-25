@@ -59,8 +59,18 @@ external halt : unit -> unit = "machine_halt"
 external fs_base : unit -> int = "fs_base"
 external fs_size : unit -> int = "fs_size"
 
+(* the framebuffer: [fb_init w h depth], its physical address (0: none);
+ * its pitch (bytes a row); the console's font (start.s) *)
+external fb_init : int -> int -> int -> int = "fb_init"
+external fb_pitch : unit -> int = "fb_pitch"
+external font_base : unit -> int = "font_base"
+
 (* the console's output, as it is (no CR before a newline: xv6-riscv's) *)
 val putc : char -> unit
+
+(* the output's other way: the framebuffer's console (Screen), once
+ * there is one *)
+val screen : (char -> unit) ref
 val print : string -> unit
 
 (* the message, the machine stopped (xv6's panic) *)

@@ -81,14 +81,14 @@ SRC = $(OCL)/src
 # __sprintf_chk, no 64-bit file offsets' open64 beyond what libc.c stubs
 CFLAGS = $(CPU) -O2 -ffreestanding -fno-builtin -fno-pie -fno-stack-protector -U_FORTIFY_SOURCE -w \
   -I$(BOARD) -I$(SRC)/byterun -I$(SRC)/config -I$(SRC)/asmrun -DNATIVE_CODE -DTARGET_$(TARGET) -DSYS_linux_elf
-ML = Types Machine Arch Mmu Proc Fs File Exec Syscall Main
+ML = Types Machine Screen Arch Mmu Proc Fs File Usbhost Exec Syscall Main
 
 # asmrun's Makefile's COBJS, less main.o (libc.c's kmain starts OCaml)
 RUNTIME = startup fail roots signals misc freelist major_gc minor_gc memory alloc compare ints \
   floats str array io extern intern hash sys parsing gc_ctrl terminfo md5 obj lexing printexc \
   backtrace callback weak compact custom
 RTOBJS = $(RUNTIME:%=$(B)/rt_%.o) $(B)/rt_$(TARGET).o
-OBJS = $(B)/start.o $(B)/ocaml.o $(RTOBJS) $(B)/runtime.o $(B)/machine.o $(B)/libc.o
+OBJS = $(B)/start.o $(B)/ocaml.o $(RTOBJS) $(B)/runtime.o $(B)/usb.o $(B)/machine.o $(B)/libc.o
 
 all: $(IMAGE)
 
@@ -109,7 +109,7 @@ $(B)/%.o: %.c $(BOARD)/board.h | $(B)
 $(B)/machine.o: $(BOARD)/machine.c $(BOARD)/board.h | $(B)
 	$(CROSS)gcc $(CFLAGS) -c $< -o $@
 
-$(B)/start.o: $(BOARD)/start.s $(B)/fs.img | $(B)
+$(B)/start.o: $(BOARD)/start.s $(B)/fs.img $(B)/font.bin | $(B)
 	$(CROSS)as $(ASFLAGS) $< -o $@
 
 $(B)/ocaml.o: $(filter-out Arch.ml,$(ML:%=%.ml)) $(ML:%=%.mli) $(BOARD)/Arch.ml | $(B)
@@ -122,6 +122,13 @@ $(B)/fs.img: $(FS) | $(B)
 	cp $< $@
 
 $(FS): ;
+
+# the console's font, xv6 arm-pi1's (its framebuffer console's)
+FONT = $(XV6)/kernel/data/arm-pi/font1.bin
+$(B)/font.bin: $(FONT) | $(B)
+	cp $< $@
+
+$(FONT): ;
 
 $(B)/kernel.elf: $(OBJS) $(BOARD)/kernel.ld
 	$(CROSS)ld -T $(BOARD)/kernel.ld -o $@ $(OBJS)
@@ -148,15 +155,40 @@ SESSION = ls "cat README" "echo hello world" "mkdir d" "ls d" "ln README d/r" "l
 # start: not the session's)
 from_init = sed -n '/init: starting sh/,$$p' $(1) | grep -v '^hart [0-9] starting$$'
 
+# the Pi1's screen too: xv6 arm-pi1's C kernel draws its console there
+# (arm64-pi4's does not)
 expected: | $(B)
-	./session.py --timeout 300 --out $(B)/c.txt $(SESSION) -- $(QEMU) $(C_KERNEL)
+	./session.py --timeout 300 --out $(B)/c.txt $(if $(filter pi1,$(BOARD)),--screendump $(B)/c.ppm) $(SESSION) -- $(QEMU) $(C_KERNEL)
 	$(call from_init,$(B)/c.txt) > expected-$(BOARD)
+	$(if $(filter pi1,$(BOARD)),gzip -n -9 < $(B)/c.ppm > expected-$(BOARD).ppm.gz)
 
-check: $(IMAGE)
-	./session.py --timeout 300 --out $(B)/mini.txt $(SESSION) -- $(MINIQEMU) $(BOOT)
+# the USB keyboard and mouse (Usbhost.ml): a session typed on the
+# keyboard, the mouse moved; its text what the same lines typed on the
+# serial line print (expected-$(BOARD)'s ls, then its echo)
+USB = -device usb-kbd -device usb-mouse
+USB_SESSION = ls "echo hello world"
+$(B)/usb-expected.txt: expected-$(BOARD) | $(B)
+	sed -n '1,/^\$$ cat README$$/p' $< | sed '$$d' > $@
+	sed -n '/^\$$ echo hello world$$/,/^hello world$$/p' $< >> $@
+	echo '$$ ' >> $@
+
+# the session, and the screen after it: the console on the framebuffer
+# (Screen.ml), the same under mini-qemu and QEMU, and on the Pi1 the
+# same as xv6 arm-pi1's C kernel's (expected-pi1.ppm.gz)
+check: $(IMAGE) $(B)/usb-expected.txt
+	./session.py --timeout 300 --out $(B)/mini.txt --screendump $(B)/mini.ppm $(SESSION) -- $(MINIQEMU) $(BOOT)
 	$(call from_init,$(B)/mini.txt) | diff - expected-$(BOARD) && echo "ok xv6 $(BOARD): a session under mini-qemu, as xv6's"
-	./session.py --timeout 60 --out $(B)/qemu.txt $(SESSION) -- $(QEMU) $(QEMU_BOOT)
+	./session.py --timeout 60 --out $(B)/qemu.txt --screendump $(B)/qemu.ppm $(SESSION) -- $(QEMU) $(QEMU_BOOT)
 	$(call from_init,$(B)/qemu.txt) | diff - expected-$(BOARD) && echo "ok xv6 $(BOARD): a session under QEMU, as xv6's"
+	cmp $(B)/mini.ppm $(B)/qemu.ppm && echo "ok xv6 $(BOARD): the screen under mini-qemu, as under QEMU"
+	$(if $(wildcard expected-$(BOARD).ppm.gz),gzip -dc expected-$(BOARD).ppm.gz | cmp - $(B)/qemu.ppm && echo "ok xv6 $(BOARD): the screen as xv6's C kernel draws it")
+	./session.py --timeout 300 --usb --move "200,-100;-60,40" --out $(B)/mini-usb.txt --screendump $(B)/mini-usb.ppm \
+	  $(USB_SESSION) -- $(MINIQEMU) $(BOOT) $(USB)
+	./session.py --timeout 120 --usb --move "200,-100;-60,40" --out $(B)/qemu-usb.txt --screendump $(B)/qemu-usb.ppm \
+	  $(USB_SESSION) -- $(QEMU) $(QEMU_BOOT) $(USB)
+	$(call from_init,$(B)/mini-usb.txt) | diff - $(B)/usb-expected.txt && $(call from_init,$(B)/qemu-usb.txt) | diff - $(B)/usb-expected.txt \
+	  && echo "ok xv6 $(BOARD): a session typed on the USB keyboard, under mini-qemu and QEMU"
+	cmp $(B)/mini-usb.ppm $(B)/qemu-usb.ppm && echo "ok xv6 $(BOARD): the screen after the USB mouse moved, under mini-qemu as under QEMU"
 	./session.py --until "ALL TESTS PASSED" --timeout 300 --out $(B)/usertests.txt usertests -- \
 	  $(QEMU) $(QEMU_BOOT) && echo "ok xv6 $(BOARD): usertests under QEMU"
 

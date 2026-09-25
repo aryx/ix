@@ -455,3 +455,69 @@ Found on the way:
 xv6 arm64-pi4's kernel is 4,562 lines of C and assembly; mini-xv6's,
 for both boards, 1,036 of OCaml, 66 of Arch, and 345 of shared C with
 318 (Pi1) and 374 (Pi4) of the board's C and assembly.
+
+**The console on the screen** (2026-09-25): mini-xv6 draws its console
+on the framebuffer, on both boards (`Screen.ml`, 49 lines): xv6
+arm-pi1's `gpuputc` and `initframebuf` pixel for pixel -- 1024 x 768 x
+16 bits asked on the mailbox's channel 1 (machine.c's `fb_init`, the
+request by the board's VideoCore alias, 0x40000000 or 0xC0000000), a
+character an 8 x 16 cell of arm-pi1's font (`font1.bin`, embedded as
+fs.img is), 15 rows drawn white on black, the screen scrolled a row at
+the bottom. Everything the console prints goes there too
+(`Machine.screen`). `make check` takes a screendump after the session
+(`session.py --screendump`, QMP): the screen is the same under
+mini-qemu and QEMU on both boards, and on the Pi1 **the same as xv6
+arm-pi1's C kernel's** (`expected-pi1.ppm.gz`, 15KB, made by `make
+expected`: the session scrolls both kernels' differing boot lines off).
+The Pi1's boot now maps all 512MB (QEMU's framebuffer is at 0x1c100000,
+above the 448MB it mapped); libc's memmove copies a word at a time
+when it can (a scroll moves 1.5MB). `mini-pi -g mini-xv6-pi1` (or
+`-pi4`) shows it in a window, the input still the terminal's.
+
+**A USB keyboard and mouse** (2026-09-25; the author: "the keyboard in
+the graphics window does not seem to work ... let's add usb keyboard
+for mini-xv6, and a mouse"). Both boards have the DWC2 controller (the
+Pi1's only one; the Pi4's second, QEMU's raspi4b models it, its own
+ports being on the xHCI), so one driver:
+
+- `usb.c` (58 lines, shared): the controller's two operations, the host
+  started (the root port powered and reset) and one transfer on channel
+  0 polled to its end through a DMA page -- in C because DWC2's
+  registers use bits 31 and 30, past the Pi1's OCaml ints;
+- `Usbhost.ml` (127 lines): the protocol, as CSUD finds its keyboard,
+  simpler: the hub on the root port (QEMU puts one there) given an
+  address and configured, each of its ports powered and reset, each
+  device's configuration read for a boot HID interface (a keyboard, a
+  mouse) and its interrupt endpoint, the device set up (address,
+  configuration, boot protocol, idle 0). Everything polled: at each
+  tick, each device's interrupt endpoint read (a NAK: nothing new; the
+  kernel is never interrupted, so polling is its style). The keyboard's
+  keys newly down are the console's input, as the UART's characters are
+  (`File.intr`: a US layout, Shift, Control); the mouse moves the
+  screen's cursor (`Screen.pointer`: an arrow drawn by inverting the
+  pixels under it, hidden while the console draws). No mouse device
+  file: xv6's userland has no reader for one, nor a mknod.
+
+`make check` types a session on the USB keyboard and moves the mouse
+(`session.py --usb --move`: QMP's send-key and input-send-event): its
+text the same as on the serial line, its screen the same under
+mini-qemu and QEMU, on both boards. `mini-pi -g mini-xv6-pi1` (or
+`-pi4`) attaches both: type in the window.
+
+Found on the way:
+
+- **mini-qemu's Pi1 lost its timer** in an idle kernel: a WFI set a flag
+  and the batch went on; the time skipped at the batch's end could fall
+  between mini-xv6's tick reading the counter and writing the next
+  compare, which was then already past: no tick ever again (after some
+  seconds idle; the tests kept the CPU busy or finished first). Now a
+  WFI ends the batch where it is (plan_pi.md).
+- **QEMU's QMP serves one client** (`-qmp unix:...,server,nowait`), and
+  takes no second one after the first closes: session.py's screendump,
+  on a connection of its own after the keys', waited forever under QEMU
+  (mini-qemu accepts any number). One connection a session.
+- The SETUP packet: the request packed as bmRequestType << 8 |
+  bRequest must go out bmRequestType first, its direction bit 15.
+- OCaml 1.07: no labeled arguments (again), no negative number
+  patterns, no `include` in a structure; and an `if ... then match`
+  swallowing the outer match's last case (a Match_failure on the Pi4).

@@ -21,7 +21,8 @@ let tick_us = 10000
 let tick () =
   Machine.timer_arm tick_us;
   incr Proc.ticks;
-  Proc.wakeup Ticks
+  Proc.wakeup Ticks;
+  Usbhost.poll ()
 
 (* what is pending, handled (the UART's input drained: its interrupt
  * ends with it); whether the timer was *)
@@ -92,7 +93,9 @@ let () =
   Callback.register "irq" irq;
   Callback.register "fault" fault;
   Callback.register "process_start" process_start;
+  Screen.init ();
   Machine.print "mini-xv6\n";
+  Usbhost.init ();
   Proc.idle := (fun () -> Machine.wait_interrupt (); ignore (devices ()));
   Machine.timer_arm tick_us;
   Machine.uart_rx_enable ();

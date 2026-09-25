@@ -35,6 +35,7 @@ type mailbox = {
   mem : Memory.t;
   ram_size : int;
   vc_base : int;
+  board_rev : int;
   (* the framebuffer's configuration, QEMU's defaults: 640x480, 16 bits *)
   mutable xres : int; mutable yres : int; mutable vxres : int; mutable vyres : int; mutable bpp : int; mutable pixo : int;
 }
@@ -62,7 +63,7 @@ let property m buf =
         (match tag with
          | 0x00000001 -> answer [ 346337 ]                      (* firmware revision, QEMU's *)
          | 0x00010001 -> answer [ 0 ]                            (* board model *)
-         | 0x00010002 -> answer [ 0x900021 ]                     (* board revision: a Pi 1 A+ *)
+         | 0x00010002 -> answer [ m.board_rev ]                  (* board revision: 0x900021 a Pi 1 A+, 0xb03115 a Pi 4 B 2GB *)
          | 0x00010003 -> answer [ 0x33221100; 0x5544 ]           (* MAC address *)
          | 0x00010004 -> answer [ 0x12345678; 0 ]                (* serial *)
          | 0x00010005 -> answer [ 0; m.vc_base ]                 (* ARM memory *)
@@ -102,8 +103,8 @@ let framebuffer m buf =
   put 36 (pitch m * m.vyres);
   configure m
 
-let mailbox ~mem ~ram_size ~vc_base ~on_framebuffer =
-  let m = { answers = Queue.create (); on_framebuffer; mem; ram_size; vc_base;
+let mailbox ~mem ~ram_size ~vc_base ~board_rev ~on_framebuffer =
+  let m = { answers = Queue.create (); on_framebuffer; mem; ram_size; vc_base; board_rev;
             xres = 640; yres = 480; vxres = 640; vyres = 480; bpp = 16; pixo = 1 } in
   let read off _ =
     match off with
