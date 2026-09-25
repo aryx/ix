@@ -4376,3 +4376,19 @@ Claude identified the kernel mapped low below 16 MB, identity-mapped into every 
 **Yoann:**
 
 > worth it? if it's just at boot, is it worth it? Does it save lots of time given the added complexity?
+
+**Claude (summary):**
+
+Claude recommended removing a boot-time optimization that saved only 66 seconds on four cores with 128 MB kernel.
+Claude proposed documenting learnings in plan_pi.md: why scheduler spin can't be caught cheaply and the dropped rule.
+The optimization added a hot-path hook, config field, and 25 explanatory lines for only marginal gains overall.
+Claude noted xv6 should use `wfi` for idle cores instead, a better teaching moment than emulator changes.
+Claude offered to remove via normal edit and commit, preserving the prompt history file separately.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:19
+
+**Yoann:**
+
+> yes let's remove it and add a note.
