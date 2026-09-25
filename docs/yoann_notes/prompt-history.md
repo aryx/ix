@@ -4140,3 +4140,19 @@ Committed changes as 4662e19 to plan_pi.md step G5; all existing tests still pas
 **Yoann:**
 
 > ok what's next?
+
+**Claude (summary):**
+
+Claude recommended separating OS sources from the toolchain in a new tiny/tiny-os/ directory.
+Claude structured the directory with kernel.tm, user programs, C runtime files, and a Makefile.
+Claude moved kernel and program files from old paths to tiny/tiny-os/ and updated libc headers.
+Claude updated the README and preserved old paths with notes explaining the relocations.
+Claude fixed the TinyCPU/TinyMachine reference and made make test build tiny-os to catch breaks.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:07
+
+**Yoann:**
+
+> ok sounds good, 2 then 1
