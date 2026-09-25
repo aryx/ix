@@ -168,9 +168,6 @@ type state = {
   mutable write_sysreg : int -> int64 -> unit;
   mutable system : state -> t -> unit;
   mutable monitor : int;
-  (* called with a store's physical address before it is done (the
-   * Pi4's idle cores, plan_pi.md) *)
-  mutable watch : (int -> unit) option;
 }
 
 exception Unimplemented of int * int  (* the word, its address *)

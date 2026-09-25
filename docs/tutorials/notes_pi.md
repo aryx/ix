@@ -358,9 +358,10 @@ passes too, in 50 minutes; QEMU's threaded cores take 3.
 
 ## 10. Exercises
 
-- A core that spins without progress (reading, comparing, branching
-  back, no store) can give up the rest of its turn: detect it, as an
-  optimization that can be turned off, and measure `-smp 4`.
+- A kernel whose idle loop does `wfi`: xv6's scheduler, changed so
+  that a pass finding nothing to run waits for an interrupt; measure
+  `-smp 4` before and after (plan_pi.md: spinning cores detected by
+  the emulator instead, tried and removed).
 - GICD_SGIR: software interrupts between cores, and a kernel that
   wakes an idle core with one instead of letting it spin.
 - The Pi4 as its firmware starts it: at EL2, `kernel8.img` read from

@@ -705,18 +705,34 @@ quantum of time. xv6 arm64-pi4 boots its four harts and passes
   runs three tests on four cores (67s). "hopefully most cores would be
   idle" (the author): not with this kernel.
 
-**Idle cores, an optimization** (2026-09-25; the author: "let's do the
-idle-core opti", "if it does not add too many LOC"). A section of
-`Pi4` that `-no-idle-skip` turns off (12 lines of code, and a store
-hook in Arm64): a core whose turn stored nothing (memory, device,
-system register) skips its next turns, 1, 2, 4 ... 16 rounds, and runs
-at once on a pending interrupt or event. xv6's four-core boot on the
-real kernel: 92s, now 26s (one core: 21s), the secondaries' spin on
-`started` while core 0 fills 128MB. Not caught: the scheduler's idle
-loop (the 16 tests on four cores: 318s, now 306s). Tried first and
-dropped: "the turn left the memory as it found it" (every word stored
-to back to its value): a turn ends in the middle of a pass over the
-process table, a lock held, a counter up, the loop variable spilled on
-the stack, so no turn qualified, and the log slowed the tests to 401s.
-Making it work would take guesses (the stack ignored, values that came
-back) that would slow real work too.
+**Idle cores: an optimization tried, then removed** (2026-09-25). The
+author asked for it ("let's do the idle-core opti", "if it does not
+add too many LOC"), then, seeing what it bought, whether it was worth
+it; it was not, and it is gone (a526d12 has it). What was learned:
+
+- **The rule kept for a while**: a core whose turn stored nothing
+  (memory, device, system register) was only looking, and skipped its
+  next turns, 1 to 16 rounds, until an interrupt or event was pending
+  for it (12 lines in Pi4, a store hook in Arm64's `store`, a
+  `-no-idle-skip` flag). It caught xv6's secondaries spinning on
+  `started` while core 0 fills 128MB at boot: the real kernel's
+  four-core boot, 92s, became 26s (one core: 21s).
+- **What it did not catch**: the scheduler's idle loop, where four
+  cores spend their time afterwards (the 16 fast tests on four cores:
+  318s, then 306s). That loop stores: a lock taken and released, a
+  counter up and down, its loop variable on the stack.
+- **The rule tried first**: "the turn left the memory as it found it"
+  (every word stored to back to its old value). No turn qualified: a
+  turn ends in the middle of a pass over the process table, a lock
+  held, the counter up, the variable changed; and the log of old
+  values slowed the tests to 401s. Making it work takes guesses (the
+  stack ignored, values that came back) that would slow real work.
+- **Why removed**: 66 seconds saved, only for a four-core boot of the
+  128MB kernel, which only `./mini-pi -c 4` does; not the default
+  (one core), not the tests (4MB); for a hook on every store, a flag,
+  and a second path through the turns, none of it about the Pi.
+- **The better fix is the kernel's**: a scheduler that `wfi`s when it
+  finds nothing to run makes an idle core free here (a sleeping core
+  skips its turns, and the time jumps when all sleep) and on the board
+  (less power) -- an exercise for a kernel, tiny-os's or a fork of
+  xv6's, not the emulator's.

@@ -22,8 +22,7 @@
  * ignored); our own: -ips N (instructions per simulated microsecond,
  * default 30), -d (log unassigned I/O and undefined instructions to
  * standard error), -trace N (the Pi4: the first N instructions run,
- * or with -N every N-th, to standard error), -no-idle-skip (the Pi4:
- * idle cores take their turns too). On a terminal, standard input is raw and Ctrl-A x
+ * or with -N every N-th, to standard error). On a terminal, standard input is raw and Ctrl-A x
  * quits, as QEMU's -nographic. *)
 
 open Ix_raspberry
@@ -84,7 +83,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
   let kernel = ref None and machine = ref "" and ips = ref 30 and debug = ref false and kbd = ref false in
   let qmp = ref None and graphics = ref true in
   let serials = ref [] and drive = ref None and loader = ref None in
-  let ram = ref (2 * 1024 * 1024 * 1024) and smp = ref 1 and trace = ref 0 and idle_skip = ref true in
+  let ram = ref (2 * 1024 * 1024 * 1024) and smp = ref 1 and trace = ref 0 in
   (* QEMU's sizes: a number of MB, or with a suffix K, M, G *)
   let size s =
     let n = String.length s in
@@ -102,7 +101,6 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
     | "-ips" :: n :: rest -> ips := int_of_string n; parse rest
     | "-d" :: rest -> debug := true; parse rest
     | "-trace" :: n :: rest -> trace := int_of_string n; parse rest
-    | "-no-idle-skip" :: rest -> idle_skip := false; parse rest
     | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "usb-kbd" -> kbd := true; parse rest
     | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "loader" ->
         let o = options d in
@@ -145,7 +143,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
         | image -> image
         | exception Sys_error m -> Console.eprint caps ("mini-qemu: " ^ m ^ "\n"); exit 1 in
       if !machine = "raspi4b" then begin
-        let board = Pi4.create { ram_size = !ram; ips = !ips; log; serial = target 0; trace = !trace; cores = !smp; idle_skip = !idle_skip } in
+        let board = Pi4.create { ram_size = !ram; ips = !ips; log; serial = target 0; trace = !trace; cores = !smp } in
         (match kernel with
          | Some k -> (try Pi4.load_elf board (read k) with Elf.Bad m -> Console.eprint caps ("mini-qemu: " ^ k ^ ": " ^ m ^ " (raspi4b: an ELF kernel)\n"); exit 1)
          | None -> Console.eprint caps "mini-qemu: raspi4b: -kernel only\n"; exit 2);

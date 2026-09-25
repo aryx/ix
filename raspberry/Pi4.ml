@@ -9,7 +9,7 @@
  *)
 (* See Pi4.mli *)
 
-type config = { ram_size : int; ips : int; log : string -> unit; serial : char -> unit; trace : int; cores : int; idle_skip : bool }
+type config = { ram_size : int; ips : int; log : string -> unit; serial : char -> unit; trace : int; cores : int }
 
 (* a generic timer: CTL (enable 1, mask 2), the compare value *)
 type timer = { mutable ctl : int; mutable cval : int64; ppi : int }
@@ -30,11 +30,6 @@ type core = {
    * EL0 *)
   tags : int array;
   code : Arm64.t array;
-  (* the idle cores' optimization (below): a store seen in this turn;
-   * idle turns in a row; turns to skip *)
-  mutable effect : bool;
-  mutable idle : int;
-  mutable skip : int;
 }
 
 type t = {
@@ -111,7 +106,6 @@ let read_sysreg t c sr =
   | _ -> Option.value (Hashtbl.find_opt c.regs sr) ~default:0L
 
 let write_sysreg t c sr v =
-  c.effect <- true;
   match Arm64.sysreg_name sr with
   | "sctlr_el1" -> c.mmu.sctlr <- v; c.st.mmu <- Mmu64.enabled c.mmu; flush c
   | "tcr_el1" -> c.mmu.tcr <- v; flush c
@@ -144,7 +138,6 @@ let system t c (st : Arm64.state) (i : Arm64.t) =
        | "dc", "zva", _ ->
            let va = Int64.logand (if rt = 31 then 0L else st.x.(rt)) (Int64.lognot 63L) in
            let pa = Arm64.phys st va 1 in
-           c.effect <- true;
            Memory.write_string t.mem pa (String.make 64 '\000')
        | "dc", _, _ -> ()
        | "at", name, _ ->
@@ -159,35 +152,6 @@ let system t c (st : Arm64.state) (i : Arm64.t) =
        | _ -> raise (Arm64.Unimplemented (0, pc)))
   | Brk imm -> Arm64.take st ~offset:0 ~ret:pc ~esr:(Arm64.syndrome Arm64.ec_brk imm) ()
   | _ -> raise (Arm64.Unimplemented (0, pc))
-
-(*****************************************************************************)
-(* Optimization: idle cores (-no-idle-skip turns it off) *)
-(*****************************************************************************)
-
-(* xv6's idle cores never wait. At boot the secondaries spin on a flag
- * while core 0 fills its memory (670M instructions for 128MB), each
- * taking a full turn a round as a working core does. A turn that
- * stored nothing (no memory, no device, no system register) was only
- * looking: that core skips its next turns, 1, 2, 4, ... 16 rounds,
- * and runs at once when an interrupt or an event is pending for it.
- * Nothing it does changes, only when: it is a slower core, and a run
- * is as repeatable as before. Without this section (and the lines
- * setting [effect] and calling it), the cores take every turn.
- *
- * The scheduler's idle loop is not caught: it stores (a lock taken
- * and released, a counter up and down, its loop variable on the
- * stack), and a turn ends in the middle of a pass over the process
- * table, so the memory is never as the turn found it. Telling that
- * from work takes guesses (the stack ignored, the values that came
- * back) that would slow real work too: left out. *)
-
-let watch c _ = c.effect <- true
-
-let after_turn c =
-  if c.effect then c.idle <- 0 else (c.idle <- min 5 (c.idle + 1); c.skip <- 1 lsl (c.idle - 1));
-  c.effect <- false
-
-let skipping t c = c.skip > 0 && not (Gic.irq t.gic c.id || c.event)
 
 (*****************************************************************************)
 (* The board *)
@@ -213,15 +177,14 @@ let create (cfg : config) =
     let mmu = Mmu64.create mem in
     mmu.sctlr <- reset_sctlr;
     { id; st = Arm64.create mem; mmu; virt = { ctl = 0; cval = 0L; ppi = 27 }; phys = { ctl = 0; cval = 0L; ppi = 30 };
-      regs = Hashtbl.create 16; sleep = Awake; event = false; effect = false; idle = 0; skip = 0;
+      regs = Hashtbl.create 16; sleep = Awake; event = false;
       tags = Array.make (1 lsl cache_bits) (-1); code = Array.make (1 lsl cache_bits) (Arm64.Undefined 0) } in
   let t = { cores = Array.init cfg.cores core; mem; gic; uart; cfg; now = 0; skipped = 0; undefined = []; inq = Queue.create () } in
   Array.iter (fun c ->
     c.st.read_sysreg <- read_sysreg t c;
     c.st.write_sysreg <- write_sysreg t c;
     c.st.system <- system t c;
-    c.st.translate <- Mmu64.translate c.mmu;
-    if cfg.idle_skip && cfg.cores > 1 then c.st.watch <- Some (watch c)) t.cores;
+    c.st.translate <- Mmu64.translate c.mmu) t.cores;
   t
 
 (* the secondary cores' wait, as the Pi4's firmware parks them and as
@@ -342,17 +305,14 @@ let run t ~batch =
     let start = t.now in
     Array.iter (fun c ->
       wake t c;
-      (* old: if c.sleep = Awake then begin *)
-      if c.sleep = Awake && skipping t c then c.skip <- c.skip - 1
-      else if c.sleep = Awake then begin
+      if c.sleep = Awake then begin
         Gic.set_current t.gic c.id;
         (* the exclusive monitors, cleared at a switch: an ldxr/stxr
          * pair split by it fails and is retried, as it may on hardware
          * (decision 3) *)
         if several then c.st.monitor <- -1;
         t.now <- start;
-        turn t c quantum;
-        if c.st.watch <> None then after_turn c
+        turn t c quantum
       end) t.cores;
     t.now <- start + quantum;
     update_timers t
