@@ -196,7 +196,7 @@ raspberry/                 library ix_raspberry; the mini-qemu executable
                            partition, config.txt, the kernel's load
                            address and entry state, ATAGs or a DTB
   CLI.ml(i), Main.ml       QEMU's command line, the subset; -hw
-tiny/TinyMachine.ml        the free variant
+tiny/TinyPi.ml             the free variant
 ```
 
 **The size target**: the core extensions 1,700 (Arm32 privileged 350,
@@ -405,7 +405,7 @@ emulated and slow there) is in `Bits` alone (plan_arm.md, decision 3).
 - **H'. The web.** The machine compiled by js_of_ocaml with a web
   display (the playground's web backend, or a canvas): a Pi1 with xv6
   in a browser page, the card image fetched; its speed measured.
-- **I. `tiny/TinyMachine.ml`.**
+- **I. `tiny/TinyPi.ml`.**
 
 Each phase checked by the kernels' own tests, by QEMU's trace for the
 first divergence when one fails, and, for the boards' personality, by
@@ -425,7 +425,7 @@ QEMU's `virt` (phase H) are dropped: each is one more kernel for
 little new to teach once the Pi1 and Pi4 run. Decision 2's hand-off
 goes with them: a core runs one instruction set.
 
-## Outside QEMU: TinyMachine.ml
+## Outside QEMU: TinyPi.ml
 
 Free, in one file: the smallest machine a kernel can run on -- an ARM
 core subset, RAM, a UART, a timer and an interrupt line, sections-only
@@ -434,25 +434,35 @@ interrupts: the machine a first operating-systems course would want
 (TinyEMU's spirit, in OCaml). Checked by its laws: the kernel's
 output, the interrupts' count per simulated second.
 
-Named TinyMachine.ml (2026-09-25; was TinyPi.ml), as the tiny programs
-are named after what they do: tiny-cpu is a CPU and its memory,
-tiny-machine a CPU with devices around it. Its devices need not be
-the Pi's registers: the Pi is mini-qemu's.
+TinyPi is TinyArm.ml's machine, as TinyMachine.ml (plan_arm.md) is
+TinyCPU.ml's (2026-09-25): the tiny emulators are two by two, an
+instruction set inherited (ARM) or designed (TinyCPU's), a CPU seen
+from user mode or a machine with devices:
 
-Not TinyCPU.ml with devices, nor TinyArm.ml with devices: both are CPUs
-seen from user mode, whose world ends at a system call, answered by
-the interpreter itself. TinyMachine's subject is what is below that
-call, the machine a kernel sees: the processor's modes, the exception
-vector, an interrupt arriving between two instructions, the MMU, the
-devices behind addresses. TinyCPU has none of it, and giving it some
-would mean designing a privileged mode and traps for an instruction
-set no kernel in ix targets. So TinyMachine's core is ARM, a subset
-only as large as its page of kernel needs, so that what it teaches
-leads to the real kernels (tiny-kernel, 9pi, xv6). Which ARM, the
-Pi1's arm32 (TinyArm's) or the Pi4's arm64 (what tiny-c and
-tiny-assembler emit), is to decide when it is written; if arm32, and
-the core it shares with TinyArm.ml is large, it may go in a
-tiny/TinyLibXxx.ml.
+                   CPU, user mode     machine, devices
+    inherited      TinyArm.ml         TinyPi.ml
+    designed       TinyCPU.ml         TinyMachine.ml
+
+The CPUs' world ends at a system call, which the interpreter answers
+itself; the machines' subject is below it, what a kernel sees: the
+processor's modes, the exception vector, an interrupt arriving
+between two instructions, the MMU, the devices behind addresses.
+TinyPi's are inherited too: its core is TinyArm's arm32, the Pi1's,
+with the modes, CP15 and the exceptions added, and its devices are
+the Pi1's own registers (a subset: a UART, the system timer, the
+interrupt controller), so that a bare-metal program for the Pi1 (the
+"Baking Pi" kind) runs on it and on the real board.
+
+Each machine relies on its CPU, not a copy of it: TinyArm.ml's
+instructions, assembler and interpreter become a library,
+tiny/TinyLibArm.ml (the tiny/TinyLibXxx.ml convention for code tiny
+files share), TinyArm.ml keeping its command line and its three
+system calls; TinyPi.ml is the modes, the exceptions and the devices
+around it. What the library must let a machine change: the memory
+access (devices behind addresses), what svc does (a system call
+answered, or an exception taken), and a check between two
+instructions (an interrupt pending). TinyMachine.ml and
+tiny/TinyLibCPU.ml the same way (plan_arm.md).
 
 ## Verification
 

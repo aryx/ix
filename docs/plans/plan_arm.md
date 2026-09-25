@@ -543,5 +543,32 @@ second topic, and a free variant teaches one. It had caught, by random
 programs interpreted and translated, a translated sar made logical and
 a division by zero made 0; git history has it.
 Renamed TinyMachine.ml to TinyCPU.ml then (`tiny-cpu`): a CPU and its
-memory, no devices. The name TinyMachine.ml goes to the planned CPU
-with devices (plan_pi.md).
+memory, no devices. The name TinyMachine.ml goes to its machine.
+
+**TinyMachine.ml, planned**: TinyCPU.ml's instruction set with a
+machine around it, as TinyPi.ml (plan_pi.md) is TinyArm.ml's: the
+design lesson continued below the system call. What to design, kept
+as small as TinyCPU's own choices: a user and a supervisor mode; a
+trap that saves the pc and the cause in two registers and jumps to
+one vector, and the instruction that returns from it; one interrupt
+line, from a timer; a console at addresses; memory protection by the
+simplest scheme that separates two programs (base and bound, or one
+level of pages). The kernel is a page of its assembly, running two
+user programs by the timer's interrupt. References to read then
+(from memory): RISC-V's privileged specification, the clean design of
+the same questions; Wirth's Project Oberon (the RISC5 and its
+devices), a machine and its system designed together; Nand2Tetris's
+Hack, devices as memory. Checked by its laws: the kernel's output,
+the interleaving the timer's period predicts, a user program's fault
+caught.
+
+It relies on TinyCPU.ml, not a copy of it: TinyCPU's instructions,
+assembler and interpreter become a library, tiny/TinyLibCPU.ml (the
+tiny/TinyLibXxx.ml convention for code tiny files share), TinyCPU.ml
+keeping its command line and its three system calls. The library
+lets a machine change the memory access (the console behind
+addresses), what sys does (a trap), and a check between two
+instructions (the timer's interrupt); TinyMachine.ml adds the new
+instructions (the return from a trap, the moves to and from the trap
+registers) and the rest. TinyPi.ml and tiny/TinyLibArm.ml the same way
+(plan_pi.md).

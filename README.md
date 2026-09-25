@@ -83,7 +83,7 @@ italics are planned.
 
 | Book | mini (m-ix) | tiny (t-ix) | Plan 9 original |
 |---|---|---|---|
-| Emulator | mini-5i (arm32, arm64, user mode), mini-qemu (Pi1, then 64-bit) | tiny-arm, tiny-cpu, *tiny-machine* | `5i`, QEMU's raspi machines |
+| Emulator | mini-5i (arm32, arm64, user mode), mini-qemu (Pi1, then 64-bit) | tiny-arm, tiny-cpu, *tiny-pi*, *tiny-machine* | `5i`, QEMU's raspi machines |
 | Kernel | *mini-9pi* | *tiny-kernel* | `9pi` |
 | Core libraries | *(not settled — ix programs are all OCaml, so there may be no separate libc, just what OCaml's stdlib and runtime give us)* | | `libc`, `libthread`, `libbio`, `libregexp`, ... |
 | Shell | mini-rc | tiny-shell | `rc` |

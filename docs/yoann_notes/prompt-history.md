@@ -3785,3 +3785,23 @@ Together these changes would align the code structure with the documented projec
 **Yoann:**
 
 > (And maybe we would have a TinyMachine.ml ?)
+
+**Claude (summary):**
+
+Claude edited headers and plan files to explain why TinyArm and TinyPi aren't redundant with TinyCPU. Build passed cleanly after these documentation modifications were applied to the files. Tests were running before committing to validate the changes worked correctly. The approach focused on explanation through updated headers and planning file edits. Commit would follow once the test validation confirmed everything was working fine.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:47
+
+**Yoann:**
+
+> We probably actually want a TinyPi.ml and a TinyMachine.ml, that are respectively related to TinyArm.ml and TinyCPU.ml no?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:47
+
+**Yoann:**
+
+> TinyMachine.ml can probably rely on TinyCPU.ml, and TinyPi.ml can rely on TinyARM.ml (make part of it a lib)

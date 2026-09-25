@@ -49,7 +49,7 @@ they are quoted in a `.mli`.
 - Teaching: Cambridge's "Baking Pi" bare-metal course (2012; from
   memory), the many "OS on the Pi" tutorials, and xv6's ports to ARM
   (from memory): bare-metal Pi programming as an OS course's lab --
-  TinyMachine.ml's intended reader.
+  TinyPi.ml's intended reader.
 - **Circle** (from memory): a C++ bare-metal environment for the Pi,
   with drivers for its devices; a readable second source for their
   registers.
@@ -71,5 +71,5 @@ they are quoted in a `.mli`.
 Between QEMU's raspi machines, which it is tested against, and
 TinyEMU, whose size it aims at: a Pi as 9pi uses it, in OCaml, the
 CPU cores mini-5i's, the devices small state machines behind a bus,
-deterministic time. Its free variant, TinyMachine.ml, is the smallest
+deterministic time. Its free variant, TinyPi.ml, is the smallest
 machine a kernel can boot on.
