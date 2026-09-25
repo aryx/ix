@@ -112,8 +112,26 @@ raspi1ap. What it took:
   overflowed the 64KB stack, silently (no guard page) down through the
   bss and below 0 before a data abort.
 
-**Under mini-qemu, not yet**: the GC computes its slices with doubles
-(major_collection_slice, alloc_shr), and mini-qemu's arm32 has only the
-VFP's loads and stores. Next: VFPv2's data processing in machine/'s
-Arm32 (vmov, vcvt, vadd..vdiv, vcmp, vpush/vpop, vmrs to the flags;
-about 20 operations), checked against the CPU by random blocks.
+**Step 1 done under mini-qemu too** (2026-09-25): the same console as
+QEMU's (`kernel/test.sh`, in `make test-pi`). The kernel's C, compiled
+by GCC for ARMv6KZ, needed of mini-qemu's arm32 what 9pi and xv6 never
+used, now in machine/'s Arm32:
+
+- **VFPv2's data processing**: the GC computes its slices with doubles
+  (major_collection_slice, alloc_shr). vmov with the core registers
+  (a single, a double and two), vmov/vabs/vneg/vsqrt, the arithmetic
+  and multiply-accumulates of singles and doubles, vcmp(e) and vmrs to
+  the flags, the conversions (between precisions, from and to 32-bit
+  integers, vcvt and vcvtr), vldr/vstr of singles, vldm/vstm/vpush/vpop.
+  Singles computed in double and rounded once (exact for + - * / sqrt).
+  The multiply-accumulates negate as the architecture does: vmls is
+  d + -p, and a negated NaN changes sign (the one difference 500
+  random blocks found).
+- **rev, rev16, revsh**, and **ARMv5TE's halfword multiplies**
+  (smlaXY, smulXY, smlawY, smulwY, smlalXY): GCC -O2 emits smlabb.
+
+Checked by objdump (the forms, words_arm_system.txt; random words of
+the VFP's classes) and by the CPU: `random_blocks.py -vfp`, blocks with
+the VFP mixed in, d0-d15 and FPSCR's flags compared (3,000 blocks, 0
+differ), and the plain blocks with rev and the multiplies. mini-5i
+turns the VFP on for a Linux program, as Linux does.

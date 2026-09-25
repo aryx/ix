@@ -33,14 +33,24 @@
 # one instruction. A64 has no conditional execution, so every
 # writeback's value is known here. Registers: x0-x30 and nzcv out.
 #
-# Usage: random_blocks.py [-64] [blocks] [length] [seed]
+# With -vfp: arm32 blocks with the VFP's instructions mixed in (the
+# arithmetic of singles and doubles, the multiply-accumulates, vabs,
+# vneg, vsqrt, the compares and vmrs to the flags, the conversions,
+# vmov with the core registers, vldr, vstr, vldm, vstm through r12):
+# d0-d15 loaded from their own area first (random doubles and special
+# values; their halves are random singles), stored back last with
+# FPSCR, whose flags only are compared (not its cumulative exception
+# bits, which mini-5i does not keep).
+#
+# Usage: random_blocks.py [-64 | -vfp] [blocks] [length] [seed]
 
 import concurrent.futures, os, random, struct, subprocess, sys, tempfile
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
 TA = os.path.join(ROOT, "_build/default/machine/Main.exe")
 A64 = len(sys.argv) > 1 and sys.argv[1] == "-64"
-argv = sys.argv[2:] if A64 else sys.argv[1:]
+VFP = len(sys.argv) > 1 and sys.argv[1] == "-vfp"
+argv = sys.argv[2:] if A64 or VFP else sys.argv[1:]
 BLOCKS = int(argv[0]) if len(argv) > 0 else 500
 LENGTH = int(argv[1]) if len(argv) > 1 else 30
 SEED = int(argv[2]) if len(argv) > 2 else 1
@@ -50,8 +60,9 @@ CODE = 0x100                    # offsets in the file
 STATE = 0x2000                  # r0-r12, lr, cpsr: 15 words
 BUF = STATE + 64                # the buffer
 BUFSIZE = 512
-FILE = BUF + BUFSIZE
-OUT = BUF + BUFSIZE - STATE     # bytes written
+VSTATE = BUF + BUFSIZE          # -vfp: d0-d15, then FPSCR
+FILE = VSTATE + (132 if VFP else 0)
+OUT = FILE - STATE              # bytes written
 LO, HI = BASE + BUF + 192, BASE + BUF + 320   # r12's range
 FORBID = (12, 13, 15)           # never destinations
 
@@ -59,10 +70,16 @@ def lit(rd, value):
     # ldr rd, [pc]; b over the literal; the literal
     return [0xe59f0000 | rd << 12, 0xea000000, value]
 
-def elf(block, flags, regs, buf):
-    code = lit(0, flags << 28) + [0xe128f000] + lit(13, BASE + STATE) + [0xe89d5fff]
+def elf(block, flags, regs, buf, vregs=b""):
+    code = lit(0, flags << 28) + [0xe128f000] + lit(13, BASE + STATE)
+    # -vfp: d0-d15 from their area (vldmia r0, {d0-d15}), FPSCR 0
+    if VFP: code += lit(0, BASE + VSTATE) + [0xec900b20, 0xe3a00000, 0xeee10a10]
+    code += [0xe89d5fff]
     code += block
-    code += [0xe88d5fff, 0xe10f0000, 0xe58d0038, 0xe3a00001, 0xe1a0100d] + lit(2, OUT)
+    code += [0xe88d5fff, 0xe10f0000, 0xe58d0038]
+    # -vfp: vstmia r0, {d0-d15}; vmrs r1, fpscr; str r1, [r0, #128]
+    if VFP: code += lit(0, BASE + VSTATE) + [0xec800b20, 0xeef11a10, 0xe5801080]
+    code += [0xe3a00001, 0xe1a0100d] + lit(2, OUT)
     code += [0xe3a07004, 0xef000000, 0xe3a00000, 0xe3a07001, 0xef000000]
     img = bytearray(FILE)
     img[0:52] = struct.pack("<4sBBBB8xHHIIIIIHHHHHH", b"\x7fELF", 1, 1, 1, 0,
@@ -71,6 +88,7 @@ def elf(block, flags, regs, buf):
     img[CODE:CODE + 4 * len(code)] = b"".join(struct.pack("<I", w) for w in code)
     img[STATE:STATE + 56] = b"".join(struct.pack("<I", v) for v in regs)
     img[BUF:BUF + BUFSIZE] = buf
+    img[VSTATE:VSTATE + len(vregs)] = vregs
     return bytes(img)
 
 class Gen:
@@ -114,7 +132,22 @@ class Gen:
 
     def misc(self):
         r = self.r
-        k = r.randrange(4)
+        k = r.randrange(6)
+        if k == 4:
+            # rev, rev16, revsh
+            op, low = r.choice([(0x6b, 3), (0x6b, 11), (0x6f, 11)])
+            return self.cond() | op << 20 | 0xf0f00 | self.dest() << 12 | low << 4 | self.reg()
+        if k == 5:
+            # the halfword multiplies: smla smlaw smulw smlal smul
+            op = r.randrange(4)
+            xy = r.randrange(4)
+            if op == 1 and r.randrange(2): xy |= 1; acc = 0       # smulw
+            elif op == 1: xy &= 2; acc = self.reg()             # smlaw
+            elif op == 3: acc = 0
+            elif op == 2: acc = self.dest()                     # RdLo
+            else: acc = self.reg()
+            rd = self.dest((acc,) if op == 2 else ())
+            return self.cond() | 1 << 24 | op << 21 | rd << 16 | acc << 12 | self.reg() << 8 | 0x80 | xy << 5 | self.reg()
         if k == 3:
             # ARMv6's extends: sxtb sxth uxtb uxth, with an addend or not
             rn = r.choice([15, self.reg()])
@@ -181,8 +214,70 @@ class Gen:
         if wb: self.base = final
         return cond | 4 << 25 | p << 24 | u << 23 | wb << 21 | load << 20 | 12 << 16 | regs
 
+    # the VFP's registers split in the word: 4 bits and one more, the
+    # high bit of a double's number, the low bit of a single's
+    def vsplit(self, double, x):
+        return (x >> 4, x & 15) if double else (x & 1, x >> 1)
+
+    def vfp(self):
+        r = self.r
+        double = r.randrange(2)
+        top = 16 if double else 32
+        d, n, m = r.randrange(top), r.randrange(top), r.randrange(top)
+        (dh, dl), (nh, nl), (mh, ml) = self.vsplit(double, d), self.vsplit(double, n), self.vsplit(double, m)
+        regs = dh << 22 | dl << 12 | nh << 7 | nl << 16 | mh << 5 | ml
+        sz = double << 8
+        k = r.randrange(10)
+        if k < 4:
+            # vmla vmls vnmla vnmls vmul vnmul vadd vsub vdiv
+            opc, op6 = r.choice([(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1), (3, 0), (3, 1), (8, 0)])
+            return self.cond() | 0x0e000a00 | (opc >> 3) << 23 | (opc & 3) << 20 | op6 << 6 | sz | regs
+        if k == 4:
+            # vmov vabs vneg vsqrt
+            opc2, b7 = r.choice([(0, 0), (0, 1), (1, 0), (1, 1)])
+            return self.cond() | 0x0eb00a40 | opc2 << 16 | b7 << 7 | sz | (regs & ~(0xf << 16 | 1 << 7))
+        if k == 5:
+            # vcmp(e), with a register or 0.0, then the flags to the CPSR
+            e, zero = r.randrange(2), r.randrange(2)
+            w = self.cond() | 0x0eb40a40 | zero << 16 | e << 7 | sz | (regs & ~(0xf << 16 | 1 << 7))
+            if zero: w &= ~0x2f
+            return [w, 0xeef1fa10]
+        if k == 6:
+            # the conversions: between precisions, from and to integers
+            kind = r.randrange(3)
+            if kind == 0:
+                dd, dp = self.vsplit(not double, r.randrange(32 if double else 16))
+                return self.cond() | 0x0eb70ac0 | sz | dd << 22 | dp << 12 | mh << 5 | ml
+            if kind == 1:
+                sh, sl = self.vsplit(False, r.randrange(32))
+                return self.cond() | 0x0eb80a40 | r.randrange(2) << 7 | sz | dh << 22 | dl << 12 | sh << 5 | sl
+            sh, sl = self.vsplit(False, r.randrange(32))
+            return self.cond() | 0x0ebc0a40 | r.randrange(2) << 16 | r.randrange(2) << 7 | sz | sh << 22 | sl << 12 | mh << 5 | ml
+        if k == 7:
+            # vmov with core registers: a single, or a double and two
+            if r.randrange(2):
+                s = r.randrange(32)
+                to_core = r.randrange(2)
+                rt = self.dest() if to_core else self.reg((15,))
+                return self.cond() | 0x0e000a10 | to_core << 20 | (s >> 1) << 16 | rt << 12 | (s & 1) << 7
+            to_core = r.randrange(2)
+            rt = self.dest() if to_core else self.reg((15,))
+            rt2 = self.dest((rt,)) if to_core else self.reg((15,))
+            dd = r.randrange(16)
+            return self.cond() | 0x0c400b10 | to_core << 20 | rt2 << 16 | rt << 12 | (dd >> 4) << 5 | (dd & 15)
+        if k == 8:
+            # vldr, vstr through r12
+            off = r.randrange(31)
+            return self.cond() | 0x0d000a00 | r.randrange(2) << 23 | r.randrange(2) << 20 | 12 << 16 | sz | (regs & (1 << 22 | 0xf << 12)) | off
+        # vldm, vstm through r12, without writeback: up to 4 registers
+        count = r.randrange(1, 5)
+        first = r.randrange(top - count + 1)
+        fh, fl = self.vsplit(double, first)
+        return self.cond() | 0x0c800a00 | r.randrange(2) << 20 | 12 << 16 | fh << 22 | fl << 12 | sz | (count * (2 if double else 1))
+
     def insn(self):
         k = self.r.random()
+        if VFP and k < 0.5: return self.vfp()
         if k < 0.5: return self.dp()
         if k < 0.6: return self.mul()
         if k < 0.7: return self.misc()
@@ -385,15 +480,19 @@ def check(i):
         regs[12] = g.base
     flags = r.randrange(16)
     buf = bytes(r.getrandbits(8) for _ in range(BUFSIZE))
+    # -vfp: d0-d15, doubles random or special, 16 random bits more
+    special = [0.0, -0.0, 1.0, -1.0, 0.5, 2.0, 3.0, 1e10, -1e-10, 1e300, 1e-300, 65536.0, -7.25]
+    vregs = b"".join(struct.pack("<d", r.choice(special) if r.random() < 0.3 else r.uniform(-1e6, 1e6)) if r.random() < 0.8
+                     else struct.pack("<Q", r.getrandbits(64)) for _ in range(16)) if VFP else b""
     # groups of instructions (an mrs and its mask), never split
     groups = [x if isinstance(x, list) else [x] for x in (g.insn() for _ in range(LENGTH))]
     with tempfile.TemporaryDirectory() as d:
-        return search(d, i, groups, flags, regs, buf)
+        return search(d, i, groups, flags, regs, buf, vregs)
 
-def search(d, i, groups, flags, regs, buf):
+def search(d, i, groups, flags, regs, buf, vregs=b""):
     def prog(n):
         path = os.path.join(d, "b%d" % n)
-        with open(path, "wb") as f: f.write((elf64 if A64 else elf)(sum(groups[:n], []), flags, regs, buf))
+        with open(path, "wb") as f: f.write(elf64(sum(groups[:n], []), flags, regs, buf) if A64 else elf(sum(groups[:n], []), flags, regs, buf, vregs))
         os.chmod(path, 0o755)
         return path
     same, a, b = compare(prog(len(groups)))
@@ -433,8 +532,15 @@ def explain(a, b):
         x, y = struct.unpack_from("<I", oa, 4 * k)[0], struct.unpack_from("<I", ob, 4 * k)[0]
         if k == 14: x, y = x & 0xf0000000, y & 0xf0000000
         if x != y: lines.append("  %-4s cpu %08x  mini-5i %08x" % (names[k], x, y))
-    for o in range(64, OUT):
+    for o in range(64, 64 + BUFSIZE):
         if oa[o] != ob[o]: lines.append("  buffer+%d cpu %02x  mini-5i %02x" % (o - 64, oa[o], ob[o]))
+    if VFP:
+        v = VSTATE - STATE
+        for k in range(16):
+            x, y = oa[v + 8 * k:v + 8 * k + 8], ob[v + 8 * k:v + 8 * k + 8]
+            if x != y: lines.append("  d%-3d cpu %016x  mini-5i %016x" % (k, struct.unpack("<Q", x)[0], struct.unpack("<Q", y)[0]))
+        x, y = struct.unpack_from("<I", oa, v + 128)[0], struct.unpack_from("<I", ob, v + 128)[0]
+        if x != y: lines.append("  fpscr cpu %08x  mini-5i %08x" % (x, y))
     return "\n".join(lines[:12])
 
 # the flags compared, not the rest of the CPSR (its mode and mask bits)
@@ -443,6 +549,10 @@ def masked(out):
     if not A64 and len(data) == OUT:
         cpsr = struct.unpack_from("<I", data, 56)[0] & 0xf0000000
         data = data[:56] + struct.pack("<I", cpsr) + data[60:]
+        if VFP:
+            o = VSTATE - STATE + 128
+            fpscr = struct.unpack_from("<I", data, o)[0] & 0xf0000000
+            data = data[:o] + struct.pack("<I", fpscr) + data[o + 4:]
     return code, data
 
 _compare = compare
@@ -468,5 +578,5 @@ with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as ex:
 for i, w, flags, regs, a, b in bad[:20]:
     print("block %d: %08x  %s   (flags %x)" % (i, w, objdump(w), flags))
     print(explain(a, b))
-print("random_blocks%s: %d blocks of %d instructions, %d differ" % (" -64" if A64 else "", BLOCKS, LENGTH, len(bad)))
+print("random_blocks%s: %d blocks of %d instructions, %d differ" % (" -64" if A64 else " -vfp" if VFP else "", BLOCKS, LENGTH, len(bad)))
 sys.exit(1 if bad else 0)

@@ -51,6 +51,9 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr; 
             let proc, entry, sp = Linux.load host mem elf file argv env in
             let st = Arm32.create mem in
             st.r.(13) <- sp;
+            (* claude: the VFP on, as Linux gives it to a hard-float program *)
+            st.vfp_ok <- true;
+            st.fpexc <- 1 lsl 30;
             try Cpu.run32 ?trace:tr st ~pc:entry ~svc:(fun st _ -> Linux.syscall32 proc st)
                   ~signal:(fun st pc -> Linux.deliver proc st ~pc) stats; 0 with
             | Linux.Exit code -> report (); code

@@ -14,7 +14,7 @@
 #
 # With --random N [seed]: N random words instead, cond not 1111, from
 # the classes the decoder claims (data processing, multiplies,
-# transfers, blocks, branches, svc); a word decoded must print as
+# transfers, blocks, branches, svc, the VFP); a word decoded must print as
 # objdump prints it; one decoded as .word (Undefined) is counted, not
 # failed: unimplemented, not wrong.
 #
@@ -55,11 +55,17 @@ if randomized:
         elif k < 0.5: body = (1 << 25) | r.randrange(1 << 25)            # 001
         elif k < 0.7: body = (2 << 25) | r.randrange(1 << 25)            # 010
         elif k < 0.77: body = (3 << 25) | (r.randrange(1 << 25) & ~0x10) # 011, bit 4 clear
-        elif k < 0.8: body = (0xd << 23) | (r.randrange(1 << 23) & ~0x3f0) | 0x70   # the extends. space
+        elif k < 0.79: body = (0xd << 23) | (r.randrange(1 << 23) & ~0x3f0) | 0x70   # the extends. space
+        elif k < 0.795: body = (0x6b << 20) | (r.randrange(2) << 22) | 0xf0f00 | (r.randrange(16) << 4) | (r.randrange(1 << 16) & 0xf00f)   # rev
+        elif k < 0.8: body = (2 << 23) | (r.randrange(4) << 21) | (r.randrange(1 << 16) << 4 & 0xfff00) | 0x80 | (r.randrange(4) << 5) | r.randrange(16)   # smla..
         elif k < 0.88: body = (4 << 25) | r.randrange(1 << 25)           # 100
         elif k < 0.96: body = (5 << 25) | r.randrange(1 << 25)           # 101
         elif k < 0.98: body = (0xf << 24) | r.randrange(1 << 24)         # svc
-        else: body = (0xe << 24) | r.randrange(1 << 24) | 0x10           # mcr, mrc
+        elif k < 0.985: body = (0xe << 24) | r.randrange(1 << 24) | 0x10 # mcr, mrc
+        # the VFP (coprocessors 10, 11): data processing and core moves;
+        # loads, stores, transfers
+        elif k < 0.995: body = (0xe << 24) | (r.randrange(1 << 24) & ~0xe00) | 0xa00
+        else: body = (6 << 25) | (r.randrange(1 << 25) & ~0xe00) | 0xa00
         return "%08x" % (cond | body)
     words = [(word64 if a64 else word32)() for _ in range(n)]
     words_file = os.path.join(tmp, "words.txt")

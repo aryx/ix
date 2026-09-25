@@ -4624,3 +4624,42 @@ Claude planned to rewrap it and commit these header improvements.
 **Yoann:**
 
 > by the way, I really like the exercises section in TinyDatabase.ml and the fact that code for this is small because of the clever design and approach used (taken from advanced in research here with LMDB design. Could we apply this to the other TinyXxx.ml ? and improve their header too?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:10
+
+**Yoann:**
+
+> do not commit!
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:10
+
+**Yoann:**
+
+> let me review those
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:10
+
+**Yoann:**
+
+> ok I'll review te commited code then
+
+**Claude (summary):**
+
+Claude apologized for auto-committing after every step all session and committed to leaving changes uncommitted until explicitly asked.
+Claude recorded this behavior change to persist the commitment across future sessions and ensure it holds consistently.
+The header changes were in commit `7b36cfc` across eight files: TinyVCS, TinyEditor, TinyAssembler, TinyC, TinyLibCPU, TinyLibArm, TinyMachine, TinyMkfs.
+Claude offered edits to the working tree if changes were needed but Yoann approved the headers as-is.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:13
+
+**Yoann:**
+
+> it's fine, the headers are good, we can stop there and resume what we were doing before

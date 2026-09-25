@@ -20,6 +20,18 @@ type offset = Off_imm of int | Off_reg of reg * shifted
 type index = Pre | Post
 type mode = IA | IB | DA | DB
 
+type rev = Rev32 | Rev16 | Revsh
+
+type mulhalf = Smla | Smul | Smlaw | Smulw | Smlal
+
+type vop = Vmla | Vmls | Vnmla | Vnmls | Vmul | Vnmul | Vadd | Vsub | Vdiv
+
+type vunop = Vmov_reg | Vabs | Vneg | Vsqrt
+
+(* between precisions; from a 32-bit integer; to one ([round_zero]:
+ * vcvt, toward zero; else vcvtr, FPSCR's mode) *)
+type vconv = Cvt_precision | Cvt_of_int of { signed : bool } | Cvt_to_int of { signed : bool; round_zero : bool }
+
 type t =
   | Dp of { cond : cond; op : dp_op; s : bool; rd : reg; rn : reg; op2 : operand }
   | Mul of { cond : cond; s : bool; rd : reg; rm : reg; rs : reg; acc : reg option }
@@ -29,6 +41,11 @@ type t =
   | Branch of { cond : cond; link : bool; offset : int }
   | Bx of { cond : cond; link : bool; rm : reg }
   | Clz of { cond : cond; rd : reg; rm : reg }
+  (* rev, rev16, revsh (ARMv6) *)
+  | Rev of { cond : cond; kind : rev; rd : reg; rm : reg }
+  (* ARMv5TE's halfword multiplies: [x], [y] the top halves of rm and
+   * rs; rn the accumulator (smla, smlaw), or RdLo with rd RdHi (smlal) *)
+  | Mulhalf of { cond : cond; op : mulhalf; x : bool; y : bool; rd : reg; rn : reg; rm : reg; rs : reg }
   | Mrs of { cond : cond; rd : reg; spsr : bool }
   | Msr of { cond : cond; spsr : bool; fields : int; src : operand }
   | Coproc of { cond : cond; load : bool; cp : int; opc1 : int; crn : int; crm : int; opc2 : int; rd : reg }
@@ -45,7 +62,22 @@ type t =
   | Cps of { imod : int; a : bool; i : bool; f : bool; mode : int option }
   | Vmrs of { cond : cond; reg : int; rd : reg }
   | Vmsr of { cond : cond; reg : int; rd : reg }
-  | Vldst of { cond : cond; load : bool; d : int; rn : reg; offset : int }
+  (* VFP: a register's number, s0-s31 or d0-d15 by [double] *)
+  | Vldst of { cond : cond; load : bool; double : bool; v : int; rn : reg; offset : int }
+  (* vldm, vstm, vpush, vpop: [count] registers from [first]; [before]:
+   * decrement before (db), else increment after (ia) *)
+  | Vblock of { cond : cond; load : bool; double : bool; rn : reg; before : bool; writeback : bool; first : int; count : int }
+  (* vmov between a single and a core register, a double and two *)
+  | Vmov_single of { cond : cond; to_core : bool; s : int; rt : reg }
+  | Vmov_double of { cond : cond; to_core : bool; d : int; rt : reg; rt2 : reg }
+  | Vop of { cond : cond; op : vop; double : bool; d : int; n : int; m : int }
+  | Vunop of { cond : cond; op : vunop; double : bool; d : int; m : int }
+  (* vcmp, vcmpe ([e]): with m, or with 0.0 *)
+  | Vcmp of { cond : cond; e : bool; double : bool; d : int; m : int option }
+  (* [double]: the instruction's size field (the source's precision for
+   * a conversion to integer or between precisions, the destination's
+   * for one from integer) *)
+  | Vcvt of { cond : cond; conv : vconv; double : bool; d : int; m : int }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 
@@ -73,6 +105,68 @@ let shifted w =
       | _ -> By_imm (sh, n))
 
 let offset_of = function Sreg (rm, s) -> Off_reg (rm, s) | Imm _ -> assert false
+
+(* VFP's registers: 4 bits in the word and one more, the high bit of a
+ * double's number (d0-d31; d0-d15 here), the low bit of a single's *)
+let vreg ~double w ~at ~extra = if double then (field w extra 1 lsl 4) lor field w at 4 else (field w at 4 lsl 1) lor field w extra 1
+
+(* the loads and stores of the VFP registers (coprocessors 10 and 11):
+ * vldr, vstr; vldm, vstm (increment after, or decrement before with
+ * writeback); vmov of a double from or to two core registers *)
+let vfp_transfer w cond =
+  let double = bit w 8 and rn = field w 16 4 in
+  let vd = vreg ~double w ~at:12 ~extra:22 in
+  let p = bit w 24 and u = bit w 23 and wb = bit w 21 and load = bit w 20 in
+  if field w 21 4 = 2 then
+    if double && field w 6 2 = 0 && bit w 4 then
+      Vmov_double { cond; to_core = load; d = vreg ~double w ~at:0 ~extra:5; rt = field w 12 4; rt2 = rn }
+    else Undefined w
+  else if p && not wb then
+    let off = field w 0 8 * 4 in
+    Vldst { cond; load; double; v = vd; rn; offset = (if u then off else - off) }
+  else if (u && not p) || (p && (not u) && wb) then
+    let imm = field w 0 8 in
+    let count = if double then imm / 2 else imm in
+    if count = 0 || (double && imm land 1 = 1) || vd + count > (if double then 16 else 32) || rn = 15 then Undefined w
+    else Vblock { cond; load; double; rn; before = p; writeback = wb; first = vd; count }
+  else Undefined w
+
+(* the VFP's data processing (bit 4 clear), and vmov of a single from or
+ * to a core register *)
+let vfp_data w cond =
+  let double = bit w 8 in
+  let d = vreg ~double w ~at:12 ~extra:22 and n = vreg ~double w ~at:16 ~extra:7 and m = vreg ~double w ~at:0 ~extra:5 in
+  let op6 = bit w 6 in
+  if bit w 4 then
+    if field w 21 3 = 0 && not double && field w 0 7 = 0x10 then
+      Vmov_single { cond; to_core = bit w 20; s = vreg ~double:false w ~at:16 ~extra:7; rt = field w 12 4 }
+    else Undefined w
+  else
+    let vop op = Vop { cond; op; double; d; n; m } in
+    match bit w 23, bit w 21, bit w 20 with
+    | false, false, false -> vop (if op6 then Vmls else Vmla)
+    | false, false, true -> vop (if op6 then Vnmla else Vnmls)
+    | false, true, false -> vop (if op6 then Vnmul else Vmul)
+    | false, true, true -> vop (if op6 then Vsub else Vadd)
+    | true, false, false when not op6 -> vop Vdiv
+    | true, true, true when op6 ->
+        (* the others, by the Vn field and bit 7 *)
+        let b7 = bit w 7 in
+        let single_of at extra = vreg ~double:false w ~at ~extra in
+        (match field w 16 4 with
+         | 0 -> Vunop { cond; op = (if b7 then Vabs else Vmov_reg); double; d; m }
+         | 1 -> Vunop { cond; op = (if b7 then Vsqrt else Vneg); double; d; m }
+         | 4 -> Vcmp { cond; e = b7; double; d; m = Some m }
+         | 5 when field w 0 4 = 0 && not (bit w 5) -> Vcmp { cond; e = b7; double; d; m = None }
+         | 7 when b7 ->
+             (* the destination the other precision *)
+             let d = vreg ~double:(not double) w ~at:12 ~extra:22 in
+             Vcvt { cond; conv = Cvt_precision; double; d; m }
+         | 8 -> Vcvt { cond; conv = Cvt_of_int { signed = b7 }; double; d; m = single_of 0 5 }
+         | (12 | 13) as k ->
+             Vcvt { cond; conv = Cvt_to_int { signed = k = 13; round_zero = b7 }; double; d = single_of 12 22; m }
+         | _ -> Undefined w)
+    | _ -> Undefined w
 
 let decode w =
   let cond_bits = field w 28 4 in
@@ -129,6 +223,17 @@ let decode w =
         (* the status register: CPSR only, SPSR (bit 22) is privileged *)
         else if (not (bit w 21)) && field w 16 4 = 15 && field w 0 12 = 0 then Mrs { cond; rd; spsr = bit w 22 }
         else if bit w 21 && rd = 15 && field w 4 8 = 0 then Msr { cond; spsr = bit w 22; fields = rn; src = Sreg (field w 0 4, No_shift) }
+        (* claude: ARMv5TE's halfword multiplies (GCC emits smlabb) *)
+        else if bit w 7 && not (bit w 4) then
+          let x = bit w 5 and y = bit w 6 and rm = field w 0 4 and rs = field w 8 4 in
+          let mh op = Mulhalf { cond; op; x; y; rd = rn; rn = rd; rm; rs } in
+          (match field w 21 2 with
+           | 0 -> mh Smla
+           | 1 when not x -> mh Smlaw
+           | 1 when rd = 0 -> mh Smulw
+           | 2 -> mh Smlal
+           | 3 when rd = 0 -> mh Smul
+           | _ -> Undefined w)
         else Undefined w
     | 0 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = shifted w }
     (* the hints: msr with no field (nop, yield, wfe, wfi, sev) *)
@@ -137,6 +242,9 @@ let decode w =
         Msr { cond; spsr = bit w 22; fields = rn; src = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
     | 1 when field w 23 2 = 2 && not (bit w 20) -> Undefined w
     | 1 -> Dp { cond; op = dp_ops.(field w 21 4); s = bit w 20; rd; rn; op2 = Imm { imm8 = field w 0 8; rot = field w 8 4 * 2 } }
+    (* claude: rev, rev16, revsh *)
+    | 3 when field w 16 4 = 15 && field w 8 4 = 15 && ((field w 20 8 = 0x6b && (field w 4 4 = 3 || field w 4 4 = 11)) || (field w 20 8 = 0x6f && field w 4 4 = 11)) ->
+        Rev { cond; kind = (if field w 20 8 = 0x6f then Revsh else if field w 4 4 = 3 then Rev32 else Rev16); rd; rm = field w 0 4 }
     (* ARMv6's extends, sxtb uxth sxtah...: Rn 15 for none (not the
      * dual-byte forms, 16) *)
     | 3 when bit w 4 && field w 23 2 = 1 && field w 4 4 = 7 && field w 8 2 = 0 && field w 20 2 >= 2 ->
@@ -153,15 +261,14 @@ let decode w =
         Block { cond; load = bit w 20; rn; writeback = bit w 21; mode; regs = field w 0 16; psr = bit w 22 }
     | 5 -> Branch { cond; link = bit w 24; offset = Bits.sign_extend 24 (field w 0 24) * 4 }
     | 7 when bit w 24 -> Svc { cond; imm = field w 0 24 }
-    (* VFP: vldr, vstr of a double register *)
-    | 6 when field w 24 1 = 1 && not (bit w 21) && field w 8 4 = 0xb ->
-        let off = field w 0 8 * 4 in
-        Vldst { cond; load = bit w 20; d = (field w 22 1 lsl 4) lor rd; rn; offset = (if bit w 23 then off else - off) }
+    (* VFP: coprocessors 10 (singles) and 11 (doubles) *)
+    | 6 when field w 9 3 = 5 -> vfp_transfer w cond
     | 6 when field w 21 4 = 2 && field w 9 3 = 7 ->
         Coproc2 { cond; load = bit w 20; cp = field w 8 4; opc1 = field w 4 4; crm = field w 0 4; rd; rd2 = rn }
     (* vmrs, vmsr: FPSID, FPSCR, FPEXC *)
     | 7 when field w 21 3 = 7 && field w 0 12 = 0xa10 && (rn = 0 || rn = 1 || rn = 8) ->
         if bit w 20 then Vmrs { cond; reg = rn; rd } else Vmsr { cond; reg = rn; rd }
+    | 7 when field w 9 3 = 5 && not (bit w 24) -> vfp_data w cond
     (* mcr, mrc to the system's coprocessors, 14 and 15 (10 and 11 are
      * VFP's; the others the Pi's cores lack) *)
     | 7 when bit w 4 && field w 9 3 = 7 ->
@@ -206,6 +313,9 @@ let operand_text = function
 
 let reglist regs =
   "{" ^ String.concat ", " (List.filter_map (fun r -> if regs land (1 lsl r) <> 0 then Some (reg_name r) else None) (List.init 16 Fun.id)) ^ "}"
+
+let vname double v = (if double then "d" else "s") ^ string_of_int v
+let fsize double = if double then ".f64" else ".f32"
 
 let vfp_reg_name = function 0 -> "fpsid" | 1 -> "fpscr" | _ -> "fpexc"
 
@@ -281,6 +391,17 @@ let print ~addr (i : t) =
       m ((if link then "bl" else "b") ^ cond_name cond) (Bits.to_hex32 (addr + 8 + offset))
   | Bx { cond; link; rm } -> m ((if link then "blx" else "bx") ^ cond_name cond) (reg_name rm)
   | Clz { cond; rd; rm } -> m ("clz" ^ cond_name cond) (reg_name rd ^ ", " ^ reg_name rm)
+  | Rev { cond; kind; rd; rm } ->
+      m ((match kind with Rev32 -> "rev" | Rev16 -> "rev16" | Revsh -> "revsh") ^ cond_name cond) (reg_name rd ^ ", " ^ reg_name rm)
+  | Mulhalf { cond; op; x; y; rd; rn; rm; rs } ->
+      let bt b = if b then "t" else "b" in
+      let r = reg_name in
+      (match op with
+       | Smla -> m ("smla" ^ bt x ^ bt y ^ cond_name cond) (String.concat ", " [ r rd; r rm; r rs; r rn ])
+       | Smul -> m ("smul" ^ bt x ^ bt y ^ cond_name cond) (String.concat ", " [ r rd; r rm; r rs ])
+       | Smlaw -> m ("smlaw" ^ bt y ^ cond_name cond) (String.concat ", " [ r rd; r rm; r rs; r rn ])
+       | Smulw -> m ("smulw" ^ bt y ^ cond_name cond) (String.concat ", " [ r rd; r rm; r rs ])
+       | Smlal -> m ("smlal" ^ bt x ^ bt y ^ cond_name cond) (String.concat ", " [ r rn; r rd; r rm; r rs ]))
   | Mrs { cond; rd; spsr } -> m ("mrs" ^ cond_name cond) (reg_name rd ^ if spsr then ", SPSR" else ", CPSR")
   | Coproc { cond; load; cp; opc1; crn; crm; opc2; rd } ->
       m ((if load then "mrc" else "mcr") ^ cond_name cond)
@@ -306,9 +427,39 @@ let print ~addr (i : t) =
   | Vmrs { cond; reg; rd } ->
       m ("vmrs" ^ cond_name cond) ((if rd = 15 then "APSR_nzcv" else reg_name rd) ^ ", " ^ vfp_reg_name reg)
   | Vmsr { cond; reg; rd } -> m ("vmsr" ^ cond_name cond) (vfp_reg_name reg ^ ", " ^ reg_name rd)
-  | Vldst { cond; load; d; rn; offset } ->
+  | Vldst { cond; load; double; v; rn; offset } ->
       m ((if load then "vldr" else "vstr") ^ cond_name cond)
-        (Printf.sprintf "d%d, [%s%s]" d (reg_name rn) (if offset = 0 then "" else Printf.sprintf ", #%d" offset))
+        (Printf.sprintf "%s, [%s%s]" (vname double v) (reg_name rn) (if offset = 0 then "" else Printf.sprintf ", #%d" offset))
+  | Vblock { cond; load; double; rn; before; writeback; first; count } ->
+      let regs = if count = 1 then vname double first else vname double first ^ "-" ^ vname double (first + count - 1) in
+      if rn = 13 && writeback && load <> before then m ((if load then "vpop" else "vpush") ^ cond_name cond) ("{" ^ regs ^ "}")
+      else
+        m ((if load then "vldm" else "vstm") ^ (if before then "db" else "ia") ^ cond_name cond)
+          (reg_name rn ^ (if writeback then "!" else "") ^ ", {" ^ regs ^ "}")
+  | Vmov_single { cond; to_core; s; rt } ->
+      m ("vmov" ^ cond_name cond) (if to_core then reg_name rt ^ ", " ^ vname false s else vname false s ^ ", " ^ reg_name rt)
+  | Vmov_double { cond; to_core; d; rt; rt2 } ->
+      let core = reg_name rt ^ ", " ^ reg_name rt2 in
+      m ("vmov" ^ cond_name cond) (if to_core then core ^ ", " ^ vname true d else vname true d ^ ", " ^ core)
+  | Vop { cond; op; double; d; n; m = mm } ->
+      let name = match op with
+        | Vmla -> "vmla" | Vmls -> "vmls" | Vnmla -> "vnmla" | Vnmls -> "vnmls" | Vmul -> "vmul" | Vnmul -> "vnmul"
+        | Vadd -> "vadd" | Vsub -> "vsub" | Vdiv -> "vdiv" in
+      m (name ^ cond_name cond ^ fsize double) (String.concat ", " [ vname double d; vname double n; vname double mm ])
+  | Vunop { cond; op; double; d; m = mm } ->
+      let name = match op with Vmov_reg -> "vmov" | Vabs -> "vabs" | Vneg -> "vneg" | Vsqrt -> "vsqrt" in
+      m (name ^ cond_name cond ^ fsize double) (vname double d ^ ", " ^ vname double mm)
+  | Vcmp { cond; e; double; d; m = mm } ->
+      m ((if e then "vcmpe" else "vcmp") ^ cond_name cond ^ fsize double)
+        (vname double d ^ ", " ^ match mm with Some r -> vname double r | None -> "#0.0")
+  | Vcvt { cond; conv; double; d; m = mm } ->
+      let name, dst, src = match conv with
+        | Cvt_precision -> "vcvt" ^ cond_name cond ^ fsize (not double) ^ fsize double, vname (not double) d, vname double mm
+        | Cvt_of_int { signed } -> "vcvt" ^ cond_name cond ^ fsize double ^ (if signed then ".s32" else ".u32"), vname double d, vname false mm
+        | Cvt_to_int { signed; round_zero } ->
+            (if round_zero then "vcvt" else "vcvtr") ^ cond_name cond ^ (if signed then ".s32" else ".u32") ^ fsize double,
+            vname false d, vname double mm in
+      m name (dst ^ ", " ^ src)
   | Msr { cond; spsr; fields; src } ->
       let names = String.concat "" (List.filter_map (fun (b, c) -> if fields land b <> 0 then Some c else None)
                                       [ 8, "f"; 4, "s"; 2, "x"; 1, "c" ]) in
@@ -432,6 +583,33 @@ let[@inline] phys st a w = if st.mmu then st.translate a w else a
 
 (* a VFP instruction allowed: VFP granted; a control register (FPSID,
  * FPEXC) privileged, the rest with FPEXC.EN set; else undefined *)
+(* the VFP's registers as floats: a single is one word of [vfp], a
+ * double two (d_n: words 2n, 2n+1, low first) *)
+let get_s st i = Int32.float_of_bits (Int32.of_int st.vfp.(i))
+let set_s st i f = st.vfp.(i) <- Bits.mask32 (Int32.to_int (Int32.bits_of_float f))
+let get_d st i =
+  Int64.float_of_bits (Int64.logor (Int64.shift_left (Int64.of_int st.vfp.((2 * i) + 1)) 32)
+                         (Int64.logand (Int64.of_int st.vfp.(2 * i)) 0xffffffffL))
+let set_d st i f =
+  let b = Int64.bits_of_float f in
+  st.vfp.(2 * i) <- Bits.mask32 (Int64.to_int (Int64.logand b 0xffffffffL));
+  st.vfp.((2 * i) + 1) <- Bits.mask32 (Int64.to_int (Int64.shift_right_logical b 32))
+let get_v st double i = if double then get_d st i else get_s st i
+let set_v st double i f = if double then set_d st i f else set_s st i f
+
+(* a result in single precision: computed in double, then rounded once
+ * (exact for +, -, *, /, sqrt: a double has more than twice a single's
+ * bits) *)
+let round_to double f = if double then f else Int32.float_of_bits (Int32.bits_of_float f)
+
+(* to a 32-bit integer: saturated, NaN 0; toward zero, or to nearest
+ * with ties to even (vcvtr in FPSCR's default mode) *)
+let to_int ~signed ~round_zero f =
+  let r = if round_zero then Float.trunc f
+    else let t = Float.round f in if Float.abs (f -. Float.trunc f) = 0.5 then 2. *. Float.round (f /. 2.) else t in
+  let lo, hi = if signed then -2147483648., 2147483647. else 0., 4294967295. in
+  if Float.is_nan r then 0 else Bits.mask32 (Int64.to_int (Int64.of_float (Float.min hi (Float.max lo r))))
+
 let vfp_check st ~control addr =
   let ok = st.vfp_ok && (if control then st.mode <> 0x10 else st.fpexc land (1 lsl 30) <> 0) in
   if not ok then raise (Unimplemented (0, addr))
@@ -643,6 +821,34 @@ let execute st ~addr ~svc i =
       end
   (* user mode sees N, Z, C, V and the mode (0x10, usr); it writes
    * only the flags *)
+  | Rev { cond; kind; rd; rm } ->
+      if cond_passed st cond then begin
+        let v = st.r.(rm) in
+        let b k = (v lsr (8 * k)) land 0xff in
+        set st rd (Bits.mask32 (match kind with
+          | Rev32 -> (b 0 lsl 24) lor (b 1 lsl 16) lor (b 2 lsl 8) lor b 3
+          | Rev16 -> (b 2 lsl 24) lor (b 3 lsl 16) lor (b 0 lsl 8) lor b 1
+          | Revsh -> Bits.sign_extend 16 ((b 0 lsl 8) lor b 1)))
+      end
+  | Mulhalf { cond; op; x; y; rd; rn; rm; rs } ->
+      if cond_passed st cond then begin
+        (* in Int64: exact under js_of_ocaml's 32-bit ints too *)
+        let half v top = Int64.of_int (Bits.sign_extend 16 ((if top then v lsr 16 else v) land 0xffff)) in
+        let s32 v = Int64.of_int32 (Int32.of_int v) in
+        let low v = Bits.mask32 (Int64.to_int (Int64.logand v 0xffffffffL)) in
+        let p = Int64.mul (half st.r.(rm) x) (half st.r.(rs) y) in
+        match op with
+        | Smla -> set st rd (low (Int64.add p (s32 st.r.(rn))))
+        | Smul -> set st rd (low p)
+        | Smlaw | Smulw ->
+            let w = Int64.shift_right (Int64.mul (s32 st.r.(rm)) (half st.r.(rs) y)) 16 in
+            set st rd (low (if op = Smlaw then Int64.add w (s32 st.r.(rn)) else w))
+        | Smlal ->
+            let acc = Int64.logor (Int64.shift_left (Int64.of_int st.r.(rd)) 32) (Int64.logand (Int64.of_int st.r.(rn)) 0xffffffffL) in
+            let r = Int64.add acc p in
+            set st rn (low r);
+            set st rd (low (Int64.shift_right_logical r 32))
+      end
   | Mrs { cond; rd; spsr } ->
       if cond_passed st cond then set st rd (if spsr then st.spsr.(bank_of st.mode) else cpsr st)
   | Msr { cond; spsr; fields; src } ->
@@ -709,19 +915,85 @@ let execute st ~addr ~svc i =
         let v = st.r.(rd) in
         match reg with 0 -> () | 1 -> st.fpscr <- v | _ -> st.fpexc <- v
       end
-  | Vldst { cond; load; d; rn; offset } ->
+  | Vldst { cond; load; double; v; rn; offset } ->
       if cond_passed st cond then begin
         vfp_check st ~control:false addr;
         let base = if rn = 15 then (addr + 8) land lnot 3 else st.r.(rn) in
         let a = Bits.mask32 (base + offset) in
-        if load then begin
-          st.vfp.(2 * d) <- Memory.load32 st.mem (phys st a 0);
-          st.vfp.((2 * d) + 1) <- Memory.load32 st.mem (phys st (Bits.mask32 (a + 4)) 0)
-        end
-        else begin
-          Memory.store32 st.mem (phys st a 1) st.vfp.(2 * d);
-          Memory.store32 st.mem (phys st (Bits.mask32 (a + 4)) 1) st.vfp.((2 * d) + 1)
-        end
+        let words = if double then [ 2 * v; (2 * v) + 1 ] else [ v ] in
+        List.iteri (fun k w ->
+          let a = Bits.mask32 (a + (4 * k)) in
+          if load then st.vfp.(w) <- Memory.load32 st.mem (phys st a 0) else Memory.store32 st.mem (phys st a 1) st.vfp.(w)) words
+      end
+  | Vblock { cond; load; double; rn; before; writeback; first; count } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        let words = if double then 2 * count else count in
+        let base = st.r.(rn) in
+        let start = if before then Bits.mask32 (base - (4 * words)) else base in
+        let first_word = if double then 2 * first else first in
+        for k = 0 to words - 1 do
+          let a = Bits.mask32 (start + (4 * k)) in
+          if load then st.vfp.(first_word + k) <- Memory.load32 st.mem (phys st a 0)
+          else Memory.store32 st.mem (phys st a 1) st.vfp.(first_word + k)
+        done;
+        if writeback then st.r.(rn) <- Bits.mask32 (if before then start else base + (4 * words))
+      end
+  | Vmov_single { cond; to_core; s; rt } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        if to_core then set st rt st.vfp.(s) else st.vfp.(s) <- st.r.(rt)
+      end
+  | Vmov_double { cond; to_core; d; rt; rt2 } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        if to_core then (set st rt st.vfp.(2 * d); set st rt2 st.vfp.((2 * d) + 1))
+        else (st.vfp.(2 * d) <- st.r.(rt); st.vfp.((2 * d) + 1) <- st.r.(rt2))
+      end
+  | Vop { cond; op; double; d; n; m } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        let a = get_v st double n and b = get_v st double m and acc = get_v st double d in
+        (* the multiply-accumulates: the product rounded, then added,
+         * negated as the architecture says (a negated NaN changes sign:
+         * vmls is d + -p, not d - p) *)
+        let p = round_to double (a *. b) in
+        let r = match op with
+          | Vmla -> acc +. p | Vmls -> acc +. (-. p) | Vnmla -> (-. acc) +. (-. p) | Vnmls -> (-. acc) +. p
+          | Vmul -> a *. b | Vnmul -> -. p | Vadd -> a +. b | Vsub -> a -. b | Vdiv -> a /. b in
+        set_v st double d (round_to double r)
+      end
+  | Vunop { cond; op; double; d; m } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        (* the sign bit itself for vabs and vneg: a NaN's too *)
+        let top = if double then (2 * m) + 1 else m and dtop = if double then (2 * d) + 1 else d in
+        let sign = 1 lsl 31 in
+        match op with
+        | Vmov_reg | Vabs | Vneg ->
+            if double then st.vfp.(2 * d) <- st.vfp.(2 * m);
+            let w = st.vfp.(top) in
+            st.vfp.(dtop) <- Bits.mask32 (match op with Vabs -> w land lnot sign | Vneg -> w lxor sign | _ -> w)
+        | Vsqrt -> set_v st double d (round_to double (Float.sqrt (get_v st double m)))
+      end
+  | Vcmp { cond; double; d; m; _ } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        let a = get_v st double d and b = match m with Some r -> get_v st double r | None -> 0. in
+        (* FPSCR's N Z C V: less 1000, equal 0110, greater 0010, unordered 0011 *)
+        let nzcv = if Float.is_nan a || Float.is_nan b then 3 else if a < b then 8 else if a = b then 6 else 2 in
+        st.fpscr <- Bits.mask32 ((st.fpscr land 0x0fffffff) lor (nzcv lsl 28))
+      end
+  | Vcvt { cond; conv; double; d; m } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        match conv with
+        | Cvt_precision -> set_v st (not double) d (round_to (not double) (get_v st double m))
+        | Cvt_of_int { signed } ->
+            let i = st.vfp.(m) in
+            let f = if signed then Int32.to_float (Int32.of_int i) else Int64.to_float (Int64.logand (Int64.of_int i) 0xffffffffL) in
+            set_v st double d (round_to double f)
+        | Cvt_to_int { signed; round_zero } -> st.vfp.(d) <- to_int ~signed ~round_zero (get_v st double m)
       end
   (* nop and yield do nothing; wfe, wfi, sev are the system's *)
   | Hint { cond; hint } -> if cond_passed st cond && hint >= 2 then st.coproc st i
