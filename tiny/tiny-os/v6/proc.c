@@ -1,7 +1,8 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
 // tiny-os v6: processes, the scheduler, sleep and wakeup, the traps and
-// the system calls (xv6's proc.c, trap.c, syscall.c and sysproc.c).
+// the system calls (xv6's proc.c, trap.c, syscall.c and sysproc.c; the
+// ideas, and their references: main.c).
 // One lock for the process table (xv6's x86 version), right on several
 // cores. The kernel is not preemptible (Unix V6's): a process in it runs
 // until it sleeps or returns to user mode, where the timer preempts it;

@@ -1,7 +1,7 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
 // tiny-os v6: the file system (xv6's virtio_disk.c, bio.c, fs.c, less
-// the log), on the format TinyMkfs.ml makes: a superblock, the inodes,
+// the log; the ideas: main.c), on the format TinyMkfs.ml makes: a superblock, the inodes,
 // a bitmap, the data. The layers, from the bottom: the disk's blocks;
 // the buffer cache (a block in memory, one process at a time); the
 // inodes (a file's blocks, its size); the directories (names to

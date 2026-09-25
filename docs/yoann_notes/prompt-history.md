@@ -4596,3 +4596,15 @@ Claude implemented t6 kernel with main.c, spawning /init and running the schedul
 **Yoann:**
 
 > where is it now?
+
+**Claude (summary):**
+
+Claude found the kernel ideas scattered across docs/plans/plan_tiny_os.md, proc.c, and file.c. Claude decided to write a comprehensive header at the top of main.c, modeled after TinyDatabase.ml's format. The header covers how to run it, core ideas, changes from v6, exercises, and references. Other files like proc.c and file.c keep one-line pointers to this central header. Claude completed the header, verified checks pass, and will point the plan at it.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:04
+
+**Yoann:**
+
+> yes, do the same for v6

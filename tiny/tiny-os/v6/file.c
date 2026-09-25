@@ -1,7 +1,7 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
 // tiny-os v6: the files a process holds (xv6's file.c, pipe.c,
-// console.c, exec.c and sysfile.c): the open files' table, pipes, the
+// console.c, exec.c and sysfile.c; the ideas: main.c): the open files' table, pipes, the
 // console (a device, reached through devsw's function pointers), exec
 // of an a.out, and the system calls on files.
 #include "defs.h"

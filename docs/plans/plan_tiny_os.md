@@ -453,6 +453,10 @@ needs the unsigned division without the user's start
 (`libc/udivmod.tm`); tiny-c folds constant expressions (`name[DIRSIZ +
 1]`).
 
+(v6's ideas, what it keeps of xv6 and where it departs, with their
+references, are at the top of `v6/main.c`, as t6's are at the top of
+`t6/main.c`.)
+
 **Over the budget**: 2,781 lines of code (no comments, no blank
 lines): the kernel 2,178 (`defs.h` 204, `entry.tm` 152, `main.c` 239,
 `vm.c` 191, `proc.c` 382, `fs.c` 448, `file.c` 562), the user side 603

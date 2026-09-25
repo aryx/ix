@@ -1,6 +1,81 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
-// tiny-os v6: the start, and what every part uses: printf and panic,
+// tiny-os v6, xv6's kind of kernel for tiny-machine, in C (tiny-c -tm)
+// and a page of assembly. xv6 (MIT, 2006-) is Unix's Sixth Edition
+// redone for a teaching course; v6 is xv6 redone again, its ideas and
+// its names on a machine designed to show them (pages, traps, a timer,
+// a disk, and nothing else), in seven files where xv6 has thirty. t6
+// (../t6/) is its free variant, which takes the other roads.
+//
+//     ./tiny-machine v6            (at the top of ix; or make run here)
+//     $ echo hello | cat > f; cat f; ls; mkdir d; cd d; cd ..; rm f
+//     $ usertests
+//
+// What it keeps of xv6, as xv6 has it:
+//
+// - {b Processes as Unix made them}: fork copies a process, exec
+//   replaces its program, exit and wait end it; a shell is small because
+//   these are two calls. Each process a kernel stack, a context switch
+//   (swtch) between them, sleep and wakeup on a channel for what they
+//   wait for.
+// - {b Pages}: Sv32's two levels, a page table a process, fork copying
+//   the pages, sbrk growing them, a stray access a fault that kills.
+// - {b The file system in layers}: the disk's blocks, a buffer cache
+//   (one process a block at a time), inodes (a file's blocks: 12 direct,
+//   one indirect), directories (names to inodes), paths; pipes; the
+//   console a device, through devsw's table of function pointers.
+// - {b Spinlocks and multicore readiness}: locks on an atomic swap
+//   (amoswap), push_off and pop_off counting, cpus[] by the core's
+//   number, a lock order; one core today, the code right for more.
+//
+// Where it departs, each for a reason:
+//
+// - {b The kernel in every page table} (xv6's x86 way, not its RISC-V
+//   one): a trap changes no page table, so there is no trampoline page;
+//   the kernel low and identity-mapped, where the machine starts, a
+//   process's space at 8 MB (vm.c).
+// - {b swtch saves two registers}, sp and lr: tiny-c's callee may use
+//   every register, so its caller has saved what it needs (entry.tm).
+// - {b A kernel that is not preemptible}, Unix V6's: interrupts are on in
+//   user mode and in the scheduler's idle loop only; one lock for the
+//   process table (xv6's x86 version). Fewer places for a race.
+// - {b The disk polled}, as tiny-machine moves a block at once; no
+//   virtio. {b Interrupts by ip and ie}, a bit a source, no PLIC. {b An
+//   a.out} of three words (a magic, the size, the entry), no ELF.
+// - {b No log}, {b no links}: a crash between two writes may leave the
+//   disk inconsistent (Unix's before fsck), a file has one name.
+//
+// Dropped from xv6: the log, link and link counts, sleep, uptime, ELF,
+// virtio, the PLIC, the trampoline, kernel preemption, 64 bits. 18
+// system calls (exit write read fork wait kill getpid sbrk exec open
+// close dup pipe fstat chdir mkdir unlink mknod), exit, write and read
+// first, tiny-cpu's own, so a program runs on both. 2,781 lines of code
+// with the user side, against the 2,000 aimed at (plan_tiny_os.md).
+//
+// The test: make check, usertests (fork and wait, pipes, files,
+// directories, sbrk, exec, a store into the kernel killed) and a script
+// through the shell, against check.expected.
+//
+// Exercises, each in xv6's own way:
+// - the log back (xv6's log.c): a system call's writes to the disk
+//   atomic, and a crash test (the machine halted between two writes);
+// - links and link counts (xv6's link, nlink);
+// - fork copy-on-write: the pages shared read-only, copied at the first
+//   write's fault (Mach, 4.4BSD);
+// - sbrk lazy: pages given at their first fault;
+// - several cores: tiny-machine with N of them, stepped in an order a
+//   seed draws, so that a race comes back (plan_tiny_os.md, phase 5).
+//
+// References (all from memory): D. Ritchie and K. Thompson, "The UNIX
+// Time-Sharing System" (CACM 1974); J. Lions, "A Commentary on the
+// UNIX Operating System" (1977), the Sixth Edition line by line; M.
+// Bach, "The Design of the UNIX Operating System" (1986), the buffer
+// cache and sleep and wakeup; R. Cox, F. Kaashoek, R. Morris, "xv6: a
+// simple, Unix-like teaching operating system" (MIT, the book and the
+// code, 2006-); the RISC-V privileged specification, Sv32; its
+// riscv32 fork (~/xv6/forks/riscv32), v6's model.
+//
+// This file: the start, and what every part uses: printf and panic,
 // the strings, the pages' allocator, the spinlocks (xv6's main.c,
 // printf.c, string.c, kalloc.c and spinlock.c).
 #include "defs.h"

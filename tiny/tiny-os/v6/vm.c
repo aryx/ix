@@ -1,7 +1,8 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
-// tiny-os v6: the pages (xv6's vm.c). Sv32: a root of 1,024 entries, each
-// a table of 1,024 pages of 4 KB. The kernel is in every page table:
+// tiny-os v6: the pages (xv6's vm.c; the ideas: main.c). Sv32: a root
+// of 1,024 entries, each a table of 1,024 pages of 4 KB. The kernel is
+// in every page table:
 // [0, KERNTOP) identity-mapped by the root's first two entries, and the
 // devices' page by its last, the same three entries (the same two
 // tables) in every process's root; a process's own pages are the
