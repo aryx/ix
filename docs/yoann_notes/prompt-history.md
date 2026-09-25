@@ -4068,3 +4068,15 @@ Claude recommended `.tm` as the file extension to match existing TinyCPU assembl
 **Yoann:**
 
 > ideally we can have tiny-c that can also output .tm ?
+
+**Claude (summary):**
+
+Claude created tiny-machine, a new toplevel tool that runs assembled and linked .tm image files. Claude designed the command line to accept multiple .tm files or a single image, and fixed error message filenames. Claude updated the test script and top-level script to show assemble, link, and execute steps separately. Claude verified the implementation works regardless of program linking order since the kernel finds them by label. Claude improved readability by displaying relative paths instead of absolute paths in error messages.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:42
+
+**Yoann:**
+
+> yes! exciting!

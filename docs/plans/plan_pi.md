@@ -647,3 +647,9 @@ pass in under a minute here with QEMU's output (`-a` runs them); left
 out sbrkmuch (100MB) and eight that loop over forks or execs (2-18s
 under QEMU, minutes here). The pids are QEMU's when the sequence is
 the same, one core or four.
+
+**G4 done** (2026-09-25): **xv6 arm64-pi4 passes its usertests under
+mini-qemu**, the real kernel (128MB), one core: all 62 tests, ALL
+TESTS PASSED in 3,023s (50 minutes; QEMU's four threaded cores: 183s),
+run by the port's own harness function (`test_usertests`) with a
+3-hour limit instead of its 300s.
