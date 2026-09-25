@@ -167,3 +167,38 @@ did; the handler runs there through the runtime's callback, and a full
 major collection at each trap finds its roots (the callback's link
 back to the runtime's saved stack state). One kernel stack is enough
 while there is one program; step 3 gives each process its own.
+
+**Step 3 done** (2026-09-25): `kernel/step3/`, processes on their own
+kernel stacks, the collector seeing all of them, under mini-qemu and
+QEMU the same. **No change to ocaml-light's runtime was needed**: its
+`roots.c` already has what systhreads uses, `scan_roots_hook` and
+`do_local_roots`.
+
+- `machine.c`: per slot a trap frame (start.s uses the running one's,
+  `cur_tf`), a 16KB kernel stack and a context. `k_swtch`, an OCaml
+  external, saves the runtime's view of the stack (the five globals
+  `caml_c_call` and the collector use: `caml_bottom_of_stack`,
+  `caml_last_return_address`, `caml_gc_regs`, `caml_exception_pointer`,
+  `local_roots`) with the registers, and puts its own back when the
+  process resumes; being an external, it switches right where
+  `caml_c_call` has recorded the process's last OCaml frame.
+  `scan_stacks`, the runtime's `scan_roots_hook`, walks every stack
+  that does not run with `do_local_roots`. A new process starts in a C
+  trampoline on its empty stack (its view empty: the callback's link
+  says there is nothing above) and enters OCaml by `callback`.
+- `start.s`: the trap frame through `cur_tf`; `swtch` (r4-r11, d8-d15,
+  sp, lr).
+- `Main.ml`: a process table (a variant for the state), xv6's
+  round-robin scheduler on the boot stack, `sched` from inside a system
+  call; write, getpid, exit, and sleep (no timer yet: the CPU given up
+  n times). `user.s`: three rounds of "process P, round R" with sleep
+  between, then exit(10P).
+- **The check**: around every switch the sleeping process holds young
+  values only its kernel stack refers to, while the scheduler
+  allocates and forces a minor and a major collection; all 9 checks
+  pass. **With the hook left out**, the first resume finds its values
+  gone (a sum of 3675 for 1225) and the next round takes a data abort:
+  the check fails when it should.
+
+The risk the plan put first -- a collected language's kernel with a
+kernel stack per process -- is retired. Step 4 is xv6 itself.

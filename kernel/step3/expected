@@ -1,0 +1,14 @@
+mini-xv6: step 3, three processes on their own kernel stacks
+process 1, round 1
+process 2, round 1
+process 3, round 1
+process 1, round 2
+process 2, round 2
+process 3, round 2
+process 1, round 3
+process 2, round 3
+process 3, round 3
+mini-xv6: process 1 exited, status 10; its values intact across 3 switches
+mini-xv6: process 2 exited, status 20; its values intact across 3 switches
+mini-xv6: process 3 exited, status 30; its values intact across 3 switches
+mini-xv6: no process left to run
