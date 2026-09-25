@@ -32,7 +32,7 @@ let usage = "usage: mini-qemu -M raspi1ap|raspi4b [-m size] [-smp n] [-nographic
 (* the board run in batches; the host's input polled (raw on a
  * terminal, Ctrl-A x to quit), the console's output written, the
  * screen shown 30 times a second of the host's, QMP served *)
-let loop caps ~out ~graphics ~qmp ~run ~input ~frame ~key ~qmp_poll =
+let loop caps ~out ~graphics ~qmp ~run ~input ~frame ~key ~pointer ~qmp_poll =
   let tty = Unix.isatty Unix.stdin in
   let saved = if tty then Some (Unix.tcgetattr Unix.stdin) else None in
   Option.iter (fun (a : Unix.terminal_io) ->
@@ -71,7 +71,16 @@ let loop caps ~out ~graphics ~qmp ~run ~input ~frame ~key ~qmp_poll =
          if now -. !last_frame > 1. /. 30. then begin
            last_frame := now;
            Option.iter (fun (g, data) -> display.Display.present g data) (frame ());
-           List.iter (function Display.Key (u, down) -> key u down | Display.Quit -> quit ()) (display.poll ())
+           (* the mouse's events of a poll synced as one, as QEMU syncs
+            * a window's *)
+           let evs = display.poll () in
+           List.iter (function Display.Key (u, down) -> key u down | Display.Quit -> quit () | _ -> ()) evs;
+           let inputs = List.concat_map (function
+             | Display.Motion (dx, dy) -> [ Usb.Rel_x dx; Usb.Rel_y dy ]
+             | Display.Button (b, down) -> [ Usb.Button (b, down) ]
+             | Display.Wheel v -> [ Usb.Wheel v ]
+             | _ -> []) evs in
+           if inputs <> [] then pointer inputs
          end
        end
      done
@@ -80,7 +89,7 @@ let loop caps ~out ~graphics ~qmp ~run ~input ~frame ~key ~qmp_poll =
 
 let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
-  let kernel = ref None and machine = ref "" and ips = ref 30 and debug = ref false and kbd = ref false in
+  let kernel = ref None and machine = ref "" and ips = ref 30 and debug = ref false and usb = ref [] in
   let qmp = ref None and graphics = ref true in
   let serials = ref [] and drive = ref None and loader = ref None in
   let ram = ref (2 * 1024 * 1024 * 1024) and smp = ref 1 and trace = ref 0 in
@@ -101,7 +110,8 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
     | "-ips" :: n :: rest -> ips := int_of_string n; parse rest
     | "-d" :: rest -> debug := true; parse rest
     | "-trace" :: n :: rest -> trace := int_of_string n; parse rest
-    | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "usb-kbd" -> kbd := true; parse rest
+    | "-device" :: d :: rest when List.mem (List.hd (String.split_on_char ',' d)) [ "usb-kbd"; "usb-mouse" ] ->
+        usb := !usb @ [ List.hd (String.split_on_char ',' d) ]; parse rest
     | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "loader" ->
         let o = options d in
         (match List.assoc_opt "file" o, List.assoc_opt "addr" o with
@@ -148,19 +158,19 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
          | Some k -> (try Pi4.load_elf board (read k) with Elf.Bad m -> Console.eprint caps ("mini-qemu: " ^ k ^ ": " ^ m ^ " (raspi4b: an ELF kernel)\n"); exit 1)
          | None -> Console.eprint caps "mini-qemu: raspi4b: -kernel only\n"; exit 2);
         loop caps ~out ~graphics:false ~qmp:None ~run:(fun () -> Pi4.run board ~batch:4096) ~input:(Pi4.input board)
-          ~frame:(fun () -> None) ~key:(fun _ _ -> ()) ~qmp_poll:(fun _ ~quit:_ -> ())
+          ~frame:(fun () -> None) ~key:(fun _ _ -> ()) ~pointer:(fun _ -> ()) ~qmp_poll:(fun _ ~quit:_ -> ())
       end
       else begin
         let console = match List.nth_opt serials 1 with Some ("stdio" | "mon:stdio") -> 1 | _ -> 0 in
         let sd = Option.map (fun (f, snapshot) -> Storage.file f ~snapshot) !drive in
-        let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_keyboard = !kbd; sd;
+        let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_devices = !usb; sd;
                                    serial0 = target 0; serial1 = target 1; console } in
         (match kernel, loader with
          | _, Some (f, addr) -> Board.load_raw board ~addr (read f)
          | Some k, None -> Board.load_kernel board (read k)
          | None, None -> ());
         loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Board.run board ~batch:4096) ~input:(Board.input board)
-          ~frame:(fun () -> Board.frame board) ~key:(Board.key board) ~qmp_poll:(fun q ~quit -> Qmp.poll q board ~quit)
+          ~frame:(fun () -> Board.frame board) ~key:(Board.key board) ~pointer:(Board.pointer board) ~qmp_poll:(fun q ~quit -> Qmp.poll q board ~quit)
       end
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

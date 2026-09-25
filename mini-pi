@@ -24,7 +24,9 @@
 #
 # Options:
 #   -g   a window: the framebuffer (and for xv6, a USB keyboard: type in
-#        the window or in the terminal)
+#        the window or in the terminal; for 9pi, a USB keyboard and
+#        mouse: the draw console, rio from it; a click grabs the mouse,
+#        Ctrl-Alt-G releases it)
 #   -w   9pi: write to the SD card image (by default its writes are kept
 #        in memory and lost at exit, QEMU's snapshot=on)
 #   -q   run QEMU instead, with the same arguments (to compare)
@@ -100,7 +102,10 @@ case $1 in
     [ -f $dir/qemu-sd.img ] || { echo "mini-pi: no $dir/qemu-sd.img (principia: mk disk)"; exit 1; }
     args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on
           -drive file=qemu-sd.img,if=sd,format=raw$snapshot -serial null -serial mon:stdio)
-    [ $graphics = 1 ] || args+=(-display none)
+    # graphics as principia's "mk run": the draw console, a USB keyboard
+    # and mouse (rio from it; a click in the window grabs the mouse,
+    # Ctrl-Alt-G lets it go)
+    if [ $graphics = 1 ]; then args+=(-device usb-kbd -device usb-mouse); else args+=(-display none); fi
     ;;
   *) usage;;
 esac
@@ -124,7 +129,7 @@ else
   say "console:  the PL011 (serial 0)"
   [ $1 = xv6-pi4 ] && [ $qemu = 0 ] && say "cores:    $cores of the Pi4's four (-smp $cores); the boot takes about $((20 * cores))s (kinit fills 128MB)"
 fi
-[ $graphics = 1 ] && say "display:  a window$( [ $1 != 9pi ] && echo ', and a USB keyboard')"
+[ $graphics = 1 ] && say "display:  a window, and a USB keyboard$( [ $1 = 9pi ] && echo ' and mouse (a click grabs it, Ctrl-Alt-G lets it go)')"
 say "command:  (cd $dir && $emulator ${args[*]})"
 say "quit:     Ctrl-A then x$( [ $graphics = 1 ] && echo ', or close the window')"
 

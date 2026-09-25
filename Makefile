@@ -100,6 +100,7 @@ build-docker-ocaml5:
 test-pi: all
 	dune build --profile release ./raspberry/Main.exe
 	./raspberry/tests/9pi.py
+	./raspberry/tests/9pi_graphics.py
 	./raspberry/tests/xv6.sh $(XV6_USERTESTS)
 	./raspberry/tests/graphics.py
 	./raspberry/tests/xv6_pi4.py

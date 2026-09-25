@@ -10,7 +10,7 @@
 (* See Board.mli *)
 
 type config = {
-  ram_size : int; ips : int; log : string -> unit; usb_keyboard : bool;
+  ram_size : int; ips : int; log : string -> unit; usb_devices : string list;   (* -device's USB ones, in order: "usb-kbd", "usb-mouse" *)
   sd : Sdhost.storage option;
   serial0 : char -> unit;            (* the PL011 *)
   serial1 : char -> unit;            (* the mini UART *)
@@ -51,6 +51,7 @@ type t = {
   inq : char Queue.t;               (* the host's characters, for the UART *)
   fb : Framebuffer.t;
   keyboard : Usb.device option;
+  mouse : Usb.device option;
   mutable key_events : (int * int * bool) list;   (* at a microsecond: a usage, down *)
 }
 
@@ -154,14 +155,18 @@ let create cfg =
   dev 0x215000 0x100 "aux" (Miniuart.device mini);
   dev 0x300000 0x100 "emmc" (Sdhost.device (Sdhost.create ~card:cfg.sd ~line:(fun on -> Intc.set intc 62 on)));
   dev 0x7000 0x1000 "dma" (Dma.device (Dma.create ~mem ~line:(fun n on -> Intc.set intc n on)));
-  (* a keyboard: behind the hub QEMU adds on the controller's one port *)
-  let keyboard = if cfg.usb_keyboard then Some (Usb.keyboard ~path:"1.1" ()) else None in
-  let root = Option.map (fun k -> Usb.hub ~path:"1" [ k ]) keyboard in
-  dev 0x980000 0x10000 "usb" (Dwc2.device (Dwc2.create ~mem ~root ~line:(fun on -> Intc.set intc 9 on)));
+  (* the USB devices: behind the hub QEMU adds on the controller's one
+   * port, on its ports in their order (1.1, 1.2, ...) *)
+  let devices = List.mapi (fun i name ->
+    let path = Printf.sprintf "1.%d" (i + 1) in
+    name, (if name = "usb-mouse" then Usb.mouse ~path () else Usb.keyboard ~path ())) cfg.usb_devices in
+  let keyboard = List.assoc_opt "usb-kbd" devices and mouse = List.assoc_opt "usb-mouse" devices in
+  let root = if devices = [] then None else Some (Usb.hub ~path:"1" (List.map snd devices)) in
+  dev 0x980000 0x10000 "usb" (Dwc2.device (Dwc2.create ~mem ~root ~line:(fun on -> Intc.set intc 9 on) ~now:(fun () -> Systimer.now timer)));
   let cp = { actlr = 0; cpacr = 0; dfsr = 0; ifsr = 0; dfar = 0; ifar = 0; fcse = 0; contextid = 0; tpid = Array.make 3 0 } in
   let t = { st; mem; mmu; cp; intc; timer; uart; mini; wfi = false; cfg;
             tags = Array.make (1 lsl cache_bits) (-1); code = Array.make (1 lsl cache_bits) (Arm32.Undefined 0);
-            instructions = 0; time_left = 0; undefined = []; inq = Queue.create (); fb; keyboard; key_events = [] } in
+            instructions = 0; time_left = 0; undefined = []; inq = Queue.create (); fb; keyboard; mouse; key_events = [] } in
   st.coproc <- coproc t;
   st.translate <- (fun va access -> Mmu32.translate mmu ~user:(st.mode = 0x10) va access);
   set_sctlr t 0x00050078;
@@ -205,6 +210,9 @@ let now t = Systimer.now t.timer
 
 (* a key now (the window's) *)
 let key t usage down = Option.iter (fun k -> Usb.key k usage down) t.keyboard
+
+(* the mouse's input now (QMP's input-send-event) *)
+let pointer t inputs = Option.iter (fun m -> Usb.pointer m inputs) t.mouse
 
 (* keys pressed now and released after [hold] microseconds of the
  * board's time, as QEMU's send-key (its hold-time: 100ms) *)

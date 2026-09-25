@@ -75,6 +75,43 @@ let execute board ~quit json =
       let usages = List.filter_map (fun k -> try usage_of_qcode (k |> member "data" |> to_string) with _ -> None) keys in
       if List.length usages <> List.length keys then error "send-key: an unknown key"
       else (Board.send_keys board usages ~hold:(hold * 1000); ok)
+  | "input-send-event" ->
+      (* claude: QEMU's input events: relative motion and buttons to the
+       * mouse (then synced, as one QMP command is), keys to the
+       * keyboard *)
+      let events = try args |> member "events" |> to_list with _ -> [] in
+      let button = function
+        | "left" -> Some (Usb.Button (1, true)) | "right" -> Some (Usb.Button (2, true))
+        | "middle" -> Some (Usb.Button (4, true)) | "side" -> Some (Usb.Button (8, true))
+        | "extra" -> Some (Usb.Button (16, true)) | "wheel-up" -> Some (Usb.Wheel (-1))
+        | "wheel-down" -> Some (Usb.Wheel 1) | _ -> None in
+      let one e =
+        let data = member "data" e in
+        match member "type" e |> to_string with
+        | "rel" ->
+            let v = data |> member "value" |> to_int in
+            (match data |> member "axis" |> to_string with "x" -> Some (`Pointer (Usb.Rel_x v)) | "y" -> Some (`Pointer (Usb.Rel_y v)) | _ -> None)
+        | "btn" ->
+            let down = data |> member "down" |> to_bool in
+            (match button (data |> member "button" |> to_string) with
+             | Some (Usb.Button (b, _)) -> Some (`Pointer (Usb.Button (b, down)))
+             | Some (Usb.Wheel v) -> if down then Some (`Pointer (Usb.Wheel v)) else Some `Nothing
+             | _ -> None)
+        | "key" ->
+            let down = data |> member "down" |> to_bool in
+            (match usage_of_qcode (data |> member "key" |> member "data" |> to_string) with
+             | Some u -> Some (`Key (u, down))
+             | None -> None)
+        | _ -> None in
+      let parsed = List.map (fun e -> try one e with _ -> None) events in
+      if List.mem None parsed then error "input-send-event: an event not handled"
+      else begin
+        let parsed = List.filter_map Fun.id parsed in
+        List.iter (function `Key (u, down) -> Board.key board u down | _ -> ()) parsed;
+        let inputs = List.filter_map (function `Pointer i -> Some i | _ -> None) parsed in
+        if inputs <> [] then Board.pointer board inputs;
+        ok
+      end
   | "quit" -> quit (); ok
   | c -> `Assoc [ "error", `Assoc [ "class", `String "CommandNotFound"; "desc", `String ("The command " ^ c ^ " has not been found") ] ]
 

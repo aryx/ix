@@ -4851,3 +4851,51 @@ Claude documented the merge in plan_kernel.md with a convergence table listing e
 **Yoann:**
 
 > let's commit. What's next?
+
+**Claude (summary):**
+
+Claude committed 8ad7fd9 with the dual-board kernel, floating-point tests, and documentation.
+He proposed a five-item roadmap: real hardware on Pi4, convergence back to ~/xv6, Arch abstraction, multicore, and 9pi.
+9pi is the planned Plan 9 kernel in OCaml, the second major program twin in the series.
+He recommended starting with real boards on Pi4 since its boot path was more complete.
+The Pi1's usertest run was still in progress to finalize timing measurements.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 18:59
+
+**Yoann:**
+
+> what about handling -graphics! emulating the framebuffer of the Pi1 and Pi4! to go towards 9pi that boots with fancy graphics
+
+------------------------------------------------------------------------
+
+## 2026-09-25 18:59
+
+**Yoann:**
+
+> true, I forgot about that!
+
+**Claude (summary):**
+
+Claude identified that 9pi boots graphically under mini-qemu but the USB keyboard driver unexpectedly exits. Root cause: mini-qemu lacks HID class requests, SET_PROTOCOL, SET_IDLE commands, and USB interrupt transfers. Claude proposed fixing the keyboard first, then adding mouse, then enabling rio, then Pi4 framebuffer. Claude confirmed Pi1 usertests pass under mini-qemu and 9pi's boot is otherwise identical to QEMU. Yoann approved proceeding with keyboard support as the primary focus moving forward.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 19:18
+
+**Yoann:**
+
+> yes
+
+**Claude (summary):**
+
+Claude added USB endpoint 1 support to mini-qemu's keyboard driver following QEMU's HID implementation. Claude implemented QEMU's usb-mouse with button/motion/wheel events driven by QMP input-send-event. Claude created raspberry/tests/9pi_graphics.py testing 9pi boot through rio, matching QEMU's screenshots byte for byte. Claude verified rio works identically in both emulators, with keyboard and mouse fully functional. Claude documented the changes in plan_pi.md and plan_kernel.md, ready for commit.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 20:15
+
+**Yoann:**
+
+> let;s commit

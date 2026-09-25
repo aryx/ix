@@ -16,7 +16,7 @@ type config = {
   ram_size : int;
   ips : int;                      (* instructions per microsecond *)
   log : string -> unit;           (* what a user may want to know: unassigned I/O, undefined instructions *)
-  usb_keyboard : bool;            (* -device usb-kbd *)
+  usb_devices : string list;     (* -device usb-kbd, usb-mouse, in order *)
   sd : Sdhost.storage option;     (* -drive ...,if=sd *)
   serial0 : char -> unit;         (* the PL011's output (QEMU's first -serial) *)
   serial1 : char -> unit;         (* the mini UART's (the second) *)
@@ -52,6 +52,9 @@ val now : t -> int
 
 (* a key down or up on the USB keyboard (-device usb-kbd), by HID usage *)
 val key : t -> int -> bool -> unit
+
+(* the mouse's input now (QMP's input-send-event), then synced *)
+val pointer : t -> Usb.input list -> unit
 
 (* keys pressed now and released after [hold] microseconds of the
  * board's time (QMP's send-key) *)

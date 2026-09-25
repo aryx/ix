@@ -400,8 +400,8 @@ differed (a list for xv6-multiarch's convergence):
 
 - the Pi1: the shell session byte for byte as arm-pi1's C kernel under
   mini-qemu and QEMU, and usertests (arm-pi1's, 29 tests) passing under
-  QEMU with the new semantics (under mini-qemu, the earlier semantics'
-  run: 41 minutes, above);
+  QEMU and mini-qemu (3,454s, sharing the CPU with the Pi4's run) with
+  the new semantics, the transcript the C kernel's;
 - the Pi4: the session byte for byte as arm64-pi4's C kernel under
   mini-qemu and QEMU, and **usertests (xv6-riscv's, 62 tests) passing**
   under QEMU (47s) and mini-qemu (638s), the transcript the C kernel's

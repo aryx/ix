@@ -406,6 +406,10 @@ emulated and slow there) is in `Bits` alone (plan_arm.md, decision 3).
   display (the playground's web backend, or a canvas): a Pi1 with xv6
   in a browser page, the card image fetched; its speed measured.
 - **I. `tiny/TinyMachinePi.ml`.**
+- **J. 9pi's graphics** (the author: "towards 9pi that boots with
+  fancy graphics"): 9pi's draw console with a USB keyboard, then the
+  mouse, then rio, each against QEMU's screendumps; later the Pi4's
+  framebuffer, for a kernel that draws there (mini-xv6's).
 
 Each phase checked by the kernels' own tests, by QEMU's trace for the
 first divergence when one fails, and, for the boards' personality, by
@@ -736,3 +740,59 @@ it; it was not, and it is gone (a526d12 has it). What was learned:
   skips its turns, and the time jumps when all sleep) and on the board
   (less power) -- an exercise for a kernel, tiny-os's or a fork of
   xv6's, not the emulator's.
+
+**Phase J, the keyboard** (2026-09-25): **9pi boots its graphics under
+mini-qemu as under QEMU**, and its USB keyboard types. Booted as
+principia's graphical `mk run` (a USB keyboard; headless here, QMP on
+a Unix socket), 9pi draws its "Plan 9 Console" in the framebuffer; the
+boot's screen, and the screens after `ls /` and `echo hi` typed by
+QMP's send-key, are **byte for byte QEMU's**, and so is the console
+(`raspberry/tests/9pi_graphics.py`, in `make test-pi`).
+
+The one difference before: `usb/hub... usb/kb... kb: exiting`. Plan 9's
+keyboard driver reads the keyboard's **interrupt endpoint** (1);
+mini-qemu modelled endpoint 0 only (CSUD, xv6's driver, polls with
+GET_REPORT), so endpoint 1's read got endpoint 0's left-over state,
+0 bytes, and kb took it for the end. Now `Usb`, as QEMU's
+`hw/input/hid.c` and `hw/usb/dev-hid.c`, `dev-hub.c` (read 2026-09-25):
+
+- the keyboard's events **queued** as QEMU queues its PS/2 scancodes
+  (an extended key's 0xe0 prefix an event of its own, 16 at most), each
+  report -- an interrupt IN or a GET_REPORT -- applying one; the keys
+  held in QEMU's `key[16]` (added at the end, a release swapping the
+  last into its place: the order in the report is QEMU's; more than 6,
+  the rollover error);
+- endpoint 1: the keyboard's report when an event is queued or an
+  **idle report** is due (SET_IDLE's rate, 4ms units, on the board's
+  clock), else **NAK**; the hub's ports with a change, as a bitmap,
+  else NAK, **BABBLE** when it does not fit;
+- `Dwc2`: the endpoint's number to Usb, the board's time, BABBLE as
+  BBLERR; an interrupt endpoint's NAK halts the channel, as QEMU's.
+
+xv6's graphical test (`graphics.py`) still passes, both ports.
+
+**Phase J, the mouse and rio** (2026-09-25): **rio runs under mini-qemu
+as under QEMU.** With QEMU's `usb-mouse` beside the keyboard (principia's
+`mk run` has both), 9pi_graphics.py's session goes on from the console
+into rio, started from it: rio's menu (button 3 down, on "New"), a
+window swept out (button 3 held, dragged), `echo hello from rio` typed
+in it -- 11 screens, each byte for byte QEMU's.
+
+- `Usb`: the HID state both devices share (idle, its timer, protocol)
+  out of the keyboard; QEMU's usb-mouse (dev-hid.c's desc_mouse: a boot
+  mouse, 5 buttons, relative X, Y and wheel, a 4-byte report, its
+  serial "89126-1.2"); its events as hid.c keeps them: a ring of 16,
+  the host's input added to the event being made, a sync publishing it
+  or adding its motion to the unread one before (same buttons), a
+  report taking up to 127 of the oldest event's motion (the rest the
+  next report's), the wheel inverted. bcdUSB 0x0100 for the HID devices
+  (the keyboard said the hub's 0x0110).
+- `Board`: `-device usb-kbd`, `usb-mouse` in their order on the hub's
+  ports (1.1, 1.2, as QEMU attaches them).
+- `Qmp`: `input-send-event` (relative motion, buttons, the wheel, keys),
+  each command's events then synced, as QEMU's.
+- The window (`Sdl_display`): the mouse, relative as a USB mouse is:
+  a click grabs the host's pointer (SDL's relative mode), Ctrl-Alt-G
+  lets it go, as QEMU's window does; each poll's events synced as one.
+  `./mini-pi -g 9pi` attaches the keyboard and the mouse, as `mk run`
+  does: 9pi's console, and rio from it, used by hand.

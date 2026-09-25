@@ -10,7 +10,10 @@
 (* The display in an SDL window (tsdl): the framebuffer as a streaming
  * texture in its own format (RGB565 for 16 bits: no conversion), sized
  * at its first frame, drawn when it changed; the keys by SDL's
- * scancodes, which are USB HID usages (SDL took them from there). The
+ * scancodes, which are USB HID usages (SDL took them from there); the
+ * mouse, relative as a USB mouse is: a click grabs the host's pointer
+ * (SDL's relative mode: its motion the guest's, the host cursor gone),
+ * Ctrl-Alt-G lets it go, as QEMU's window does. The
  * one module of mini-qemu linking a C library (plan_pi.md, decision 9). *)
 
 open Tsdl
@@ -52,13 +55,30 @@ let create ~title =
       Sdl.render_present r
     end in
   let e = Sdl.Event.create () in
+  let grabbed = ref false in
+  let grab on =
+    grabbed := on;
+    ok (Sdl.set_relative_mouse_mode on);
+    Option.iter (fun (win, _) ->
+      Sdl.set_window_title win (if on then title ^ " (Ctrl-Alt-G releases the mouse)" else title)) !window in
+  let button b = if b = Sdl.Button.left then 1 else if b = Sdl.Button.right then 2 else if b = Sdl.Button.middle then 4 else 0 in
   let poll () =
     let evs = ref [] in
+    let add ev = evs := ev :: !evs in
     while Sdl.poll_event (Some e) do
       match Sdl.Event.(enum (get e typ)) with
-      | `Quit -> evs := Display.Quit :: !evs
+      | `Quit -> add Display.Quit
+      | `Key_down when !grabbed && Sdl.Event.(get e keyboard_keycode) = Sdl.K.g
+                       && Sdl.get_mod_state () land Sdl.Kmod.ctrl <> 0 && Sdl.get_mod_state () land Sdl.Kmod.alt <> 0 ->
+          grab false
       | (`Key_down | `Key_up) as k when Sdl.Event.(get e keyboard_repeat) = 0 ->
-          evs := Display.Key (Sdl.Event.(get e keyboard_scancode), k = `Key_down) :: !evs
+          add (Display.Key (Sdl.Event.(get e keyboard_scancode), k = `Key_down))
+      | `Mouse_button_down when not !grabbed -> grab true           (* the grabbing click is the host's *)
+      | (`Mouse_button_down | `Mouse_button_up) as k ->
+          let b = button Sdl.Event.(get e mouse_button_button) in
+          if b <> 0 then add (Display.Button (b, k = `Mouse_button_down))
+      | `Mouse_motion when !grabbed -> add (Display.Motion (Sdl.Event.(get e mouse_motion_xrel), Sdl.Event.(get e mouse_motion_yrel)))
+      | `Mouse_wheel when !grabbed -> add (Display.Wheel (- Sdl.Event.(get e mouse_wheel_y)))
       | _ -> ()
     done;
     List.rev !evs in

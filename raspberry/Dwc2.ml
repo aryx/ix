@@ -14,6 +14,7 @@ type t = {
   mem : Memory.t;
   root : Usb.device option;
   line : bool -> unit;
+  now : unit -> int;              (* the board's time, microseconds (the keyboard's idle rate) *)
 }
 
 (* QEMU's reset values (hw/usb/hcd-dwc2.c's reset, its 8 channels) *)
@@ -38,8 +39,8 @@ let connsts = 1 and conndet = 2 and ena = 4 and enachg = 8 and ovrcurrchg = 0x20
 let get t off = Option.value (Hashtbl.find_opt t.regs off) ~default:0
 let set t off v = Hashtbl.replace t.regs off (v land 0xffffffff)
 
-let create ~mem ~root ~line =
-  let t = { regs = Hashtbl.create 64; mem; root; line } in
+let create ~mem ~root ~line ~now =
+  let t = { regs = Hashtbl.create 64; mem; root; line; now } in
   List.iter (fun (o, v) -> set t o v) reset_values;
   (* the root port: powered; a device attached at full speed, connected *)
   set t 0x440 (pwr lor (match root with Some _ -> (1 lsl 17) lor conndet lor connsts | None -> 0));
@@ -71,6 +72,7 @@ let transfer t ch =
   let base = 0x500 + (0x20 * ch) in
   let hcchar = get t base and hctsiz = get t (base + 0x10) and dma = get t (base + 0x14) land 0x3fffffff in
   let addr = (hcchar lsr 22) land 0x7f and epdir = (hcchar lsr 15) land 1 and eptype = (hcchar lsr 18) land 3 in
+  let ep = (hcchar lsr 11) land 0xf and now = t.now () in
   let mps = hcchar land 0x7ff and pid = (hctsiz lsr 29) land 3 in
   let pcnt = (hctsiz lsr 19) land 0x3ff and len = hctsiz land 0x7ffff in
   let dev = if get t 0x440 land ena = 0 then None else Option.bind t.root (fun r -> Usb.find r addr) in
@@ -79,9 +81,9 @@ let transfer t ch =
   | Some d ->
       let setup = eptype = 0 && pid = 3 in
       let result =
-        if setup then Usb.setup d (Memory.read_string t.mem dma 8)
-        else if epdir = 1 then Usb.data_in d len
-        else Usb.data_out d (if len = 0 then "" else Memory.read_string t.mem dma len) in
+        if setup then Usb.setup d ~now (Memory.read_string t.mem dma 8)
+        else if epdir = 1 then Usb.data_in d ~now ~ep len
+        else Usb.data_out d ~ep (if len = 0 then "" else Memory.read_string t.mem dma len) in
       let intr =
         match result with
         | Usb.Data s ->
@@ -93,7 +95,11 @@ let transfer t ch =
             set t (base + 0x14) (get t (base + 0x14) + actual);
             3                                                        (* XFERCOMPL, CHHLTD *)
         | Usb.Stall -> 0x8 lor 2
-        | Usb.Nak -> 0x10 lor 2 in
+        (* claude: an interrupt endpoint's NAK halts the channel, as
+         * QEMU's (a control or bulk one QEMU retries itself: none of
+         * these devices NAKs one) *)
+        | Usb.Nak -> 0x10 lor 2
+        | Usb.Babble -> 0x100 lor 2 in
       set t base (hcchar land lnot (1 lsl 31));
       set t (base + 8) (get t (base + 8) lor intr)
 
