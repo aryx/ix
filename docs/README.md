@@ -14,9 +14,9 @@ where it sits among the real systems). `yoann_notes/` is the author's.
 | mini-asm and mini-ld, the assembler and the linker | [plan_asm.md](plans/plan_asm.md) | [notes_asm.md](tutorials/notes_asm.md) | [notes_asm_related_work.md](related-work/notes_asm_related_work.md) | `assembler/`, `linker/`, `tiny/TinyAssembler.ml` |
 | mini-cc, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `compiler/`, `tiny/TinyC.ml` |
 | mini-chidb, the relational database | [plan_db.md](plans/plan_db.md) | [notes_db.md](tutorials/notes_db.md) | [notes_db_related_work.md](related-work/notes_db_related_work.md) | `database/`, `tiny/TinyDatabase.ml` |
-| mini-git and mini-diff, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
-| mini-5i, the ARM emulator (arm32, arm64, Linux system calls) | [plan_arm.md](plans/plan_arm.md) | [notes_arm.md](tutorials/notes_arm.md) | [notes_arm_related_work.md](related-work/notes_arm_related_work.md) | `machine/` (planned) |
-| mini-qemu, the Pi emulator (9pi, 9pi2, xv6's six Pi ports) | [plan_pi.md](plans/plan_pi.md) | [notes_pi.md](tutorials/notes_pi.md) | [notes_pi_related_work.md](related-work/notes_pi_related_work.md) | `raspberry/` (planned) |
+| mini-git, mini-diff and mini-merge3, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
+| mini-5i, the ARM emulator (arm32, arm64; Linux's or Plan 9's system calls) | [plan_arm.md](plans/plan_arm.md) | [notes_arm.md](tutorials/notes_arm.md) | [notes_arm_related_work.md](related-work/notes_arm_related_work.md) | `machine/`, `tiny/TinyArm.ml`, `tiny/TinyCPU.ml`, `tiny/TinyLibCPU.ml` |
+| mini-qemu, the Pi emulator (the Pi1 with 9pi and xv6; the Pi4 next) | [plan_pi.md](plans/plan_pi.md) | [notes_pi.md](tutorials/notes_pi.md) | [notes_pi_related_work.md](related-work/notes_pi_related_work.md) | `raspberry/`, `mini-pi` |
 
 ## The principles
 

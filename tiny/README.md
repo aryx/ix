@@ -1,8 +1,9 @@
 # tiny/
 
 The tiny programs of ix (t-ix): the free variants of its mini
-programs (m-ix), one file each, installed as tiny-build, tiny-shell,
-... (the second column): what is left of a
+programs (m-ix), one file each (but TinyCPU, whose CPU is a library,
+`TinyLibCPU.ml`, for TinyMachine.ml, planned), installed as
+tiny-build, tiny-shell, ... (the second column): what is left of a
 program when compatibility is dropped and only its idea is kept,
 written after its faithful twin and from what that one taught. The
 files, children and pipes they share with the twins come from

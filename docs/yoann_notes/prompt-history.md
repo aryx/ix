@@ -3884,3 +3884,19 @@ Other pending work included mini-vcs (nine patches), mini-cc (53% code overlap),
 **Yoann:**
 
 > yes, and then the TinyLibCPU
+
+**Claude (summary):**
+
+Claude rewrote the README section bullets to match the current state and added an exception clause.
+Committed the updated README as `1b1ee86`, which Yoann praised for its clear and well-structured content.
+Build and tests both passed successfully after these changes were applied.
+Claude then began the TinyLibCPU split work as the follow-up task.
+Two long header lines in the code still need to be rewrapped.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:01
+
+**Yoann:**
+
+> nice README. I like it.

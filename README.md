@@ -27,22 +27,30 @@ first make **m-ix** (a nod to Knuth's MIX) and the second **t-ix**.
 
 The project was started on 2026-09-21, and this README describes the
 plan. Written so far (`make`, then `make test`; the executables are then
-in `bin/`, e.g. `./bin/mini-mk`): **mini-mk**, the build
-system ([`builder/`](builder/)), which builds all of xix from its
-mkfiles; **mini-rc**, the shell ([`shell/`](shell/)); **mini-ed**, the
-editor ([`editor/`](editor/)); **mini-asm and mini-ld**, the
-assembler and the linker for arm and arm64
-([`assembler/`](assembler/), [`linker/`](linker/)), whose executables
-are goken's byte for byte; and **mini-cc**, the C
-compiler for arm and arm64 ([`compiler/`](compiler/)), whose listings
-are goken's `5c -O0` and `7c -O0`'s instruction for instruction; also
-**mini-chidb**, the database ([`database/`](database/)), **mini-git,
-mini-diff and mini-merge3** ([`version_control/`](version_control/)),
-**mini-5i**, the ARM emulator ([`machine/`](machine/)), and
-**mini-qemu**, a Raspberry Pi 1 that boots xv6 and Plan 9's 9pi as
-QEMU does ([`raspberry/`](raspberry/), run by `./mini-pi`). Each also
-has its tiny variant (tiny-build, tiny-shell, tiny-editor,
-tiny-assembler, tiny-c, tiny-db, tiny-vcs, tiny-arm, tiny-cpu).
+in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
+
+- **mini-mk**, the build system ([`builder/`](builder/)), which builds
+  all of xix from its mkfiles; tiny-build.
+- **mini-rc**, the shell ([`shell/`](shell/)); tiny-shell.
+- **mini-ed**, the editor ([`editor/`](editor/)); tiny-editor.
+- **mini-asm and mini-ld**, the assembler and the linker for arm and
+  arm64 ([`assembler/`](assembler/), [`linker/`](linker/)), whose
+  executables are goken's byte for byte; tiny-assembler, the two in
+  one.
+- **mini-cc**, the C compiler for arm and arm64
+  ([`compiler/`](compiler/)), whose listings are goken's `5c -O0` and
+  `7c -O0`'s instruction for instruction; tiny-c.
+- **mini-chidb**, the database ([`database/`](database/)); tiny-db.
+- **mini-git, mini-diff and mini-merge3**, version control
+  ([`version_control/`](version_control/)); tiny-vcs.
+- **mini-5i**, the ARM emulator for user programs, arm32 and arm64,
+  with Linux's or Plan 9's system calls ([`machine/`](machine/));
+  tiny-arm, and tiny-cpu, a CPU of our own design (see below).
+- **mini-qemu**, a Raspberry Pi 1 that boots xv6 and Plan 9's 9pi as
+  QEMU does ([`raspberry/`](raspberry/), run by `./mini-pi`); the Pi 4
+  is next, and its tiny variants, tiny-pi and tiny-machine, are
+  planned.
+
 Their plans, tutorials and related-work notes are
 indexed in [docs/README.md](docs/README.md).
 `make build-docker` builds and tests ix in a fresh Ubuntu (the
