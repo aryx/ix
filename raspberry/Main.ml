@@ -98,7 +98,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
               if n = 0 then open_input := false;
               for i = 0 to n - 1 do
                 let c = Bytes.get buf i in
-                if tty && !ctrl_a && c = 'x' then (restore (); Console.print caps "\nQEMU: Terminated\n"; exit 0);
+                if tty && !ctrl_a && c = 'x' then (restore (); Console.print caps "\ntinypi: terminated\n"; exit 0);
                 ctrl_a := tty && c = '\001';
                 if not !ctrl_a then Board.input board c
               done
