@@ -4156,3 +4156,39 @@ Claude fixed the TinyCPU/TinyMachine reference and made make test build tiny-os 
 **Yoann:**
 
 > ok sounds good, 2 then 1
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:09
+
+**Yoann:**
+
+> I'd rather keep the _v0 suffix or even have a v0/ subfolder as we can design now a more complex kernel for the tiny machine in C that would do more in a v1/ (and gradually going towards an xv6 like kernel)
+
+**Claude (summary):**
+
+Claude reviewed the Pi4 documentation in notes_pi.md and related-work sections, already committed as b49013b. Claude decided to wait for ix-f8, a parallel session, to respond about writing TinyPi. Claude planned to write tiny/TinyPi.ml with tests if ix-f8 doesn't implement it, without modifying TinyLibArm. Otherwise Claude would defer to ix-f8 and leave the work pending.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:10
+
+**Yoann:**
+
+> but this is different from TinyKernel.ml which will be something else, as well as mini-xv6 and mini-9pi
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:10
+
+**Yoann:**
+
+> it's actually quite complicated matrix, with stuff in .tm and .c vs stuff in .ml, maybe we need to add somewhere in the docs to clarify the different projects inside this project :)
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:11
+
+**Yoann:**
+
+> let's do TinyPi.ml!

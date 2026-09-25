@@ -7,47 +7,47 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# tiny-os: what runs on ix's own machines, built by the tiny tools as
-# any program is built by its toolchain. The tools are taken from the
-# PATH (after `dune install`), or from ix's bin/ when there (`make` at
-# the top of ix):
+# tiny-os: an operating system for tiny-machine, built by the tiny
+# tools as any program is built by its toolchain. A kernel per version,
+# each in its directory with its Makefile (v0/: a page of assembly;
+# v1/, to come, a kernel in C, gradually toward xv6's design), and what
+# they share: the C runtime (libc/: start.tm, libc.c, libc.h), whose
+# system calls are tiny-cpu's and the kernels'. Not TinyKernel.ml,
+# mini-xv6 or mini-9pi, other projects of ix (docs/projects.md).
 #
-#   make run          TinyKernel v0 and its four programs on tiny-machine
+#   make run          the latest kernel, v0, on tiny-machine
 #   make run-hello    hello.c, compiled by tiny-c -tm, on tiny-cpu
-#   make listing      the kernel's image, listed
 #
-# kernel.img is linked from .tm files by tiny-machine; a C program is
-# compiled to .tm by tiny-c -tm, then linked by tiny-cpu with the
-# runtime, start.tm first (the machine starts at 0) and libc.
+# The tools from the PATH (after `dune install`), or from ix's bin/. A
+# C program is compiled to .tm by tiny-c -tm, then linked by tiny-cpu
+# after the runtime: start.tm first (the machine starts at 0), libc.
 
 export PATH := $(abspath ../../bin):$(PATH)
 
 TC = tiny-c
 CPU = tiny-cpu
-MACHINE = tiny-machine
+VERSIONS = v0
 
-all: kernel.img hello
+all: libc/libc.tm hello
+	for v in $(VERSIONS); do $(MAKE) -C $$v all || exit 1; done
 
-# the kernel first, at 0, then its programs, found by their labels
-kernel.img: kernel.tm a.tm b.tm c.tm d.tm
-	$(MACHINE) -o $@ $^
-
-%.tm: %.c libc.h
+%.tm: %.c libc/libc.h
 	$(TC) -tm -o $@ $<
 
-hello: start.tm libc.tm hello.tm
+hello.tm: hello.c libc/libc.h
+	$(TC) -tm -o $@ hello.c
+
+hello: libc/start.tm libc/libc.tm hello.tm
 	$(CPU) -o $@ $^
 
-run: kernel.img
-	$(MACHINE) kernel.img
+run:
+	$(MAKE) -C v0 run
 
 run-hello: hello
 	$(CPU) ./hello one two
 
-listing: kernel.img
-	$(MACHINE) -l kernel.img
-
 clean:
-	rm -f kernel.img hello libc.tm hello.tm
+	rm -f hello hello.tm libc/libc.tm
+	for v in $(VERSIONS); do $(MAKE) -C $$v clean; done
 
-.PHONY: all run run-hello listing clean
+.PHONY: all run run-hello clean

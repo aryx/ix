@@ -1,4 +1,4 @@
-kernel.img
 hello
-libc.tm
 hello.tm
+libc/libc.tm
+v*/kernel.img

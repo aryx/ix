@@ -10,11 +10,12 @@
 #
 # tiny-machine: a kernel and its programs, assembled, linked and run on
 # tiny-machine (tiny/TinyMachine.ml), as mini-pi boots the Pi's kernels
-# on mini-qemu; by default TinyKernel v0 and its four programs
-# (tiny/tiny-os/, whose Makefile does the same with the installed tools).
+# on mini-qemu; by default tiny-os v0, its kernel and four programs
+# (tiny/tiny-os/v0/, whose Makefile does the same with the installed
+# tools).
 #
-#   ./tiny-machine                          tiny/tiny-os/kernel.tm and
-#                                           tiny/tiny-os/[abcd].tm
+#   ./tiny-machine                          tiny/tiny-os/v0/kernel.tm and
+#                                           tiny/tiny-os/v0/[abcd].tm
 #   ./tiny-machine kernel.tm prog.tm...     a kernel of yours (first) and
 #                                           its programs
 #
@@ -39,7 +40,7 @@ done
 shift $((OPTIND - 1))
 
 if [ $# = 0 ]; then
-  set -- $ROOT/tiny/tiny-os/kernel.tm $ROOT/tiny/tiny-os/[abcd].tm
+  set -- $ROOT/tiny/tiny-os/v0/kernel.tm $ROOT/tiny/tiny-os/v0/[abcd].tm
 fi
 for f in "$@"; do [ -f "$f" ] || { echo "tiny-machine: no $f" >&2; exit 1; }; done
 

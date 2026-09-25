@@ -54,7 +54,10 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
   tiny-pi, planned.
 
 Their plans, tutorials and related-work notes are
-indexed in [docs/README.md](docs/README.md).
+indexed in [docs/README.md](docs/README.md), and
+[docs/projects.md](docs/projects.md) maps the projects inside ix: the
+mini and tiny programs, the machines (real ARM, or our own), and what
+runs on each, in OCaml or not.
 `make build-docker` builds and tests ix in a fresh Ubuntu (the
 `Dockerfile`, which GitHub Actions runs with OCaml 4.14.2 and 5.1.1).
 See [docs/history.md](docs/history.md) for how the project came to be

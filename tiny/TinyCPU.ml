@@ -27,7 +27,7 @@
  * The link is TinyLibCPU's: the .tm files one after the other, their
  * labels one namespace, the first at 0 where the CPU starts. The
  * arguments are where a C program's main finds them (tiny-c -tm's
- * convention, tiny-os/start.tm): their strings at the top of
+ * convention, tiny-os/libc/start.tm): their strings at the top of
  * memory, and sp on argc, then argv; argv[0] is the image's name, or
  * the last .tm's without its .tm.
  *

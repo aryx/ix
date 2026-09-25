@@ -8,8 +8,8 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The tests of TinyMachine.ml, its laws, on tiny-os/kernel.tm linked
-# with its four user programs (tiny-os/a.tm to d.tm: a and b print 20
+# The tests of TinyMachine.ml, its laws, on tiny-os/v0/kernel.tm linked
+# with its four user programs (v0/a.tm to d.tm: a and b print 20
 # letters each, c executes csrw, d stores into the kernel):
 #
 # 1. with a period longer than any program, no interrupt: the programs
@@ -28,8 +28,8 @@
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 T=$ROOT/_build/default/tiny/TinyMachine.exe
-K=$ROOT/tiny/tiny-os/kernel.tm
-P=$(ls $ROOT/tiny/tiny-os/[abcd].tm)
+K=$ROOT/tiny/tiny-os/v0/kernel.tm
+P=$(ls $ROOT/tiny/tiny-os/v0/[abcd].tm)
 W=$(mktemp -d)
 trap 'rm -rf $W' EXIT
 failures=0

@@ -6,6 +6,10 @@ log), a **tutorial** (`tutorials/`, how it works from scratch, for a
 reader of the code), and a **related-work note** (`related-work/`,
 where it sits among the real systems). `yoann_notes/` is the author's.
 
+How the projects relate (the mini and tiny programs, the real and our
+own machines, the kernels, the code that is not OCaml):
+[projects.md](projects.md).
+
 | program | plan | tutorial | related work | code |
 |---|---|---|---|---|
 | mini-mk, the build system | [plan_mk.md](plans/plan_mk.md) | [notes_mk.md](tutorials/notes_mk.md) | [notes_mk_related_work.md](related-work/notes_mk_related_work.md) | `builder/`, `tiny/TinyBuildSystem.ml` |

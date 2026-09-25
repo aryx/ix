@@ -638,3 +638,13 @@ is `tiny/tiny-os/kernel.tm`, its programs `tiny/tiny-os/a.tm` to
 `d.tm`, next to tiny-c -tm's runtime and a C program, `hello.c`; the
 Makefile there links and runs them with the installed tools (`make
 run`, `make run-hello`). `./tiny-machine` runs the same files.
+
+Then by versions (the author: "keep the _v0 suffix or even have a v0/
+subfolder as we can design now a more complex kernel for the tiny
+machine in C that would do more in a v1/ (and gradually going towards
+an xv6 like kernel)"): `tiny/tiny-os/v0/` (the kernel, its programs,
+its Makefile) and `tiny/tiny-os/libc/` (the C runtime, shared), with
+`v1/`, a kernel in C, next. Which corrects "the seed of a TinyKernel"
+above: tiny-os's kernels are their own project (the author: "this is
+different from TinyKernel.ml which will be something else, as well as
+mini-xv6 and mini-9pi"); `docs/projects.md` maps them all.
