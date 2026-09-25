@@ -376,12 +376,12 @@ let parse_line ?ext line : item list =
 
 (* the image, from address 0, of files assembled one after the other,
  * their labels one namespace: the link is no more than that *)
-let assemble_files ?ext (files : (string * string list) list) =
+let assemble_files ?ext ?(origin = 0) (files : (string * string list) list) =
   let parse (name, lines) =
     List.concat (List.mapi (fun n l -> try parse_line ?ext l with Error e -> error "%s:%d: %s" name (n + 1) e) lines) in
   let items = List.concat_map parse files in
   let labels = Hashtbl.create 64 in
-  let pc = ref 0 and placed = ref [] in
+  let pc = ref origin and placed = ref [] in
   List.iter (fun it ->
     match it with
     | Label l -> if Hashtbl.mem labels l then error "label %s defined twice" l; Hashtbl.replace labels l !pc
@@ -402,20 +402,32 @@ let assemble ?ext ?(name = "-") lines = assemble_files ?ext [ name, lines ]
 
 (* files, named and read: .tm files assembled and linked, or one image
  * (the memory's first bytes, no header: the CPU starts at 0) *)
-let image ?ext (files : (string * string) list) =
+let image ?ext ?origin (files : (string * string) list) =
   match files with
   | _ :: _ when List.for_all (fun (f, _) -> Filename.check_suffix f ".tm") files ->
-      assemble_files ?ext (List.map (fun (f, text) -> f, String.split_on_char '\n' text) files)
+      assemble_files ?ext ?origin (List.map (fun (f, text) -> f, String.split_on_char '\n' text) files)
   | [ (f, text) ] -> if String.length text > !memsize then error "%s: larger than the memory" f; text
   | _ -> error "either .tm files or one image"
 
 (* the listing: address, word, instruction, as assembly again *)
-let listing ?(ext = no_extension) image =
+let listing ?(ext = no_extension) ?(origin = 0) image =
   List.init (String.length image / 4) (fun k ->
     let w = Int32.to_int (String.get_int32_le image (4 * k)) land 0xffffffff in
-    Printf.sprintf "%x:\t%08x\t%s\n" (4 * k) w
+    Printf.sprintf "%x:\t%08x\t%s\n" (origin + (4 * k)) w
       (match decode w, ext.show w with
-       | Some i, _ -> print ~pc:(4 * k) i
+       | Some i, _ -> print ~pc:(origin + (4 * k)) i
        | None, Some s -> s
        | None, None -> Printf.sprintf ".word\t0x%x" w))
   |> String.concat ""
+
+(* tiny-os v6's executables (plan_tiny_os.md): a.out's three words, a
+ * magic, the image's size, its entry, then the image, assembled at
+ * 0x800000, where v6 puts a process's program *)
+let aout_origin = 0x800000
+let aout_magic = 0x7a0ce5
+
+let aout image =
+  let b = Buffer.create (String.length image + 12) in
+  List.iter (fun v -> Buffer.add_int32_le b (Int32.of_int v)) [ aout_magic; String.length image; aout_origin ];
+  Buffer.add_string b image;
+  Buffer.contents b

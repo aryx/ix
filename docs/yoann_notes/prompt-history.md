@@ -4348,3 +4348,31 @@ Wrote paging and I/O device implementations, verified correctness through mutati
 **Yoann:**
 
 > yes
+
+**Claude (summary):**
+
+Claude identified the kernel mapped low below 16 MB, identity-mapped into every process to avoid page-table switches on traps. User programs would be linked at 8 MB, requiring an origin option in the assembler to separate kernel and user code. Tiny-c's caller-saved convention meant swtch needed only sp and lr, not twelve callee-saved registers. User-mode traps needed a scratch register and csrrw swap instruction for accessing the trap frame. Interrupts would only be enabled in user mode and the scheduler's idle loop, making the kernel non-preemptible.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:18
+
+**Yoann:**
+
+> yes, let's do that, and mkfs in OCaml can be reused also maybe for our mini-xv6 in OCaml
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:18
+
+**Yoann:**
+
+> great plan
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:18
+
+**Yoann:**
+
+> worth it? if it's just at boot, is it worth it? Does it save lots of time given the added complexity?

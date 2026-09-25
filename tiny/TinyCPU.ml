@@ -23,6 +23,8 @@
  *     tiny-cpu -o prog a.tm b.tm...        assembled and linked, an image
  *     tiny-cpu prog [args...]              the image loaded and run
  *     tiny-cpu -l prog                     the listing (or of .tm's)
+ *     tiny-cpu -a prog a.tm b.tm...        tiny-os v6's a.out: linked at
+ *                                          0x800000, a header of three words
  *
  * The link is TinyLibCPU's: the .tm files one after the other, their
  * labels one namespace, the first at 0 where the CPU starts. The
@@ -31,7 +33,7 @@
  * memory, and sp on argc, then argv; argv[0] is the image's name, or
  * the last .tm's without its .tm.
  *
- * Usage: tiny-cpu [-l | -o image] file.tm... | image [args...] *)
+ * Usage: tiny-cpu [-l | -o image | -a a.out] file.tm... | image [args...] *)
 
 type caps = < Cap.stdin; Cap.stdout; Cap.stderr >
 
@@ -86,9 +88,13 @@ let main (caps : < caps; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
     match args with
     | "-l" :: l -> let files, _, _ = split l in Console.print caps (TinyLibCPU.listing (image files)); 0
     | "-o" :: out :: l -> let files, _, _ = split l in Files.write caps (Fpath.v out) (image files); 0
+    | "-a" :: out :: l ->
+        let files, _, _ = split l in
+        let image = TinyLibCPU.image ~origin:TinyLibCPU.aout_origin (List.map (fun f -> f, Files.read caps (Fpath.v f)) files) in
+        Files.write caps (Fpath.v out) (TinyLibCPU.aout image); 0
     | l -> let files, name, rest = split l in interpret caps (image files) (name :: rest)
   with
-  | Usage -> Console.eprint caps "usage: tiny-cpu [-l | -o image] file.tm... | image [args...]\n"; 2
+  | Usage -> Console.eprint caps "usage: tiny-cpu [-l | -o image | -a a.out] file.tm... | image [args...]\n"; 2
   | TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-cpu: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

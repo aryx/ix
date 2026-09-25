@@ -3,7 +3,8 @@
 ; amoswap, hartid and ip, one line each (TinyMachine_test.sh compares
 ; with amo.expected): the swap's old value and the word after it; the
 ; word cleared; a spinlock taken, then found taken (1); hartid; ip's
-; timer bit, before and after timecmp is reached; amoswap in user mode,
+; timer bit, before and after timecmp is reached; csrrw's swap with
+; scratch (the old value, then the new); amoswap in user mode,
 ; the word it left read by the supervisor after the user's sys.
 
 	la	r1, trap
@@ -43,6 +44,17 @@ acquire:
 	stb	r5, -16(r0)
 	csrw	timecmp, r0		; reached: 1 (interrupts off: no trap)
 	csrr	r5, ip
+	addi	r5, r5, 48
+	stb	r5, -16(r0)
+	li	r5, 10
+	stb	r5, -16(r0)
+	li	r1, 5			; csrrw: scratch 5, then swapped with r1 = 6
+	csrw	scratch, r1
+	li	r1, 6
+	csrrw	r1, scratch, r1
+	addi	r5, r1, 48
+	stb	r5, -16(r0)
+	csrr	r5, scratch
 	addi	r5, r5, 48
 	stb	r5, -16(r0)
 	li	r5, 10

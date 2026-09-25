@@ -64,7 +64,8 @@
  * - {b Pages}, Sv32 (RISC-V's 32-bit scheme, xv6's): satp's top bit
  *   turns them on, the window off; a fault's address in tval.
  * - {b amoswap d, a, (b)}, the atomic swap a spinlock is made of, in
- *   either mode; {b hartid}, the core's number (0: one core, for now).
+ *   either mode; {b hartid}, the core's number (0: one core, for now);
+ *   {b scratch} and {b csrrw}, for a trap's first register.
  * - {b Interrupts by source}: ip (pending) and ie (enabled), a bit
  *   each; the timer's is the first, enabled at the start as v0 wants;
  *   an interrupt's cause is 4, its sources in tval.
@@ -95,9 +96,11 @@
 
 let status = 0 and epc = 1 and cause = 2 and tval = 3 and tvec = 4 and time = 5 and timecmp = 6 and base = 7 and bound = 8
 (* v6's (plan_tiny_os.md): the core's number, the interrupts pending
- * and enabled (a bit per source), the pages' root *)
-and hartid = 9 and ip = 10 and ie_csr = 11 and satp = 12
-let csr_names = [| "status"; "epc"; "cause"; "tval"; "tvec"; "time"; "timecmp"; "base"; "bound"; "hartid"; "ip"; "ie"; "satp" |]
+ * and enabled (a bit per source), the pages' root, and a word for the
+ * kernel (the trap frame's address while in user mode, 0 in the
+ * kernel: RISC-V's sscratch) *)
+and hartid = 9 and ip = 10 and ie_csr = 11 and satp = 12   (* scratch, 13, only read and written *)
+let csr_names = [| "status"; "epc"; "cause"; "tval"; "tvec"; "time"; "timecmp"; "base"; "bound"; "hartid"; "ip"; "ie"; "satp"; "scratch" |]
 let read_only k = k = time || k = hartid || k = ip
 
 (* status: the mode, the interrupts' bit, and the two as they were
@@ -252,7 +255,9 @@ let store caps mc m s a v =
   | _ -> TinyLibCPU.store m s a v
 
 (* the words the CPU does not know: 0x3a-0x3c, csrr, csrw and eret,
- * the supervisor's; 0x3d, amoswap d, a, (b), anyone's: d the word at
+ * the supervisor's, and 0x3e, csrrw d, csr, a (both at once: d the
+ * register's old value, the register a's: at a trap, r1 swapped with
+ * scratch frees a register); 0x3d, amoswap d, a, (b), anyone's: d the word at
  * the address in b, which becomes a, in one instruction (the atomic
  * swap a spinlock is made of, RISC-V's amoswap.w, ARM's swp) *)
 let extra caps mc (m : TinyLibCPU.machine) w =
@@ -266,9 +271,11 @@ let extra caps mc (m : TinyLibCPU.machine) w =
     next ()
   end
   else begin
-    if not (supervisor mc) || op < 0x3a || op > 0x3c || (op < 0x3c && k >= Array.length csr_names) then raise (Trap (c_illegal, w));
+    if not (supervisor mc) || op < 0x3a || op > 0x3e || (op <> 0x3c && k >= Array.length csr_names) then raise (Trap (c_illegal, w));
+    let read k = if k = ip then pending mc else c.(k) in
     match op with
-    | 0x3a -> if d <> 0 then m.r.(d) <- (if k = ip then pending mc else c.(k)); next ()
+    | 0x3a -> if d <> 0 then m.r.(d) <- read k; next ()
+    | 0x3e -> let old = read k and v = m.r.(a) in if not (read_only k) then c.(k) <- v; if d <> 0 then m.r.(d) <- old; next ()
     | 0x3b ->
         if not (read_only k) then c.(k) <- m.r.(a);
         if k = ie_csr && c.(k) land i_console <> 0 then console_open caps mc.cons;
@@ -299,6 +306,7 @@ let ext : TinyLibCPU.extension =
       | "csrr", [ d; c ] -> Some (w 0x3a (TinyLibCPU.reg d) 0 (csr c))
       | "csrw", [ c; a ] -> Some (w 0x3b 0 (TinyLibCPU.reg a) (csr c))
       | "eret", [] -> Some (w 0x3c 0 0 0)
+      | "csrrw", [ d; c; a ] -> Some (w 0x3e (TinyLibCPU.reg d) (TinyLibCPU.reg a) (csr c))
       | "amoswap", [ d; a; b ] ->
           let b = String.trim b in
           if String.length b < 2 || b.[0] <> '(' || b.[String.length b - 1] <> ')' then TinyLibCPU.error "amoswap's address: (rN)";
@@ -310,6 +318,7 @@ let ext : TinyLibCPU.extension =
       | 0x3a when k < Array.length csr_names -> Some (Printf.sprintf "csrr\tr%d, %s" d csr_names.(k))
       | 0x3b when k < Array.length csr_names -> Some (Printf.sprintf "csrw\t%s, r%d" csr_names.(k) a)
       | 0x3c -> Some "eret"
+      | 0x3e when k < Array.length csr_names -> Some (Printf.sprintf "csrrw\tr%d, %s, r%d" d csr_names.(k) a)
       | 0x3d -> Some (Printf.sprintf "amoswap\tr%d, r%d, (r%d)" d a (k land 15))
       | _ -> None);
   }
