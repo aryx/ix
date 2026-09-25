@@ -4492,3 +4492,71 @@ Claude identified runtime plumbing as the chief risk, noting it had stalled the 
 **Yoann:**
 
 > I would opt for Pi1 insead of Pi4
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:38
+
+**Yoann:**
+
+> why Pi4 is better? We can now use the Int32 module in ocaml-light recently added
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:38
+
+**Yoann:**
+
+> and for Pi4 the Int64 module
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:38
+
+**Yoann:**
+
+> I don't see the difference, except Pi1 is simpler than Pi4 arguably?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:39
+
+**Yoann:**
+
+> or maybe not?
+
+**Claude (summary):**
+
+Claude recommended Pi1 for teaching despite requiring ocaml-light cross-compilation, calling it a one-time cost. Claude noted ocaml-light targets ARMv7 with VFPv3 but Pi1 needs ARMv6 with VFPv2, requiring flag adjustments. Claude flagged uncertainty over whether the emitted code would avoid v7-only instructions on ARMv6. Claude noted Pi4 already has arm64 compilation available but requires adding d register saves to the OCaml runtime. Claude asked Yoann to choose the platform before proceeding.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:42
+
+**Yoann:**
+
+> note that ocaml-light configure can take a -target flag to target different archi
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:47
+
+**Yoann:**
+
+> maybe we can save the code for this derisk somewhere under kernel/
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:48
+
+**Yoann:**
+
+> I think it's good teaching
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:48
+
+**Yoann:**
+
+> excellent
