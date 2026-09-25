@@ -581,3 +581,34 @@ instructions, the interpreter's `step` over an `env` of four hooks,
 the three system calls and the command line), 450 lines against the
 one file's 400: the price of the interface, paid back when
 TinyMachine.ml reuses the 390.
+
+**TinyMachine.ml done** (2026-09-25; `tiny-machine`, 185 lines, and
+13 more in TinyLibCPU.ml for the assembler's and the listing's
+`extension`). The design, from the defaults above: two modes, a bit
+of `status`; one trap, saving the pc in `epc`, the reason in `cause`
+(sys, an illegal word, a fault, the timer) and what goes with it in
+`tval`, and jumping to `tvec`; `eret` back; `csrr` and `csrw` for the
+nine registers of control, illegal in user mode; `time` counting
+instructions, so that every run is the same, and `timecmp`;
+protection by a window, `[base, bound)`, without relocation (RISC-V's
+PMP rather than the 360's base register); a console and a halt at the
+top of memory, reached by `-16(r0)` and `-12(r0)`. The fetch's window
+and the interrupt are the loop's; the rest the CPU's hooks, which
+needed no change.
+
+Checked by `tiny/TinyMachine_test.sh` on `TinyMachine_tests/kernel.tm`,
+a page of kernel (236 lines with its four programs and comments):
+two programs printing 20 letters each, one executing `csrw`, one
+storing into the kernel. With no interrupt, the four one after the other, exactly;
+with 29 periods from 30 to 400 instructions, every letter, both
+misbehaving programs killed with their reason, the machine halted
+with 0, the printing interleaved, and the same output twice. A window
+check made to always pass loses `<fault>` in all 29. Below a period
+of about 25, the kernel's way from the trap to `eret`, the machine
+livelocks, as a real one would: documented in the kernel.
+
+The kernel is the seed of a TinyKernel (the author: "we could also
+have a TinyKernel that would run on it"); what it would be, and on
+which machine (this one, in its assembly, or the Pi, as the README's
+Kernel row plans tiny-kernel as mini-9pi's free variant), is left to
+decide.

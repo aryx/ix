@@ -10,8 +10,8 @@
 (* A tiny CPU of our own: its instruction set, an assembler, and an
  * interpreter; a CPU and its memory, no devices. The library of two
  * programs: TinyCPU.ml, the CPU run alone, its system calls answered
- * by the host; and TinyMachine.ml, planned (plan_arm.md), the CPU with
- * devices, its system calls traps. Knuth's road with MIX and MMIX:
+ * by the host; and TinyMachine.ml, the CPU with what a kernel needs
+ * around it, its system calls traps. Knuth's road with MIX and MMIX:
  * when the machine is for teaching, design it; mini-5i (machine/) and
  * TinyArm.ml emulate the machine history left us, this one the machine
  * fifty years of hindsight would draw.
@@ -68,7 +68,8 @@
  * - {b A machine changes four things}, the fields of [env]: a load, a
  *   store, a system call, and a word [decode] does not know. TinyCPU
  *   gives memory, the host's calls, and an error; a machine gives its
- *   devices behind addresses, a trap, and its own instructions. What
+ *   devices behind addresses, a trap, and its own instructions (which
+ *   the assembler and the listing learn by an [extension]). What
  *   happens between two instructions (an interrupt) is the loop's
  *   that calls [step], not [step]'s.
  * - {b The laws}: each program of TinyCPU_tests/ prints what is
@@ -283,7 +284,13 @@ let one f = Words (4, fun pc res -> [ encode (f pc res) ])
 (* a branch's offset, in words from the next instruction *)
 let offset pc res e = let t = res e in if t land 3 <> 0 then error "unaligned target 0x%x" t; (t - (pc + 4)) / 4
 
-let instruction name args : item =
+(* what a machine adds to the language: its own instructions, a name
+ * and the operands split to an item (None: not one of them), and
+ * their words printed for the listing (None: not one of them) *)
+type extension = { parse : string -> string list -> item option; show : int -> string option }
+let no_extension = { parse = (fun _ _ -> None); show = (fun _ -> None) }
+
+let instruction ?(ext = no_extension) name args : item =
   let args = List.map trim (if trim args = "" then [] else String.split_on_char ',' args) in
   let alu_of n = match index alu_names n with i -> Some alus.(i) | exception _ -> None in
   let imm_op n = Array.find_opt (fun op -> has_imm op && imm_name op = n) alus in
@@ -314,7 +321,10 @@ let instruction name args : item =
   | "j", [ t ] -> one (fun pc res -> Jal (0, offset pc res (expr t)))
   | "ret", [] -> one (fun _ _ -> Jalr (0, lr, 0))
   | "nop", [] -> one (fun _ _ -> Alui (Add, 0, 0, 0))
-  | _ -> error "bad instruction: %s %s" name (String.concat ", " args)
+  | _ ->
+      (match ext.parse name args with
+       | Some it -> it
+       | None -> error "bad instruction: %s %s" name (String.concat ", " args))
 
 (* a string's escapes: backslash and n, t or 0, or the character *)
 let unescape s =
@@ -341,7 +351,7 @@ let directive d args : item =
   | _ -> error "unknown directive %s" d
 
 (* a line: labels, then an instruction or a directive; ; starts a comment *)
-let parse_line line : item list =
+let parse_line ?ext line : item list =
   let line = match String.index_opt line ';' with
     | Some i when not (String.contains (String.sub line 0 i) '"') -> String.sub line 0 i
     | _ -> line in
@@ -355,12 +365,12 @@ let parse_line line : item list =
         let i = try String.index_from s 0 ' ' with Not_found -> String.length s in
         let i = min i (try String.index s '\t' with Not_found -> String.length s) in
         let name = String.sub s 0 i and rest = String.sub s i (String.length s - i) in
-        List.rev acc @ [ (if name.[0] = '.' then directive name rest else instruction name rest) ] in
+        List.rev acc @ [ (if name.[0] = '.' then directive name rest else instruction ?ext name rest) ] in
   go line []
 
 (* the image, from address 0, its labels, and its instructions' addresses *)
-let assemble lines =
-  let items = List.concat (List.mapi (fun n l -> try parse_line l with Error e -> error "line %d: %s" (n + 1) e) lines) in
+let assemble ?ext lines =
+  let items = List.concat (List.mapi (fun n l -> try parse_line ?ext l with Error e -> error "line %d: %s" (n + 1) e) lines) in
   let labels = Hashtbl.create 64 in
   let pc = ref 0 and placed = ref [] in
   List.iter (fun it ->
@@ -380,9 +390,12 @@ let assemble lines =
   Buffer.contents b
 
 (* the listing: address, word, instruction, as assembly again *)
-let listing image =
+let listing ?(ext = no_extension) image =
   List.init (String.length image / 4) (fun k ->
     let w = Int32.to_int (String.get_int32_le image (4 * k)) land 0xffffffff in
     Printf.sprintf "%x:\t%08x\t%s\n" (4 * k) w
-      (match decode w with Some i -> print ~pc:(4 * k) i | None -> Printf.sprintf ".word\t0x%x" w))
+      (match decode w, ext.show w with
+       | Some i, _ -> print ~pc:(4 * k) i
+       | None, Some s -> s
+       | None, None -> Printf.sprintf ".word\t0x%x" w))
   |> String.concat ""

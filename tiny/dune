@@ -69,3 +69,10 @@
  (package ix)
  (modules TinyCPU)
  (libraries ix_core fpath caps tiny_lib_cpu))
+
+(executable
+ (name TinyMachine)
+ (public_name tiny-machine)
+ (package ix)
+ (modules TinyMachine)
+ (libraries ix_core fpath caps tiny_lib_cpu))

@@ -22,6 +22,7 @@ test: all
 	./tiny/TinyVCS_test.sh 10
 	./tiny/TinyArm_test.sh
 	./tiny/TinyCPU_test.sh
+	./tiny/TinyMachine_test.sh
 	./machine/tests/decode_check.py
 	./machine/tests/decode_check.py --random 5000
 	./machine/tests/decode_check.py -64

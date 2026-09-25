@@ -3944,3 +3944,71 @@ Claude recorded the decision to focus on Pi4 only and updated plan_pi.md accordi
 **Yoann:**
 
 > sorry yes TinyLibArm.ml used by TinyPi.ml
+
+**Claude (summary):**
+
+Claude clarified that TinyLibArm.ml feeds TinyPi.ml while TinyMachine.ml uses TinyLibCPU.ml, then split TinyArm accordingly.
+Tests passed after he cleaned up the step function's indentation and removed duplicate blank lines.
+The simple design kept code teachable and optimizations clearly separated, matching Yoann's teaching-first philosophy.
+He corrected an assumption that Yoann had meant TinyMachine.ml instead of TinyPi.ml as the consumer.
+This simple structural foundation was ready to support the next phase of development work.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:07
+
+**Yoann:**
+
+> let's keep that simple design for now; simplicity is the most important thing as this is a teaching project; we can optimize if the optimization keep the simple code path clear and optimization can be separated clearly in a different section and enabled/disabled. Then for sure we want a fast test infra, so I would reduce the tests for the pi ... maybe lowering some test constants to run less loops and what's no
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:07
+
+**Yoann:**
+
+> t
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:19
+
+**Yoann:**
+
+> after you optimize, leave good comments possibly commenting the old code instead of removing it (use the (* old: *) tag) and explaining things
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:19
+
+**Yoann:**
+
+> there is also a notes ocaml opti somewhere under docs/ to possibly extend
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:20
+
+**Yoann:**
+
+> excellent. What's next?
+
+**Claude (summary):**
+
+Claude recommended TinyMachine.ml next because both libraries were ready and hooks remained untested. It was the smaller machine, cheaper to validate the four-hook design, and confined to tiny/ to avoid Pi4 collisions. Claude proposed default architecture with user and supervisor modes, trap mechanism, special registers, and base-and-bound memory protection. The machine would extend TinyLibCPU's assembler with eret, csrr, and csrw instructions for the privileged spec. Future work included TinyPi, the kernel row, and smaller items like mini-vcs commands.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:22
+
+**Yoann:**
+
+> yes, let's do it!
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:22
+
+**Yoann:**
+
+> we could also have a TinyKernel that would run on it ...

@@ -48,8 +48,8 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
   tiny-arm, and tiny-cpu, a CPU of our own design (see below).
 - **mini-qemu**, a Raspberry Pi 1 that boots xv6 and Plan 9's 9pi as
   QEMU does ([`raspberry/`](raspberry/), run by `./mini-pi`); the Pi 4
-  is next, and its tiny variants, tiny-pi and tiny-machine, are
-  planned.
+  is next; tiny-machine, TinyCPU's CPU with a timer, traps and a
+  page of kernel, and tiny-pi, planned.
 
 Their plans, tutorials and related-work notes are
 indexed in [docs/README.md](docs/README.md).
@@ -85,8 +85,8 @@ with:
   `SVC` (once `SWI`) with the Plan 9 syscall ABI (or a subset of it).
 
 One pair of tiny programs takes the other road on purpose. TinyCPU
-(and TinyMachine, planned: the same CPU with a privileged mode, traps
-and devices) is a made-up machine with its assembler, as Knuth's MIX
+(and TinyMachine: the same CPU with a privileged mode, traps and
+devices, and a page of kernel) is a made-up machine with its assembler, as Knuth's MIX
 and MMIX and Nand2Tetris's Hack are, because what it teaches is the
 design of an instruction set: the choices a real one made for
 history's reasons, made again with hindsight. It stands next to
@@ -103,7 +103,7 @@ italics are planned.
 
 | Book | mini (m-ix) | tiny (t-ix) | Plan 9 original |
 |---|---|---|---|
-| Emulator | mini-5i (arm32, arm64, user mode), mini-qemu (Pi1, then 64-bit) | tiny-arm, tiny-cpu, *tiny-pi*, *tiny-machine* | `5i`, QEMU's raspi machines |
+| Emulator | mini-5i (arm32, arm64, user mode), mini-qemu (Pi1, then 64-bit) | tiny-arm, tiny-cpu, tiny-machine, *tiny-pi* | `5i`, QEMU's raspi machines |
 | Kernel | *mini-9pi* | *tiny-kernel* | `9pi` |
 | Core libraries | *(not settled — ix programs are all OCaml, so there may be no separate libc, just what OCaml's stdlib and runtime give us)* | | `libc`, `libthread`, `libbio`, `libregexp`, ... |
 | Shell | mini-rc | tiny-shell | `rc` |

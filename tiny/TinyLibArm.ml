@@ -27,9 +27,9 @@
  * what the rest of ix runs (mini-5i's, the Pi1's). TinyCPU shows what
  * an instruction set could be; this, what a real one asks of its
  * assembler and its interpreter. Neither has devices: a system call is
- * where both stop. Below it are their machines, planned: TinyPi.ml,
+ * where both stop. Below it are their machines: TinyPi.ml, planned,
  * this CPU with the Pi1's devices (plan_pi.md), and TinyMachine.ml,
- * TinyCPU's (plan_arm.md), each using its CPU as a library.
+ * TinyCPU's, each using its CPU as a library.
  *
  * What makes it small, and still a real machine:
  *

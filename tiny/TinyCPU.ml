@@ -16,8 +16,8 @@
  *     sys 2    read up to r3 bytes from stdin to r2
  *
  * The instruction set, the assembler, the interpreter and their laws
- * are TinyLibCPU.ml's; TinyMachine.ml (planned, plan_arm.md) runs the
- * same CPU with devices, where a system call is a trap.
+ * are TinyLibCPU.ml's; TinyMachine.ml runs the same CPU with devices
+ * and a kernel, where a system call is a trap.
  *
  *     tiny-cpu prog.tm            assembled and interpreted
  *     tiny-cpu -l prog.tm         the listing
