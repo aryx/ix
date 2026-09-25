@@ -3569,3 +3569,39 @@ He also confirmed renaming the ./pi script to ./mini-pi to match the new naming 
 **Yoann:**
 
 > ok perfect, let's rename things. hyphens are good, actually it's good because we can add a bin section in the dune file and install them. let's pick the original name, mini-mk (but tiny-build). and yes let's rename it ./mini-pi
+
+**Claude (summary):**
+
+I need to navigate to the ix project directory. Let me check the current structure and read the dune files.
+```bash
+cd ~/ix && cat dune && echo "---" && cat tiny/dune | head -60
+```
+I'll read the dune files to understand the current structure and then check how ~/xix handles bins:
+```bash
+cat ~/xix/dune | grep -A 20 "install"
+```
+Once I see the patterns, I can add the appropriate bin sections to:
+1. The root dune (for mini-pi, and potentially a bin directory)
+2. tiny/dune (for the tiny-arm, tiny-machine executables)
+3. Other directories that produce executables (builder/, shell/, etc.)
+The key is ensuring:
+- Each `(executable ...)` stanza has a matching `(public_name ...)` for installation
+- The install stanza groups them in `(section bin)`
+- Symlinks under `_build/install/default/bin/` are created properly
+- Dead symlinks are avoided (dune won't install if the target doesn't exist)
+Could you run these commands so I can see the current dune structure and the pattern from ~/xix?
+```bash
+cd ~/ix && cat dune
+echo "=== tiny/dune first 70 lines ==="
+head -70 tiny/dune
+echo "=== xix dune example ==="
+cat ~/xix/dune | grep -A 30 "^\(install\|bin\)" | head -50
+```
+
+------------------------------------------------------------------------
+
+## 2026-09-25 08:56
+
+**Yoann:**
+
+> let's add some bin section in the dune file like we do in ~/xix or ~/osemgrep so I can access the resulting binaries under _build/install/default/bin (and also have the bin symlink, altough take care with dune limitations about dead symlinks)

@@ -26,7 +26,8 @@ first make **m-ix** (a nod to Knuth's MIX) and the second **t-ix**.
 `dune install` installs both kinds of executables.
 
 The project was started on 2026-09-21, and this README describes the
-plan. Written so far (`make`, then `make test`): **mini-mk**, the build
+plan. Written so far (`make`, then `make test`; the executables are then
+in `bin/`, e.g. `./bin/mini-mk`): **mini-mk**, the build
 system ([`builder/`](builder/)), which builds all of xix from its
 mkfiles; **mini-rc**, the shell ([`shell/`](shell/)); **mini-ed**, the
 editor ([`editor/`](editor/)); **mini-asm and mini-ld**, the

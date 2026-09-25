@@ -32,7 +32,13 @@
 # built), $PRINCIPIA (default ~/principia: 9pi built, qemu-sd.img).
 
 set -e
-ROOT=$(cd "$(dirname "$0")" && pwd)
+# claude: ix's checkout, also when run as bin/mini-pi (a link into
+# _build/default/, where dune copies the script); installed elsewhere
+# (dune install), it needs $IX, the checkout
+ROOT=$(dirname "$(readlink -f "$0")")
+case $ROOT in */_build/default) ROOT=${ROOT%/_build/default};; esac
+ROOT=${IX:-$ROOT}
+[ -d "$ROOT/raspberry" ] || { echo "mini-pi: $ROOT is not ix's checkout (set IX)" >&2; exit 2; }
 XV6=${XV6:-$HOME/xv6}
 PRINCIPIA=${PRINCIPIA:-$HOME/principia}
 graphics=0; write=0; qemu=0; debug=0; build=1

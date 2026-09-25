@@ -1,4 +1,8 @@
-(dirs :standard \ docs)
+; bin is a symlink to _build/install/default/bin, where dune installs
+; the executables (their public_name) and mini-pi (below): ./bin/mini-mk.
+; Dune must not follow it: it points into _build, and is dead before
+; the first build.
+(dirs :standard \ docs bin)
 
 ; the script that boots the Pi kernels under mini-qemu, installed with
 ; the programs (dune install)
