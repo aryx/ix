@@ -52,6 +52,12 @@ type addr =
 
 type pair_mode = P_offset | P_pre | P_post | P_nontemporal
 
+type hint = Yield | Wfe | Wfi | Sev | Sevl
+
+type pstate_field = Spsel | Daifset | Daifclr
+
+type barrier = Dsb | Dmb | Isb | Clrex
+
 type t =
   | Add_imm of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; imm : int; lsl12 : bool }
   | Add_reg of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; rm : reg; shift : shift; amount : int }
@@ -93,10 +99,24 @@ type t =
   (* ldp, stp, ldpsw ([signed]) *)
   | Pair of { load : bool; sf : sf; signed : bool; rt : reg; rt2 : reg; rn : reg; offset : int; mode : pair_mode }
   | Svc of int
+  | Hvc of int
+  | Smc of int
+  | Brk of int
   | Nop
-  (* the flags, the one system register user code reads or writes *)
-  | Mrs_nzcv of reg
-  | Msr_nzcv of reg
+  | Hint of hint
+  (* the system registers, by their 16-bit encoding (op0, op1, CRn,
+   * CRm, op2: [sysreg]); only those of the table, the rest Undefined *)
+  | Mrs of { rt : reg; sr : int }
+  | Msr of { rt : reg; sr : int }
+  | Msr_imm of { field : pstate_field; imm : int }
+  (* dc, ic, tlbi, at: the operations of the table, by op1:CRn:CRm:op2 *)
+  | Sys of { op : int; rt : reg }
+  | Barrier of { kind : barrier; option : int }
+  | Eret
+  (* ldxr, ldaxr, stxr, stlxr ([exclusive]); ldar, stlr, ldlar, stllr;
+   * [ordered]: acquire for a load, release for a store; [rs] the
+   * status register of an exclusive store *)
+  | Excl of { load : bool; size : size; ordered : bool; exclusive : bool; rs : reg; rt : reg; rn : reg }
   | Undefined of int
 
 val decode : int -> t
@@ -112,9 +132,19 @@ val bitmask : sf -> int -> int -> int -> int64 option
 (* Execution *)
 (*****************************************************************************)
 
-(* the user-mode state: x0-x30 and sp (slot 31), the flags; [next] is
- * the address the instruction running jumps to, pc + 4 unless it
- * branches *)
+(* the state: x0-x30 and sp (slot 31), the flags; [next] is the
+ * address the instruction running jumps to, pc + 4 unless it
+ * branches.
+ *
+ * And the privileged state (plan_pi.md, phase G), which user mode
+ * (mini-5i) leaves at EL0 with the MMU off: the exception level, SPSel
+ * and the stack pointers of each level (slot 31 the current one,
+ * [sp_el] the others), DAIF (D 8, A 4, I 2, F 1), and per level ELR,
+ * SPSR, ESR, FAR, VBAR. The board supplies the rest: the MMU's
+ * translation (an address, bit 0 a write, bit 1 as user, to a
+ * physical address, or Abort), the other system registers, and the
+ * system instructions (hints, dc, ic, tlbi, at, hvc, smc, brk).
+ * [monitor]: the exclusive monitor's physical address, -1 clear. *)
 type state = {
   x : int64 array;
   mutable n : bool;
@@ -123,9 +153,28 @@ type state = {
   mutable v : bool;
   mutable next : int;
   mem : Memory.t;
+  mutable el : int;
+  mutable spsel : bool;
+  sp_el : int64 array;
+  mutable daif : int;
+  elr : int64 array;
+  spsr : int64 array;
+  esr : int64 array;
+  far : int64 array;
+  vbar : int64 array;
+  mutable mmu : bool;
+  mutable translate : int64 -> int -> int;
+  mutable read_sysreg : int -> int64;
+  mutable write_sysreg : int -> int64 -> unit;
+  mutable system : state -> t -> unit;
+  mutable monitor : int;
 }
 
 exception Unimplemented of int * int  (* the word, its address *)
+
+(* a translation fault: the virtual address, ESR's ISS (the fault
+ * status code, bit 6 a write) *)
+exception Abort of int64 * int
 
 val create : Memory.t -> state
 
@@ -142,3 +191,34 @@ val of_address : int -> int64
 val execute : state -> addr:int -> svc:(state -> int -> unit) -> t -> unit
 
 val cond_passed : state -> cond -> bool
+
+(* a system register's encoding, by its name ("sctlr_el1"), and back *)
+val sysreg : string -> int
+val sysreg_name : int -> string
+
+(* a system operation's kind, name and whether it takes a register *)
+val sysop : int -> string * string * bool
+
+(* a program counter as a register holds it *)
+val of_pc : int -> int64
+
+(* the physical address of an access (bit 0 a write, bit 1 as user) *)
+val phys : state -> int64 -> int -> int
+
+(* PSTATE as SPSR keeps it *)
+val pstate : state -> int64
+
+(* an exception: [offset] 0 synchronous, 0x80 IRQ; [ret] ELR's *)
+val take : state -> offset:int -> ret:int -> ?esr:int64 -> ?far:int64 -> unit -> unit
+
+(* ESR's value: its class, the syndrome *)
+val syndrome : int -> int -> int64
+val ec_unknown : int
+val ec_svc : int
+val ec_hvc : int
+val ec_smc : int
+val ec_iabort_lower : int
+val ec_iabort : int
+val ec_dabort_lower : int
+val ec_dabort : int
+val ec_brk : int

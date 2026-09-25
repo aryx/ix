@@ -26,6 +26,7 @@ test: all
 	./machine/tests/decode_check.py --random 5000
 	./machine/tests/decode_check.py -64
 	./machine/tests/decode_check.py -64 --random 5000
+	./machine/tests/decode_check.py -64 machine/tests/words_arm64_system.txt
 	./machine/tests/random_blocks.py 3000 30
 	./machine/tests/random_blocks.py -64 3000 30
 
@@ -77,7 +78,17 @@ build-docker:
 build-docker-ocaml5:
 	docker build -t "ix" --build-arg OCAML_VERSION=5.1.1 .
 
-.PHONY: all test test-differential test-goken test-chidb clean build-docker build-docker-ocaml5
+.PHONY: all test test-differential test-goken test-chidb test-pi clean build-docker build-docker-ocaml5
+
+# mini-qemu against QEMU (plan_pi.md): 9pi's session, the xv6 Pi
+# ports' boots (the Pi1's and the Pi4's), the Pi1's graphics; needs
+# ~/principia, ~/xv6 and the QEMUs (see raspberry/tests/). With
+# XV6_USERTESTS=-u, each xv6 port's usertests too (the Pi4's: hours).
+test-pi: all
+	dune build --profile release ./raspberry/Main.exe
+	./raspberry/tests/9pi.py
+	./raspberry/tests/xv6.sh $(XV6_USERTESTS)
+	./raspberry/tests/graphics.py
 
 # mini-git over the Internet: ix cloned from GitHub by mini-git (https,
 # through curl), checked by git fsck and walk.

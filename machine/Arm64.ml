@@ -25,6 +25,12 @@ type addr =
 
 type pair_mode = P_offset | P_pre | P_post | P_nontemporal
 
+type hint = Yield | Wfe | Wfi | Sev | Sevl
+
+type pstate_field = Spsel | Daifset | Daifclr
+
+type barrier = Dsb | Dmb | Isb | Clrex
+
 type t =
   | Add_imm of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; imm : int; lsl12 : bool }
   | Add_reg of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; rm : reg; shift : shift; amount : int }
@@ -59,9 +65,24 @@ type t =
   | Mem of { load : bool; size : size; signed : sf option; rt : reg; addr : addr }
   | Pair of { load : bool; sf : sf; signed : bool; rt : reg; rt2 : reg; rn : reg; offset : int; mode : pair_mode }
   | Svc of int
+  | Hvc of int
+  | Smc of int
+  | Brk of int
   | Nop
-  | Mrs_nzcv of reg
-  | Msr_nzcv of reg
+  | Hint of hint
+  (* the system registers, by their 16-bit encoding (op0, op1, CRn,
+   * CRm, op2: [sysreg]); only those of the table, the rest Undefined *)
+  | Mrs of { rt : reg; sr : int }
+  | Msr of { rt : reg; sr : int }
+  | Msr_imm of { field : pstate_field; imm : int }
+  (* dc, ic, tlbi, at: the operations of the table, by op1:CRn:CRm:op2 *)
+  | Sys of { op : int; rt : reg }
+  | Barrier of { kind : barrier; option : int }
+  | Eret
+  (* ldxr, ldaxr, stxr, stlxr ([exclusive]); ldar, stlr, ldlar, stllr;
+   * [ordered]: acquire for a load, release for a store; [rs] the
+   * status register of an exclusive store *)
+  | Excl of { load : bool; size : size; ordered : bool; exclusive : bool; rs : reg; rt : reg; rn : reg }
   | Undefined of int
 
 let field = Bits.field
@@ -139,6 +160,92 @@ let dp_imm w =
       else Extr { sf; rd; rn; rm = field w 16 5; lsb }
   | _ -> Undefined w
 
+(* the system registers the kernels use (xv6 arm64-pi4's, QEMU's
+ * cortex-a72's identification, the generic timer's), by name, as
+ * objdump names them, and op0, op1, CRn, CRm, op2 *)
+let sysregs = [
+  "nzcv", 3, 3, 4, 2, 0; "daif", 3, 3, 4, 2, 1; "currentel", 3, 0, 4, 2, 2; "spsel", 3, 0, 4, 2, 0;
+  "fpcr", 3, 3, 4, 4, 0; "fpsr", 3, 3, 4, 4, 1;
+  "sp_el0", 3, 0, 4, 1, 0; "sp_el1", 3, 4, 4, 1, 0; "sp_el2", 3, 6, 4, 1, 0;
+  "spsr_el1", 3, 0, 4, 0, 0; "elr_el1", 3, 0, 4, 0, 1; "spsr_el2", 3, 4, 4, 0, 0; "elr_el2", 3, 4, 4, 0, 1;
+  "spsr_el3", 3, 6, 4, 0, 0; "elr_el3", 3, 6, 4, 0, 1;
+  "sctlr_el1", 3, 0, 1, 0, 0; "actlr_el1", 3, 0, 1, 0, 1; "cpacr_el1", 3, 0, 1, 0, 2;
+  "sctlr_el2", 3, 4, 1, 0, 0; "hcr_el2", 3, 4, 1, 1, 0; "cptr_el2", 3, 4, 1, 1, 2;
+  "sctlr_el3", 3, 6, 1, 0, 0; "scr_el3", 3, 6, 1, 1, 0; "cptr_el3", 3, 6, 1, 1, 2;
+  "ttbr0_el1", 3, 0, 2, 0, 0; "ttbr1_el1", 3, 0, 2, 0, 1; "tcr_el1", 3, 0, 2, 0, 2;
+  "esr_el1", 3, 0, 5, 2, 0; "esr_el2", 3, 4, 5, 2, 0; "esr_el3", 3, 6, 5, 2, 0;
+  "far_el1", 3, 0, 6, 0, 0; "far_el2", 3, 4, 6, 0, 0; "far_el3", 3, 6, 6, 0, 0;
+  "par_el1", 3, 0, 7, 4, 0; "mair_el1", 3, 0, 10, 2, 0;
+  "vbar_el1", 3, 0, 12, 0, 0; "vbar_el2", 3, 4, 12, 0, 0; "vbar_el3", 3, 6, 12, 0, 0;
+  "contextidr_el1", 3, 0, 13, 0, 1; "tpidr_el0", 3, 3, 13, 0, 2; "tpidrro_el0", 3, 3, 13, 0, 3;
+  "tpidr_el1", 3, 0, 13, 0, 4;
+  "midr_el1", 3, 0, 0, 0, 0; "mpidr_el1", 3, 0, 0, 0, 5; "revidr_el1", 3, 0, 0, 0, 6;
+  "ctr_el0", 3, 3, 0, 0, 1; "dczid_el0", 3, 3, 0, 0, 7;
+  "id_aa64pfr0_el1", 3, 0, 0, 4, 0; "id_aa64isar0_el1", 3, 0, 0, 6, 0; "id_aa64mmfr0_el1", 3, 0, 0, 7, 0;
+  "cntfrq_el0", 3, 3, 14, 0, 0; "cntpct_el0", 3, 3, 14, 0, 1; "cntvct_el0", 3, 3, 14, 0, 2;
+  "cntp_tval_el0", 3, 3, 14, 2, 0; "cntp_ctl_el0", 3, 3, 14, 2, 1; "cntp_cval_el0", 3, 3, 14, 2, 2;
+  "cntv_tval_el0", 3, 3, 14, 3, 0; "cntv_ctl_el0", 3, 3, 14, 3, 1; "cntv_cval_el0", 3, 3, 14, 3, 2;
+  "cntkctl_el1", 3, 0, 14, 1, 0; "cnthctl_el2", 3, 4, 14, 1, 0; "cntvoff_el2", 3, 4, 14, 0, 3 ]
+
+let encode op0 op1 crn crm op2 = (op0 lsl 14) lor (op1 lsl 11) lor (crn lsl 7) lor (crm lsl 3) lor op2
+let sysreg_names = Hashtbl.create 64
+let () = List.iter (fun (n, a, b, c, d, e) -> Hashtbl.replace sysreg_names (encode a b c d e) n) sysregs
+let sysreg name =
+  match List.find_opt (fun (n, _, _, _, _, _) -> n = name) sysregs with
+  | Some (_, a, b, c, d, e) -> encode a b c d e
+  | None -> invalid_arg ("Arm64.sysreg: " ^ name)
+let sysreg_name sr = Hashtbl.find sysreg_names sr
+
+(* the system operations (SYS), by op1:CRn:CRm:op2; [reg]: whether
+ * objdump prints the register (the whole-cache and whole-TLB ones
+ * take none) *)
+let sysops = [
+  "ic", "ialluis", 0, 7, 1, 0, false; "ic", "iallu", 0, 7, 5, 0, false; "ic", "ivau", 3, 7, 5, 1, true;
+  "dc", "ivac", 0, 7, 6, 1, true; "dc", "isw", 0, 7, 6, 2, true; "dc", "csw", 0, 7, 10, 2, true;
+  "dc", "cisw", 0, 7, 14, 2, true; "dc", "zva", 3, 7, 4, 1, true; "dc", "cvac", 3, 7, 10, 1, true;
+  "dc", "cvau", 3, 7, 11, 1, true; "dc", "civac", 3, 7, 14, 1, true; "dc", "cvap", 3, 7, 12, 1, true;
+  "at", "s1e1r", 0, 7, 8, 0, true; "at", "s1e1w", 0, 7, 8, 1, true; "at", "s1e0r", 0, 7, 8, 2, true;
+  "at", "s1e0w", 0, 7, 8, 3, true;
+  "tlbi", "vmalle1is", 0, 8, 3, 0, false; "tlbi", "vmalle1", 0, 8, 7, 0, false;
+  "tlbi", "vae1is", 0, 8, 3, 1, true; "tlbi", "vae1", 0, 8, 7, 1, true;
+  "tlbi", "aside1is", 0, 8, 3, 2, true; "tlbi", "aside1", 0, 8, 7, 2, true;
+  "tlbi", "vaae1is", 0, 8, 3, 3, true; "tlbi", "vaae1", 0, 8, 7, 3, true;
+  "tlbi", "vale1is", 0, 8, 3, 5, true; "tlbi", "vale1", 0, 8, 7, 5, true;
+  "tlbi", "vaale1is", 0, 8, 3, 7, true; "tlbi", "vaale1", 0, 8, 7, 7, true;
+  "tlbi", "alle1is", 4, 8, 3, 4, false; "tlbi", "alle1", 4, 8, 7, 4, false;
+  "tlbi", "alle2", 4, 8, 7, 0, false; "tlbi", "alle3", 6, 8, 7, 0, false ]
+
+let sysop_names = Hashtbl.create 64
+let () = List.iter (fun (k, n, a, b, c, d, r) -> Hashtbl.replace sysop_names (encode 0 a b c d) (k, n, r)) sysops
+let sysop op = Hashtbl.find sysop_names op
+
+(* the system instructions: bits 31-22 = 1101010100 *)
+let system w =
+  let l = bit w 21 and op0 = field w 19 2 and op1 = field w 16 3 and crn = field w 12 4 in
+  let crm = field w 8 4 and op2 = field w 5 3 and rt = field w 0 5 in
+  let sr = field w 5 16 in
+  match op0, l with
+  | (2 | 3), _ when Hashtbl.mem sysreg_names sr -> if l then Mrs { rt; sr } else Msr { rt; sr }
+  | 1, false when Hashtbl.mem sysop_names (field w 5 14) -> Sys { op = field w 5 14; rt }
+  | 0, false when rt = 31 && crn = 2 && op1 = 3 ->
+      (match (crm lsl 3) lor op2 with
+       | 0 -> Nop | 1 -> Hint Yield | 2 -> Hint Wfe | 3 -> Hint Wfi | 4 -> Hint Sev | 5 -> Hint Sevl
+       | _ -> Undefined w)
+  | 0, false when rt = 31 && crn = 3 && op1 = 3 ->
+      (match op2 with
+       | 2 -> Barrier { kind = Clrex; option = crm }
+       | 4 -> Barrier { kind = Dsb; option = crm }
+       | 5 -> Barrier { kind = Dmb; option = crm }
+       | 6 -> Barrier { kind = Isb; option = crm }
+       | _ -> Undefined w)
+  | 0, false when rt = 31 && crn = 4 ->
+      (match op1, op2 with
+       | 0, 5 -> Msr_imm { field = Spsel; imm = crm }
+       | 3, 6 -> Msr_imm { field = Daifset; imm = crm }
+       | 3, 7 -> Msr_imm { field = Daifclr; imm = crm }
+       | _ -> Undefined w)
+  | _ -> Undefined w
+
 (* branches, exceptions, system: bits 28-26 = 101 *)
 let branch w =
   if field w 26 5 = 0b00101 then B { link = bit w 31; offset = Bits.sign_extend 26 (field w 0 26) * 4 }
@@ -149,11 +256,14 @@ let branch w =
   else if field w 25 6 = 0b011011 then
     Tbz { nz = bit w 24; rt = field w 0 5; bit = (field w 31 1 lsl 5) lor field w 19 5;
           offset = Bits.sign_extend 14 (field w 5 14) * 4 }
-  else if field w 21 11 = 0b11010100000 && field w 0 5 = 1 then Svc (field w 5 16)
-  else if field w 16 16 = 0xd503 && field w 0 16 = 0x201f then Nop
-  (* the flags as a system register, NZCV (op0 3, op1 3, CRn 4, CRm 2) *)
-  else if field w 16 16 = 0xd53b && field w 5 11 = 0x210 then Mrs_nzcv (field w 0 5)
-  else if field w 16 16 = 0xd51b && field w 5 11 = 0x210 then Msr_nzcv (field w 0 5)
+  else if field w 24 8 = 0xd4 && field w 2 3 = 0 then
+    (* the exception generating instructions *)
+    let imm = field w 5 16 in
+    (match field w 21 3, field w 0 2 with
+     | 0, 1 -> Svc imm | 0, 2 -> Hvc imm | 0, 3 -> Smc imm | 1, 0 -> Brk imm
+     | _ -> Undefined w)
+  else if field w 22 10 = 0b1101010100 then system w
+  else if field w 16 16 = 0xd69f && field w 0 16 = 0x03e0 then Eret
   else if field w 25 7 = 0b1101011 && field w 10 11 = 0b11111000000 && field w 0 5 = 0 then
     (match field w 21 4 with
      | 0 -> Br { link = false; rn = field w 5 5 }
@@ -213,6 +323,12 @@ let loadstore w =
              else if field w 10 2 = 2 && bit w 14 then
                mem (Index { rn; rm = field w 16 5; extend = extends.(field w 13 3); s = bit w 12 })
              else Undefined w)
+    | 0 when field w 24 2 = 0 ->
+        (* the exclusive and ordered loads and stores: pairs (o1) and
+         * compare-and-swap left undefined *)
+        let load = bit w 22 and exclusive = not (bit w 23) and rs = field w 16 5 in
+        if bit w 21 || field w 10 5 <> 31 || ((load || not exclusive) && rs <> 31) then Undefined w
+        else Excl { load; size = sizes.(field w 30 2); ordered = bit w 15; exclusive; rs; rt; rn }
     | _ -> Undefined w
 
 (* data processing on registers: bits 27-25 = 101 *)
@@ -463,9 +579,41 @@ let print ~addr (i : t) =
         | P_post -> Printf.sprintf "[%s], #%d" (xsp rn) offset in
       m name (args [ reg_name rsf ~sp:false rt; reg_name rsf ~sp:false rt2; where ])
   | Svc imm -> m "svc" (hex imm)
+  | Hvc imm -> m "hvc" (hex imm)
+  | Smc imm -> m "smc" (hex imm)
+  | Brk imm -> m "brk" (hex imm)
   | Nop -> "nop"
-  | Mrs_nzcv rt -> m "mrs" (args [ x rt; "nzcv" ])
-  | Msr_nzcv rt -> m "msr" (args [ "nzcv"; x rt ])
+  | Hint h -> (match h with Yield -> "yield" | Wfe -> "wfe" | Wfi -> "wfi" | Sev -> "sev" | Sevl -> "sevl")
+  | Mrs { rt; sr } -> m "mrs" (args [ x rt; sysreg_name sr ])
+  | Msr { rt; sr } -> m "msr" (args [ sysreg_name sr; x rt ])
+  | Msr_imm { field; imm } ->
+      m "msr" (args [ (match field with Spsel -> "spsel" | Daifset -> "daifset" | Daifclr -> "daifclr"); hex imm ])
+  | Sys { op; rt } ->
+      let kind, name, reg = sysop op in
+      m kind (if reg then args [ name; x rt ] else name)
+  | Barrier { kind = (Dsb | Dmb) as k; option } ->
+      let names = [| ""; "oshld"; "oshst"; "osh"; ""; "nshld"; "nshst"; "nsh"; "";
+                     "ishld"; "ishst"; "ish"; ""; "ld"; "st"; "sy" |] in
+      (match k, option with
+       | Dsb, 0 -> "ssbb"
+       | Dsb, 4 -> "pssbb"
+       | _ ->
+           let name = if k = Dsb then "dsb" else "dmb" in
+           m name (if names.(option) = "" then hex option else names.(option)))
+  | Barrier { kind = (Isb | Clrex) as k; option } ->
+      let name = if k = Isb then "isb" else "clrex" in
+      if option = 15 then name else m name (hex option)
+  | Eret -> "eret"
+  | Excl { load; size; ordered; exclusive; rs; rt; rn } ->
+      let suffix = match size with Byte -> "b" | Half -> "h" | _ -> "" in
+      let name = match load, exclusive, ordered with
+        | true, true, _ -> (if ordered then "ldaxr" else "ldxr")
+        | false, true, _ -> (if ordered then "stlxr" else "stxr")
+        | true, false, true -> "ldar" | true, false, false -> "ldlar"
+        | false, false, true -> "stlr" | false, false, false -> "stllr" in
+      let r = reg_name (if size = Dword then X else W) ~sp:false rt and where = Printf.sprintf "[%s]" (xsp rn) in
+      m (name ^ suffix) (args (if exclusive && not load then [ reg_name W ~sp:false rs; r; where ] else [ r; where ]))
+  | Undefined w when w land 0xffff = w -> Printf.sprintf "udf\t#%d" w
   | Undefined w -> Printf.sprintf ".inst\t0x%08x" (Bits.unsigned32 w)
 
 (*****************************************************************************)
@@ -484,11 +632,34 @@ type state = {
   mutable v : bool;
   mutable next : int;
   mem : Memory.t;
+  (* the privileged state (plan_pi.md, phase G) *)
+  mutable el : int;
+  mutable spsel : bool;
+  sp_el : int64 array;
+  mutable daif : int;
+  elr : int64 array;
+  spsr : int64 array;
+  esr : int64 array;
+  far : int64 array;
+  vbar : int64 array;
+  mutable mmu : bool;
+  mutable translate : int64 -> int -> int;
+  mutable read_sysreg : int -> int64;
+  mutable write_sysreg : int -> int64 -> unit;
+  mutable system : state -> t -> unit;
+  mutable monitor : int;
 }
 
 exception Unimplemented of int * int
+exception Abort of int64 * int
 
-let create mem = { x = Array.make 32 0L; n = false; z = false; c = false; v = false; next = 0; mem }
+let create mem =
+  let undefined _ = raise (Unimplemented (0, 0)) in
+  { x = Array.make 32 0L; n = false; z = false; c = false; v = false; next = 0; mem;
+    el = 0; spsel = false; sp_el = Array.make 4 0L; daif = 0;
+    elr = Array.make 4 0L; spsr = Array.make 4 0L; esr = Array.make 4 0L; far = Array.make 4 0L; vbar = Array.make 4 0L;
+    mmu = false; translate = (fun _ _ -> 0); read_sysreg = undefined; write_sysreg = (fun _ _ -> undefined ());
+    system = (fun _ _ -> undefined ()); monitor = -1 }
 
 let m32 = 0xffffffffL
 let mask sf v = match sf with X -> v | W -> Int64.logand v m32
@@ -504,6 +675,18 @@ let set_sp st sf r v = Array.unsafe_set st.x r (mask sf v)
 let address v =
   if Int64.shift_right_logical v 32 <> 0L then raise (Memory.Fault (Bits.mask32 (Int64.to_int v)))
   else Bits.mask32 (Int64.to_int v)
+
+(* a program counter from a register and back: natively the whole
+ * address (the kernel runs at 0xffffff80_00000000, a canonical address
+ * a 63-bit int holds), under js_of_ocaml its low 32 bits *)
+let wide = Sys.int_size > 32
+let of_pc a = if wide then Int64.of_int a else Int64.logand (Int64.of_int a) 0xffffffffL
+let jump st v = if st.mmu then Int64.to_int v else address v
+
+(* the physical address of an access (bit 0 a write, bit 1 as user):
+ * through the MMU at EL1 and EL0 when it is on *)
+let[@inline] phys st v access =
+  if st.mmu && st.el < 2 then st.translate v (if st.el = 0 then access lor 2 else access) else address v
 
 let int32 v = Bits.mask32 (Int64.to_int v)
 (* zero-extended: a word with bit 31 set is a negative int under
@@ -617,20 +800,131 @@ let store st size a v =
   | Word -> Memory.store32 m a (int32 v)
   | Dword -> Memory.store64 m a v
 
+(*****************************************************************************)
+(* Exception levels *)
+(*****************************************************************************)
+
+(* PSTATE as SPSR keeps it: N Z C V (31-28), D A I F (9-6), the level
+ * (3-2), SP_ELx or SP_EL0 (0) *)
+let pstate st =
+  let b f k = if f then 1 lsl k else 0 in
+  Int64.logor (of32 (b st.n 31 lor b st.z 30 lor b st.c 29 lor b st.v 28))
+    (Int64.of_int ((st.daif lsl 6) lor (st.el lsl 2) lor (if st.spsel then 1 else 0)))
+
+let set_flags st v =
+  let b k = Int64.logand (Int64.shift_right_logical v k) 1L = 1L in
+  st.n <- b 31; st.z <- b 30; st.c <- b 29; st.v <- b 28
+
+(* the stack pointer, slot 31: SP_EL0, or the level's own when SPSel *)
+let sp_index st = if st.spsel then st.el else 0
+
+let enter st ~el ~spsel =
+  st.sp_el.(sp_index st) <- st.x.(31);
+  st.el <- el;
+  st.spsel <- spsel && el > 0;
+  st.x.(31) <- st.sp_el.(sp_index st)
+
+(* an exception to EL1 (or the level it happens at, above): the vector
+ * table's entry by where it comes from (the same level on SP_EL0 0x0,
+ * on SP_ELx 0x200, a lower one 0x400) plus [offset] (0 synchronous,
+ * 0x80 IRQ); SPSR and ELR keep what is returned to; ESR and FAR for a
+ * synchronous one *)
+let take st ~offset ~ret ?esr ?far () =
+  let target = max 1 st.el in
+  let base = if target > st.el then 0x400 else if st.spsel then 0x200 else 0 in
+  st.spsr.(target) <- pstate st;
+  st.elr.(target) <- of_pc ret;
+  Option.iter (fun e -> st.esr.(target) <- e) esr;
+  Option.iter (fun f -> st.far.(target) <- f) far;
+  enter st ~el:target ~spsel:true;
+  st.daif <- 0xf;
+  st.monitor <- -1;
+  st.next <- Int64.to_int (Int64.add st.vbar.(target) (Int64.of_int (base + offset)))
+
+(* ESR's classes *)
+let ec_unknown = 0x00 and ec_svc = 0x15 and ec_hvc = 0x16 and ec_smc = 0x17
+and ec_iabort_lower = 0x20 and ec_iabort = 0x21 and ec_dabort_lower = 0x24 and ec_dabort = 0x25 and ec_brk = 0x3c
+
+let syndrome ec iss = Int64.of_int ((ec lsl 26) lor (1 lsl 25) lor iss)
+
+let eret st =
+  let v = st.spsr.(st.el) and pc = st.elr.(st.el) in
+  (* a return to AArch32 (M[4]): not this core's *)
+  if Int64.logand v 0x10L <> 0L then raise (Unimplemented (0, st.next - 4));
+  let m = Int64.to_int (Int64.logand v 0x3ffL) in
+  set_flags st v;
+  st.daif <- (m lsr 6) land 15;
+  enter st ~el:((m lsr 2) land 3) ~spsel:(m land 1 = 1);
+  st.monitor <- -1;
+  st.next <- Int64.to_int pc
+
+(* the registers the core keeps (the rest the board's): an EL1-3 one
+ * read or written at a lower level is undefined, as are the EL1
+ * registers at EL0 (all but op1 = 3's) *)
+let level_of sr = match (sr lsr 11) land 7 with 4 -> 2 | 6 -> 3 | 3 -> 0 | _ -> 1
+
+let read_sysreg st sr =
+  if level_of sr > st.el then raise (Unimplemented (0, st.next - 4));
+  match sysreg_name sr with
+  | "nzcv" -> Int64.logand (pstate st) 0xf0000000L
+  | "daif" -> Int64.of_int (st.daif lsl 6)
+  | "currentel" -> Int64.of_int (st.el lsl 2)
+  | "spsel" -> if st.spsel then 1L else 0L
+  | "sp_el0" -> if sp_index st = 0 then st.x.(31) else st.sp_el.(0)
+  | "sp_el1" -> st.sp_el.(1)
+  | "sp_el2" -> st.sp_el.(2)
+  | name ->
+      let n = level_of sr in
+      (match String.sub name 0 (String.length name - 4) with
+       | "elr" -> st.elr.(n) | "spsr" -> st.spsr.(n) | "esr" -> st.esr.(n) | "far" -> st.far.(n) | "vbar" -> st.vbar.(n)
+       | _ -> st.read_sysreg sr)
+
+let write_sysreg st sr v =
+  if level_of sr > st.el then raise (Unimplemented (0, st.next - 4));
+  match sysreg_name sr with
+  | "nzcv" -> set_flags st v
+  | "daif" -> st.daif <- Int64.to_int (Int64.shift_right_logical v 6) land 15
+  | "spsel" -> enter st ~el:st.el ~spsel:(Int64.logand v 1L = 1L)
+  | "sp_el0" -> if sp_index st = 0 then st.x.(31) <- v else st.sp_el.(0) <- v
+  | "sp_el1" -> st.sp_el.(1) <- v
+  | "sp_el2" -> st.sp_el.(2) <- v
+  | "currentel" -> raise (Unimplemented (0, st.next - 4))
+  | name ->
+      let n = level_of sr in
+      (match String.sub name 0 (String.length name - 4) with
+       | "elr" -> st.elr.(n) <- v | "spsr" -> st.spsr.(n) <- v | "esr" -> st.esr.(n) <- v
+       | "far" -> st.far.(n) <- v | "vbar" -> st.vbar.(n) <- v
+       | _ -> st.write_sysreg sr v)
+
 let size_shift = function Byte -> 0 | Half -> 1 | Word -> 2 | Dword -> 3
 
 let execute st ~addr ~svc i =
-  st.next <- Bits.mask32 (addr + 4);
+  st.next <- addr + 4;
   match i with
   | Undefined w -> raise (Unimplemented (w, addr))
-  | Nop -> ()
-  | Mrs_nzcv rt ->
-      let b f k = if f then 1 lsl k else 0 in
-      set st X rt (of32 (b st.n 31 lor b st.z 30 lor b st.c 29 lor b st.v 28))
-  | Msr_nzcv rt ->
-      let v = get st rt in
-      let b k = Int64.logand (Int64.shift_right_logical v k) 1L = 1L in
-      st.n <- b 31; st.z <- b 30; st.c <- b 29; st.v <- b 28
+  | Nop | Barrier _ -> ()
+  | Mrs { rt; sr } -> set st X rt (read_sysreg st sr)
+  | Msr { rt; sr } -> write_sysreg st sr (get st rt)
+  | Msr_imm { field = Spsel; imm } -> if st.el = 0 then raise (Unimplemented (0, addr)) else enter st ~el:st.el ~spsel:(imm land 1 = 1)
+  | Msr_imm { field = Daifset; imm } -> st.daif <- st.daif lor imm
+  | Msr_imm { field = Daifclr; imm } -> st.daif <- st.daif land lnot imm
+  | Eret -> if st.el = 0 then raise (Unimplemented (0, addr)) else eret st
+  | Hint _ | Sys _ | Hvc _ | Smc _ | Brk _ -> st.system st i
+  | Excl { load = true; size; exclusive; rt; rn; _ } ->
+      let pa = phys st (get_sp st rn) 0 in
+      if exclusive then st.monitor <- pa;
+      set st (if size = Dword then X else W) rt (load st size None pa)
+  | Excl { load = false; size; exclusive; rs; rt; rn; _ } ->
+      let pa = phys st (get_sp st rn) 1 in
+      if not exclusive then store st size pa (get st rt)
+      else begin
+        (* the monitor: set by the load, cleared by an exception, a
+         * return, or this store *)
+        let ok = st.monitor = pa in
+        st.monitor <- -1;
+        if ok then store st size pa (get st rt);
+        set st W rs (if ok then 0L else 1L)
+      end
   | Add_imm { sf; sub; s; rd; rn; imm; lsl12 } ->
       let b = Int64.of_int (if lsl12 then imm lsl 12 else imm) in
       let r = add_sub st sf ~sub ~s (get_sp st rn) b in
@@ -669,8 +963,8 @@ let execute st ~addr ~svc i =
       let lo = mask sf (get st rm) and hi = get st rn in
       set st sf rd (if lsb = 0 then lo else Int64.logor (Int64.shift_right_logical lo lsb) (Int64.shift_left hi (width sf - lsb)))
   | Adr { page; rd; offset } ->
-      let v = if page then Int64.add (of32 (addr land lnot 0xfff)) (Int64.shift_left (Int64.of_int offset) 12)
-              else Int64.add (of32 addr) (Int64.of_int offset) in
+      let v = if page then Int64.add (of_pc (addr land lnot 0xfff)) (Int64.shift_left (Int64.of_int offset) 12)
+              else Int64.add (of_pc addr) (Int64.of_int offset) in
       set st X rd v
   | Csel { sf; inc; inv; rd; rn; rm; cond } ->
       if cond_passed st cond then set st sf rd (get st rn)
@@ -720,27 +1014,28 @@ let execute st ~addr ~svc i =
       set st X rd (if sub then Int64.sub (get st ra) p else Int64.add (get st ra) p)
   | Mulh { signed; rd; rn; rm } -> set st X rd ((if signed then smulh else umulh) (get st rn) (get st rm))
   | B { link; offset } ->
-      if link then set st X 30 (of32 (addr + 4));
-      st.next <- Bits.mask32 (addr + offset)
-  | Bcond { cond; offset } -> if cond_passed st cond then st.next <- Bits.mask32 (addr + offset)
-  | Cbz { sf; nz; rt; offset } -> if (mask sf (get st rt) <> 0L) = nz then st.next <- Bits.mask32 (addr + offset)
+      if link then set st X 30 (of_pc (addr + 4));
+      st.next <- addr + offset
+  | Bcond { cond; offset } -> if cond_passed st cond then st.next <- addr + offset
+  | Cbz { sf; nz; rt; offset } -> if (mask sf (get st rt) <> 0L) = nz then st.next <- addr + offset
   | Tbz { nz; rt; bit; offset } ->
-      if (Int64.logand (Int64.shift_right_logical (get st rt) bit) 1L = 1L) = nz then st.next <- Bits.mask32 (addr + offset)
+      if (Int64.logand (Int64.shift_right_logical (get st rt) bit) 1L = 1L) = nz then st.next <- addr + offset
   | Br { link; rn } ->
-      let target = address (get st rn) in
-      if link then set st X 30 (of32 (addr + 4));
+      let target = jump st (get st rn) in
+      if link then set st X 30 (of_pc (addr + 4));
       st.next <- target
-  | Ret rn -> st.next <- address (get st rn)
+  | Ret rn -> st.next <- jump st (get st rn)
   | Mem { load = l; size; signed; rt; addr = a } ->
       let base, a', writeback = match a with
-        | Literal off -> None, of32 (addr + off), None
+        | Literal off -> None, of_pc (addr + off), None
         | Base { rn; offset; mode = (Offset | Unscaled | Unpriv) } -> Some rn, Int64.add (get_sp st rn) (Int64.of_int offset), None
         | Base { rn; offset; mode = Pre } -> let v = Int64.add (get_sp st rn) (Int64.of_int offset) in Some rn, v, Some v
         | Base { rn; offset; mode = Post } -> Some rn, get_sp st rn, Some (Int64.add (get_sp st rn) (Int64.of_int offset))
         | Index { rn; rm; extend; s } ->
             let off = Int64.shift_left (extend_value (get st rm) extend) (if s then size_shift size else 0) in
             Some rn, Int64.add (get_sp st rn) off, None in
-      let ea = address a' in
+      let unpriv = match a with Base { mode = Unpriv; _ } -> 2 | _ -> 0 in
+      let ea = phys st a' ((if l then 0 else 1) lor unpriv) in
       if l then begin
         let v = load st size signed ea in
         (match base, writeback with Some rn, Some wb -> set_sp st X rn wb | _ -> ());
@@ -753,18 +1048,19 @@ let execute st ~addr ~svc i =
   | Pair { load = l; sf; signed; rt; rt2; rn; offset; mode } ->
       let b = get_sp st rn in
       let moved = Int64.add b (Int64.of_int offset) in
-      let a = address (match mode with P_post -> b | _ -> moved) in
+      let va = match mode with P_post -> b | _ -> moved in
       let size = if sf = X && not signed then Dword else Word in
-      let step = if size = Dword then 8 else 4 in
+      let step = if size = Dword then 8L else 4L in
+      let a1 = phys st va (if l then 0 else 1) and a2 = phys st (Int64.add va step) (if l then 0 else 1) in
       if l then begin
         let sg = if signed then Some X else None in
-        let v1 = load st size sg a and v2 = load st size sg (Bits.mask32 (a + step)) in
+        let v1 = load st size sg a1 and v2 = load st size sg a2 in
         set st (if signed then X else sf) rt v1;
         set st (if signed then X else sf) rt2 v2
       end
       else begin
-        store st size a (get st rt);
-        store st size (Bits.mask32 (a + step)) (get st rt2)
+        store st size a1 (get st rt);
+        store st size a2 (get st rt2)
       end;
       (match mode with P_pre | P_post -> set_sp st X rn moved | P_offset | P_nontemporal -> ())
   | Svc imm -> svc st imm

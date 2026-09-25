@@ -10,7 +10,7 @@
 (* See Elf.mli *)
 
 type machine = Arm | Aarch64 | Other of int
-type segment = { offset : int; vaddr : int; filesz : int; memsz : int; exec : bool }
+type segment = { offset : int; vaddr : int; paddr : int; filesz : int; memsz : int; exec : bool }
 type t = { machine : machine; entry : int; segments : segment list }
 
 exception Bad of string
@@ -30,7 +30,7 @@ let parse s =
   let segments = List.filter_map (fun i ->
     let p = phoff + (i * phentsize) in
     if u32 p <> 1 then None
-    else if wide then Some { offset = u32 (p + 8); vaddr = u32 (p + 16); filesz = u32 (p + 32); memsz = u32 (p + 40); exec = u32 (p + 4) land 1 <> 0 }
-    else Some { offset = u32 (p + 4); vaddr = u32 (p + 8); filesz = u32 (p + 16); memsz = u32 (p + 20); exec = u32 (p + 24) land 1 <> 0 })
+    else if wide then Some { offset = u32 (p + 8); vaddr = u32 (p + 16); paddr = u32 (p + 24); filesz = u32 (p + 32); memsz = u32 (p + 40); exec = u32 (p + 4) land 1 <> 0 }
+    else Some { offset = u32 (p + 4); vaddr = u32 (p + 8); paddr = u32 (p + 12); filesz = u32 (p + 16); memsz = u32 (p + 20); exec = u32 (p + 24) land 1 <> 0 })
     (List.init phnum Fun.id) in
   { machine; entry; segments }

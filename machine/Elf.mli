@@ -10,7 +10,7 @@
 
 type machine = Arm | Aarch64 | Other of int
 
-type segment = { offset : int; vaddr : int; filesz : int; memsz : int; exec : bool }
+type segment = { offset : int; vaddr : int; paddr : int; filesz : int; memsz : int; exec : bool }
 
 type t = { machine : machine; entry : int; segments : segment list }
 

@@ -582,3 +582,38 @@ no interrupt), so 9pi's USB driver wakes on its 1s timeouts there too.
 Pi1 board personality (`-hw pi1`, the boot partition, the firmware's
 entry state, the flashed board) waits; the next phases do not depend
 on it.
+
+**Phase G, G1-G3 done; G4 under way** (2026-09-25): **xv6 arm64-pi4
+boots under mini-qemu on one core**, its console to the shell's prompt
+the same as QEMU 11.1's raspi4b (less its other cores' "hart N
+starting"; `raspberry/tests/xv6.sh arm64-pi4`), and `ls` and the
+programs run. usertests' faults are reported as QEMU reports them
+(MAXVAplus's 64: the same ESR, with the fault's level, FAR and ELR).
+
+- machine/'s `Arm64`: the exception levels (SPSel and the stack
+  pointers per level, DAIF, ELR/SPSR/ESR/FAR/VBAR per level, `eret`,
+  exceptions to EL1 with the vector's four origins), the system
+  registers by a table of those the kernels use (objdump's names; the
+  rest undefined, so random words stay checkable), the hints, barriers,
+  `dc`/`ic`/`tlbi`/`at`, `hvc`/`smc`/`brk`, the exclusive and ordered
+  loads and stores with a monitor; 64-bit program counters (a native
+  int holds the canonical 0xffffff80... addresses; js_of_ocaml keeps
+  its 32 bits); accesses through the MMU at EL0-1. User mode unchanged
+  (mini-5i: the same tests, 29.6 MIPS).
+- machine/'s `Mmu64`: the 4 KB granule, TTBR0/TTBR1 by T0SZ/T1SZ,
+  levels 0-3, blocks and pages, AP/UXN/PXN, the access flag, the fault
+  codes with their level; a TLB as Mmu32's.
+- `raspberry/`: `Gic` (the GIC-400, one core's view), `Pi4` (the board:
+  RAM from 0, the PL011 at 0xfe201000 on SPI 153, GPIO, the GIC, the
+  generic timer's CNTV and CNTP at 62.5 MHz on PPIs 27 and 30, QEMU's
+  ELF loading at EL3), `Main`: `-M raspi4b`, `-m`, `-smp 1`, `-cpu`,
+  `-trace N`; `./mini-pi xv6-pi4`.
+- Tests: `machine/tests/words_arm64_system.txt` (3,850 words: xv6
+  arm64-pi4's kernel and programs, and `system_arm64.s`, from
+  `census_system.sh`) against objdump.
+
+Speed: 27 MIPS, the user-mode interpreter's. xv6's boot takes 21s
+(kinit fills 128MB a byte at a time, 670M instructions: QEMU 0.1s);
+usertests, 183s under QEMU's four threaded cores, is dominated by the
+same byte loop (`memset`, 58% of MAXVAplus's samples: three a page
+allocated and freed) and takes far longer than the harness's 300s.

@@ -11,24 +11,85 @@
  * (plan_pi.md, "The kernels it must boot"):
  *
  *     mini-qemu -M raspi1ap -nographic -kernel kernel.img
+ *     mini-qemu -cpu cortex-a72 -M raspi4b -kernel kernel -m 2G -smp 1 -nographic
  *
- * -M/-machine (raspi1ap), -kernel, -m (ignored: the board's 512MB),
+ * -M/-machine (raspi1ap, raspi4b), -kernel, -m (the Pi4's RAM, default
+ * 2G; the Pi1's is its 512MB), -smp (the Pi4: 1 core, the only number
+ * for now, plan_pi.md decision 3), -cpu (the board's own),
  * -nographic, -serial and -monitor (the UART on standard input and
- * output either way), -smp, -device, -append, -no-reboot (accepted,
+ * output either way), -device, -append, -no-reboot (accepted,
  * ignored); our own: -ips N (instructions per simulated microsecond,
  * default 30), -d (log unassigned I/O and undefined instructions to
- * standard error). On a terminal, standard input is raw and Ctrl-A x
+ * standard error), -trace N (the Pi4: the first N instructions run,
+ * or with -N every N-th, to standard error). On a terminal, standard input is raw and Ctrl-A x
  * quits, as QEMU's -nographic. *)
 
 open Ix_raspberry
 
-let usage = "usage: mini-qemu -M raspi1ap [-nographic] (-kernel image | -device loader,file=F,addr=A | -bios F) [-drive file=F,if=sd] [-serial S]... [-ips N] [-d]"
+let usage = "usage: mini-qemu -M raspi1ap|raspi4b [-m size] [-smp 1] [-nographic] (-kernel image | -device loader,file=F,addr=A | -bios F) [-drive file=F,if=sd] [-serial S]... [-ips N] [-d]"
+
+(* the board run in batches; the host's input polled (raw on a
+ * terminal, Ctrl-A x to quit), the console's output written, the
+ * screen shown 30 times a second of the host's, QMP served *)
+let loop caps ~out ~graphics ~qmp ~run ~input ~frame ~key ~qmp_poll =
+  let tty = Unix.isatty Unix.stdin in
+  let saved = if tty then Some (Unix.tcgetattr Unix.stdin) else None in
+  Option.iter (fun (a : Unix.terminal_io) ->
+    Unix.tcsetattr Unix.stdin TCSANOW { a with c_icanon = false; c_echo = false; c_isig = false; c_icrnl = false; c_vmin = 1 }) saved;
+  let restore () = Option.iter (fun a -> Unix.tcsetattr Unix.stdin TCSANOW a) saved in
+  let open_input = ref true and ctrl_a = ref false in
+  let buf = Bytes.create 256 in
+  let poll () =
+    if !open_input then
+      match Unix.select [ Unix.stdin ] [] [] 0.0 with
+      | [ _ ], _, _ ->
+          let n = try Unix.read Unix.stdin buf 0 256 with Unix.Unix_error _ -> 0 in
+          if n = 0 then open_input := false;
+          for i = 0 to n - 1 do
+            let c = Bytes.get buf i in
+            if tty && !ctrl_a && c = 'x' then (restore (); Console.print caps "\nmini-qemu: terminated\n"; exit 0);
+            ctrl_a := tty && c = '\001';
+            if not !ctrl_a then input c
+          done
+      | _ -> () in
+  let display =
+    if graphics && Sys.getenv_opt "DISPLAY" <> None then Sdl_display.create ~title:"mini-qemu" else Display.none in
+  let qmp = Option.map Qmp.create qmp in
+  let quit () = restore (); exit 0 in
+  let last_frame = ref 0. in
+  let n = ref 0 in
+  (try
+     while true do
+       run ();
+       if Buffer.length out > 0 then (Console.print caps (Buffer.contents out); flush stdout; Buffer.clear out);
+       incr n;
+       if !n land 15 = 0 then begin
+         poll ();
+         Option.iter (fun q -> qmp_poll q ~quit) qmp;
+         let now = Unix.gettimeofday () in
+         if now -. !last_frame > 1. /. 30. then begin
+           last_frame := now;
+           Option.iter (fun (g, data) -> display.Display.present g data) (frame ());
+           List.iter (function Display.Key (u, down) -> key u down | Display.Quit -> quit ()) (display.poll ())
+         end
+       end
+     done
+   with e -> restore (); raise e);
+  0
 
 let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
   let kernel = ref None and machine = ref "" and ips = ref 30 and debug = ref false and kbd = ref false in
   let qmp = ref None and graphics = ref true in
   let serials = ref [] and drive = ref None and loader = ref None in
+  let ram = ref (2 * 1024 * 1024 * 1024) and smp = ref 1 and trace = ref 0 in
+  (* QEMU's sizes: a number of MB, or with a suffix K, M, G *)
+  let size s =
+    let n = String.length s in
+    let num k = int_of_string (String.sub s 0 k) in
+    match s.[n - 1] with
+    | 'G' | 'g' -> num (n - 1) lsl 30 | 'M' | 'm' -> num (n - 1) lsl 20 | 'K' | 'k' -> num (n - 1) lsl 10
+    | _ -> num n lsl 20 in
   (* key=value options, after the first comma-separated word *)
   let options s = List.filter_map (fun kv -> match String.index_opt kv '=' with
     | Some i -> Some (String.sub kv 0 i, String.sub kv (i + 1) (String.length kv - i - 1)) | None -> None) (String.split_on_char ',' s) in
@@ -38,6 +99,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
     | "-kernel" :: k :: rest -> kernel := Some k; parse rest
     | "-ips" :: n :: rest -> ips := int_of_string n; parse rest
     | "-d" :: rest -> debug := true; parse rest
+    | "-trace" :: n :: rest -> trace := int_of_string n; parse rest
     | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "usb-kbd" -> kbd := true; parse rest
     | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "loader" ->
         let o = options d in
@@ -53,15 +115,20 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
     | "-qmp" :: q :: rest -> qmp := Some q; parse rest
     | "-display" :: "none" :: rest -> graphics := false; parse rest
     | "-nographic" :: rest -> graphics := false; parse rest
-    | ("-m" | "-monitor" | "-smp" | "-device" | "-append" | "-D" | "-display") :: _ :: rest -> parse rest
+    | "-m" :: m :: rest -> ram := size (List.hd (String.split_on_char ',' m)); parse rest
+    | "-smp" :: n :: rest -> smp := int_of_string (List.hd (String.split_on_char ',' n)); parse rest
+    | ("-monitor" | "-device" | "-append" | "-D" | "-display" | "-cpu") :: _ :: rest -> parse rest
     | ("-no-reboot" | "-S") :: rest -> parse rest
     | a :: _ -> Console.eprint caps (Printf.sprintf "mini-qemu: unknown option %s\n%s\n" a usage); exit 2 in
   parse args;
   match !kernel, !loader with
   | None, None -> Console.eprint caps (usage ^ "\n"); 2
-  | _ when !machine <> "raspi1ap" -> Console.eprint caps (Printf.sprintf "mini-qemu: machine %s not (yet) supported\n" !machine); 2
+  | _ when !machine <> "raspi1ap" && !machine <> "raspi4b" ->
+      Console.eprint caps (Printf.sprintf "mini-qemu: machine %s not (yet) supported\n" !machine); 2
+  | _ when !machine = "raspi4b" && !smp <> 1 ->
+      Console.eprint caps "mini-qemu: raspi4b: -smp 1 only, for now (one core; plan_pi.md, decision 3)\n"; 2
   | kernel, loader ->
-      let log s = if !debug then Console.eprint caps ("mini-qemu: " ^ s ^ "\n") in
+      let log s = if !debug || !trace <> 0 then Console.eprint caps ("mini-qemu: " ^ s ^ "\n") in
       let out = Buffer.create 256 in
       (* the serials, QEMU's order: the PL011, the mini UART; stdio (or
        * mon:stdio) the console, null or absent nowhere; with none said,
@@ -71,63 +138,28 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
         | Some ("stdio" | "mon:stdio") -> Buffer.add_char out
         | Some "null" | None -> ignore
         | Some s -> Console.eprint caps ("mini-qemu: -serial " ^ s ^ ": only stdio, mon:stdio, null\n"); exit 2 in
-      let console = match List.nth_opt serials 1 with Some ("stdio" | "mon:stdio") -> 1 | _ -> 0 in
-      let sd = Option.map (fun (f, snapshot) -> Storage.file f ~snapshot) !drive in
-      let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_keyboard = !kbd; sd;
-                                 serial0 = target 0; serial1 = target 1; console } in
       let read f = match Files.read caps (Fpath.v f) with
         | image -> image
         | exception Sys_error m -> Console.eprint caps ("mini-qemu: " ^ m ^ "\n"); exit 1 in
-      (match kernel, loader with
-       | _, Some (f, addr) -> Board.load_raw board ~addr (read f)
-       | Some k, None -> Board.load_kernel board (read k)
-       | None, None -> ());
-      (* standard input: raw on a terminal (Ctrl-A x to quit), polled *)
-      let tty = Unix.isatty Unix.stdin in
-      let saved = if tty then Some (Unix.tcgetattr Unix.stdin) else None in
-      Option.iter (fun (a : Unix.terminal_io) ->
-        Unix.tcsetattr Unix.stdin TCSANOW { a with c_icanon = false; c_echo = false; c_isig = false; c_icrnl = false; c_vmin = 1 }) saved;
-      let restore () = Option.iter (fun a -> Unix.tcsetattr Unix.stdin TCSANOW a) saved in
-      let open_input = ref true and ctrl_a = ref false in
-      let buf = Bytes.create 256 in
-      let poll () =
-        if !open_input then
-          match Unix.select [ Unix.stdin ] [] [] 0.0 with
-          | [ _ ], _, _ ->
-              let n = try Unix.read Unix.stdin buf 0 256 with Unix.Unix_error _ -> 0 in
-              if n = 0 then open_input := false;
-              for i = 0 to n - 1 do
-                let c = Bytes.get buf i in
-                if tty && !ctrl_a && c = 'x' then (restore (); Console.print caps "\ntinypi: terminated\n"; exit 0);
-                ctrl_a := tty && c = '\001';
-                if not !ctrl_a then Board.input board c
-              done
-          | _ -> () in
-      (* the window, unless -nographic or no display; QMP's socket *)
-      let display =
-        if !graphics && Sys.getenv_opt "DISPLAY" <> None then Sdl_display.create ~title:"mini-qemu" else Display.none in
-      let qmp = Option.map Qmp.create !qmp in
-      let quit () = restore (); exit 0 in
-      let last_frame = ref 0. in
-      let n = ref 0 in
-      (try
-         while true do
-           Board.run board ~batch:4096;
-           if Buffer.length out > 0 then (Console.print caps (Buffer.contents out); flush stdout; Buffer.clear out);
-           incr n;
-           if !n land 15 = 0 then begin
-             poll ();
-             Option.iter (fun q -> Qmp.poll q board ~quit) qmp;
-             (* the screen, 30 times a second of the host's *)
-             let now = Unix.gettimeofday () in
-             if now -. !last_frame > 1. /. 30. then begin
-               last_frame := now;
-               Option.iter (fun (g, data) -> display.present g data) (Board.frame board);
-               List.iter (function Display.Key (u, down) -> Board.key board u down | Display.Quit -> quit ()) (display.poll ())
-             end
-           end
-         done
-       with e -> restore (); raise e);
-      0
+      if !machine = "raspi4b" then begin
+        let board = Pi4.create { ram_size = !ram; ips = !ips; log; serial = target 0; trace = !trace } in
+        (match kernel with
+         | Some k -> (try Pi4.load_elf board (read k) with Elf.Bad m -> Console.eprint caps ("mini-qemu: " ^ k ^ ": " ^ m ^ " (raspi4b: an ELF kernel)\n"); exit 1)
+         | None -> Console.eprint caps "mini-qemu: raspi4b: -kernel only\n"; exit 2);
+        loop caps ~out ~graphics:false ~qmp:None ~run:(fun () -> Pi4.run board ~batch:4096) ~input:(Pi4.input board)
+          ~frame:(fun () -> None) ~key:(fun _ _ -> ()) ~qmp_poll:(fun _ ~quit:_ -> ())
+      end
+      else begin
+        let console = match List.nth_opt serials 1 with Some ("stdio" | "mon:stdio") -> 1 | _ -> 0 in
+        let sd = Option.map (fun (f, snapshot) -> Storage.file f ~snapshot) !drive in
+        let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_keyboard = !kbd; sd;
+                                   serial0 = target 0; serial1 = target 1; console } in
+        (match kernel, loader with
+         | _, Some (f, addr) -> Board.load_raw board ~addr (read f)
+         | Some k, None -> Board.load_kernel board (read k)
+         | None, None -> ());
+        loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Board.run board ~batch:4096) ~input:(Board.input board)
+          ~frame:(fun () -> Board.frame board) ~key:(Board.key board) ~qmp_poll:(fun q ~quit -> Qmp.poll q board ~quit)
+      end
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))
