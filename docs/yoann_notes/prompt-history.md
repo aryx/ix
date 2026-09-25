@@ -3805,3 +3805,66 @@ Claude edited headers and plan files to explain why TinyArm and TinyPi aren't re
 **Yoann:**
 
 > TinyMachine.ml can probably rely on TinyCPU.ml, and TinyPi.ml can rely on TinyARM.ml (make part of it a lib)
+
+**Claude (summary):**
+
+Claude recommended a two-by-two grid layout for four OCaml modules based on instruction-set and machine-level axes.
+TinyArm and TinyCPU provide user-mode CPUs; TinyPi and TinyMachine add device handling and privileged-mode support.
+TinyPi models the Raspberry Pi One's actual device registers and can run real bare-metal Pi code.
+TinyMachine demonstrates kernel design with privileged mode, traps, and interrupts following RISC-V and Oberon patterns.
+Claude said he would update documentation to reflect this corrected module structure for the project.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:48
+
+**Yoann:**
+
+> ok let's commit this
+
+**Claude (summary):**
+
+Claude confirmed the work was already committed in three commits listed by hash.
+Claude committed renaming TinyMachine's translator to TinyCPU in commit 3327629.
+Claude committed explaining in commit 14e1a3c why TinyArm and TinyCPU aren't redundant.
+Claude committed the 2×2 plan in commit 6f8bd2c with TinyPi.ml and TinyMachine.ml, each using its CPU as library.
+Claude left someone else's uncommitted Pi4 work untouched.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:49
+
+**Yoann:**
+
+> I dunno if maybe TinyC.ml and TinyAssembler.ml could also have shared code via a library (one generate what the other consumes)? to save more LOC
+
+**Claude (summary):**
+
+Claude checked both files and concluded a shared library would not meaningfully reduce code.
+They share only a text format as an interface, not actual code duplication.
+TinyC's backend prints assembly text while TinyAssembler's parser reads it—no functions written twice.
+Combining them directly wouldn't help TinyC get shorter and would lose readable, testable output.
+Claude recommended keeping them separate since the text format is their proper architectural boundary.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:50
+
+**Yoann:**
+
+> ok make sense
+
+**Claude (summary):**
+
+Claude confirmed that TinyC and TinyAssembler would remain as completely separate programs.
+The .s text file was established as the interface boundary between these tools.
+This architectural separation prevented unnecessary tight coupling between the compiler and assembler components.
+No code changes were made; this was confirmation of an existing architectural direction.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:50
+
+**Yoann:**
+
+> what's next?

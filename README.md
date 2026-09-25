@@ -60,18 +60,30 @@ ix aims for the full stack, like
 TECS and Minix, but makes the programs tiny, not the things they deal
 with:
 
-- **The machine is a subset of real ARM** (ARMv5, ARM state only, no
-  Thumb), plus enough of the CP15 coprocessor to support virtual
-  memory (the MMU) and the supervisor/user mode split, so that a real
-  kernel, not just user programs, can run on top of it. The emulator
-  stops with "undefined instruction" on anything outside the subset,
-  so it also checks that a binary stays inside it.
-- **The binaries are real.** [xix](https://aryx.github.io/xix/)'s `o5c`/`o5l`, restricted to emit only
-  the subset, produce them in Plan 9 a.out format. The same binary
-  runs on the ix emulator, on qemu-arm and on a real ARM machine.
-  Running it on both and comparing the results is the main test.
+- **The machine is real ARM**, arm32 and arm64. mini-5i runs user
+  programs, with Linux's system calls or Plan 9's (5i's). mini-qemu
+  is a Raspberry Pi, with the processor's modes, the coprocessor and
+  the MMU, so that real kernels, not just user programs, run on top
+  of it: xv6 and Plan 9's 9pi. The emulator stops with "unimplemented
+  instruction" on what it does not know, so it also checks that a
+  binary stays inside what ix handles.
+- **The binaries are real.** ix's mini-cc, mini-asm and mini-ld make
+  them, as Plan 9's `5c`/`5l` and `7c`/`7l` do (goken builds those on
+  Linux): the same instructions, and the linker's executables byte for
+  byte. The same binary runs on the ix emulator, on
+  QEMU and on a real ARM machine. Running it on several and comparing
+  the results is the main test.
 - **The syscalls are real.** User programs talk to the kernel through
-  `SWI` with the Plan 9 syscall ABI (or a subset of it).
+  `SVC` (once `SWI`) with the Plan 9 syscall ABI (or a subset of it).
+
+One pair of tiny programs takes the other road on purpose. TinyCPU
+(and TinyMachine, planned: the same CPU with a privileged mode, traps
+and devices) is a made-up machine with its assembler, as Knuth's MIX
+and MMIX and Nand2Tetris's Hack are, because what it teaches is the
+design of an instruction set: the choices a real one made for
+history's reasons, made again with hindsight. It stands next to
+TinyArm and TinyPi, the same two programs for real ARM, so that the
+two roads can be compared; no other program of ix targets it.
 
 ## The series (planned)
 
