@@ -1,319 +1,265 @@
-# Plan: tiny-os, an operating system for tiny-machine, by versions (`tiny/tiny-os/`)
+# Plan: tiny-os, an operating system for tiny-machine: v0, then v6, xv6 on it (`tiny/tiny-os/`)
 
-Status: **v0 done; the rest for review.** Written 2026-09-25, from the
-author: "let's make a plan for this tiny-os (and how it relates to the
-different mini-xv6 (in OCaml), mini-9pi (in OCaml), TinyKernel (in
-OCaml)). What could be the different versions where we showcase
-interesting os/kernel teaching history".
+Status: **v0 done; v6 for review.** Written 2026-09-25, rewritten the
+same day. The author, on the first version (seven small versions, one
+historical idea each): "I wonder if this v0 v1 ... is annoying and it
+might be better to go from v0 to "v6" that is a xv6 clone for tm";
+then, for this one: "it's good that we stress-test the other tiny-xxx
+and adding extensions there because v6 need them (like paging,
+function pointers, enum). Hopefully it will not add too much code and
+hopefully those additions can be encapsulated to not pollute too much
+the original (simpler) code. Also let's use fake spinlocks and make
+the code multicore ready, even if it complicates things, even if
+single CPU in tiny machine, because we could change that, and multi
+core has good teaching value ... We probably want a swp instruction
+also in the tinymachine then or something related".
 
 Companions: [`projects.md`](../projects.md), the map of ix's projects;
 [`plan_arm.md`](plan_arm.md), where TinyCPU and TinyMachine were
-designed (the machine's registers of control, traps, window); and
-[`plan_cc.md`](plan_cc.md), for `tiny-c -tm`.
+designed; [`plan_cc.md`](plan_cc.md), for `tiny-c -tm`.
 
 ## Context
 
 tiny-os is the one kernel of ix that is not OCaml. It runs on
-tiny-machine, the machine designed for teaching (TinyLibCPU's CPU plus
-two modes, one trap, a timer, protection by a window, a console), and
-it is written in that machine's assembly and in C compiled by
-`tiny-c -tm`. v0 exists: a page of assembly, four programs linked with
-it, round robin on the timer, the misbehaving ones killed
-(`tiny/tiny-os/v0/`, checked by `TinyMachine_test.sh`).
+tiny-machine (TinyLibCPU's CPU plus two modes, one trap, a timer,
+protection by a window, a console) and is written in its assembly and
+in C compiled by `tiny-c -tm`.
 
-What it is for: to show how operating systems came to be what they
-are, one idea at a time, on a machine small enough that each idea is
-seen without the hardware's noise. A version is a snapshot, runnable
-and tested, that adds one or two of history's ideas to the one before;
-reading v*n* against v*n-1* is reading that idea.
+- **v0** exists (`tiny/tiny-os/v0/`): a page of assembly, four
+  programs linked with it, round robin on the timer, the misbehaving
+  ones killed; checked by `TinyMachine_test.sh`.
+- **v6** is the next and last: **xv6 on tiny-machine**, in C, with the
+  structure and the names of MIT's xv6. Its riscv32 fork
+  (`~/xv6/forks/riscv32`, 6,388 lines of kernel) is the model: 32
+  bits, Sv32 pages. v6 passes xv6's `usertests`. The name is the pun
+  xv6 is itself: Unix's Sixth Edition, re-done.
+
+Nothing in between. The history the intermediate versions were to
+show goes where it is read anyway: v6 is built in steps, each a commit
+(the trap and the scheduler, processes, files, pages), and the
+tutorial (`notes_tiny_os.md`, to write) tells each step's history
+(CTSS, Unix V1 to V6, Atlas, Multics, 4BSD). Principia's
+bootstrapping appendix, considered for the order of the versions, is
+a project of its own (tiny-bootstrap, not planned; `projects.md`).
 
 ## Four kernels, four projects
 
-ix will have several kernels. They are not versions of one another;
-each answers a different question.
-
-| kernel | language | machine | its question | its twin, or its model |
+| kernel | language | machine | its question | its model |
 |---|---|---|---|---|
-| **tiny-os** v0..v*n* (`tiny/tiny-os/`) | TinyCPU assembly, then C (`tiny-c -tm`) | tiny-machine | how did kernels come to be what they are? one idea per version | history's systems, CTSS to xv6 and Plan 9; xv6 as the destination |
-| **mini-xv6** | OCaml (the README's design: a real ARM binary, a thin C/asm shim, the OCaml runtime) | the Pi (mini-qemu, real boards) | can xv6 be written in OCaml, faithfully, and still boot? | xv6's ARM ports, the ones mini-qemu boots; its `usertests` as the test |
-| **mini-9pi** | OCaml, the same way | the Pi | the same for Plan 9's kernel, running Plan 9's binaries | 9pi (principia), the Kernel row of the README's series |
-| **TinyKernel** (`tiny/TinyKernel.ml`) | OCaml | not decided | not decided: the author's "something else" | not decided |
+| **tiny-os** v0, v6 (`tiny/tiny-os/`) | TinyCPU assembly, then C (`tiny-c -tm`) | tiny-machine | xv6's design, on a machine designed to show it, the hardware's noise gone | xv6 (riscv32) |
+| **mini-xv6** | OCaml (the README's design: a real ARM binary, a thin C/asm shim, the OCaml runtime) | the Pi (mini-qemu, real boards) | can xv6 be written in OCaml, faithfully, and still boot on real hardware? | xv6's ARM ports; `usertests` |
+| **mini-9pi** | OCaml, the same way | the Pi | the same for Plan 9's kernel, running Plan 9's binaries | 9pi (principia) |
+| **TinyKernel** (`tiny/TinyKernel.ml`) | OCaml | not decided | the author's "something else" | not decided |
 
-The line between them: **tiny-os is guest code on a designed
-machine**, readable as C and assembly are, a history lesson in
-versions. **mini-xv6 and mini-9pi are OCaml kernels on real ARM**, each
-a faithful twin of a real kernel, testing the README's claim that a
-kernel can be OCaml and still a real binary. What tiny-os teaches
-feeds them: by v*n*, tiny-os has the structure of xv6 (a process table,
-fork/exec/wait, a file system with a buffer cache, pipes), so mini-xv6
-is then that structure again, in OCaml, on the Pi's hardware.
-
-TinyKernel is left open here. Two candidates, for the author to take
-or leave: (a) the free variant of mini-9pi, in OCaml, on tiny-pi (the
-Pi1's devices, TinyLibArm's core), as tiny-os is on tiny-machine; or
-(b) a kernel in OCaml *hosted* by an OCaml emulator of tiny-machine's
-privileged half (the Nachos road, which the README declines for
-mini-9pi, but which one free variant could take to compare).
+tiny-os v6 and mini-xv6 are the same kernel twice, and each helps the
+other: v6 is xv6's structure in C on a simple machine, readable next
+to the original file by file; mini-xv6 is that structure in OCaml on
+the Pi's real hardware. With v6 first, mini-xv6 has a reference that
+runs, each of whose subsystems has been read and adapted once.
 
 ## Principles
 
-1. **One idea per version, from history, named.** Each version says
-   which system introduced its idea, when, and why; its header and
-   this plan say it, and `notes_tiny_os.md` (to write) tells it.
-2. **Every version stays runnable and tested.** `make -C v`*n* `run`;
-   its laws in `TinyMachine_test.sh` (or a `tiny-os` test of its own
-   when they outgrow it). A later machine feature must not break an
-   earlier version: the machine grows compatibly.
-3. **A version is a copy of the one before, changed.** No shared
-   kernel code between versions: each directory is read alone, and
-   `diff -r v`*n-1*` v`*n* is the lesson. The user side (`libc/`) is
-   shared, and grows.
-4. **The machine grows only when a version needs it**, as history's
-   hardware did: relocation when programs are loaded, a disk when
-   there are files, paging when memory is virtual. Each machine
-   feature is designed in TinyMachine as its first features were
-   (plan_arm.md), small, with a law.
-5. **C where history went to C.** v0 is assembly, as the first
-   kernels were; the kernel moves to C at the version where Unix did
-   (1973), which is the version where it pays: a loader and a system
-   call table. What C cannot say (the trap's entry, the registers of
-   control) stays in a page of `.tm`.
-6. **The same user program runs on tiny-cpu and under tiny-os**, as
-   far as their system calls agree (exit, write, read): the user side
-   has one ABI, tiny-cpu's.
+1. **xv6's structure and names.** One file for one of xv6's (`proc.c`,
+   `trap.c`, `vm.c`, `kalloc.c`, `spinlock.c`, `sleeplock.c`, `bio.c`,
+   `log.c`, `fs.c`, `file.c`, `pipe.c`, `exec.c`, `syscall.c`,
+   `sysproc.c`, `sysfile.c`, `console.c`, `printf.c`, `string.c`,
+   `main.c`), the same functions, in the same order where it can be; a
+   difference is the machine's (the disk, the interrupts) or the
+   compiler's (below), and is said where it is. A `diff` against the
+   riscv32 fork should be read, not wide.
+2. **Multicore-ready, even on one core.** Real spinlocks (an atomic
+   swap, `acquire`/`release`, `push_off`/`pop_off`), `struct cpu
+   cpus[NCPU]` and `mycpu()`, the locking discipline of xv6 (the
+   process table's lock, `p->lock`, `wait_lock`, their order), `NCPU` a
+   parameter. With one core the locks are never contended, but they
+   are taken, and the code is right for more: the machine may get
+   cores (phase 5), and concurrency is half of what a kernel teaches.
+3. **The tools grow because v6 needs them, and v6 stress-tests them.**
+   tiny-c gets the C that xv6 uses (enum, function pointers, goto,
+   function-like macros...); tiny-machine gets the hardware (pages, an
+   atomic swap, a disk, interrupts). Each extension is **small and
+   encapsulated**: its own section of the file, a flag or an opcode
+   that leaves the older behavior untouched, its lines counted in its
+   commit, and its law. The simple versions stay readable: TinyCPU's
+   instruction set does not change (the new instructions are
+   TinyMachine's, as csrr, csrw and eret are); tiny-c without the new
+   features compiles as it does today (arm64's output byte for byte on
+   `TinyC_tests/`).
+4. **Every new C feature is checked on both back ends.** A feature
+   added to tiny-c for v6 goes into its arm64 back end too, and a test
+   program in `TinyC_tests/` uses it: compared with 7c's run, and with
+   `-tm`'s. xv6 stress-tests tiny-c; 7c checks the stress.
+5. **What C cannot say is in `.tm`**, a page of it: the entry, the
+   trap vector and its register save, `swtch`, the registers of
+   control (xv6's `static inline` `r_satp()` and friends become `.tm`
+   routines, or tiny-c built-ins if that is smaller).
+6. **The laws are xv6's**: its `usertests` (ported), its shell running
+   a script; and the machine's (determinism: the same image, the same
+   output, on every run).
 
-## Principia's bootstrapping appendix, and the order of the versions
+## What tiny-c needs (phase 1)
 
-The author's `Principia.nw` ends with "Bootstrapping from Scratch"
-(`~/principia/docs/principia/Principia.nw`, `\chapter{Bootstrapping
-from Scratch}`): how Plan 9 could be rebuilt with no software at all,
-each program named by its version and the language it is written in,
-each step motivated by what was inconvenient in the step before. Its
-kernels:
+Counted in the riscv32 kernel (`kernel/*.c *.h`):
 
-| the appendix's kernel | what it adds | what made it needed |
-|---|---|---|
-| `KERNEL0-M-CARD` | an interactive program loader: a prompt, a program's place on the tape typed, loaded at `0x1000`, run; the program jumps back to `0x100` | nothing to load programs but a human |
-| `KERNEL1-ASM` | a file system: programs and data by name; the kernel copies itself high to stay out of the way | keeping a map of the tape by hand, and programs overwriting each other |
-| `KERNEL2-ASMs` | multitasking: a preemptive scheduler on a timer, virtual memory so every program still loads at `0x1000`, then fork and exec; Unix's first edition, in assembly | one program at a time: quit the editor to assemble |
-| `KERNEL3-C/ASM` | the kernel rewritten in C, what C cannot say kept in assembly, a `libc.h`; Unix's fourth edition | the assembly's size |
+| feature | uses in xv6 | how | where it lands |
+|---|---|---|---|
+| `enum` | the process's and a file's states (`proc.h`, `file.h`) | names of int constants; the type an int | the parser, 20 lines |
+| function pointers | `devsw[].read/write`, the system call table `syscalls[]` | a pointer-to-function type; a call through an expression, a new IR `CallInd`; arm64 `BL (R)`, TinyCPU `jalr` | the parser and both back ends, 50 lines |
+| `goto` and labels | 29 (`exec.c`'s `bad:`, `fs.c`, `sysfile.c`) | the IR has labels and jumps already; a name per label, in a function's scope | 20 lines |
+| function-like macros | 29 (`PGROUNDUP`, `PX`, `PTE2PA`, `major`) | `#define F(a, b) ...` expanded on tokens | the preprocessor, 40 lines |
+| `#if`, `#ifdef` | 10 | the preprocessor's conditions, constants only | 30 lines |
+| a structure copied | 1 (`file.c`: `ff = *f`) | by words, or rewritten as a `memmove` in v6 (a line, said) | 0, or 30 |
+| `static inline` | 41, all wrappers of `asm volatile` | `inline` ignored; the wrappers become `.tm` routines | 1 line |
+| `asm volatile`, `__sync_*` | 45 | not in tiny-c: `.tm` routines (the registers of control, `amoswap`) | 0 |
+| `uint64` | 14 | a 32-bit machine: `uint32` in v6, as the riscv32 fork mostly has already | 0 |
 
-and it ends with "Summary of Plan 9 ancestor programs": `KERNEL3` as a
-close ancestor of `9`, "derived by just removing many features".
+About 200 lines in all, each feature its own commit with its test in
+`TinyC_tests/` (both back ends, against 7c). Compiling xv6 will find
+what this table missed; each find is added the same way.
 
-**Decided (2026-09-25): tiny-os keeps order A**, the versions below,
-today's v0 first; the appendix goes to a project of its own, the
-author: "let's forget maybe my principia appendix; maybe this can be
-done in a different tiny-bootstrap/ or something", then "a different
-project maybe". A future tiny-bootstrap, inside ix or a project of its
-own (not decided), would be the appendix made runnable: its
-kernels in its order (a loader, a file system, time-sharing, C), each
-from the previous one's inconvenience, and its tools (editor,
-assembler, linker, C compiler) rebuilt on the machine itself, where
-tiny-os's are ix's OCaml tools on the host. Not planned yet.
+## What tiny-machine needs (phase 2)
 
-## The versions
+Each behind something that keeps v0 running unchanged (v0's test runs
+after every step):
 
-Each with what it adds, the machine feature it needs if any, the
-history it shows, and its laws. Sizes are estimates.
+- **More memory.** 2^20 bytes is 256 pages; xv6 wants a few MB (its
+  kernel, the processes, the buffer cache). TinyMachine's memory
+  becomes a parameter (16 MB), TinyLibCPU's `memsize` a field of the
+  machine instead of a constant; TinyCPU keeps its 2^20 and its
+  modulo.
+- **Pages: Sv32**, RISC-V's 32-bit scheme, because xv6's `vm.c` is
+  written for it (`walk()` with two levels of 10 bits, 4 KB pages; the
+  entry's V, R, W, X, U bits; A and D not kept). A `satp` register of
+  control turns it on (off: physical addresses, as v0 uses); a page
+  fault is a cause, with the address in `tval`. The fetch goes through
+  it too: TinyLibCPU's `step` fetches from memory directly today
+  ("code is never a device's"), so it gets a **fetch hook**, the
+  fifth, the one change to the library's interface, defaulting to
+  memory.
+- **An atomic swap**, `amoswap d, a, (b)` (d gets the old value of the
+  word at b, which becomes a): RISC-V's `amoswap.w`, ARM's old `swp`.
+  With one core any instruction is atomic; with several (phase 5) it
+  is the one that must be, and the spinlock is built on it. A fence
+  is not needed while the cores interleave instruction by instruction
+  (sequential consistency); the machine's header says so, as the
+  reason it is absent.
+- **`hartid`**, a register of control, 0 on one core (xv6's `cpuid()`,
+  `r_tp()`).
+- **Interrupts from devices**: `ip` and `ie` registers of control (a
+  bit per source: the timer, the console, the disk), in place of
+  xv6's PLIC, whose claim and complete become reading `ip` and the
+  device clearing its bit.
+- **The console, input too**: a byte to read, and an interrupt when
+  one arrives (xv6's `uart.c` becomes a page; `console.c` is kept).
+- **A disk**: registers at addresses (the block, the memory address,
+  read or write, go), the transfer done at once in the emulator, an
+  interrupt after; the disk an image file (`tiny-machine -d fs.img`).
+  xv6's `virtio_disk.c` (400 lines) becomes about 80.
 
-### v0 — the monitor that shares time (done)
+About 250 lines in `TinyMachine.ml`, 20 in `TinyLibCPU.ml`.
 
-A page of assembly: the trap (registers saved into the process), two
-system calls (exit, write, the buffer checked against the window),
-round robin on the timer, a program that executes a privileged
-instruction or leaves its window killed with its reason, halt when
-none is left. Programs linked with the kernel: there is no loader.
+## The kernel (phases 3 and 4)
 
-- History: **CTSS** (Corbató, MIT, 1961-63), time-sharing by a timer
-  interrupt on a 7094 extended with a protection register and an
-  interval timer; the **Atlas supervisor** (Manchester, 1962), the
-  "extracode" trap as the system call; the fence and **bounds
-  registers** of the 1960s (the 360's storage keys, the PDP-10's
-  bounds).
-- Machine: as designed (plan_arm.md).
-- Laws: `TinyMachine_test.sh` (every letter, both faults caught, the
-  interleaving, the same output twice).
+Ported in xv6's own order of dependence, each step a commit that runs:
 
-### v1 — the kernel in C, and programs loaded
+1. `entry.tm`, `start`: a stack per core, supervisor mode, the trap
+   vector; `printf` on the console; `kalloc` (a free list of pages);
+   `panic`.
+2. `vm.c`: the kernel's page table (identity for its memory and the
+   devices), then a process's; `satp` on.
+3. `trap.c`, `kernelvec.tm`, `trampoline.tm`: traps from the kernel
+   and from user mode, the timer's interrupt; `proc.c` and
+   `swtch.tm`: the process table, `scheduler`, `sched`, `yield`,
+   `sleep`/`wakeup`, `fork`, `exit`, `wait`, `kill`; the first
+   process, from `initcode`.
+4. `syscall.c`, `sysproc.c`: the table, the arguments from the trap
+   frame.
+5. `bio.c`, `log.c`, `fs.c`, `file.c`, `pipe.c`, `sysfile.c`,
+   `exec.c`: the file system on the disk, `exec` of the format below.
+6. The user side: `ulib` (xv6's, on `libc/`'s calling convention),
+   `init`, `sh`, `cat`, `echo`, `grep`, `ls`, `mkdir`, `rm`, `ln`,
+   `wc`, `kill`, `forktest`, `usertests`, compiled by `tiny-c -tm`;
+   and `mkfs`, building the disk image on the host.
 
-The kernel rewritten in C, the trap's entry and `csrr`/`csrw`/`eret`
-in a page of `.tm`; the system calls a table (a `switch`, tiny-c has
-no function pointers); programs compiled separately with `tiny-c -tm`,
-not linked with the kernel: the image carries them after it, and a
-loader copies each into its window at boot. A process table, static
-(NPROC slots).
+Two choices of form, for review:
 
-- History: **Unix rewritten in C** (Ritchie and Thompson, 1973, the
-  Fourth Edition): the kernel in a language one can read, the few
-  lines of assembly kept for what C cannot say (`m40.s`, then
-  `m45.s`, the heart of Lions' commentary on the Sixth Edition,
-  1976-77).
-- Machine: **relocation**, the window's base added to every user
-  address (today's window only checks). A program is then linked at 0
-  and runs in any window: what the 7094's relocation register did for
-  CTSS, and the PDP-11/20's lack of it made the first Unix swap whole
-  processes. A bit of `status` turns it on, so v0 runs unchanged.
-- Laws: the programs of v0, now in C, print what v0's did; each also
-  runs on tiny-cpu alone and prints the same (principle 6); a program
-  that loops forever does not stop the others.
-- Size: a kernel of about 300 lines of C and 60 of `.tm`.
+- **The executable format.** xv6 execs ELF. tiny-cpu's images have no
+  header. v6 needs a small one (the entry, the text and data sizes,
+  the bss): an ELF subset, or a header of our own (a.out's words, as
+  Unix V6's). a.out's is the smaller and the historical one.
+- **`mkfs`** runs on the host: xv6's `mkfs.c` compiled by tiny-c for
+  tiny-cpu (which then needs the host's file calls, open, read,
+  write, lseek, as `sys`), or rewritten in OCaml (`mkfs.ml`, a tiny
+  tool). The first stress-tests tiny-c again; the second is simpler.
 
-### v2 — processes: fork, exec, wait, exit, and a shell
+Estimated: 5,000 lines of C (the riscv32 fork's 6,388, less virtio,
+the PLIC and the 64-bit), 250 of `.tm`; the user side 3,000.
 
-`fork` copies the window into a free one (no paging yet: the whole
-process copied, as Unix V1 did); `exec` loads a program over the
-caller's from the image's table of programs; `wait` and `exit` with a
-status; `sbrk` within the window. The first process is `init`, which
-runs a shell reading commands from the console.
+## Multicore (phase 5)
 
-- History: **Unix's process model** (Thompson, 1969-71; Ritchie and
-  Thompson, "The UNIX Time-Sharing System", 1974): fork and exec as
-  two calls, which is why a shell is a small program; **Project
-  Genie's** fork (Berkeley, 1964-65) before it.
-- Machine: **console input** (a byte to read, and an interrupt when
-  one arrives: a cause of its own), so the shell can wait for a line
-  without spinning.
-- Laws: the shell runs a script of commands (fork, exec, wait) and
-  prints what tiny-cpu running the same programs one by one prints;
-  a fork bomb bounded by NPROC; the exit statuses as the script
-  expects.
-- Size: +300 lines of kernel, a shell of 150 lines of C.
+tiny-machine with `-smp N`: N cores sharing memory, each with its
+registers and registers of control (`hartid` its number), stepped
+**one instruction each in turn**, or in an order drawn from a seed
+(`-seed S`). Deterministic either way, so a race comes back from its
+seed, which is what makes concurrency teachable on this machine (real
+hardware's races do not come back when looked at). v6 with `NCPU = N`,
+unchanged but for the constant.
 
-### v3 — sleeping: sleep, wakeup, and the console by interrupts
+Laws: `usertests` on 1, 2 and 4 cores; the same output over many
+seeds; a spinlock made non-atomic (a load then a store in place of
+`amoswap`) fails on some seed, and the seed is printed.
 
-A process that waits sleeps on a channel and is woken, instead of the
-kernel spinning: the console's reader, `wait`, and later the disk.
-The scheduler runs what is runnable, and idles (the machine's `wfi`,
-or a halt-until-interrupt) when nothing is.
+## What history, and where it is told
 
-- History: **sleep and wakeup** in Unix V6 (and the famous "You are
-  not expected to understand this" of its context switch, `swtch`,
-  1975); **Dijkstra's THE** (1968) and its semaphores as the other
-  answer, noted, not built.
-- Machine: an instruction that waits for an interrupt (or the time
-  jumping to `timecmp` when nothing runs), so an idle machine's time
-  is not burned.
-- Laws: the time spent with every process asleep is counted and is
-  the idle time's; a reader blocked on the console does not slow the
-  others (their output unchanged by it).
+Not in versions but in the tutorial, one section per subsystem of v6,
+each with the system that introduced it:
 
-### v4 — files: a disk, inodes, directories, file descriptors, pipes
+| v6's part | its history |
+|---|---|
+| the trap, the timer, time-sharing | CTSS (1961-63), the Atlas supervisor (1962) |
+| processes, fork, exec, wait; the shell | Project Genie (1964), Unix (1969-74) |
+| sleep and wakeup; the scheduler | Unix V6's `swtch` (1975); THE's semaphores (Dijkstra, 1968), the other answer |
+| the file system, inodes, pipes | Unix (Thompson, 1969; McIlroy's pipe, 1973) |
+| the log | journaling: Cedar (1987), ext3, then xv6's own |
+| pages | Atlas (1962), Multics (1965-69), 4BSD (1979-80) |
+| locks, several cores | Dijkstra's mutual exclusion (1965), test-and-set (the IBM 360, 1964), SMP Unix (the 1980s) |
+| v0 against v6 | a monitor against a kernel: what 15 years of history added |
 
-A block device, a buffer cache, inodes, directories, paths, file
-descriptors (`open`, `read`, `write`, `close`, `dup`), `pipe`; the
-programs now in the file system (`exec` by path), built into a disk
-image by a host tool (xv6's `mkfs`, in OCaml or C).
+## Order, and the decisions
 
-- History: **the Unix file system** (Thompson, 1969; Ritchie and
-  Thompson 1974): the inode, the directory as a file, the file
-  descriptor, and **the pipe** (McIlroy, 1973), which makes the shell
-  a language; "everything is a file" as the consequence.
-- Machine: **a disk**, blocks read and written by the kernel through
-  registers at addresses (programmed I/O first; DMA and an interrupt
-  when the transfer is done, later).
-- Laws: `ls | wc` in the shell; a file written, read back after a
-  reboot of the machine with the same disk image; `mkfs`'s image and
-  the kernel's view of it agree (a host checker).
-- Size: the largest step, +800 lines, as xv6's `fs.c`, `bio.c`,
-  `file.c`, `pipe.c`, `sysfile.c` are.
-
-### v5 — virtual memory: pages
-
-Page tables in place of windows: each process its own address space
-from 0, the kernel mapped above; `fork` copies pages (then, as an
-option, copy-on-write); `sbrk` grows by pages; a stray access is a
-page fault with its address.
-
-- History: **Atlas** (Kilburn, 1962), the first paging, "one-level
-  store"; **Multics** (1965-69) and segments; the VAX and **4BSD**
-  (1979-80) bringing paging to Unix; copy-on-write in **Mach** (1986).
-  xv6's design is reached here: from this version on, tiny-os is
-  shaped as xv6 is, on a smaller machine.
-- Machine: **paging**, the simplest that is real: 4 KB pages, one
-  level (the 1 MB memory is 256 pages; a table of 256 entries, a
-  valid, a user and a writable bit), a `satp`-like register of
-  control, a fault cause with the address in `tval`. The window stays,
-  for v0 to v4.
-- Laws: a process's pages are its own (another's address faults); the
-  pages in use return to the free list when processes exit (counted);
-  copy-on-write's fork copies no page until a write (counted).
-
-### v6 — Plan 9's ideas: namespaces and file servers
-
-Each process its own namespace (`bind`, `mount`), the kernel's
-devices as file trees (`/dev/cons`, `/proc`), a user-level file server
-reached through a pipe speaking a small 9P.
-
-- History: **Plan 9** (Pike, Presotto, Thompson, Trickey, Winterbottom,
-  Bell Labs, 1990-95): everything is a file *server*, and the
-  namespace per process; what principia's books explain, and what
-  mini-9pi will be, faithfully, in OCaml.
-- Machine: nothing new.
-- Laws: two processes see different files at the same path; `cat
-  /proc/`*n*`/status`; a file served by a user program read by `cat`.
-
-### A road not taken, optionally: v2m, the microkernel
-
-From v1, the other branch: a kernel that only passes messages and
-schedules, the process manager and the file system as user
-processes. The same machine, the same programs, two structures.
-
-- History: **Brinch Hansen's RC 4000 nucleus** (1969), the first;
-  **Mach** (1985); **Minix** (Tanenbaum, 1987) and the
-  Tanenbaum-Torvalds debate (1992); **L4** (Liedtke, 1993) on the
-  cost of messages.
-- Laws: v2's shell script, the same output; the messages per system
-  call counted, the price of the structure.
-
-## What the tools need
-
-- **tiny-c**: enough for a kernel. Function pointers would make the
-  system call table and the device switch xv6's (`syscalls[]`,
-  `devsw[]`); a `switch` does without them for v1 and v2. Structures
-  by value are not needed (xv6 passes pointers). Unions, enums: not
-  needed. A way to call `.tm` from C and back is already there (the
-  calling convention is one).
-- **tiny-machine**: relocation (v1), console input and its interrupt
-  (v2), wait-for-interrupt (v3), a disk (v4), paging (v5), each
-  behind a bit or an address so that earlier versions run unchanged.
-- **libc/**: grows with the system calls (fork, exec, wait, open,
-  read, pipe...), one ABI with tiny-cpu for the calls they share.
-- **A host tool** for v4: the disk image's builder (`mkfs`), OCaml
-  (a tiny program of its own) or C for tiny-cpu.
-
-## Order, and what to decide first
-
-1. **v1**, with relocation in the machine: the step that makes the
-   rest possible (C, a loader, separate programs).
-2. **v2** and **v3**: processes and sleeping, the core of any
-   Unix.
-3. **v4**: files, the largest.
-4. **v5**: pages, where xv6 is reached.
-5. **v6**, and the optional microkernel branch.
+1. **Phase 1, tiny-c** (enum, function pointers, goto, macros, `#if`),
+   each against 7c.
+2. **Phase 2, tiny-machine** (memory, Sv32 and the fetch hook,
+   amoswap, hartid, interrupts, console input, the disk), each with v0
+   still passing.
+3. **Phases 3 and 4, the kernel and the user side**, in xv6's order,
+   until `usertests` passes.
+4. **Phase 5, several cores.**
 
 For the author to decide:
 
-- **The cut**: this sequence, or fewer and larger steps; the
-  microkernel branch in, or out. (The order: A, decided; the
-  appendix's order is tiny-bootstrap's.)
-- **Paging in the machine** (v5): one level as proposed, or two
-  (xv6's RISC-V Sv32 shape, closer to what mini-xv6 will meet on ARM).
-- **TinyKernel**: candidate (a), (b), or something else.
-- **mini-xv6**: its place in the README's series (the Kernel row has
-  mini-9pi; xv6 is not a Plan 9 program).
+- **Sv32** (xv6's `vm.c` as it is) or a smaller scheme of our own.
+  Sv32 is recommended: it is the real one, 32-bit, and v6 then diffs
+  cleanly against the riscv32 fork.
+- **The executable format**: a.out's header (recommended) or an ELF
+  subset.
+- **`mkfs`**: in C on tiny-cpu, or in OCaml.
+- **The log** (`log.c`, crash recovery): in (xv6 has it, and crash
+  tests could follow) or out of a first v6.
+- **TinyKernel**: still open.
 
 ## Related work
 
 To write, `notes_tiny_os_related_work.md`: the teaching kernels and
-where each stops (Xinu, Comer, 1984; Minix, 1987; Nachos, 1992; OS/161;
-Pintos, 2004; xv6, 2006; Oberon, Wirth and Gutknecht, 1987-92; "OS in
-1,000 lines", 2024), Lions' commentary and the Unix history repository
-(Spinellis) as the model for a history in versions, and Nand2Tetris's
-OS as the made-up machine's.
+where each stops (Xinu, Comer, 1984; Minix, 1987; Nachos, 1992;
+OS/161; Pintos, 2004; xv6, 2006; Oberon, Wirth and Gutknecht,
+1987-92; "Operating System in 1,000 Lines", 2024), Lions' commentary
+as xv6's ancestor, and the riscv32 xv6 fork as v6's model.
 
 ## Status
 
-- 2026-09-25: v0 done (plan_arm.md, "TinyMachine.ml done" and after);
-  this plan written, for review. Order A decided; principia's
-  bootstrapping appendix left to a future tiny-bootstrap/.
+- 2026-09-25: v0 done (plan_arm.md, "TinyMachine.ml done" and after).
+- 2026-09-25: a plan of seven versions written, then replaced by this
+  one (v0, then v6, xv6 on tiny-machine; the history in the tutorial;
+  multicore-ready; the tools extended for it, encapsulated). For
+  review.

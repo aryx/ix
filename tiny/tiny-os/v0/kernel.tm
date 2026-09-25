@@ -1,8 +1,8 @@
 ; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
 ;
 ; tiny-os's kernel, version 0: a page of kernel for tiny-machine, in
-; its assembly (v1, next to it, will be in C, on the way to xv6's
-; design; none is TinyKernel.ml, mini-xv6 or mini-9pi). There is
+; its assembly (v6, next to it, will be xv6 on tiny-machine, in C;
+; neither is TinyKernel.ml, mini-xv6 or mini-9pi). There is
 ; no loader: its four user programs (a.tm to d.tm) are linked with it,
 ; one image, and its table names their windows by their labels:
 ;

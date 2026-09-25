@@ -4292,3 +4292,27 @@ Claude wrote `docs/plans/plan_tiny_os.md` explaining how tiny-os, mini-xv6, mini
 **Yoann:**
 
 > a different project maybe
+
+**Claude (summary):**
+
+Claude split the work into tiny-os (kernel) and tiny-bootstrap (bootstrapping project). Claude proposed v0-v6 versions for tiny-os: v0 (current time-sharing), v1 (C loader), v2 (processes), v3 (sleep/wakeup), v4 (files), v5 (paging/xv6), v6 (Plan 9 namespaces). Claude described each version adding one feature, building incrementally toward complete kernel designs. Claude suggested tiny-bootstrap follow similar versioning but focused on bootstrapping and self-hosted tool rebuilding. Claude recorded both projects in the plan with tiny-bootstrap's location left open.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:43
+
+**Yoann:**
+
+> at this point I wonder if this v0 v1 ... is annoying and it might be better to go from v0 to "v6" that is a xv6 clone for tm
+
+**Claude (summary):**
+
+Claude recommended xv6 clone v6 instead of many small versions, adding paging, disk, and console to tiny-machine plus function pointers and enum to tiny-c. Claude noted this approach would stress-test other tiny-xxx components to validate they're mature enough for real OS work. Claude identified that keeping extensions cleanly encapsulated was essential to prevent polluting simpler original code. Tiny-os v6 and mini-xv6 would remain distinct yet related architectures, testing design on designed machine versus testing OCaml on real hardware. Claude suggested starting with paging design, then function pointers and enum in tiny-c.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:46
+
+**Yoann:**
+
+> yes, let's rewrite the plan. Also it's good that we stress-test the other tiny-xxx and adding extensions there because v6 need them (like paging, function pointers, enum). Hopefully it will not add too much code and hopefully those additions can be encapsulated to not pollute too much the original (simpler) code. Also let's use fake spinlocks and make the code multicore ready, even if it complicates things, even if single CPU in tiny machine, because we could change that, and multi core has good teaching value (teach about the important topics of concurrency). We probably want a swp instruction also in the tinymachine then or something related

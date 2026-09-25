@@ -10,9 +10,9 @@
 # tiny-os: an operating system for tiny-machine, built by the tiny
 # tools as any program is built by its toolchain. A kernel per version,
 # each in its directory with its Makefile (v0/: a page of assembly;
-# v1/, to come, a kernel in C, gradually toward xv6's design), and what
-# they share: the C runtime (libc/: start.tm, libc.c, libc.h), whose
-# system calls are tiny-cpu's and the kernels'. Not TinyKernel.ml,
+# v6/, to come, xv6 on tiny-machine, in C), and what they share: the C
+# runtime (libc/: start.tm, libc.c, libc.h), whose system calls are
+# tiny-cpu's and the kernels'. Not TinyKernel.ml,
 # mini-xv6 or mini-9pi, other projects of ix (docs/projects.md).
 #
 #   make run          the latest kernel, v0, on tiny-machine

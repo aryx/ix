@@ -61,13 +61,13 @@ for arm64 Linux (and mini-5i), not for the tiny machines.
 
 ## The kernels
 
-Several different projects, not versions of one (tiny-os's versions,
+Several different projects, not versions of one (tiny-os's v0 and v6,
 and how they relate to the others: [plans/plan_tiny_os.md](plans/plan_tiny_os.md)):
 
 | kernel | what | in | runs on |
 |---|---|---|---|
 | tiny-os v0 (`tiny/tiny-os/v0/`) | a page of kernel: traps, a timer, round robin, protection by a window; its four programs linked with it | TinyCPU assembly | tiny-machine |
-| *tiny-os v1* (`tiny/tiny-os/v1/`) | the next version, gradually toward xv6's design | C, by `tiny-c -tm` | tiny-machine |
+| *tiny-os v6* (`tiny/tiny-os/v6/`) | xv6 on tiny-machine, its structure and names (the riscv32 fork the model), multicore-ready; its history told in the tutorial | C, by `tiny-c -tm`, and a page of `.tm` | tiny-machine, with pages, a disk, device interrupts |
 | *TinyKernel.ml* (tiny-kernel) | the Kernel row's free variant (README's series); what it is, not decided | | |
 | *mini-9pi* | 9pi's twin, the Kernel row's mini program (README) | OCaml, with a thin C/asm shim | the Pi (mini-qemu, real boards) |
 | *mini-xv6* | mentioned by the author; not planned yet | | |
