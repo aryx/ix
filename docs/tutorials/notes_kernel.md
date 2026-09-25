@@ -6,7 +6,7 @@ brought up without an operating system under it, the machine's traps
 reaching OCaml code, processes whose kernel stacks the collector must
 know, memory and page tables handled as data. Written for **a reader
 of mini-xv6's code**, step by step as the code is (`kernel/step1/`,
-`step2/`, ...), following [`plan_kernel.md`](../plans/plan_kernel.md).
+`step2/`, `step3/`, ...), following [`plan_kernel.md`](../plans/plan_kernel.md).
 It builds on [`notes_pi.md`](notes_pi.md) (the Pi1, ARM's privileged
 state, its MMU) and on xv6 itself. Related systems:
 [`notes_kernel_related_work.md`](../related-work/notes_kernel_related_work.md).
@@ -158,7 +158,7 @@ the handler walks both. Step 2 runs a full major collection at every
 system call to prove it. This works because there is one program: its
 kernel stack is the one stack.
 
-## 5. Step 3: processes, and whose stack the collector walks
+## 5. Step 3: processes, and whose stack the collector walks (`kernel/step3/`)
 
 xv6 gives every process a kernel stack. A process that blocks inside a
 system call -- `read` on an empty pipe, `wait` for a child -- calls
@@ -169,23 +169,36 @@ holding live kernel frames, and in an OCaml kernel those frames hold
 OCaml values.
 
 ocaml-light's collector walks one stack: the current one, through its
-chain of callback links. A switch must therefore do two things:
+chain of callback links, starting from a few globals. A switch does two
+things, and neither needs a change to the runtime:
 
-1. **Save and restore the runtime's view of the stack** with the
-   registers: `caml_bottom_of_stack`, `caml_last_return_address`,
-   `caml_gc_regs`, `caml_exception_pointer`, the local roots of C
-   code. These globals describe *the current* stack; each process has
-   its own values of them.
-2. **Show the collector the other stacks**: a scan of each sleeping
-   process's saved state, as OCaml's systhreads library does for its
-   threads (its hook into `roots.c`).
+1. **The runtime's view of the stack travels with the registers.**
+   `caml_bottom_of_stack`, `caml_last_return_address`, `caml_gc_regs`,
+   `caml_exception_pointer` and `local_roots` describe *the running*
+   stack; `k_swtch` saves them into the process's context and puts its
+   own back when it resumes. `k_swtch` is an OCaml `external`, so the
+   switch happens right where `caml_c_call` has just recorded the
+   process's last OCaml frame: the saved view is exact.
+2. **The collector is shown the other stacks.** `roots.c` calls a hook,
+   `scan_roots_hook`, after the current stack, and exports
+   `do_local_roots`, which walks any stack given its view: the
+   mechanism OCaml's systhreads uses for its threads. `scan_stacks`
+   walks every context but the running one.
 
-That is the one change to ocaml-light's runtime the plan expects, in
-the kernel's copy of it. The alternatives, for comparison: one kernel
-stack and every blocking call written as a continuation (the
-collector sees one stack; the kernel code turns inside out); OCaml 5's
-effects and fibers (the runtime does the stack switching; a much
-larger runtime than ocaml-light's).
+A new process has an empty kernel stack: it starts in a C trampoline,
+its view empty, and enters OCaml by `callback`, whose link records
+"nothing above". The check: around every switch, a sleeping process
+holds young values that only its stack refers to, while the scheduler
+allocates and forces a minor and a major collection (which move young
+values, and free what nobody refers to); when it resumes, it checks
+them. With the hook they are intact; without it, the first resume finds
+them gone and the next round takes a data abort.
+
+The alternatives, for comparison: one kernel stack and every blocking
+call written as a continuation (the collector sees one stack; the
+kernel's code turns inside out); OCaml 5's effects and fibers (the
+runtime does the stack switching; a much larger runtime than
+ocaml-light's).
 
 ## 6. Memory as data: a small language of views
 
