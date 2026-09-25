@@ -211,6 +211,122 @@ Two choices of form, for review:
 Estimated: 5,000 lines of C (the riscv32 fork's 6,388, less virtio,
 the PLIC and the 64-bit), 250 of `.tm`; the user side 3,000.
 
+## v6's design (phases 3 and 4), in 2,000 lines
+
+Drafted 2026-09-25, for review, after phases 1 and 2. It replaces the
+port above ("The kernel") where they differ: v6 is xv6's ideas and
+names in fewer files, its own file system, and what the budget allows.
+
+### The shape, from the machine and the compiler
+
+- **The kernel mapped in every page table** (xv6's x86 design, not its
+  RISC-V one): a trap changes no page table, so there is no trampoline
+  page and no second vector for the kernel's own traps' page tables;
+  `satp` changes only when the scheduler switches processes.
+- **The kernel low, the user high.** tiny-machine starts at 0 and keeps
+  its pc below 16 MB, so the kernel runs identity-mapped at the bottom
+  (physical = virtual, `[0, 8 MB)`, the page frames in it), and a
+  process's space is `[8 MB, 16 MB)`: its program linked at `0x800000`,
+  its stack at the top. The devices' page is mapped at `0xfffff000`,
+  so the kernel's `-16(r0)` still reaches the console with pages on.
+  The kernel's two tables for `[0, 8 MB)` are shared by every
+  process's root.
+- **`swtch` saves two registers.** tiny-c's convention leaves every
+  register to the callee (the caller saves what is live below the
+  arguments), so a context is sp and lr, not xv6's twelve.
+- **A non-preemptible kernel**, Unix V6's: interrupts are on in user
+  mode and in the scheduler's idle loop only. A process in the kernel
+  runs until it sleeps or returns; the timer preempts user code. This
+  removes the kernel's own interrupts from everywhere but the idle
+  loop, whose trap saves the registers on its stack and returns.
+- **Multicore-ready all the same** (principle 2): spinlocks on
+  `amoswap`, `push_off`/`pop_off`, `cpus[NCPU]` by `hartid`, xv6's lock
+  order; one core for now.
+
+### What the machine still needs (phase 2, a last step)
+
+- **`scratch`**, a register of control, and **`csrrw d, csr, a`** (d
+  the register's old value, the register a's), RISC-V's `sscratch` and
+  `csrrw`: at a trap from user mode every register is the program's,
+  and the one that finds the trap frame comes from swapping r1 with
+  `scratch`. `scratch` is 0 in the kernel, so the vector knows where
+  it was trapped from (RISC-V Linux's trick). About 8 lines.
+- **An origin for the assembler** (`TinyLibCPU.assemble ~origin`, and
+  `tiny-cpu -b 0x800000`): a user program is assembled where it runs.
+  About 5 lines.
+
+### The executable: a.out
+
+Three words, then the image: a magic (`0x7a0ce5`, "tiny a.out"), the
+image's size, its entry (`0x800000`, the runtime's `_start`). No
+separate bss: `.space` is in the image. Written by `tiny-cpu -a`, which
+is `-o` with the origin at `0x800000` and the header; `exec` checks the
+magic, maps the pages, copies the image, sets the stack.
+
+### The file system: xv6's, less
+
+Blocks of 1 KB on the disk device (phase 2), in this order: the
+superblock (a magic, the sizes, where the rest starts), the inodes (64
+bytes each, 16 a block), one bitmap block (8,192 blocks, 8 MB of
+disk), the data.
+
+- **An inode**: its type (a file, a directory, a device), its device's
+  number, its size, 12 direct blocks and one indirect (256 more):
+  268 KB at most. No link count: no `link` system call, so a name is
+  a file's only name, and `unlink` frees it when no one has it open.
+- **A directory**: 16-byte entries, an inode's number and a name of
+  12 characters.
+- **The buffer cache**: 16 buffers, least recently used, each with a
+  busy flag and sleep (no sleeplock type).
+- **No log**: a crash may leave the disk inconsistent, as Unix's
+  before fsck. The first thing to add if the budget allows.
+- **`mkfs`** on the host, in OCaml (`tiny/tiny-os/v6/mkfs.ml`, about
+  100 lines, a dune executable `tiny-mkfs`): the disk image from the
+  user programs and a `console` device node. Not counted in the
+  2,000, as xv6 does not count its `mkfs.c` as the kernel.
+
+### The system calls: 17
+
+`fork exit wait kill getpid sbrk exec` (processes), `open read write
+close dup pipe fstat` (files), `chdir mkdir unlink mknod` (names). Cut
+from xv6's 21: `link`, `sleep`, `uptime`, and `mknod`'s use beyond the
+console.
+
+### The files, and the budget
+
+| file | what | lines |
+|---|---|---|
+| `entry.tm` | the start per core, the trap vector (from user mode, from the idle loop), `swtch`, the registers of control, `amoswap` | 150 |
+| `defs.h` | the types, the constants, the prototypes (one header, as xv6's `defs.h` is its index) | 120 |
+| `main.c` | `main`, `printf` and `panic`, the strings, `kalloc`, spinlocks | 180 |
+| `vm.c` | `walk`, `mappages`, the kernel's tables, a process's (alloc, copy, free), `copyin`/`copyout` | 170 |
+| `proc.c` | the table, `userinit`, `fork`, `exit`, `wait`, `kill`, `sbrk`; `scheduler`, `sched`, `yield`, `sleep`, `wakeup`; the trap's dispatch and the system calls' table; `sysproc` | 400 |
+| `fs.c` | the disk's driver, the buffer cache, the bitmap, inodes (`iget`, `ilock`, `bmap`, `readi`, `writei`), directories, paths | 350 |
+| `file.c` | the file table, pipes, the console's device, `exec`, the file system calls | 300 |
+| user side | `usys.tm` (the calls' stubs), `init`, `sh` (pipes, `<` `>`, `;`), `cat`, `echo`, `ls`, `mkdir`, `rm`, `wc`, `usertests` (fork, exec, pipes, files, sbrk, a fault killed) | 330 |
+| | **total** | **2,000** |
+
+The kernel's own C is compiled by `tiny-c -tm`, linked by tiny-machine
+after `entry.tm` into `kernel.img`; the user programs with `libc/`
+(print, the strings) and `usys.tm` in place of `start.tm`'s calls,
+by `tiny-cpu -a`; `mkfs` makes `fs.img`; `make run` in `v6/` boots it
+(`tiny-machine -d fs.img kernel.img`) into `sh`.
+
+### Cut from xv6, on purpose
+
+The log (crash recovery); `link` and link counts; ELF (a.out);
+virtio (a simple disk); the PLIC (`ip`/`ie`); the trampoline (the
+kernel in every table); kernel preemption (Unix V6's non-preemptible
+kernel); `sleep`, `uptime`; 64 bits. Each is said where its absence
+shows, and each could come back if the budget allows.
+
+### Laws
+
+`usertests` passes; `sh` runs a script (`echo hi | cat > f; cat f; ls;
+rm f; ls`) and prints what the script expects; `mkfs`'s image read back
+by a host checker; the same image, the same output, every run; a
+process storing into the kernel killed, the others running on.
+
 ## Multicore (phase 5)
 
 tiny-machine with `-smp N`: N cores sharing memory, each with its
@@ -258,9 +374,11 @@ For the author to decide:
   Sv32 is recommended: it is the real one, 32-bit, and v6 then diffs
   cleanly against the riscv32 fork.
 - **The executable format**: a.out's header (decided).
-- **`mkfs`**: in C on tiny-cpu, or in OCaml.
-- **The log** (`log.c`, crash recovery): in (xv6 has it, and crash
-  tests could follow) or out of a first v6.
+- **v6's design** (the section above): the shape (the kernel in every
+  table, the user at 8 MB, a non-preemptible kernel), the machine's
+  last two additions (`scratch` and `csrrw`, the assembler's origin),
+  the file system without a log or links, the 17 calls, the files.
+- **`mkfs`**: in OCaml (proposed), or in C on tiny-cpu.
 - **TinyKernel**: still open.
 
 ## Related work
