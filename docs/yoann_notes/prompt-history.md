@@ -3605,3 +3605,19 @@ cat ~/xix/dune | grep -A 30 "^\(install\|bin\)" | head -50
 **Yoann:**
 
 > let's add some bin section in the dune file like we do in ~/xix or ~/osemgrep so I can access the resulting binaries under _build/install/default/bin (and also have the bin symlink, altough take care with dune limitations about dead symlinks)
+
+**Claude (summary):**
+
+No new bin section needed; all programs already had public_name entries for installation.
+Claude created a bin symlink to _build/install/default/bin and excluded it from dune directories.
+The mini-pi script was fixed to resolve its real location when run through the symlink.
+All 22 executables and the script are accessible via ./bin/ after dune build.
+Changes committed as 66c9484 with README updated to document bin directory access.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:15
+
+**Yoann:**
+
+> excellent

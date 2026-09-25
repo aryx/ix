@@ -504,3 +504,8 @@ on both). A survey first (2026-09-25; principia's own notes,
 
 The ARM timer (0xB400) stays unassigned as in QEMU's raspi1ap (reads 0,
 no interrupt), so 9pi's USB driver wakes on its 1s timeouts there too.
+
+**Phase D deferred** (2026-09-25), at the author's request: the real
+Pi1 board personality (`-hw pi1`, the boot partition, the firmware's
+entry state, the flashed board) waits; the next phases do not depend
+on it.
