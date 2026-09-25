@@ -653,3 +653,30 @@ mini-qemu**, the real kernel (128MB), one core: all 62 tests, ALL
 TESTS PASSED in 3,023s (50 minutes; QEMU's four threaded cores: 183s),
 run by the port's own harness function (`test_usertests`) with a
 3-hour limit instead of its 300s.
+
+**G5 done** (2026-09-25): **`-smp 1` to 4**, the cores taking turns of
+1,000 instructions in one thread (decision 3), a round of turns one
+quantum of time. xv6 arm64-pi4 boots its four harts and passes
+`xv6_pi4.py -smp 4`'s 16 tests with QEMU's output, pids included.
+
+- `Gic`: the private interrupts (0-31) and the CPU interface banked
+  per core, the accessing core set before each turn; the shared ones
+  to the cores their target names.
+- `Pi4`: per core its Arm64 state, Mmu64, decode cache, timers (their
+  PPIs its own) and WFE event register; WFI sleeps until an interrupt,
+  WFE until SEV; a sleeping core skips its turns; the time skips ahead
+  only when every core sleeps. A TLBI or IC empties every core's TLB
+  and decode cache. The exclusive monitors are cleared at a switch
+  (an ldxr/stxr pair split by it retries).
+- The secondary cores start parked in QEMU's own spin stub (its
+  `write_smpboot64`, at 0x300, the spin table at 0xd8), as the Pi4's
+  firmware parks them, and xv6's `cpuN_wakeup` releases them. QEMU
+  instead starts an ELF's every core at its entry: xv6's secondaries
+  then enable their MMU on page tables core 0 is still building, a
+  race won under QEMU by timing and lost when the cores take turns.
+- The cost: xv6's idle cores never wait (its scheduler loops over the
+  process table, the secondaries spin on `started` during kinit), so
+  four cores run it 4.2 times slower than one (the 16 tests: 318s
+  against 75s). `-smp 1` stays mini-qemu's default; `make test-pi`
+  runs three tests on four cores (67s). "hopefully most cores would be
+  idle" (the author): not with this kernel.

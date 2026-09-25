@@ -14,7 +14,7 @@
 #
 #   ./mini-pi xv6            xv6 arm-pi1-bis, the console in this terminal
 #   ./mini-pi xv6-pi1        xv6 arm-pi1
-#   ./mini-pi xv6-pi4        xv6 arm64-pi4, the Pi4 (one core: -smp 1)
+#   ./mini-pi xv6-pi4        xv6 arm64-pi4, the Pi4 (one core; -c 4 its four)
 #   ./mini-pi 9pi            principia's 9pi, its SD card image, the console
 #                       in this terminal (the mini UART)
 #
@@ -26,6 +26,8 @@
 #   -q   run QEMU instead, with the same arguments (to compare)
 #   -d   mini-qemu's log of unassigned I/O and undefined instructions
 #   -n   no build (use mini-qemu as last built)
+#   -c N xv6-pi4: N cores (1 to 4, default 1; xv6's idle cores spin, so
+#        each one more slows it down)
 #
 # Quit with Ctrl-A then x (or close the window).
 #
@@ -42,13 +44,13 @@ ROOT=${IX:-$ROOT}
 [ -d "$ROOT/raspberry" ] || { echo "mini-pi: $ROOT is not ix's checkout (set IX)" >&2; exit 2; }
 XV6=${XV6:-$HOME/xv6}
 PRINCIPIA=${PRINCIPIA:-$HOME/principia}
-graphics=0; write=0; qemu=0; debug=0; build=1
+graphics=0; write=0; qemu=0; debug=0; build=1; cores=1
 
 usage() { sed -n '/^# mini-pi:/,/^# built), /p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
-while getopts gwqdnh o; do
+while getopts gwqdnc:h o; do
   case $o in
-    g) graphics=1;; w) write=1;; q) qemu=1;; d) debug=1;; n) build=0;; *) usage;;
+    g) graphics=1;; w) write=1;; q) qemu=1;; d) debug=1;; n) build=0;; c) cores=$OPTARG;; *) usage;;
   esac
 done
 shift $((OPTIND - 1))
@@ -66,7 +68,7 @@ case $1 in
     dir=$XV6/forks/arm64-pi4; image=kernel/kernel
     [ $graphics = 1 ] && { echo "mini-pi: xv6-pi4 has no graphics"; exit 1; }
     # QEMU's raspi4b wants its four cores
-    smp=1; [ $qemu = 1 ] && smp=4
+    smp=$cores; [ $qemu = 1 ] && smp=4
     args=(-cpu cortex-a72 -M raspi4b -kernel $image -m 2G -smp $smp -nographic)
     ;;
   9pi)
@@ -98,7 +100,7 @@ if [ $1 = 9pi ]; then
 else
   say "disk:     the file system is inside the kernel image (xv6's ramdisk)"
   say "console:  the PL011 (serial 0)"
-  [ $1 = xv6-pi4 ] && [ $qemu = 0 ] && say "cores:    one of the Pi4's four (-smp 1); the boot takes about 20s (kinit fills 128MB)"
+  [ $1 = xv6-pi4 ] && [ $qemu = 0 ] && say "cores:    $cores of the Pi4's four (-smp $cores); the boot takes about $((20 * cores))s (kinit fills 128MB)"
 fi
 [ $graphics = 1 ] && say "display:  a window$( [ $1 != 9pi ] && echo ', and a USB keyboard')"
 say "command:  (cd $dir && $emulator ${args[*]})"

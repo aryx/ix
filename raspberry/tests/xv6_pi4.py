@@ -37,7 +37,11 @@
 # aarch64-linux-gnu toolchain, and a qemu-system-aarch64 with raspi4b
 # ($QEMU64; without one, the outputs are only checked to pass).
 #
-# Usage: xv6_pi4.py [-a] [test...]
+# With -smp N, mini-qemu runs N cores (default 1; QEMU always 4): the
+# harts' lines are dropped from both outputs then, QEMU's order of
+# them being its threads'.
+#
+# Usage: xv6_pi4.py [-smp N] [-a] [test...]
 
 import os, re, select, shutil, subprocess, sys, tempfile, threading, time
 
@@ -108,6 +112,7 @@ def session(argv, tests, results):
     try:
         boot = c.wait(rb"\$ ", 60)
         results["boot"] = boot and re.sub(rb"hart [123] starting\r?\n", b"", boot)
+        results["harts"] = boot and len(re.findall(rb"hart [123] starting", boot))
         if boot is None: return
         for t in tests:
             c.send("usertests %s\n" % t)
@@ -119,10 +124,12 @@ def session(argv, tests, results):
 
 def main():
     args = sys.argv[1:]
+    smp = 1
+    if args[:1] == ["-smp"]: smp = int(args[1]); args = args[2:]
     tests = ALL if args[:1] == ["-a"] else (args or DEFAULT)
     kernel = build()
     mini, qemu = {}, {}
-    runs = [threading.Thread(target=session, args=([MINI, "-cpu", "cortex-a72", "-M", "raspi4b", "-m", "2G", "-smp", "1",
+    runs = [threading.Thread(target=session, args=([MINI, "-cpu", "cortex-a72", "-M", "raspi4b", "-m", "2G", "-smp", str(smp),
                                                      "-nographic", "-kernel", kernel], tests, mini))]
     if QEMU64:
         runs.append(threading.Thread(target=session, args=([QEMU64, "-cpu", "cortex-a72", "-M", "raspi4b", "-m", "2G", "-smp", "4",
@@ -137,6 +144,9 @@ def main():
         failures += 1
     else:
         print("ok boot%s" % (", as QEMU's" if QEMU64 else ""))
+    if mini.get("harts") != smp - 1:
+        print("FAIL boot: %s harts started, not %d" % (mini.get("harts"), smp - 1))
+        failures += 1
     for t in tests:
         out = mini.get(t)
         if out is None or b"ALL TESTS PASSED" not in out:
@@ -147,7 +157,7 @@ def main():
             failures += 1
         else:
             print("ok %s%s" % (t, ", as QEMU's" if QEMU64 else ""))
-    print("xv6_pi4: %d tests, %d failures, %.0fs (PHYSTOP %dMB)" % (len(tests), failures, time.time() - start, PHYSTOP_MB))
+    print("xv6_pi4: %d tests, %d failures, %.0fs (PHYSTOP %dMB, %d core%s)" % (len(tests), failures, time.time() - start, PHYSTOP_MB, smp, "s" if smp > 1 else ""))
     sys.exit(1 if failures else 0)
 
 main()

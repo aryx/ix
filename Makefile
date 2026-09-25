@@ -84,7 +84,8 @@ build-docker-ocaml5:
 
 # mini-qemu against QEMU (plan_pi.md): 9pi's session, the Pi1 xv6
 # ports' boots and graphics, the Pi4's boot and 16 of usertests' tests
-# (on a copy of xv6 with 4MB of RAM, fast: xv6_pi4.py); needs
+# (on a copy of xv6 with 4MB of RAM, fast: xv6_pi4.py), and 3 on its
+# four cores; needs
 # ~/principia, ~/xv6 and the QEMUs (see raspberry/tests/). With
 # XV6_USERTESTS=-u, the Pi1 ports' full usertests too.
 test-pi: all
@@ -93,6 +94,7 @@ test-pi: all
 	./raspberry/tests/xv6.sh $(XV6_USERTESTS)
 	./raspberry/tests/graphics.py
 	./raspberry/tests/xv6_pi4.py
+	./raspberry/tests/xv6_pi4.py -smp 4 preempt pipe1 forktest
 
 # mini-git over the Internet: ix cloned from GitHub by mini-git (https,
 # through curl), checked by git fsck and walk.

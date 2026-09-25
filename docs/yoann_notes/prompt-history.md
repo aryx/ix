@@ -4108,3 +4108,19 @@ The findings came from plan_arm.md's phase 6 and recent testing work.
 **Yoann:**
 
 > ok let's -smp 4; hopefully most cores would be idle when running the xv6 kernel so it will still be fast
+
+**Claude (summary):**
+
+Claude implemented a TinyC backend `-tm` targeting TinyCPU with long long type support and checks.
+Claude verified existing arm64 output remained byte-for-byte identical during the backend implementation.
+Claude built a TinyCPU runtime combining ARM assembly and a C-written libc for program support.
+Claude successfully compiled and executed hello.c and all eight test programs on the TinyCPU architecture.
+Claude validated 500 random programs and integrated TinyCPU testing into the make test-goken target.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:01
+
+**Yoann:**
+
+> what about we add a tiny/tiny-os/ subfolder and move some .tm and .c there and add a regular Makefile assuming the tiny-xxx are in the path (after dune install) and compile and run the thing?

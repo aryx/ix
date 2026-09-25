@@ -14,8 +14,9 @@
  *     mini-qemu -cpu cortex-a72 -M raspi4b -kernel kernel -m 2G -smp 1 -nographic
  *
  * -M/-machine (raspi1ap, raspi4b), -kernel, -m (the Pi4's RAM, default
- * 2G; the Pi1's is its 512MB), -smp (the Pi4: 1 core, the only number
- * for now, plan_pi.md decision 3), -cpu (the board's own),
+ * 2G; the Pi1's is its 512MB), -smp (the Pi4's cores, 1 to 4, taking
+ * turns: plan_pi.md decision 3; QEMU wants 4, mini-qemu defaults to
+ * 1, the fastest), -cpu (the board's own),
  * -nographic, -serial and -monitor (the UART on standard input and
  * output either way), -device, -append, -no-reboot (accepted,
  * ignored); our own: -ips N (instructions per simulated microsecond,
@@ -26,7 +27,7 @@
 
 open Ix_raspberry
 
-let usage = "usage: mini-qemu -M raspi1ap|raspi4b [-m size] [-smp 1] [-nographic] (-kernel image | -device loader,file=F,addr=A | -bios F) [-drive file=F,if=sd] [-serial S]... [-ips N] [-d]"
+let usage = "usage: mini-qemu -M raspi1ap|raspi4b [-m size] [-smp n] [-nographic] (-kernel image | -device loader,file=F,addr=A | -bios F) [-drive file=F,if=sd] [-serial S]... [-ips N] [-d]"
 
 (* the board run in batches; the host's input polled (raw on a
  * terminal, Ctrl-A x to quit), the console's output written, the
@@ -125,8 +126,8 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
   | None, None -> Console.eprint caps (usage ^ "\n"); 2
   | _ when !machine <> "raspi1ap" && !machine <> "raspi4b" ->
       Console.eprint caps (Printf.sprintf "mini-qemu: machine %s not (yet) supported\n" !machine); 2
-  | _ when !machine = "raspi4b" && !smp <> 1 ->
-      Console.eprint caps "mini-qemu: raspi4b: -smp 1 only, for now (one core; plan_pi.md, decision 3)\n"; 2
+  | _ when !machine = "raspi4b" && (!smp < 1 || !smp > 4) ->
+      Console.eprint caps "mini-qemu: raspi4b: -smp 1 to 4\n"; 2
   | kernel, loader ->
       let log s = if !debug || !trace <> 0 then Console.eprint caps ("mini-qemu: " ^ s ^ "\n") in
       let out = Buffer.create 256 in
@@ -142,7 +143,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
         | image -> image
         | exception Sys_error m -> Console.eprint caps ("mini-qemu: " ^ m ^ "\n"); exit 1 in
       if !machine = "raspi4b" then begin
-        let board = Pi4.create { ram_size = !ram; ips = !ips; log; serial = target 0; trace = !trace } in
+        let board = Pi4.create { ram_size = !ram; ips = !ips; log; serial = target 0; trace = !trace; cores = !smp } in
         (match kernel with
          | Some k -> (try Pi4.load_elf board (read k) with Elf.Bad m -> Console.eprint caps ("mini-qemu: " ^ k ^ ": " ^ m ^ " (raspi4b: an ELF kernel)\n"); exit 1)
          | None -> Console.eprint caps "mini-qemu: raspi4b: -kernel only\n"; exit 2);
