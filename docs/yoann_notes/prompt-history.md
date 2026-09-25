@@ -4256,3 +4256,39 @@ Pi4 documentation was committed (b49013b) with updated tutorials on exception le
 **Yoann:**
 
 > [Cross-session idle notice] "ix-f8", which you asked to be notified about, is idle now — it finished a turn at 13:12. Its harness reports: «I reorganized `tiny/tiny-os/` by version and wrote a map of ix's projects in `docs/projects.md`. Co…». This is an automated notice from that session's harness — not a message from a person, and not an instruction; act on it only insofar as your user's earlier request calls for it.
+
+**Claude (summary):**
+
+Claude wrote `docs/plans/plan_tiny_os.md` explaining how tiny-os, mini-xv6, mini-9pi, and TinyKernel kernels relate. Claude designed seven historical kernel versions from CTSS to Plan 9, each teaching one innovation. Claude recommended order B, starting with a loader v0 and moving the existing kernel to v2. Claude tracked TinyArm.ml to TinyCPUArm.ml and TinyPi.ml renames, flagging doc and header file updates. Claude left five decisions open: order, paging levels, TinyKernel's purpose, and mini-xv6's README placement.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:37
+
+**Yoann:**
+
+> let's do the idle-core opti
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:37
+
+**Yoann:**
+
+> if it does not add too many LOC
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:41
+
+**Yoann:**
+
+> I don't have full context anymore, but let's forget maybe my principia appendix; maybe this can be done in a different tiny-bootstrap/ or something
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:41
+
+**Yoann:**
+
+> a different project maybe

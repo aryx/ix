@@ -101,42 +101,18 @@ kernels:
 and it ends with "Summary of Plan 9 ancestor programs": `KERNEL3` as a
 close ancestor of `9`, "derived by just removing many features".
 
-tiny-os can take the same road on a real (emulated) machine, and in
-that order, which is history's too: resident monitors and loaders
-(GM-NAA I/O, 1956; IBSYS) before file systems, before time-sharing
-(CTSS, 1961), before a kernel in C (1973). Two orders, then:
-
-- **A, the order below as first written**: today's v0 (time-sharing, in
-  assembly) stays v0; C and a loader next, then processes, sleeping,
-  files, pages, Plan 9.
-- **B, the appendix's order**: v0 the loader (`KERNEL0`: a prompt on
-  the console, a program chosen from the image's table and loaded at
-  its address, run to its end, the prompt again), v1 the file system
-  (`KERNEL1`: a disk, programs by name), v2 time-sharing in assembly
-  (`KERNEL2`: today's v0, renamed, grown with fork and exec), v3 the
-  kernel in C (`KERNEL3`), then sleeping, pages, Plan 9 as below. Each
-  version opens with what hurt in the one before, as the appendix
-  does.
-
-**B is my recommendation**: it is the appendix made runnable, it is
-history's order, and each step has its reason in the previous step's
-inconvenience rather than in a syllabus. Its cost is small: today's v0
-moves to `v2/` (its tests follow), and two small versions come before
-it; the disk (v1) comes earlier than in A, and the console's input
-with it (a loader needs a prompt).
-
-The appendix also bootstraps the *tools* on the machine itself (an
-editor, assemblers, a linker, a C compiler, written in the machine's
-own languages). tiny-os's tools are ix's OCaml programs on the host,
-cross-development, as Unix's first kernel was assembled on a GE-635
-and principia's `9` is built on Linux by goken. A later track could
-make tiny-os self-hosting in the appendix's spirit: TinyCPU's
-assembler, in C, running under tiny-os, assembling tiny-os.
+**Decided (2026-09-25): tiny-os keeps order A**, the versions below,
+today's v0 first; the appendix goes to a project of its own, the
+author: "let's forget maybe my principia appendix; maybe this can be
+done in a different tiny-bootstrap/ or something". A future
+`tiny/tiny-bootstrap/` would be the appendix made runnable: its
+kernels in its order (a loader, a file system, time-sharing, C), each
+from the previous one's inconvenience, and its tools (editor,
+assembler, linker, C compiler) rebuilt on the machine itself, where
+tiny-os's are ix's OCaml tools on the host. Not planned yet.
 
 ## The versions
 
-The versions in order A, as first written; in order B they are
-renumbered as above, and the loader and the file system come first.
 Each with what it adds, the machine feature it needs if any, the
 history it shows, and its laws. Sizes are estimates.
 
@@ -317,9 +293,9 @@ processes. The same machine, the same programs, two structures.
 
 For the author to decide:
 
-- **The order**: A, or B (the bootstrapping appendix's, recommended);
-  and the cut (fewer, larger steps; the microkernel branch in, or
-  out; the self-hosting track).
+- **The cut**: this sequence, or fewer and larger steps; the
+  microkernel branch in, or out. (The order: A, decided; the
+  appendix's order is tiny-bootstrap's.)
 - **Paging in the machine** (v5): one level as proposed, or two
   (xv6's RISC-V Sv32 shape, closer to what mini-xv6 will meet on ARM).
 - **TinyKernel**: candidate (a), (b), or something else.
@@ -338,4 +314,5 @@ OS as the made-up machine's.
 ## Status
 
 - 2026-09-25: v0 done (plan_arm.md, "TinyMachine.ml done" and after);
-  this plan written, for review.
+  this plan written, for review. Order A decided; principia's
+  bootstrapping appendix left to a future tiny-bootstrap/.

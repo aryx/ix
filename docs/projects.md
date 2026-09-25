@@ -72,6 +72,11 @@ and how they relate to the others: [plans/plan_tiny_os.md](plans/plan_tiny_os.md
 | *mini-9pi* | 9pi's twin, the Kernel row's mini program (README) | OCaml, with a thin C/asm shim | the Pi (mini-qemu, real boards) |
 | *mini-xv6* | mentioned by the author; not planned yet | | |
 
+One more, an idea: *tiny-bootstrap* (`tiny/tiny-bootstrap/`), principia's
+"Bootstrapping from Scratch" appendix made runnable on tiny-machine: a
+loader, a file system, time-sharing, then C, with the tools rebuilt on
+the machine itself (plan_tiny_os.md).
+
 xv6 and 9pi themselves are not ix's: they are guest code mini-qemu is
 tested with.
 
