@@ -104,8 +104,9 @@ close ancestor of `9`, "derived by just removing many features".
 **Decided (2026-09-25): tiny-os keeps order A**, the versions below,
 today's v0 first; the appendix goes to a project of its own, the
 author: "let's forget maybe my principia appendix; maybe this can be
-done in a different tiny-bootstrap/ or something". A future
-`tiny/tiny-bootstrap/` would be the appendix made runnable: its
+done in a different tiny-bootstrap/ or something", then "a different
+project maybe". A future tiny-bootstrap, inside ix or a project of its
+own (not decided), would be the appendix made runnable: its
 kernels in its order (a loader, a file system, time-sharing, C), each
 from the previous one's inconvenience, and its tools (editor,
 assembler, linker, C compiler) rebuilt on the machine itself, where
