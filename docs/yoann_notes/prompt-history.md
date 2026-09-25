@@ -3432,3 +3432,31 @@ Claude committed all work: phases 8, 9a, 9b complete and tested, floating-point 
 **Yoann:**
 
 > let's do it!
+
+**Claude (summary):**
+
+Claude implemented phase A of the ARM emulator with privileged CPU state, MMU, and device support. The emulator command is `tinypi -M raspi1ap -nographic -kernel kernel.img` for booting xv6. Boot output matched QEMU byte-for-byte and the acceptance tests passed in 2 minutes 9 seconds. The emulator ran xv6 arm-pi1-bis successfully, reaching the shell and completing all usertests. Next port is arm-pi1 which requires VFP support not yet implemented in the CPU.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 05:23
+
+**Yoann:**
+
+> how can I run it to boot an xv6?
+
+**Claude (summary):**
+
+Claude recommended building tinypi with dune's release profile, then running Main.exe against xv6 kernels.
+The emulator launches xv6 with flags -M raspi1ap -nographic and -kernel pointing to kernel.img.
+Boot completes in eight seconds; terminal runs in raw mode requiring Ctrl-A x to quit.
+Alternative methods use the port's Makefile with QEMU override, a Python test runner, or shell comparison.
+Extra flags -d and -ips control debugging and instruction timing; only arm-pi1-bis port currently supported.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 05:27
+
+**Yoann:**
+
+> ok let's continue. This is great!

@@ -44,7 +44,9 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
       let log s = if !debug then Console.eprint caps ("tinypi: " ^ s ^ "\n") in
       let out = Buffer.create 256 in
       let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log } ~output:(Buffer.add_char out) in
-      Board.load_kernel board (Files.read caps (Fpath.v k));
+      (match Files.read caps (Fpath.v k) with
+       | image -> Board.load_kernel board image
+       | exception Sys_error m -> Console.eprint caps ("tinypi: " ^ m ^ "\n"); exit 1);
       (* standard input: raw on a terminal (Ctrl-A x to quit), polled *)
       let tty = Unix.isatty Unix.stdin in
       let saved = if tty then Some (Unix.tcgetattr Unix.stdin) else None in

@@ -26,7 +26,9 @@ TP=$ROOT/_build/default/raspberry/Main.exe
 XV6=${XV6:-$HOME/xv6}
 full=0
 [ "$1" = -u ] && { full=1; shift; }
-ports=${@:-arm-pi1-bis}
+ports=${@:-arm-pi1-bis arm-pi1}
+# the image each port's "make qemu" boots
+image() { case $1 in arm-pi1) echo kernel-qemu.img;; *) echo kernel.img;; esac; }
 failures=0
 W=$(mktemp -d)
 trap 'rm -rf $W' EXIT
@@ -43,9 +45,10 @@ boot() { # name command...
 
 for port in $ports; do
   d=$XV6/forks/$port
-  [ -f $d/kernel.img ] || { echo "skip $port: not built"; continue; }
-  boot qemu qemu-system-arm -M raspi1ap -nographic -kernel $d/kernel.img
-  boot tinypi $TP -M raspi1ap -nographic -kernel $d/kernel.img
+  img=$d/$(image $port)
+  [ -f $img ] || { echo "skip $port: not built"; continue; }
+  boot qemu qemu-system-arm -M raspi1ap -nographic -kernel $img
+  boot tinypi $TP -M raspi1ap -nographic -kernel $img
   if cmp -s $W/qemu $W/tinypi && [ -s $W/qemu ]; then echo "ok $port: boots as under QEMU ($(wc -l < $W/qemu) lines)"
   else echo "FAIL $port: the boot differs from QEMU's"; diff $W/qemu $W/tinypi | head -5; failures=$((failures + 1)); fi
   if [ $full = 1 ]; then

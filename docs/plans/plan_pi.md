@@ -438,3 +438,12 @@ hanging, read against QEMU 11.1's sources):
   channel as QEMU answers them, the DWC2 with QEMU's reset values and
   id, so that CSUD enumerates its root hub as under QEMU); `tinypi`
   taking QEMU's command line.
+
+**Phase A done** (2026-09-25): **xv6 arm-pi1 passes too**, its
+`test-xv6.py` unchanged with `QEMU=tinypi` (its `kernel-qemu.img`):
+"ALL TESTS PASSED" in 2 min 42 s, its boot byte for byte QEMU's; it
+needed nothing arm-pi1-bis had not. Its hard-float build has no VFP
+instruction in the kernel or the programs (the census said so,
+`census_xv6.txt`): VFP moves to phase C, for 9pi's programs.
+`raspberry/tests/xv6.sh` checks both boots against QEMU (`-u`: and
+both usertests).
