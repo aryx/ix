@@ -1,0 +1,11 @@
+TinyPi: a kernel, in SVC mode
+user: hello, from user mode
+kernel: an undefined instruction, skipped
+user: back from the kernel
+kernel: the timer, every 10ms
+kernel: tick 1
+kernel: tick 2
+kernel: tick 3
+kernel: tick 4
+kernel: tick 5
+kernel: done, halting

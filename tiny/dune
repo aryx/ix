@@ -76,3 +76,10 @@
  (package ix)
  (modules TinyMachine)
  (libraries ix_core fpath caps tiny_lib_cpu))
+
+(executable
+ (name TinyPi)
+ (public_name tiny-pi)
+ (package ix)
+ (modules TinyPi)
+ (libraries ix_core fpath caps tiny_lib_arm))

@@ -40,6 +40,9 @@ type t =
   | Strex of { cond : cond; rd : reg; rm : reg; rn : reg }
   | Clrex
   | Barrier of { kind : int }
+  (* cpsie, cpsid, cps: the A, I, F masks cleared ([enable]) or set,
+   * and the mode changed ([mode]); a no-op in user mode *)
+  | Cps of { imod : int; a : bool; i : bool; f : bool; mode : int option }
   | Vmrs of { cond : cond; reg : int; rd : reg }
   | Vmsr of { cond : cond; reg : int; rd : reg }
   | Vldst of { cond : cond; load : bool; d : int; rn : reg; offset : int }
@@ -77,6 +80,12 @@ let decode w =
     (* the unconditional space: clrex and the barriers (full system) *)
     if w = Bits.mask32 ((0xf57 lsl 20) lor 0xff01f) then Clrex
     else if field w 8 24 = 0xf57ff0 && field w 0 4 = 15 && field w 4 4 >= 4 && field w 4 4 <= 6 then Barrier { kind = field w 4 4 }
+    (* claude: cps (ARMv6), for TinyPi's kernel (tiny/TinyPi_tests/tick.s):
+     * imod 2 enables, 3 disables; M, a mode *)
+    else if field w 20 8 = 0x10 && not (bit w 16) && field w 9 7 = 0 && not (bit w 5)
+            && (field w 18 2 >= 2 || (field w 18 2 = 0 && bit w 17)) && (bit w 17 || field w 0 5 = 0)
+            && (field w 18 2 <> 0 || field w 6 3 = 0) then
+      Cps { imod = field w 18 2; a = bit w 8; i = bit w 7; f = bit w 6; mode = (if bit w 17 then Some (field w 0 5) else None) }
     else Undefined w
   else
     let cond = conds.(cond_bits) in
@@ -288,6 +297,12 @@ let print ~addr (i : t) =
   | Strex { cond; rd; rm; rn } -> m ("strex" ^ cond_name cond) (Printf.sprintf "%s, %s, [%s]" (reg_name rd) (reg_name rm) (reg_name rn))
   | Clrex -> "clrex"
   | Barrier { kind } -> m [| "dsb"; "dmb"; "isb" |].(kind - 4) "sy"
+  | Cps { imod; a; i; f; mode } ->
+      let masks = (if a then "a" else "") ^ (if i then "i" else "") ^ (if f then "f" else "") in
+      let mode = match mode with Some md -> Printf.sprintf "#%d" md | None -> "" in
+      (match imod with
+       | 0 -> "cps\t" ^ mode
+       | _ -> (if imod = 2 then "cpsie\t" else "cpsid\t") ^ masks ^ (if mode = "" then "" else ", " ^ mode))
   | Vmrs { cond; reg; rd } ->
       m ("vmrs" ^ cond_name cond) ((if rd = 15 then "APSR_nzcv" else reg_name rd) ^ ", " ^ vfp_reg_name reg)
   | Vmsr { cond; reg; rd } -> m ("vmsr" ^ cond_name cond) (vfp_reg_name reg ^ ", " ^ reg_name rd)
@@ -670,6 +685,16 @@ let execute st ~addr ~svc i =
       end
   | Clrex -> st.exclusive <- -1
   | Barrier _ -> ()
+  | Cps { imod; a; i; f; mode } ->
+      if st.mode <> 0x10 then begin
+        let off = imod = 3 in
+        if imod >= 2 then begin
+          if a then st.a_off <- off;
+          if i then st.i_off <- off;
+          if f then st.f_off <- off
+        end;
+        Option.iter (set_mode st) mode
+      end
   (* VFP: when the system grants it; FPSID and FPEXC privileged, the
    * rest only with FPEXC.EN (the lazy switch's trap) *)
   | Vmrs { cond; reg; rd } ->

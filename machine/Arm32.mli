@@ -80,6 +80,9 @@ type t =
   | Clrex
   (* dsb (4), dmb (5), isb (6), the full system's: no effect here *)
   | Barrier of { kind : int }
+  (* cpsie, cpsid, cps: the A, I, F masks cleared ([enable]) or set,
+   * and the mode changed ([mode]); a no-op in user mode *)
+  | Cps of { imod : int; a : bool; i : bool; f : bool; mode : int option }
   (* VFP's control registers (0 FPSID, 1 FPSCR, 8 FPEXC), and its double
    * registers' loads and stores: what 9pi's kernel uses *)
   | Vmrs of { cond : cond; reg : int; rd : reg }

@@ -476,6 +476,30 @@ stack, the ELF, the command line); TinyArm_test.sh unchanged and
 passing (GNU as's bytes, objdump's listing, the runs on the CPU and
 under mini-5i, 3,000 random instructions).
 
+**TinyPi done** (2026-09-25): `tiny/TinyPi.ml`, 193 lines of code
+(305 with its comments), TinyLibArm unchanged. The machine around the
+CPU: the modes (USR, SYS, SVC, IRQ, UND) with their banked r13/r14,
+CPSR and the SPSRs, the exceptions (svc, undefined, IRQ) and their
+return (a data-processing `s` writing the pc restores CPSR from SPSR),
+mrs, msr, cpsie/cpsid and wfi run by TinyPi before the CPU's `step`
+sees the word (and written as `.word`s by a pass before TinyLibArm's
+assembler), the Pi1's PL011, system timer and interrupt controller at
+their addresses, time from instructions (a WFI with IRQs masked halts
+the machine). `TinyPi_tests/tick.s`, a page of kernel: its vectors
+copied to 0, a stack per mode, user mode entered by an exception
+return, two system calls and an undefined instruction, five timer
+interrupts 10ms apart, a halt. TinyPi_test.sh: GNU as's bytes; the
+console the same here, under mini-qemu and under QEMU's raspi1ap (the
+image loaded at 0x8000 as the firmware loads kernel.img); five
+interrupts and the halt at 50ms of simulated time at 10, 30 and 100
+instructions a microsecond. Left out: the MMU (TinyLibArm's fetch is
+physical; a fetch hook first), FIQ, aborts, the UART's input.
+
+Found on the way: **mini-qemu's arm32 had no `cps`** (9pi and xv6 never
+use it): the kernel's `cpsie i` was an undefined instruction there,
+and QEMU's output differed. Now in machine/'s `Arm32` (the three
+forms, printed as objdump prints them).
+
 ## Verification
 
 `make test-pi`: each xv6 port's `test-xv6.py` with mini-qemu as
