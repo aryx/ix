@@ -1,5 +1,5 @@
-@ TinyPi's kernel, a page: the modes, the three exceptions, a timer's
-@ interrupts, on a Pi1 (TinyPi_test.sh runs it under TinyPi, mini-qemu
+@ TinyMachinePi's kernel, a page: the modes, the three exceptions, a timer's
+@ interrupts, on a Pi1 (TinyMachinePi_test.sh runs it under TinyMachinePi, mini-qemu
 @ and QEMU's raspi1ap, the output the same). Loaded at 0x8000, entered
 @ in SVC mode with IRQ and FIQ masked, as the Pi1's firmware starts
 @ kernel.img. Its console: the PL011.
@@ -138,7 +138,7 @@ vectors:
 count:
 	.word 0
 hello:
-	.asciz "TinyPi: a kernel, in SVC mode\n"
+	.asciz "TinyMachinePi: a kernel, in SVC mode\n"
 from_user:
 	.asciz "user: hello, from user mode\n"
 back:

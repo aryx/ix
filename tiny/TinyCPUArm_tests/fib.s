@@ -1,4 +1,4 @@
-@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyArm.ml)
+@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPUArm.ml)
 @ the first 40 Fibonacci numbers, in decimal
 	.syntax unified
 	.text

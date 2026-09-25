@@ -20,7 +20,8 @@ test: all
 	./version_control/tests/git9_tests.sh
 	./version_control/tests/net.sh
 	./tiny/TinyVCS_test.sh 10
-	./tiny/TinyArm_test.sh
+	./tiny/TinyCPUArm_test.sh
+	./tiny/TinyMachinePi_test.sh
 	./tiny/TinyCPU_test.sh
 	./tiny/TinyMachine_test.sh
 	$(MAKE) -C tiny/tiny-os clean all
@@ -28,6 +29,7 @@ test: all
 	./machine/tests/decode_check.py --random 5000
 	./machine/tests/decode_check.py -64
 	./machine/tests/decode_check.py -64 --random 5000
+	./machine/tests/decode_check.py machine/tests/words_arm_system.txt
 	./machine/tests/decode_check.py -64 machine/tests/words_arm64_system.txt
 	./machine/tests/random_blocks.py 3000 30
 	./machine/tests/random_blocks.py -64 3000 30

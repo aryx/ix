@@ -196,7 +196,7 @@ raspberry/                 library ix_raspberry; the mini-qemu executable
                            partition, config.txt, the kernel's load
                            address and entry state, ATAGs or a DTB
   CLI.ml(i), Main.ml       QEMU's command line, the subset; -hw
-tiny/TinyPi.ml             the free variant
+tiny/TinyMachinePi.ml             the free variant
 ```
 
 **The size target**: the core extensions 1,700 (Arm32 privileged 350,
@@ -405,7 +405,7 @@ emulated and slow there) is in `Bits` alone (plan_arm.md, decision 3).
 - **H'. The web.** The machine compiled by js_of_ocaml with a web
   display (the playground's web backend, or a canvas): a Pi1 with xv6
   in a browser page, the card image fetched; its speed measured.
-- **I. `tiny/TinyPi.ml`.**
+- **I. `tiny/TinyMachinePi.ml`.**
 
 Each phase checked by the kernels' own tests, by QEMU's trace for the
 first divergence when one fails, and, for the boards' personality, by
@@ -425,7 +425,7 @@ QEMU's `virt` (phase H) are dropped: each is one more kernel for
 little new to teach once the Pi1 and Pi4 run. Decision 2's hand-off
 goes with them: a core runs one instruction set.
 
-## Outside QEMU: TinyPi.ml
+## Outside QEMU: TinyMachinePi.ml
 
 Free, in one file: the smallest machine a kernel can run on -- an ARM
 core subset, RAM, a UART, a timer and an interrupt line, sections-only
@@ -434,30 +434,30 @@ interrupts: the machine a first operating-systems course would want
 (TinyEMU's spirit, in OCaml). Checked by its laws: the kernel's
 output, the interrupts' count per simulated second.
 
-TinyPi is TinyArm.ml's machine, as TinyMachine.ml (plan_arm.md) is
+TinyMachinePi is TinyCPUArm.ml's machine, as TinyMachine.ml (plan_arm.md) is
 TinyCPU.ml's (2026-09-25): the tiny emulators are two by two, an
 instruction set inherited (ARM) or designed (TinyCPU's), a CPU seen
 from user mode or a machine with devices:
 
                    CPU, user mode     machine, devices
-    inherited      TinyArm.ml         TinyPi.ml
+    inherited      TinyCPUArm.ml         TinyMachinePi.ml
     designed       TinyCPU.ml         TinyMachine.ml
 
 The CPUs' world ends at a system call, which the interpreter answers
 itself; the machines' subject is below it, what a kernel sees: the
 processor's modes, the exception vector, an interrupt arriving
 between two instructions, the MMU, the devices behind addresses.
-TinyPi's are inherited too: its core is TinyArm's arm32, the Pi1's,
+TinyMachinePi's are inherited too: its core is TinyCPUArm's arm32, the Pi1's,
 with the modes, CP15 and the exceptions added, and its devices are
 the Pi1's own registers (a subset: a UART, the system timer, the
 interrupt controller), so that a bare-metal program for the Pi1 (the
 "Baking Pi" kind) runs on it and on the real board.
 
-Each machine relies on its CPU, not a copy of it: TinyArm.ml's
+Each machine relies on its CPU, not a copy of it: TinyCPUArm.ml's
 instructions, assembler and interpreter are a library,
 tiny/TinyLibArm.ml (the tiny/TinyLibXxx.ml convention for code tiny
-files share), TinyArm.ml keeping its command line, its three system
-calls and the ELF writer; TinyPi.ml is the modes, the exceptions and
+files share), TinyCPUArm.ml keeping its command line, its three system
+calls and the ELF writer; TinyMachinePi.ml is the modes, the exceptions and
 the devices around it. The library's `step` takes an `env` of four
 hooks, what a machine changes: the load and the store (devices behind
 addresses), what svc does (a system call answered, or an exception
@@ -467,28 +467,28 @@ instructions: mrs, msr, cps, the coprocessor's, which the subset
 leaves out); the check between two instructions (an interrupt
 pending) is in the machine's loop around `step`. The state the CPU
 record lacks (the mode, the banked registers, the saved status) is
-TinyPi's, beside it. TinyMachine.ml and tiny/TinyLibCPU.ml the same
+TinyMachinePi's, beside it. TinyMachine.ml and tiny/TinyLibCPU.ml the same
 way (plan_arm.md).
 
 **Split done** (2026-09-25): `tiny/TinyLibArm.ml` (720 lines) and
-`tiny/TinyArm.ml` (100 lines: Linux's three calls, the process's
-stack, the ELF, the command line); TinyArm_test.sh unchanged and
+`tiny/TinyCPUArm.ml` (100 lines: Linux's three calls, the process's
+stack, the ELF, the command line); TinyCPUArm_test.sh unchanged and
 passing (GNU as's bytes, objdump's listing, the runs on the CPU and
 under mini-5i, 3,000 random instructions).
 
-**TinyPi done** (2026-09-25): `tiny/TinyPi.ml`, 193 lines of code
+**TinyMachinePi done** (2026-09-25): `tiny/TinyMachinePi.ml`, 193 lines of code
 (305 with its comments), TinyLibArm unchanged. The machine around the
 CPU: the modes (USR, SYS, SVC, IRQ, UND) with their banked r13/r14,
 CPSR and the SPSRs, the exceptions (svc, undefined, IRQ) and their
 return (a data-processing `s` writing the pc restores CPSR from SPSR),
-mrs, msr, cpsie/cpsid and wfi run by TinyPi before the CPU's `step`
+mrs, msr, cpsie/cpsid and wfi run by TinyMachinePi before the CPU's `step`
 sees the word (and written as `.word`s by a pass before TinyLibArm's
 assembler), the Pi1's PL011, system timer and interrupt controller at
 their addresses, time from instructions (a WFI with IRQs masked halts
-the machine). `TinyPi_tests/tick.s`, a page of kernel: its vectors
+the machine). `TinyMachinePi_tests/tick.s`, a page of kernel: its vectors
 copied to 0, a stack per mode, user mode entered by an exception
 return, two system calls and an undefined instruction, five timer
-interrupts 10ms apart, a halt. TinyPi_test.sh: GNU as's bytes; the
+interrupts 10ms apart, a halt. TinyMachinePi_test.sh: GNU as's bytes; the
 console the same here, under mini-qemu and under QEMU's raspi1ap (the
 image loaded at 0x8000 as the firmware loads kernel.img); five
 interrupts and the halt at 50ms of simulated time at 10, 30 and 100

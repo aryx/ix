@@ -11,11 +11,11 @@
  * can run on, and one a bare-metal program for the real board runs on
  * too. mini-qemu (raspberry/) is QEMU's raspi1ap, faithfully: every
  * device 9pi and xv6 touch, the MMU, USB, the framebuffer. This is
- * what is left when the kernel is one we write: TinyArm's CPU
+ * what is left when the kernel is one we write: TinyCPUArm's CPU
  * (tiny/TinyLibArm.ml) with what a kernel sees below the system call.
  *
- *   $ tiny-pi TinyPi_tests/tick.s
- *   TinyPi: a kernel, in SVC mode
+ *   $ tiny-pi TinyMachinePi_tests/tick.s
+ *   TinyMachinePi: a kernel, in SVC mode
  *   user: hello, from user mode
  *   undefined instruction, skipped
  *   ...
@@ -38,7 +38,7 @@
  * - {b The instructions of the privileged modes}, which the CPU's
  *   subset leaves out: mrs, msr (register and immediate, CPSR or
  *   SPSR, by fields), cpsie and cpsid (the masks), wfi (wait for an
- *   interrupt). TinyPi runs them itself, before the CPU's [step] sees
+ *   interrupt). TinyMachinePi runs them itself, before the CPU's [step] sees
  *   the word; its assembler writes them as `.word`s for the CPU's.
  * - {b An interrupt between two instructions}: when a device's line is
  *   up, the controller lets it through, and I is clear.
@@ -65,7 +65,7 @@
  * interrupt and a shell; a second timer; a sections-only MMU (a fetch
  * hook in TinyLibArm first); FIQ with its banked r8-r12.
  *
- * The tests: TinyPi_test.sh assembles TinyPi_tests/*.s with GNU as and
+ * The tests: TinyMachinePi_test.sh assembles TinyMachinePi_tests/*.s with GNU as and
  * with this, the bytes the same; runs each here, under mini-qemu and
  * under QEMU (raspi1ap), the console the same; and checks its laws:
  * the interrupts counted, the simulated time when it halts.
@@ -204,7 +204,7 @@ let env t = {
   undefined = (fun m _ -> take t ~mode:und ~ret:(m.r.(15) + 4) ~vector:0x4);
 }
 
-(* the privileged instructions (condition always), TinyPi's own: true
+(* the privileged instructions (condition always), TinyMachinePi's own: true
  * when the word was one *)
 let privileged t w =
   let m = t.m in

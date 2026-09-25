@@ -8,10 +8,10 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The tests of TinyPi.ml, its laws:
+# The tests of TinyMachinePi.ml, its laws:
 #
-# 1. each program of TinyPi_tests/ assembled by GNU as (linked at
-#    0x8000, made a raw image as the Pi1's kernel.img) and by TinyPi:
+# 1. each program of TinyMachinePi_tests/ assembled by GNU as (linked at
+#    0x8000, made a raw image as the Pi1's kernel.img) and by TinyMachinePi:
 #    the same bytes;
 # 2. run here, its console is its .expected;
 # 3. run under mini-qemu and under QEMU (raspi1ap, the image loaded
@@ -23,10 +23,10 @@
 # Needs arm-linux-gnueabihf-as, -ld and -objcopy (binutils); QEMU's
 # qemu-system-arm for 3 (skipped without it).
 #
-# Usage: TinyPi_test.sh
+# Usage: TinyMachinePi_test.sh
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-T=$ROOT/_build/default/tiny/TinyPi.exe
+T=$ROOT/_build/default/tiny/TinyMachinePi.exe
 M=$ROOT/_build/default/raspberry/Main.exe
 W=$(mktemp -d)
 trap 'rm -rf $W' EXIT
@@ -34,7 +34,7 @@ failures=0
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
 loader() { echo "loader,file=$1,addr=0x8000,cpu-num=0,force-raw=on"; }
 
-for s in $ROOT/tiny/TinyPi_tests/*.s; do
+for s in $ROOT/tiny/TinyMachinePi_tests/*.s; do
   p=$(basename $s .s)
   # 1. the bytes
   $T -o $W/$p.img $s || { fail "$p: not assembled"; continue; }
@@ -55,12 +55,12 @@ done
 
 # 4. the machine's time
 for ips in 10 30 100; do
-  r=$($T -ips $ips -s $ROOT/tiny/TinyPi_tests/tick.s 2>&1 >/dev/null)
+  r=$($T -ips $ips -s $ROOT/tiny/TinyMachinePi_tests/tick.s 2>&1 >/dev/null)
   n=$(echo "$r" | sed -n 's/.*, \([0-9]*\) interrupts, at \([0-9]*\) us/\1 \2/p')
   set -- $n
   if [ "$1" = 5 ] && [ "$2" -ge 50000 ] && [ "$2" -lt 50200 ]; then echo "ok tick at $ips instructions a microsecond: 5 interrupts, halted at $2 us"
   else fail "tick at $ips: $r"; fi
 done
 
-echo "TinyPi_test: $failures failures"
+echo "TinyMachinePi_test: $failures failures"
 exit $((failures > 0))

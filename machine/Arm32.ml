@@ -80,7 +80,7 @@ let decode w =
     (* the unconditional space: clrex and the barriers (full system) *)
     if w = Bits.mask32 ((0xf57 lsl 20) lor 0xff01f) then Clrex
     else if field w 8 24 = 0xf57ff0 && field w 0 4 = 15 && field w 4 4 >= 4 && field w 4 4 <= 6 then Barrier { kind = field w 4 4 }
-    (* claude: cps (ARMv6), for TinyPi's kernel (tiny/TinyPi_tests/tick.s):
+    (* claude: cps (ARMv6), for TinyMachinePi's kernel (tiny/TinyMachinePi_tests/tick.s):
      * imod 2 enables, 3 disables; M, a mode *)
     else if field w 20 8 = 0x10 && not (bit w 16) && field w 9 7 = 0 && not (bit w 5)
             && (field w 18 2 >= 2 || (field w 18 2 = 0 && bit w 17)) && (bit w 17 || field w 0 5 = 0)

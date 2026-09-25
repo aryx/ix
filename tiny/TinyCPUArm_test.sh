@@ -8,22 +8,22 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The tests of TinyArm.ml, its laws against the real tools:
+# The tests of TinyCPUArm.ml, its laws against the real tools:
 #
-# 1. each program of TinyArm_tests/, assembled by GNU as and by
-#    TinyArm.ml: the text section byte for byte the same;
+# 1. each program of TinyCPUArm_tests/, assembled by GNU as and by
+#    TinyCPUArm.ml: the text section byte for byte the same;
 # 2. its listing, instruction by instruction, as objdump prints it;
-# 3. run here, on the CPU (the ELF TinyArm.ml writes; this machine runs
+# 3. run here, on the CPU (the ELF TinyCPUArm.ml writes; this machine runs
 #    arm32) and under machine/'s mini-5i: the same output and status;
 # 4. random lines of the subset's syntax (N, default 3000), assembled
 #    both ways, the same bytes, listed as objdump lists them.
 #
 # Needs arm-linux-gnueabihf-as and objcopy (binutils), objdump.
 #
-# Usage: TinyArm_test.sh [N]
+# Usage: TinyCPUArm_test.sh [N]
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-T=$ROOT/_build/default/tiny/TinyArm.exe
+T=$ROOT/_build/default/tiny/TinyCPUArm.exe
 M=$ROOT/_build/default/machine/Main.exe
 N=${1:-3000}
 W=$(mktemp -d)
@@ -32,7 +32,7 @@ failures=0
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
 AS=arm-linux-gnueabihf-as
 OBJCOPY=arm-linux-gnueabihf-objcopy
-if ! command -v $AS >/dev/null; then echo "TinyArm_test: no $AS, skipped"; exit 0; fi
+if ! command -v $AS >/dev/null; then echo "TinyCPUArm_test: no $AS, skipped"; exit 0; fi
 
 # the listing's lines, "ADDR\tTEXT", against objdump's for the same words
 listing_check() { # name source bin
@@ -42,7 +42,7 @@ listing_check() { # name source bin
   if [ -n "$bad" ]; then fail "$1: the listing differs from objdump's"; echo "$bad"; else echo "ok $1: listing"; fi
 }
 
-for s in $ROOT/tiny/TinyArm_tests/*.s; do
+for s in $ROOT/tiny/TinyCPUArm_tests/*.s; do
   p=$(basename $s .s)
   # 1. the bytes
   $AS -o $W/$p.o $s && $OBJCOPY -O binary -j .text $W/$p.o $W/$p.gas
@@ -153,8 +153,8 @@ for i in bad:
 PY
     fi
     listing_check fuzz $W/fuzz.s $W/fuzz.bin
-  else fail "fuzz: TinyArm.ml refused what GNU as took"; fi
+  else fail "fuzz: TinyCPUArm.ml refused what GNU as took"; fi
 else fail "fuzz: GNU as refused the generated file: $(head -3 $W/fuzz.err)"; fi
 
-echo "TinyArm_test: $failures failures"
+echo "TinyCPUArm_test: $failures failures"
 exit $((failures > 0))

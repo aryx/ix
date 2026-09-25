@@ -51,7 +51,7 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
   QEMU does, and a Pi 4 that boots xv6's 64-bit port on one to four
   cores ([`raspberry/`](raspberry/), run by `./mini-pi`); tiny-machine, TinyCPU's CPU with a timer, traps and a
   page of kernel (`./tiny-machine` assembles, links and runs it), and
-  tiny-pi, TinyArm's CPU in a Pi1 with its modes, exceptions, timer
+  tiny-pi, TinyCPUArm's CPU in a Pi1 with its modes, exceptions, timer
   and UART, whose page of kernel runs the same under QEMU.
 
 Their plans, tutorials and related-work notes are
@@ -96,7 +96,7 @@ devices, and a page of kernel) is a made-up machine with its assembler, as Knuth
 and MMIX and Nand2Tetris's Hack are, because what it teaches is the
 design of an instruction set: the choices a real one made for
 history's reasons, made again with hindsight. It stands next to
-TinyArm and TinyPi, the same two programs for real ARM, so that the
+TinyCPUArm and TinyMachinePi, the same two programs for real ARM, so that the
 two roads can be compared; no other program of ix targets it.
 
 ## The series (planned)

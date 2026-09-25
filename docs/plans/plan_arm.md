@@ -122,7 +122,7 @@ machine/                     library ix_machine; the mini-5i executable
   CLI.ml(i), Main.ml
 machine/tests/               census.py, bench_interp.ml; the
                              differential scripts; Testo for decoders
-tiny/TinyArm.ml              the free variant (see "Outside 5i")
+tiny/TinyCPUArm.ml              the free variant (see "Outside 5i")
 ```
 
 **The size target**: Bits 80, Memory 150, Elf 100, Arm32 900 (decode
@@ -286,13 +286,13 @@ the same IEEE doubles, the same output).
 7. **FPA** (if a program needs it), against arm64 native.
 8. **Optional: 5i's personality**, Plan 9's a.out and system calls,
    against goken's 5i on its Plan 9 test binaries.
-9. **The free variants**, two (the author: "maybe can do a TinyArm.ml
-   9a and a TinyCPU 9b"; "both"): **9a, `tiny/TinyArm.ml`**, an
+9. **The free variants**, two (the author: "maybe can do a TinyCPUArm.ml
+   9a and a TinyCPU 9b"; "both"): **9a, `tiny/TinyCPUArm.ml`**, an
    arm32 subset interpreter and a matching assembler in one file;
    **9b, `tiny/TinyCPU.ml`**, a toy load-store machine of our own
    design, as a teaching machine (MIX's and MMIX's road).
 
-## Outside 5i: TinyArm.ml
+## Outside 5i: TinyCPUArm.ml
 
 Free, in one file. Candidates, to choose when written: an arm32 subset
 (the census's commonest forms) interpreter and a matching assembler in
@@ -492,7 +492,7 @@ build on the CPU (the tests print the same lines everywhere). **17 of
 5i lacks (`alarm`, `rfork`, `fstat`) or files it does not provide
 (`#c/pid`, `/env`, `/proc/PID/note`).
 
-**Phase 9a done** (2026-09-24): `tiny/TinyArm.ml` (`tiny-arm`, 760
+**Phase 9a done** (2026-09-24): `tiny/TinyCPUArm.ml` (`tiny-arm`, 760
 lines), a computer in one file: an assembler for an arm32 subset in
 GNU as's syntax (data processing with every operand form and the
 shift aliases, conditions and `s` everywhere, mul and mla, word and
@@ -501,9 +501,9 @@ push/pop, the branches, svc, adr, `ldr =` and its literal pool), an
 interpreter that decodes the words it runs (read, write and exit, as
 Linux numbers them), and an ELF writer. One variant is read by the
 parser, the encoder, the decoder, the printer and the executor.
-Checked by `tiny/TinyArm_test.sh` against the real tools:
+Checked by `tiny/TinyCPUArm_test.sh` against the real tools:
 
-- five programs (`TinyArm_tests/`: hello, fib, a sieve, a reversal of
+- five programs (`TinyCPUArm_tests/`: hello, fib, a sieve, a reversal of
   standard input, a checksum over the other forms) assemble to GNU as's
   text section byte for byte; their listing, each word decoded back,
   is objdump's text; each runs the same here, on the CPU (the ELF
@@ -546,7 +546,7 @@ Renamed TinyMachine.ml to TinyCPU.ml then (`tiny-cpu`): a CPU and its
 memory, no devices. The name TinyMachine.ml goes to its machine.
 
 **TinyMachine.ml, planned**: TinyCPU.ml's instruction set with a
-machine around it, as TinyPi.ml (plan_pi.md) is TinyArm.ml's: the
+machine around it, as TinyMachinePi.ml (plan_pi.md) is TinyCPUArm.ml's: the
 design lesson continued below the system call. What to design, kept
 as small as TinyCPU's own choices: a user and a supervisor mode; a
 trap that saves the pc and the cause in two registers and jumps to
@@ -572,7 +572,7 @@ addresses), what sys does (a trap), and what an unknown word does
 and from the trap registers); the check between two instructions
 (the timer's interrupt) is in the machine's loop around `step`. What
 the assembler lacks for those instructions, an extension point, is
-TinyMachine's to add, when it knows what it needs. TinyPi.ml and
+TinyMachine's to add, when it knows what it needs. TinyMachinePi.ml and
 tiny/TinyLibArm.ml the same way (plan_pi.md).
 
 **Split done** (2026-09-25): `tiny/TinyLibCPU.ml` (390 lines: the

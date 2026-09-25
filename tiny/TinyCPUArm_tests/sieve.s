@@ -1,4 +1,4 @@
-@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyArm.ml)
+@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPUArm.ml)
 @ the primes below 1000, Eratosthenes' sieve in a byte array; exit
 @ status: how many (168)
 	.syntax unified

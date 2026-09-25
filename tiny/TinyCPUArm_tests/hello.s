@@ -1,4 +1,4 @@
-@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyArm.ml)
+@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPUArm.ml)
 @ write(1, msg, 13); exit(0)
 	.syntax unified
 	.text

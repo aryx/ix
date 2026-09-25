@@ -9,9 +9,9 @@
  *)
 (* A tiny ARM CPU: an assembler for a subset of arm32, and the
  * interpreter that runs what it assembles. The library of two
- * programs: TinyArm.ml, the CPU run as Linux runs a user program (its
+ * programs: TinyCPUArm.ml, the CPU run as Linux runs a user program (its
  * system calls answered by the host, and the ELF writer that lets the
- * real CPU run it too); and TinyPi.ml, planned (plan_pi.md), the CPU
+ * real CPU run it too); and TinyMachinePi.ml (plan_pi.md), the CPU
  * in the Pi1 with its devices. mini-5i (machine/) is 5i's twin: a
  * decoder for every word the toolchains emit, two architectures,
  * Linux's and Plan 9's system calls. This is what is left when the
@@ -27,7 +27,7 @@
  * what the rest of ix runs (mini-5i's, the Pi1's). TinyCPU shows what
  * an instruction set could be; this, what a real one asks of its
  * assembler and its interpreter. Neither has devices: a system call is
- * where both stop. Below it are their machines: TinyPi.ml, planned,
+ * where both stop. Below it are their machines: TinyMachinePi.ml,
  * this CPU with the Pi1's devices (plan_pi.md), and TinyMachine.ml,
  * TinyCPU's, each using its CPU as a library.
  *
@@ -55,8 +55,8 @@
  *   (mov and mvn, add and sub, cmp and cmn, and and bic, adc and sbc):
  *   the programmer writes the value, the assembler finds the word.
  * - {b A machine changes four things}, the fields of [env]: a load, a
- *   store, an svc, and a word [decode] does not know. TinyArm gives
- *   memory, Linux's calls, and an error; TinyPi will give the Pi1's
+ *   store, an svc, and a word [decode] does not know. TinyCPUArm gives
+ *   memory, Linux's calls, and an error; TinyMachinePi will give the Pi1's
  *   devices behind addresses, the exception taken, and the
  *   instructions of the privileged modes. What happens between two
  *   instructions (an interrupt) is the loop's that calls [step].
@@ -75,7 +75,7 @@
  * against GNU as: expressions beyond label +/- constant, macros,
  * relocations and separate compilation.
  *
- * The tests: TinyArm_test.sh assembles the programs of TinyArm_tests/
+ * The tests: TinyCPUArm_test.sh assembles the programs of TinyCPUArm_tests/
  * with GNU as and with this, the text section byte for byte the same;
  * lists them against objdump; runs each here, on the CPU (the ELF
  * written) and under machine/'s mini-5i, the outputs and exit statuses

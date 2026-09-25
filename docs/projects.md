@@ -40,8 +40,8 @@ of our own, designed to teach, whose guest code ix writes itself:
 
 |                      | CPU, user mode                        | machine, with devices, for a kernel |
 |----------------------|---------------------------------------|-------------------------------------|
-| real ARM, faithful   | mini-5i (`machine/`: arm32, arm64)    | mini-qemu (`raspberry/`: the Pi1, the Pi4 in progress; `./mini-pi`) |
-| real ARM, free       | tiny-arm (`TinyArm.ml`, `TinyLibArm.ml`: arm32) | *tiny-pi* (`TinyPi.ml`: the Pi1)   |
+| real ARM, faithful   | mini-5i (`machine/`: arm32, arm64)    | mini-qemu (`raspberry/`: the Pi1, the Pi4; `./mini-pi`) |
+| real ARM, free       | tiny-arm (`TinyCPUArm.ml`, `TinyLibArm.ml`: arm32) | tiny-pi (`TinyMachinePi.ml`: the Pi1)   |
 | our own, free        | tiny-cpu (`TinyCPU.ml`, `TinyLibCPU.ml`) | tiny-machine (`TinyMachine.ml`; `./tiny-machine`) |
 
 Each machine, with what makes its guest code and what runs on it:
@@ -50,8 +50,8 @@ Each machine, with what makes its guest code and what runs on it:
 |--------------|---------------------------------------------------|-----------------|
 | mini-5i      | mini-cc, mini-asm, mini-ld (goken's 5c/5l, 7c/7l the reference) | Linux and Plan 9 user programs, arm and arm64 |
 | mini-qemu    | outside ix: the kernels' own builds               | xv6 (`~/xv6`), 9pi (`~/principia`), as QEMU runs them |
-| tiny-arm     | its own assembler (GNU as's syntax and bytes)     | `.s` programs (`tiny/TinyArm_tests/`) |
-| *tiny-pi*    | tiny-arm's assembler                              | *a page of kernel, bare-metal Pi1 programs* |
+| tiny-arm     | its own assembler (GNU as's syntax and bytes)     | `.s` programs (`tiny/TinyCPUArm_tests/`) |
+| tiny-pi      | tiny-arm's assembler, plus mrs, msr, cps, wfi     | a page of kernel (`tiny/TinyMachinePi_tests/tick.s`), bare-metal Pi1 programs |
 | tiny-cpu     | TinyLibCPU's assembler; `tiny-c -tm` for C        | `.tm` programs; C programs with `tiny-os/libc/` |
 | tiny-machine | the same, plus csrr, csrw, eret                   | tiny-os's kernels and their programs |
 

@@ -1,5 +1,5 @@
-@ The smallest bare-metal program for the Pi1 (TinyPi_test.sh runs it
-@ under TinyPi, mini-qemu and QEMU's raspi1ap): loaded at 0x8000,
+@ The smallest bare-metal program for the Pi1 (TinyMachinePi_test.sh runs it
+@ under TinyMachinePi, mini-qemu and QEMU's raspi1ap): loaded at 0x8000,
 @ entered in SVC mode, IRQ and FIQ masked. It writes a line to the
 @ PL011 and halts: a WFI with IRQs masked never wakes.
 	.text

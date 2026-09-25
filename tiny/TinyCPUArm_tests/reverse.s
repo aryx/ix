@@ -1,4 +1,4 @@
-@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyArm.ml)
+@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPUArm.ml)
 @ standard input's first 256 bytes, reversed (the final newline kept
 @ last); exit status: how many bytes read
 	.syntax unified

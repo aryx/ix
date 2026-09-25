@@ -1,4 +1,4 @@
-@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyArm.ml)
+@ Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPUArm.ml)
 @ the other forms of the subset, each result folded into a checksum
 @ (r10 = r10 ror 7, eor the result), printed in hex; exit status: its
 @ low byte

@@ -52,10 +52,10 @@
  (modules TinyLibArm))
 
 (executable
- (name TinyArm)
+ (name TinyCPUArm)
  (public_name tiny-arm)
  (package ix)
- (modules TinyArm)
+ (modules TinyCPUArm)
  (libraries ix_core fpath caps tiny_lib_arm))
 
 (library
@@ -78,8 +78,8 @@
  (libraries ix_core fpath caps tiny_lib_cpu))
 
 (executable
- (name TinyPi)
+ (name TinyMachinePi)
  (public_name tiny-pi)
  (package ix)
- (modules TinyPi)
+ (modules TinyMachinePi)
  (libraries ix_core fpath caps tiny_lib_arm))

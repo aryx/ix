@@ -13,11 +13,11 @@
  * by the host; and TinyMachine.ml, the CPU with what a kernel needs
  * around it, its system calls traps. Knuth's road with MIX and MMIX:
  * when the machine is for teaching, design it; mini-5i (machine/) and
- * TinyArm.ml emulate the machine history left us, this one the machine
+ * TinyCPUArm.ml emulate the machine history left us, this one the machine
  * fifty years of hindsight would draw.
  *
  * Why an assembler, in a file about a machine: the machine is new, so
- * nothing else writes its words. TinyArm.ml could borrow GNU as (it
+ * nothing else writes its words. TinyCPUArm.ml could borrow GNU as (it
  * has its own assembler to check itself against as's bytes); this one
  * has no as to borrow, and a machine no one can program teaches
  * nothing. Programs by hand-encoded hex words would be the other way,

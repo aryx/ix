@@ -17,7 +17,7 @@
  * The operating system is three calls: read, write, exit, as Linux
  * numbers them (r7), so that the ELF written runs on Linux as the
  * interpreter runs it. The instruction set, the assembler, the
- * interpreter and their laws are TinyLibArm.ml's; TinyPi.ml (planned,
+ * interpreter and their laws are TinyLibArm.ml's; TinyMachinePi.ml (planned,
  * plan_pi.md) runs the same CPU with the Pi1's devices, where an svc
  * is an exception taken.
  *
