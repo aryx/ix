@@ -27,8 +27,14 @@
 # processing, branches, loads and stores; SIMD and floating point
 # excluded).
 #
-# Usage: decode_check.py [-64] [words file]
-#        decode_check.py [-64] --random N [seed]
+# With -64fp (claude): random words of the scalar floating point's
+# classes that Arm64 decodes (data processing on s and d, the
+# conversions, the loads and stores of s, d, q and their pairs, movi,
+# sshr/ushr), shaped so as not to wander into the SIMD words that crash
+# objdump.
+#
+# Usage: decode_check.py [-64 | -64fp] [words file]
+#        decode_check.py [-64 | -64fp] --random N [seed]
 
 import atexit, os, random, shutil, subprocess, sys, tempfile
 
@@ -36,7 +42,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "../..")
 tmp = tempfile.mkdtemp()
 atexit.register(shutil.rmtree, tmp)
-a64 = len(sys.argv) > 1 and sys.argv[1] == "-64"
+fp64 = len(sys.argv) > 1 and sys.argv[1] == "-64fp"
+a64 = len(sys.argv) > 1 and sys.argv[1] in ("-64", "-64fp")
 argv = [sys.argv[0]] + sys.argv[2:] if a64 else sys.argv
 randomized = len(argv) > 1 and argv[1] == "--random"
 if randomized:
@@ -47,6 +54,15 @@ if randomized:
         # crash objdump 2.42), x101 registers
         top = r.choice([0b1000, 0b1001, 0b1010, 0b1011, 0b0100, 0b1100, 0b0101, 0b1101])
         w = r.getrandbits(32) & ~(0xf << 25) | top << 25
+        if fp64:
+            k = r.randrange(6)
+            x = r.getrandbits(32)
+            if k < 2: w = x & 0x80ffffff | (0b0011110 + k) << 24                  # fp data processing, fmadd
+            elif k == 2: w = x & 0xc0ffffff | 0b111100 << 24 & 0x3f000000 | r.choice([0, 2, 3]) << 30  # ldr/str s d q
+            elif k == 3: w = x & 0xc1ffffff | 0b101100 << 24 & 0x3e000000 | r.randrange(3) << 30      # ldp/stp s d q
+            elif k == 4: w = x & 0x2007fc1f | 0x0f000400 | r.randrange(16) << 12                        # movi (Q = 0)
+            else: w = x & 0x2000fc1f & ~(0x3f << 10) | 0x5f400400 | r.randrange(64) << 16               # sshr, ushr d
+            return "%08x" % w
         return "%08x" % w
     def word32():
         cond = r.randrange(15) << 28

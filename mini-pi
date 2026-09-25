@@ -17,8 +17,10 @@
 #   ./mini-pi xv6-pi4        xv6 arm64-pi4, the Pi4 (one core; -c 4 its four)
 #   ./mini-pi 9pi            principia's 9pi, its SD card image, the console
 #                       in this terminal (the mini UART)
-#   ./mini-pi mini-xv6       ix's mini-xv6 (kernel/xv6/: xv6 in OCaml), with
-#                       xv6 arm-pi1's fs.img; built first (its Makefile)
+#   ./mini-pi mini-xv6-pi1   ix's mini-xv6 (kernel/xv6/: xv6 in OCaml) on the
+#                       Pi1, with xv6 arm-pi1's fs.img; built first
+#   ./mini-pi mini-xv6-pi4   the same kernel on the Pi4, with xv6
+#                       arm64-pi4's fs.img (one core)
 #
 # Options:
 #   -g   a window: the framebuffer (and for xv6, a USB keyboard: type in
@@ -35,7 +37,7 @@
 #
 # Where the kernels are: $XV6 (default ~/xv6: xv6-multiarch, its ports
 # built), $PRINCIPIA (default ~/principia: 9pi built, qemu-sd.img),
-# mini-xv6 in ix's kernel/xv6/ (with $XV6's arm-pi1 fs.img).
+# mini-xv6 in ix's kernel/xv6/ (with $XV6's arm-pi1 and arm64-pi4 fs.img).
 
 set -e
 # claude: ix's checkout, also when run as bin/mini-pi (a link into
@@ -74,13 +76,22 @@ case $1 in
     smp=$cores; [ $qemu = 1 ] && smp=4
     args=(-cpu cortex-a72 -M raspi4b -kernel $image -m 2G -smp $smp -nographic)
     ;;
-  mini-xv6)
-    dir=$ROOT/kernel/xv6; image=kernel.img
+  mini-xv6-pi1|mini-xv6-pi4)
+    board=${1#mini-xv6-}
+    dir=$ROOT/kernel/xv6
     [ $graphics = 1 ] && { echo "mini-pi: mini-xv6 has no graphics"; exit 1; }
     if [ $build = 1 ]; then
-      $ROOT/kernel/ocaml-light.sh > /dev/null && make -C $dir XV6=$XV6 > /dev/null || { echo "mini-pi: mini-xv6 not built"; exit 1; }
+      arch=arm; [ $board = pi4 ] && arch=arm64
+      $ROOT/kernel/ocaml-light.sh $arch > /dev/null && make -C $dir BOARD=$board XV6=$XV6 > /dev/null || { echo "mini-pi: mini-xv6 not built"; exit 1; }
     fi
-    args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on -nographic)
+    if [ $board = pi1 ]; then
+      image=kernel-pi1.img
+      args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on -nographic)
+    else
+      image=kernel-pi4.elf
+      smp=1; [ $qemu = 1 ] && smp=4
+      args=(-cpu cortex-a72 -M raspi4b -kernel $image -m 2G -smp $smp -nographic)
+    fi
     ;;
   9pi)
     dir=$PRINCIPIA
@@ -99,7 +110,7 @@ esac
 emulator=$ROOT/_build/default/raspberry/Main.exe
 QEMU64=${QEMU64:-/media/pad/extradrive1/pad/work/TOOLCHAINS/qemu/build/qemu-system-aarch64}
 [ -x $QEMU64 ] || QEMU64=$(command -v qemu-system-aarch64)
-qemu_exe=$(command -v qemu-system-arm); [ $1 = xv6-pi4 ] && qemu_exe=$QEMU64
+qemu_exe=$(command -v qemu-system-arm); case $1 in xv6-pi4|mini-xv6-pi4) qemu_exe=$QEMU64;; esac
 [ $qemu = 1 ] && emulator=$qemu_exe
 say() { echo "mini-pi: $*" >&2; }
 say "emulator: $emulator$( [ $qemu = 0 ] && echo " (mini-qemu)")"

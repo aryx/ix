@@ -1,0 +1,81 @@
+init: starting sh
+$ ls
+.              1 1 1024
+..             1 1 1024
+README         2 2 1497
+cat            2 3 6520
+echo           2 4 6200
+forktest       2 5 4016
+grep           2 6 7200
+init           2 7 6520
+kill           2 8 6168
+ln             2 9 6176
+ls             2 10 7064
+mkdir          2 11 6224
+rm             2 12 6216
+sh             2 13 10800
+stressfs       2 14 6360
+usertests      2 15 37880
+grind          2 16 9360
+wc             2 17 6648
+zombie         2 18 6080
+console        3 19 0
+$ cat README
+xv6-rpi4
+xv6-rpi4 has been confirmed on an actual Raspberry Pi 4B.
+NOT implemented: micro sd driver
+BUILD:
+  - run on raspberry pi 4B:
+    1. modify `SDPATH` in Makefile to your sd card's directory
+    2. `make rpi4` will generate kernel8.img and copy to `SDPATH`
+    (claude: upstream also had a step 1 here, "delete `ASFLAGS +=
+     -DRPI4_QEMU` in Makefile" - no longer needed, and the flag is gone.
+     kernel/entry.S reads CurrentEL at runtime to tell a QEMU boot (EL3)
+     from a real-firmware one (EL2), so the same kernel8.img is correct
+     on both. See that file's comment on _entry.)
+  - run on qemu
+    1. `make qemu`, with a mainline qemu >= 9.1 on PATH - 9.1 is the
+       first release with a Raspberry Pi 4 board at all (`-M raspi4b`,
+       the default here now). Boots to a shell and passes usertests;
+       verified on 11.1.50. This repo's top-level `make run-arm64-pi4` /
+       `make test-arm64-pi4` do it with the qemu ./configure found.
+    2. or, for the qemu fork this port was originally developed against,
+       clone and build qemu-patch-raspberry4
+       (https://github.com/k-mrm/qemu-patch-raspberry4), then
+       `make qemu QEMUPREFIX=<path>/qemu-patch-raspberry4/build/
+       QEMUMACHINE=raspi4b1g QEMUMEM=1G`
+
+Serial Communication:
+  xv6-rpi4 use uart0
+  baudrate: 115200
+
+ACKNOWLEDGMENTS
+
+See README.common at the top of this repository for the acknowledgments
+shared by every port here - John Lions's Commentary, the contributor
+list, and the copyright.
+$ echo hello world
+hello world
+$ mkdir d
+$ ls d
+.              1 20 32
+..             1 1 1024
+$ ln README d/r
+$ ls d
+.              1 20 48
+..             1 1 1024
+r              2 2 1497
+$ wc d/r
+33 213 1497 d/r
+$ rm d/r
+$ grep xv6 README
+xv6-rpi4
+xv6-rpi4 has been confirmed on an actual Raspberry Pi 4B.
+  xv6-rpi4 use uart0
+$ forktest
+fork test
+fork test OK
+$ cat nosuch
+cat: cannot open nosuch
+$ sh -c
+$ 

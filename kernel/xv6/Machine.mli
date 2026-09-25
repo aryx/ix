@@ -1,6 +1,7 @@
-(* mini-xv6: the machine (machine.c's primitives). Addresses as ints: a
- * user's (below 1GB) and a physical one (below 512MB) fit OCaml's 31
- * bits on the Pi1; the kernel's own never reach OCaml (plan_kernel.md,
+(* mini-xv6: the machine, as the board's machine.c and runtime.c give it
+ * (the same names on the Pi1 and the Pi4). Addresses are ints: a
+ * user's and a physical one fit OCaml's (31 bits on the Pi1: below
+ * 1GB; 63 on the Pi4); the kernel's own never reach OCaml (plan_kernel.md,
  * decision 3; kernel/step4). *)
 
 (* physical memory, by physical address *)
@@ -19,15 +20,14 @@ module Phys : sig
   external read : int -> int -> string = "phys_read"
 end
 
-(* the running process's trap frame, by word: r0-r12, sp 13, lr 14, the
- * pc 15, the CPSR 16 *)
+(* the running process's trap frame, by word (Arch: its layout, the
+ * board's) *)
 external tf_get : int -> int = "tf_get"
 external tf_set : int -> int -> unit = "tf_set"
-(* a word whose top bits matter (the CPSR's flags) *)
-external tf_get32 : int -> Int32.t = "tf_get32"
 (* a slot's trap frame: zeros, user mode, IRQs on *)
 external tf_init : int -> unit = "tf_init"
-(* the running process's copied to a slot's, r0 0 (fork's child) *)
+(* the running process's copied to a slot's, the first register 0
+ * (fork's child) *)
 external tf_copy : int -> unit = "tf_copy"
 
 (* a slot's kernel stack made fresh: its first switch enters
@@ -59,8 +59,7 @@ external halt : unit -> unit = "machine_halt"
 external fs_base : unit -> int = "fs_base"
 external fs_size : unit -> int = "fs_size"
 
-(* the console's output: a newline goes out as CR LF (xv6 arm-pi1's
- * uartputc) *)
+(* the console's output, as it is (no CR before a newline: xv6-riscv's) *)
 val putc : char -> unit
 val print : string -> unit
 
@@ -71,8 +70,8 @@ val panic : string -> 'a
 val le16 : int -> string
 val le32 : int -> string
 
-(* [get_le32 s off]: a word as C's int. OCaml's int has 31 bits here:
- * the words from -1GB to 1GB are exact; the others (as an address, 1GB
- * and up: none of a user's) come back as max_int, which every bound
- * refuses *)
+(* [get_le32 s off]: a 32-bit word as C's int. On the Pi1 OCaml's int
+ * has 31 bits: the words from -1GB to 1GB are exact; the others (as an
+ * address, 1GB and up: none of a user's) come back as max_int, which
+ * every bound refuses *)
 val get_le32 : string -> int -> int

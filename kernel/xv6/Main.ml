@@ -41,7 +41,7 @@ let guard where f =
   try f () with e -> ignore (Machine.panic ("an exception in " ^ where ^ ": " ^ Printexc.to_string e))
 
 (* a killed process dies on its way back to user mode *)
-let check_killed p = if p.killed then Syscall.exit p
+let check_killed p = if p.killed then Syscall.exit p (-1)
 
 let trap () =
   guard "a system call" (fun () ->
@@ -59,17 +59,15 @@ let irq () =
     if t then Proc.yield ();
     check_killed p)
 
-(* a user's fault (kind 2 a prefetch abort, 3 a data abort): the process
- * killed. The message is xv6's: the trap's number (T_PABT 2, T_DABT 4),
- * the trap frame's pc as xv6 saves it (the abort's lr - 4: past the
- * faulting instruction, for a data abort), the user's CPSR; then, not
- * xv6's kernel CPSR and IFAR, the fault's address *)
-let fault kind (far : Int32.t) (_ : int) =
+(* a user's fault (runtime.c's user_fault): the process killed, with
+ * xv6-multiarch's arm64 message: the exception class, the syndrome, the
+ * pc, the fault's address, each an xv6 %p (0x and 16 digits: the
+ * board's C formats the last three, a machine word) *)
+let fault ec ((esr : string), (elr : string), (far : string)) =
   guard "a fault" (fun () ->
     let p = Proc.myproc () in
-    Machine.print (Printf.sprintf "pid %d %s: trap %d on cpu 0 addr 0x%x spsr 0x%s far 0x%s--kill proc\n"
-                     p.pid p.name (if kind = 3 then 4 else 2) (Machine.tf_get 15 - 4)
-                     (Int32.format "%x" (Machine.tf_get32 16)) (Int32.format "%x" far));
+    Machine.print (Printf.sprintf "usertrap(): unexpected ec 0x%016x %s pid=%d\n            elr=%s far=%s\n"
+                     ec esr p.pid elr far);
     p.killed <- true;
     check_killed p)
 
@@ -78,7 +76,11 @@ let fault kind (far : Int32.t) (_ : int) =
 let process_start (_ : int) =
   guard "a process's start" (fun () ->
     let p = Proc.myproc () in
-    if p.pid = 1 && Exec.exec "/init" [ "/init" ] <> 0 then ignore (Machine.panic "exec /init");
+    if p.pid = 1 then begin
+      let argc = Exec.exec "/init" [ "/init" ] in
+      if argc < 0 then ignore (Machine.panic "exec /init");
+      Machine.tf_set 0 argc
+    end;
     Machine.user_resume ())
 
 (*****************************************************************************)
@@ -99,7 +101,7 @@ let () =
   Machine.tf_init 0;
   Proc.procs.(0) <-
     Some { pid = 1; slot = 0; state = Runnable; pgdir = pgdir; sz = 0; parent = 0; killed = false;
-           ofile = Array.make Syscall.nofile None; cwd = Fs.iget Fs.rootino; name = "initcode" };
+           xstate = 0; ofile = Array.make Syscall.nofile None; cwd = Fs.iget Fs.rootino; name = "initcode" };
   Proc.nextpid := 2;
   Machine.proc_context 0;
   Proc.scheduler ()

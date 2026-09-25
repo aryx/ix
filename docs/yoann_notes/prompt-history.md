@@ -4747,3 +4747,107 @@ A bug in the C kernel (O_TRUNC panic on redirects) was discovered; kernel/xv6 re
 **Yoann:**
 
 > ok great!
+
+**Claude (summary):**
+
+Claude reported all changes uncommitted, spanning kernel/xv6/, mini-pi, kernel/test.sh, plan_kernel.md, and notes_kernel.md. Claude instructed that .codemapignore must be excluded from the commit as it belongs to ix-f8. Claude noted the mini-qemu usertests run was still executing and would write timing results to plan_kernel.md at completion. The MINITIME timing placeholder in plan_kernel.md will be automatically populated once the test finishes. All work remains in the working tree for user review before committing.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:49
+
+**Yoann:**
+
+> let's commit!
+
+**Claude (summary):**
+
+Claude committed 0017106 with mini-xv6 kernel: .mli sources, session.py, and expected outputs.
+Claude committed mini-pi mini-xv6 entry and kernel/test.sh hook to support testing.
+Claude committed plan_kernel.md, notes_kernel.md, and prompt-history.md to document the kernel work.
+Claude left ix-f8's .codemapignore uncommitted and did not push anything to the repository.
+Claude noted mini-qemu usertests were over thirty minutes in with final time pending.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:55
+
+**Yoann:**
+
+> ok now let's handle also arm64 with the same kernel, so have mini-xv6-pi1 and mini-xv6-pi4
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:56
+
+**Yoann:**
+
+> just like for the assembler, linker, compiler, we handle the 2 archs
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:56
+
+**Yoann:**
+
+> that would force to make the code more portable and less architecture specific
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:56
+
+**Yoann:**
+
+> finding the right arch- abstraction
+
+------------------------------------------------------------------------
+
+## 2026-09-25 17:28
+
+**Yoann:**
+
+> actually one of the goal in xv6-multiarch was to gradually merge all those forks in a single codebase
+
+------------------------------------------------------------------------
+
+## 2026-09-25 17:28
+
+**Yoann:**
+
+> of course having arch specific part, but trying to merge things
+
+------------------------------------------------------------------------
+
+## 2026-09-25 17:29
+
+**Yoann:**
+
+> yes
+
+**Claude (summary):**
+
+Claude identified arch-specific parts (page tables, trap frames, ELF, peripherals) needing separation from merged core code (exit/wait, exec, console). Claude recommended xv6-riscv's modern semantics: exit(status)/wait(&status) with -1 for killed, page-table string checks, and 16-byte-aligned exec stack. This makes Pi1 images non-byte-identical where forks diverge but establishes convergence points for the unified codebase. Claude also recommended adding arm64 floating-point to mini-qemu for OCaml runtime compatibility. Claude sought approval on both decisions and Yoann confirmed the xv6-riscv semantics recommendation.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 17:29
+
+**Yoann:**
+
+> yes xv6-riscv modern semantic probably
+
+**Claude (summary):**
+
+Claude added arm64 scalar FP to mini-qemu, verified against real hardware with 10k random blocks showing zero differences.
+Claude restructured the kernel as shared 1,036-line OCaml core plus board-specific Arch modules (Pi1: 27 lines, Pi4: 39 lines) behind Arch.mli.
+Claude rewrote Syscall.ml for xv6-riscv semantics; Pi1 is byte-identical to the C kernel, Pi4 passes all 62 usertests under QEMU.
+Claude recovered fs.img from fs.img.o's data section, restored its mtime, and rewrote the Makefile to eliminate built-in rules.
+Claude documented the merge in plan_kernel.md with a convergence table listing every difference between the original arm-pi1 and arm64-pi4 boards.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 18:48
+
+**Yoann:**
+
+> let's commit. What's next?

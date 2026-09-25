@@ -12,8 +12,9 @@
 # Makefile; ocaml-light's cross compiler by ocaml-light.sh, once), then
 # its kernel.img run under mini-qemu and under QEMU's raspi1ap (when
 # qemu-system-arm is here), the console the same as stepN/expected; then
-# mini-xv6 itself (xv6/: its Makefile's check, a shell session the same
-# as xv6 arm-pi1's C kernel's, and usertests).
+# mini-xv6 itself on both boards (xv6/: its Makefile's check, BOARD=pi1
+# and pi4, a shell session the same as the xv6 port's C kernel's, and
+# usertests).
 #
 # Usage: test.sh [stepN... xv6]
 
@@ -23,13 +24,16 @@ W=$(mktemp -d)
 trap 'rm -rf $W' EXIT
 failures=0
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
-$HERE/ocaml-light.sh > /dev/null || { echo "test.sh: no ocaml-light for arm"; exit 1; }
+$HERE/ocaml-light.sh arm > /dev/null || { echo "test.sh: no ocaml-light for arm"; exit 1; }
+$HERE/ocaml-light.sh arm64 > /dev/null || { echo "test.sh: no ocaml-light for arm64"; exit 1; }
 steps=${@:-$(cd $HERE && ls -d step* xv6)}
 for step in $steps; do
   d=$HERE/$step
   if [ $step = xv6 ]; then
-    make -C $d check > $W/check.log 2>&1 || fail "xv6: $(tail -5 $W/check.log)"
-    grep '^ok' $W/check.log
+    for board in pi1 pi4; do
+      make -C $d BOARD=$board check > $W/check.log 2>&1 || fail "xv6 $board: $(tail -5 $W/check.log)"
+      grep '^ok' $W/check.log
+    done
     continue
   fi
   make -C $d > $W/make.log 2>&1 || { fail "$step: not built"; tail -5 $W/make.log; continue; }

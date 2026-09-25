@@ -42,13 +42,26 @@
 # FPSCR, whose flags only are compared (not its cumulative exception
 # bits, which mini-5i does not keep).
 #
-# Usage: random_blocks.py [-64 | -vfp] [blocks] [length] [seed]
+# With -64fp: arm64 blocks with the scalar floating point mixed in
+# (claude: what mini-qemu's arm64 runs of the OCaml runtime, kernel/xv6
+# on the Pi4): fadd, fsub, fmul, fdiv, fnmul, the multiply-adds, fmov,
+# fabs, fneg, fsqrt, fcvt, the compares (nzcv), fcsel, fmov of an
+# immediate and with the core registers, the conversions with the
+# integers (fcvtzs, fcvtzu, scvtf, ucvtf), movi, sshr and ushr of a d,
+# and the loads and stores of s, d (single and pairs) and the q stores
+# through x27; d0-d31 loaded from their own area first (random doubles,
+# special values, random bits: singles in their low halves), stored
+# back last. No q load: mini-qemu keeps a v register's low 64 bits
+# (what its scalar writes leave nonzero).
+#
+# Usage: random_blocks.py [-64 | -vfp | -64fp] [blocks] [length] [seed]
 
 import concurrent.futures, os, random, struct, subprocess, sys, tempfile
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
 TA = os.path.join(ROOT, "_build/default/machine/Main.exe")
-A64 = len(sys.argv) > 1 and sys.argv[1] == "-64"
+FP64 = len(sys.argv) > 1 and sys.argv[1] == "-64fp"
+A64 = len(sys.argv) > 1 and sys.argv[1] in ("-64", "-64fp")
 VFP = len(sys.argv) > 1 and sys.argv[1] == "-vfp"
 argv = sys.argv[2:] if A64 or VFP else sys.argv[1:]
 BLOCKS = int(argv[0]) if len(argv) > 0 else 500
@@ -291,7 +304,8 @@ class Gen:
 
 STATE64 = 0x2000                # x0-x30, nzcv: 32 doublewords
 BUF64 = STATE64 + 256
-FILE64 = BUF64 + BUFSIZE
+VSTATE64 = BUF64 + BUFSIZE      # -64fp: d0-d31
+FILE64 = VSTATE64 + (256 if FP64 else 0)
 OUT64 = FILE64 - STATE64
 LO64, HI64 = BASE + BUF64 + 192, BASE + BUF64 + 320   # x27's range
 M64 = (1 << 64) - 1
@@ -300,15 +314,20 @@ def lit64(rd, value):
     # ldr xd, [pc, #8]; b over the literal; the literal
     return [0x58000040 | rd, 0x14000003, value & 0xffffffff, value >> 32]
 
-def elf64(block, flags, regs, buf):
+def elf64(block, flags, regs, buf, vregs=b""):
     sp = 31
     code = lit64(0, BASE + STATE64) + [0x9100001f]          # mov sp, x0
+    vadd = [0x91000000 | (VSTATE64 - STATE64) << 10 | sp << 5 | 1]   # add x1, sp, #(d0-d31's area)
+    if FP64:                                                 # ldp dK, dK+1, [x1, #8K]
+        code += vadd + [0x6d400000 | (k & 0x7f) << 15 | (k + 1) << 10 | 1 << 5 | k for k in range(0, 32, 2)]
     code += [0xf9407fe0, 0xd51b4200]                         # ldr x0, [sp, #248]; msr nzcv, x0
     code += [0xa9400000 | k << 15 | (k + 1) << 10 | sp << 5 | k for k in range(0, 30, 2)]  # ldp
     code += [0xf9407bfe]                                     # ldr x30, [sp, #240]
     code += block
     code += [0xa9000000 | k << 15 | (k + 1) << 10 | sp << 5 | k for k in range(0, 30, 2)]  # stp
     code += [0xf9007bfe, 0xd53b4200, 0xf9007fe0]             # str x30; mrs x0, nzcv; str x0, [sp, #248]
+    if FP64:                                                 # stp dK, dK+1, [x1, #8K]
+        code += vadd + [0x6d000000 | (k & 0x7f) << 15 | (k + 1) << 10 | 1 << 5 | k for k in range(0, 32, 2)]
     code += [0xd2800020, 0x910003e1, 0xd2800002 | OUT64 << 5, 0xd2800808, 0xd4000001]  # write(1, sp, OUT)
     code += [0xd2800000, 0xd2800ba8, 0xd4000001]             # exit(0)
     img = bytearray(FILE64)
@@ -318,6 +337,7 @@ def elf64(block, flags, regs, buf):
     img[CODE:CODE + 4 * len(code)] = b"".join(struct.pack("<I", w) for w in code)
     img[STATE64:STATE64 + 256] = b"".join(struct.pack("<Q", v & M64) for v in regs + [flags << 28])
     img[BUF64:BUF64 + BUFSIZE] = buf
+    img[VSTATE64:VSTATE64 + len(vregs)] = vregs
     return bytes(img)
 
 def bitmask_ok(sf, n, imms):
@@ -445,8 +465,73 @@ class Gen64:
             b = (bit >> 5) << 31 | 0b011011 << 25 | r.randrange(2) << 24 | (bit & 31) << 19 | 2 << 5 | self.reg()  # tbz/tbnz +8
         return [b, self.dp()]
 
+    def fp(self):
+        r = self.r
+        ty = r.randrange(2)                                  # 0 a single, 1 a double
+        v = lambda: r.randrange(32)
+        k = r.randrange(12)
+        if k == 0:                                           # fmul fdiv fadd fsub fnmul
+            return 0x1e200800 | ty << 22 | v() << 16 | r.choice([0, 1, 2, 3, 8]) << 12 | v() << 5 | v()
+        if k == 1:                                           # fmov fabs fneg fsqrt fcvt
+            return 0x1e204000 | ty << 22 | r.choice([0, 1, 2, 3, 4 if ty else 5]) << 15 | v() << 5 | v()
+        if k == 2:                                           # fmadd fmsub fnmadd fnmsub
+            return 0x1f000000 | ty << 22 | r.randrange(2) << 21 | v() << 16 | r.randrange(2) << 15 | v() << 10 | v() << 5 | v()
+        if k == 3:                                           # fcmp(e), with a register or 0.0
+            opc = r.choice([0, 8, 16, 24])
+            return 0x1e202000 | ty << 22 | (0 if opc & 8 else v()) << 16 | v() << 5 | opc
+        if k == 4:                                           # fcsel
+            return 0x1e200c00 | ty << 22 | v() << 16 | r.randrange(16) << 12 | v() << 5 | v()
+        if k == 5:                                           # fmov of an immediate
+            return 0x1e201000 | ty << 22 | r.randrange(256) << 13 | v()
+        if k == 6:                                           # fcvtzs, fcvtzu to w or x
+            return r.randrange(2) << 31 | 0x1e380000 | ty << 22 | r.randrange(2) << 16 | v() << 5 | self.dest()
+        if k == 7:                                           # scvtf, ucvtf from w or x
+            return r.randrange(2) << 31 | 0x1e200000 | ty << 22 | (2 + r.randrange(2)) << 16 | self.reg() << 5 | v()
+        if k == 8:                                           # fmov with a core register
+            if r.randrange(2): return ty << 31 | 0x1e270000 | ty << 22 | self.reg() << 5 | v()
+            return ty << 31 | 0x1e260000 | ty << 22 | v() << 5 | self.dest()
+        if k == 9:                                           # movi of 32, 16, 8 bits, a mask of bytes
+            cmode = r.choice([0, 2, 4, 6, 8, 10, 14, 14])
+            op = 1 if cmode == 14 and r.randrange(2) else 0
+            imm8 = r.randrange(256)
+            return op << 29 | 0x0f000400 | (imm8 >> 5) << 16 | cmode << 12 | (imm8 & 31) << 5 | v()
+        if k == 10:                                          # sshr, ushr of a d
+            return 0x5f000400 | r.randrange(2) << 29 | (128 - r.randrange(1, 65)) << 16 | v() << 5 | v()
+        return self.fmem()
+
+    def fmem(self):
+        """a load or store of an s or a d, a q store, through x27"""
+        r = self.r
+        kind = r.choice(["s", "d", "q"])
+        size, sc = {"s": (2, 2), "d": (3, 3), "q": (0, 4)}[kind]
+        opc = 2 if kind == "q" else r.randrange(2)          # q: a store
+        rt = r.randrange(32)
+        how = r.choice(["uoff", "unscaled", "pre", "post", "reg", "pair"])
+        if how == "pair":
+            popc = {"s": 0, "d": 1, "q": 2}[kind]
+            load = 0 if kind == "q" else r.randrange(2)
+            mode = r.choice([0, 1, 2, 3])
+            rt2 = r.choice([k for k in range(32) if not (load and k == rt)])
+            scale = 1 << sc
+            if mode in (1, 3):
+                off = self.moved(-128, 128, scale); self.base += off
+            else:
+                off = r.randrange(-128 // scale, 128 // scale + 1) * scale
+            return popc << 30 | 0b101 << 27 | 1 << 26 | mode << 23 | load << 22 | ((off // scale) & 0x7f) << 15 | rt2 << 10 | 27 << 5 | rt
+        top = size << 30 | 0b111 << 27 | 1 << 26 | opc << 22 | 27 << 5 | rt
+        if how == "uoff":
+            return top | 1 << 24 | r.randrange(0, 129 >> sc) << 10
+        if how == "unscaled":
+            return top | (r.randrange(-128, 129) & 0x1ff) << 12
+        if how == "reg":
+            return top | 1 << 21 | 31 << 16 | r.choice([2, 3, 6, 7]) << 13 | r.randrange(2) << 12 | 0b10 << 10
+        off = self.moved(-128, 128, 1)
+        self.base += off
+        return top | (off & 0x1ff) << 12 | (0b11 if how == "pre" else 0b01) << 10
+
     def insn(self):
         k = self.r.random()
+        if FP64 and k < 0.5: return self.fp()
         if k < 0.6: return self.dp()
         if k < 0.8: return self.mem()
         if k < 0.9: return self.pair()
@@ -484,6 +569,14 @@ def check(i):
     special = [0.0, -0.0, 1.0, -1.0, 0.5, 2.0, 3.0, 1e10, -1e-10, 1e300, 1e-300, 65536.0, -7.25]
     vregs = b"".join(struct.pack("<d", r.choice(special) if r.random() < 0.3 else r.uniform(-1e6, 1e6)) if r.random() < 0.8
                      else struct.pack("<Q", r.getrandbits(64)) for _ in range(16)) if VFP else b""
+    # -64fp: d0-d31, doubles random or special, singles (in the low
+    # half), random bits
+    def vreg():
+        k = r.random()
+        if k < 0.4: return struct.pack("<d", r.choice(special + [float("nan"), float("inf"), -float("inf"), 5e-324, 1.5e19, -2.5e9, 4.3e9]) if r.random() < 0.4 else r.uniform(-1e12, 1e12))
+        if k < 0.7: return struct.pack("<fI", r.choice([0.0, -1.0, 3.5, 1e-40, 1e38, float("nan"), 2.5e9]) if r.random() < 0.3 else r.uniform(-1e6, 1e6), 0)
+        return struct.pack("<Q", r.getrandbits(64))
+    if FP64: vregs = b"".join(vreg() for _ in range(32))
     # groups of instructions (an mrs and its mask), never split
     groups = [x if isinstance(x, list) else [x] for x in (g.insn() for _ in range(LENGTH))]
     with tempfile.TemporaryDirectory() as d:
@@ -492,7 +585,7 @@ def check(i):
 def search(d, i, groups, flags, regs, buf, vregs=b""):
     def prog(n):
         path = os.path.join(d, "b%d" % n)
-        with open(path, "wb") as f: f.write(elf64(sum(groups[:n], []), flags, regs, buf) if A64 else elf(sum(groups[:n], []), flags, regs, buf, vregs))
+        with open(path, "wb") as f: f.write(elf64(sum(groups[:n], []), flags, regs, buf, vregs) if A64 else elf(sum(groups[:n], []), flags, regs, buf, vregs))
         os.chmod(path, 0o755)
         return path
     same, a, b = compare(prog(len(groups)))
@@ -521,8 +614,12 @@ def explain(a, b):
         for k in range(32):
             x, y = struct.unpack_from("<Q", oa, 8 * k)[0], struct.unpack_from("<Q", ob, 8 * k)[0]
             if x != y: lines.append("  %-4s cpu %016x  mini-5i %016x" % (names[k], x, y))
-        for o in range(256, OUT64):
+        for o in range(256, 256 + BUFSIZE):
             if oa[o] != ob[o]: lines.append("  buffer+%d cpu %02x  mini-5i %02x" % (o - 256, oa[o], ob[o]))
+        for k in range((OUT64 - 256 - BUFSIZE) // 8):
+            o = 256 + BUFSIZE + 8 * k
+            x, y = struct.unpack_from("<Q", oa, o)[0], struct.unpack_from("<Q", ob, o)[0]
+            if x != y: lines.append("  d%-3d cpu %016x  mini-5i %016x" % (k, x, y))
         return "\n".join(lines[:12])
     names = ["r%d" % k for k in range(13)] + ["lr", "cpsr"]
     if sa != sb or len(oa) != OUT or len(ob) != OUT:
@@ -578,5 +675,5 @@ with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as ex:
 for i, w, flags, regs, a, b in bad[:20]:
     print("block %d: %08x  %s   (flags %x)" % (i, w, objdump(w), flags))
     print(explain(a, b))
-print("random_blocks%s: %d blocks of %d instructions, %d differ" % (" -64" if A64 else " -vfp" if VFP else "", BLOCKS, LENGTH, len(bad)))
+print("random_blocks%s: %d blocks of %d instructions, %d differ" % (" -64fp" if FP64 else " -64" if A64 else " -vfp" if VFP else "", BLOCKS, LENGTH, len(bad)))
 sys.exit(1 if bad else 0)

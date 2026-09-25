@@ -58,6 +58,11 @@ type pstate_field = Spsel | Daifset | Daifclr
 
 type barrier = Dsb | Dmb | Isb | Clrex
 
+(* claude: the floating point's sizes, operations *)
+type fsize = S | D | Q
+type fop2 = Fadd | Fsub | Fmul | Fdiv | Fnmul
+type fop1 = Fmov | Fabs | Fneg | Fsqrt
+
 type t =
   | Add_imm of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; imm : int; lsl12 : bool }
   | Add_reg of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; rm : reg; shift : shift; amount : int }
@@ -117,6 +122,26 @@ type t =
    * [ordered]: acquire for a load, release for a store; [rs] the
    * status register of an exclusive store *)
   | Excl of { load : bool; size : size; ordered : bool; exclusive : bool; rs : reg; rt : reg; rn : reg }
+  (* claude: the scalar floating point (the OCaml runtime's doubles:
+   * kernel/xv6's Pi4 kernel), on v0-v31's low 64 bits (s, d); [q] a
+   * 128-bit load or store (a variadic function saving v0-v7), its high
+   * half zero (scalar writes clear it, nothing else writes it) *)
+  | Fmem of { load : bool; fsize : fsize; rt : reg; addr : addr }
+  | Fpair of { load : bool; fsize : fsize; rt : reg; rt2 : reg; rn : reg; offset : int; mode : pair_mode }
+  | Fop2 of { double : bool; op : fop2; rd : reg; rn : reg; rm : reg }
+  | Fop1 of { double : bool; op : fop1; rd : reg; rn : reg }
+  | Fmadd of { double : bool; neg : bool; sub : bool; rd : reg; rn : reg; rm : reg; ra : reg }
+  | Fcmp of { double : bool; e : bool; rn : reg; rm : reg option (* None: with 0.0 *) }
+  | Fcsel of { double : bool; rd : reg; rn : reg; rm : reg; cond : cond }
+  | Fcvt of { to_double : bool; rd : reg; rn : reg }
+  | Fcvt_int of { double : bool; sf : sf; signed : bool; rd : reg; rn : reg }   (* fcvtzs, fcvtzu *)
+  | Cvtf of { double : bool; sf : sf; signed : bool; rd : reg; rn : reg }       (* scvtf, ucvtf *)
+  | Fmov_gen of { double : bool; to_fp : bool; rd : reg; rn : reg }
+  | Fmov_imm of { double : bool; rd : reg; imm8 : int }
+  (* movi of a 64-bit vector: an element of [esize] bits, [imm8] shifted
+   * left [amount], repeated; esize 64: imm8's bits a mask of bytes *)
+  | Movi of { rd : reg; esize : int; imm8 : int; amount : int }
+  | Shift_scalar of { signed : bool; rd : reg; rn : reg; shift : int }   (* sshr, ushr d *)
   | Undefined of int
 
 val decode : int -> t
@@ -168,6 +193,8 @@ type state = {
   mutable write_sysreg : int -> int64 -> unit;
   mutable system : state -> t -> unit;
   mutable monitor : int;
+  (* claude: v0-v31's low 64 bits, the scalar floating point's s and d *)
+  fp : int64 array;
 }
 
 exception Unimplemented of int * int  (* the word, its address *)

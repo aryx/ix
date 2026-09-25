@@ -17,11 +17,16 @@ val close : Types.file -> unit
 (* a new pipe's two ends, reading and writing *)
 val pipe : unit -> (Types.file * Types.file) option
 
+(* where a read's bytes go, where a write's come from: the user's
+ * memory, at an offset in its buffer (Syscall's copyout, copyin): false
+ * or None when out of reach, and the read or write stops there *)
+type dst = int -> string -> bool
+type src = int -> int -> string option
+
 (* at most [n] bytes (a pipe's reader waits for one, the console's for
- * a line), or None: -1; the bytes written, or -1. A file's offset
- * moves *)
-val read : Types.file -> int -> string option
-val write : Types.file -> string -> int
+ * a line), or -1; the bytes written, or -1. A file's offset moves *)
+val read : Types.file -> int -> dst -> int
+val write : Types.file -> int -> src -> int
 
 (* an inode's, a device's inode *)
 val inode : Types.file -> Types.inode option

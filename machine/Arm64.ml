@@ -31,6 +31,11 @@ type pstate_field = Spsel | Daifset | Daifclr
 
 type barrier = Dsb | Dmb | Isb | Clrex
 
+(* claude: the floating point's sizes, operations *)
+type fsize = S | D | Q
+type fop2 = Fadd | Fsub | Fmul | Fdiv | Fnmul
+type fop1 = Fmov | Fabs | Fneg | Fsqrt
+
 type t =
   | Add_imm of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; imm : int; lsl12 : bool }
   | Add_reg of { sf : sf; sub : bool; s : bool; rd : reg; rn : reg; rm : reg; shift : shift; amount : int }
@@ -83,6 +88,26 @@ type t =
    * [ordered]: acquire for a load, release for a store; [rs] the
    * status register of an exclusive store *)
   | Excl of { load : bool; size : size; ordered : bool; exclusive : bool; rs : reg; rt : reg; rn : reg }
+  (* claude: the scalar floating point (the OCaml runtime's doubles:
+   * kernel/xv6's Pi4 kernel), on v0-v31's low 64 bits (s, d); [q] a
+   * 128-bit load or store (a variadic function saving v0-v7), its high
+   * half zero (scalar writes clear it, nothing else writes it) *)
+  | Fmem of { load : bool; fsize : fsize; rt : reg; addr : addr }
+  | Fpair of { load : bool; fsize : fsize; rt : reg; rt2 : reg; rn : reg; offset : int; mode : pair_mode }
+  | Fop2 of { double : bool; op : fop2; rd : reg; rn : reg; rm : reg }
+  | Fop1 of { double : bool; op : fop1; rd : reg; rn : reg }
+  | Fmadd of { double : bool; neg : bool; sub : bool; rd : reg; rn : reg; rm : reg; ra : reg }
+  | Fcmp of { double : bool; e : bool; rn : reg; rm : reg option (* None: with 0.0 *) }
+  | Fcsel of { double : bool; rd : reg; rn : reg; rm : reg; cond : cond }
+  | Fcvt of { to_double : bool; rd : reg; rn : reg }
+  | Fcvt_int of { double : bool; sf : sf; signed : bool; rd : reg; rn : reg }   (* fcvtzs, fcvtzu *)
+  | Cvtf of { double : bool; sf : sf; signed : bool; rd : reg; rn : reg }       (* scvtf, ucvtf *)
+  | Fmov_gen of { double : bool; to_fp : bool; rd : reg; rn : reg }
+  | Fmov_imm of { double : bool; rd : reg; imm8 : int }
+  (* movi of a 64-bit vector: an element of [esize] bits, [imm8] shifted
+   * left [amount], repeated; esize 64: imm8's bits a mask of bytes *)
+  | Movi of { rd : reg; esize : int; imm8 : int; amount : int }
+  | Shift_scalar of { signed : bool; rd : reg; rn : reg; shift : int }   (* sshr, ushr d *)
   | Undefined of int
 
 let field = Bits.field
@@ -285,10 +310,46 @@ let transfer size opc =
   | 2, 2 -> Some (true, Some X)
   | _ -> None
 
-(* loads and stores: bits 27 = 1, 25 = 0; SIMD (bit 26) undecoded *)
+(* claude: the floating point's loads and stores (bit 26): a single
+ * (S), a double (D), 128 bits (Q); the literal, the pairs, the
+ * immediate offsets and the register offset, as the integer ones *)
+let fsize_shift = function S -> 2 | D -> 3 | Q -> 4
+
+let fp_loadstore w =
+  let rt = field w 0 5 and rn = field w 5 5 in
+  match field w 28 2 with
+  | 1 when field w 24 2 = 0 ->
+      let offset = Bits.sign_extend 19 (field w 5 19) * 4 in
+      (match field w 30 2 with
+       | 0 | 1 | 2 as k -> Fmem { load = true; fsize = [| S; D; Q |].(k); rt; addr = Literal offset }
+       | _ -> Undefined w)
+  | 2 ->
+      let mode = [| P_nontemporal; P_post; P_offset; P_pre |].(field w 23 2) in
+      (match field w 30 2 with
+       | 0 | 1 | 2 as k ->
+           Fpair { load = bit w 22; fsize = [| S; D; Q |].(k); rt; rt2 = field w 10 5; rn;
+                   offset = Bits.sign_extend 7 (field w 15 7) * (4 lsl k); mode }
+       | _ -> Undefined w)
+  | 3 ->
+      let fsize = match field w 30 2, bit w 23 with 2, false -> Some S | 3, false -> Some D | 0, true -> Some Q | _ -> None in
+      (match fsize with
+       | None -> Undefined w
+       | Some fsize ->
+           let mem addr = Fmem { load = bit w 22; fsize; rt; addr } in
+           if bit w 24 then mem (Base { rn; offset = field w 10 12 lsl fsize_shift fsize; mode = Offset })
+           else if not (bit w 21) then
+             (match field w 10 2 with
+              | 2 -> Undefined w
+              | k -> mem (Base { rn; offset = Bits.sign_extend 9 (field w 12 9); mode = [| Unscaled; Post; Unpriv; Pre |].(k) }))
+           else if field w 10 2 = 2 && bit w 14 then
+             mem (Index { rn; rm = field w 16 5; extend = extends.(field w 13 3); s = bit w 12 })
+           else Undefined w)
+  | _ -> Undefined w
+
+(* loads and stores: bits 27 = 1, 25 = 0 *)
 let loadstore w =
   let rt = field w 0 5 and rn = field w 5 5 in
-  if bit w 26 then Undefined w
+  if bit w 26 then fp_loadstore w
   else
     match field w 28 2 with
     | 1 when field w 24 2 = 0 ->
@@ -380,12 +441,99 @@ let dp_reg w =
        | _ -> Undefined w)
   | _ -> Undefined w
 
+(* claude: the scalar floating point's data processing (bits 28-24
+ * 11110, 11111 for the multiply-adds): singles (type 00) and doubles
+ * (01); the conversions with the integer registers; and, bit 30 set,
+ * the one Advanced SIMD scalar form a kernel's C uses: sshr, ushr d *)
+let fp_conversion w ~double ~rd ~rn =
+  let sf = sf_of w in
+  match field w 19 2, field w 16 3 with
+  | 0, 2 -> Cvtf { double; sf; signed = true; rd; rn }
+  | 0, 3 -> Cvtf { double; sf; signed = false; rd; rn }
+  | 3, 0 -> Fcvt_int { double; sf; signed = true; rd; rn }
+  | 3, 1 -> Fcvt_int { double; sf; signed = false; rd; rn }
+  | 0, 6 when (sf = X) = double -> Fmov_gen { double; to_fp = false; rd; rn }
+  | 0, 7 when (sf = X) = double -> Fmov_gen { double; to_fp = true; rd; rn }
+  | _ -> Undefined w
+
+let fp_dp w =
+  let rd = field w 0 5 and rn = field w 5 5 and rm = field w 16 5 in
+  if bit w 30 then
+    (* sshr, ushr: immh 1xxx (a 64-bit element), opcode 00000 *)
+    if field w 30 2 = 1 && not (bit w 23) && bit w 22 && field w 10 6 = 1 then
+      Shift_scalar { signed = not (bit w 29); rd; rn; shift = 128 - field w 16 7 }
+    else Undefined w
+  else if bit w 29 || field w 22 2 > 1 then Undefined w
+  else
+    let double = field w 22 2 = 1 in
+    if bit w 24 then
+      if bit w 31 then Undefined w
+      else Fmadd { double; neg = bit w 21; sub = bit w 15; rd; rn; rm; ra = field w 10 5 }
+    else if not (bit w 21) then Undefined w
+    else if field w 10 6 = 0 then fp_conversion w ~double ~rd ~rn
+    else if bit w 31 then Undefined w
+    else
+      match field w 10 2 with
+      | 2 ->
+          let op2 op = Fop2 { double; op; rd; rn; rm } in
+          (match field w 12 4 with
+           | 0 -> op2 Fmul | 1 -> op2 Fdiv | 2 -> op2 Fadd | 3 -> op2 Fsub | 8 -> op2 Fnmul
+           | _ -> Undefined w)
+      | 3 -> Fcsel { double; rd; rn; rm; cond = conds.(field w 12 4) }
+      | 1 -> Undefined w
+      | _ ->
+          if field w 10 5 = 0b10000 then
+            let op1 op = Fop1 { double; op; rd; rn } in
+            (match field w 15 6 with
+             | 0 -> op1 Fmov | 1 -> op1 Fabs | 2 -> op1 Fneg | 3 -> op1 Fsqrt
+             | 4 when double -> Fcvt { to_double = false; rd; rn }
+             | 5 when not double -> Fcvt { to_double = true; rd; rn }
+             | _ -> Undefined w)
+          else if field w 10 4 = 0b1000 && field w 14 2 = 0 then
+            (match field w 0 5 with
+             | 0 -> Fcmp { double; e = false; rn; rm = Some rm }
+             | 8 -> Fcmp { double; e = false; rn; rm = None }
+             | 16 -> Fcmp { double; e = true; rn; rm = Some rm }
+             | 24 -> Fcmp { double; e = true; rn; rm = None }
+             | _ -> Undefined w)
+          else if field w 10 3 = 0b100 && field w 5 5 = 0 then Fmov_imm { double; rd; imm8 = field w 13 8 }
+          else Undefined w
+
+(* claude: movi, a 64-bit vector (Q = 0) only: its element (8, 16, 32
+ * bits, shifted; or op = 1, cmode 1110: a mask of bytes) repeated *)
+let simd w =
+  if field w 19 10 = 0b0111100000 && bit w 10 && not (bit w 11) && not (bit w 31) && not (bit w 30) then
+    let imm8 = (field w 16 3 lsl 5) lor field w 5 5 and cmode = field w 12 4 and rd = field w 0 5 in
+    match bit w 29, cmode with
+    | false, c when c land 0b1001 = 0 -> Movi { rd; esize = 32; imm8; amount = 8 * (c lsr 1) }
+    | false, c when c land 0b1101 = 0b1000 -> Movi { rd; esize = 16; imm8; amount = 8 * ((c lsr 1) land 1) }
+    | false, 0b1110 -> Movi { rd; esize = 8; imm8; amount = 0 }
+    | true, 0b1110 -> Movi { rd; esize = 64; imm8; amount = 0 }
+    | _ -> Undefined w
+  else Undefined w
+
+(* its 64 bits *)
+let movi_value ~esize ~imm8 ~amount =
+  if esize = 64 then begin
+    let rec mask k acc =
+      if k = 8 then acc
+      else mask (k + 1) (if (imm8 lsr k) land 1 = 1 then Int64.logor acc (Int64.shift_left 0xffL (8 * k)) else acc) in
+    mask 0 0L
+  end
+  else begin
+    let v = Int64.shift_left (Int64.of_int imm8) amount in
+    let rec repeat acc k = if k >= 64 then acc else repeat (Int64.logor acc (Int64.shift_left v k)) (k + esize) in
+    repeat 0L 0
+  end
+
 let decode w =
   match field w 25 4 with
   | 0b1000 | 0b1001 -> dp_imm w
   | 0b1010 | 0b1011 -> branch w
   | 0b0100 | 0b0110 | 0b1100 | 0b1110 -> loadstore w
   | 0b0101 | 0b1101 -> dp_reg w
+  | 0b1111 -> fp_dp w
+  | 0b0111 -> simd w
   | _ -> Undefined w
 
 (*****************************************************************************)
@@ -435,6 +583,43 @@ let move_wide sf v =
   let one_chunk v = List.length (List.filter (fun k -> Int64.logand (Int64.shift_right_logical v (16 * k)) 0xffffL <> 0L)
                                    (List.init (width sf / 16) Fun.id)) <= 1 in
   one_chunk v || one_chunk (Int64.logand (Int64.lognot v) (ones (width sf)))
+
+let size_shift = function Byte -> 0 | Half -> 1 | Word -> 2 | Dword -> 3
+
+(* a load's or store's address, [amount] the register offset's shift *)
+let mem_operand ~addr a amount =
+  match a with
+  | Literal off -> target (addr + off)
+  | Base { rn; offset; mode = (Offset | Unscaled | Unpriv) } ->
+      if offset = 0 then Printf.sprintf "[%s]" (xsp rn) else Printf.sprintf "[%s, #%d]" (xsp rn) offset
+  | Base { rn; offset; mode = Pre } -> Printf.sprintf "[%s, #%d]!" (xsp rn) offset
+  | Base { rn; offset; mode = Post } -> Printf.sprintf "[%s], #%d" (xsp rn) offset
+  | Index { rn; rm; extend; s } ->
+      let rm_sf = if extend = UXTX || extend = SXTX then X else W in
+      let ext = match extend, s with
+        | UXTX, false -> ""
+        | UXTX, true -> Printf.sprintf ", lsl #%d" amount
+        | e, false -> ", " ^ extend_name e
+        | e, true -> Printf.sprintf ", %s #%d" (extend_name e) amount in
+      Printf.sprintf "[%s, %s%s]" (xsp rn) (reg_name rm_sf ~sp:false rm) ext
+
+let pair_operand rn offset mode =
+  match mode with
+  | P_offset | P_nontemporal -> if offset = 0 then Printf.sprintf "[%s]" (xsp rn) else Printf.sprintf "[%s, #%d]" (xsp rn) offset
+  | P_pre -> Printf.sprintf "[%s, #%d]!" (xsp rn) offset
+  | P_post -> Printf.sprintf "[%s], #%d" (xsp rn) offset
+
+(* claude: the floating point's registers, by size *)
+let fs double = if double then D else S
+let freg fsize r = Printf.sprintf "%s%d" (match fsize with S -> "s" | D -> "d" | Q -> "q") r
+
+(* VFPExpandImm, as a double: sign, exponent NOT(b6):b6 x8:b5:b4, the
+ * fraction's top bits b3-b0 (exact as a single too) *)
+let fp_expand_imm imm8 =
+  let b k = (imm8 lsr k) land 1 in
+  let exp = ((1 - b 6) lsl 10) lor ((if b 6 = 1 then 0xff else 0) lsl 2) lor ((imm8 lsr 4) land 3) in
+  Int64.logor (Int64.shift_left (Int64.of_int (b 7)) 63)
+    (Int64.logor (Int64.shift_left (Int64.of_int exp) 52) (Int64.shift_left (Int64.of_int (imm8 land 0xf)) 48))
 
 let print ~addr (i : t) =
   let m name args = if args = "" then name else name ^ "\t" ^ args in
@@ -554,30 +739,54 @@ let print ~addr (i : t) =
       let name = (if load then "ld" else "st") ^ kind ^ suffix in
       let rsf = match signed, size with Some sf, _ -> sf | None, Dword -> X | None, _ -> W in
       let rt = reg_name rsf ~sp:false rt in
-      let where = match a with
-        | Literal off -> target (addr + off)
-        | Base { rn; offset; mode = (Offset | Unscaled | Unpriv) } ->
-            if offset = 0 then Printf.sprintf "[%s]" (xsp rn) else Printf.sprintf "[%s, #%d]" (xsp rn) offset
-        | Base { rn; offset; mode = Pre } -> Printf.sprintf "[%s, #%d]!" (xsp rn) offset
-        | Base { rn; offset; mode = Post } -> Printf.sprintf "[%s], #%d" (xsp rn) offset
-        | Index { rn; rm; extend; s } ->
-            let amount = match size with Byte -> 0 | Half -> 1 | Word -> 2 | Dword -> 3 in
-            let rm_sf = if extend = UXTX || extend = SXTX then X else W in
-            let ext = match extend, s with
-              | UXTX, false -> ""
-              | UXTX, true -> Printf.sprintf ", lsl #%d" amount
-              | e, false -> ", " ^ extend_name e
-              | e, true -> Printf.sprintf ", %s #%d" (extend_name e) amount in
-            Printf.sprintf "[%s, %s%s]" (xsp rn) (reg_name rm_sf ~sp:false rm) ext in
-      m name (args [ rt; where ])
+      m name (args [ rt; mem_operand ~addr a (size_shift size) ])
   | Pair { load; sf; signed; rt; rt2; rn; offset; mode } ->
       let name = (if load then "ld" else "st") ^ (if mode = P_nontemporal then "np" else "p") ^ if signed then "sw" else "" in
       let rsf = if signed then X else sf in
-      let where = match mode with
-        | P_offset | P_nontemporal -> if offset = 0 then Printf.sprintf "[%s]" (xsp rn) else Printf.sprintf "[%s, #%d]" (xsp rn) offset
-        | P_pre -> Printf.sprintf "[%s, #%d]!" (xsp rn) offset
-        | P_post -> Printf.sprintf "[%s], #%d" (xsp rn) offset in
-      m name (args [ reg_name rsf ~sp:false rt; reg_name rsf ~sp:false rt2; where ])
+      m name (args [ reg_name rsf ~sp:false rt; reg_name rsf ~sp:false rt2; pair_operand rn offset mode ])
+  | Fmem { load; fsize; rt; addr = a } ->
+      let kind = match a with Base { mode = Unscaled; _ } -> "ur" | _ -> "r" in
+      m ((if load then "ld" else "st") ^ kind) (args [ freg fsize rt; mem_operand ~addr a (fsize_shift fsize) ])
+  | Fpair { load; fsize; rt; rt2; rn; offset; mode } ->
+      let name = (if load then "ld" else "st") ^ if mode = P_nontemporal then "np" else "p" in
+      m name (args [ freg fsize rt; freg fsize rt2; pair_operand rn offset mode ])
+  | Fop2 { double; op; rd; rn; rm } ->
+      let name = match op with Fadd -> "fadd" | Fsub -> "fsub" | Fmul -> "fmul" | Fdiv -> "fdiv" | Fnmul -> "fnmul" in
+      let r = freg (fs double) in
+      m name (args [ r rd; r rn; r rm ])
+  | Fop1 { double; op; rd; rn } ->
+      let name = match op with Fmov -> "fmov" | Fabs -> "fabs" | Fneg -> "fneg" | Fsqrt -> "fsqrt" in
+      let r = freg (fs double) in
+      m name (args [ r rd; r rn ])
+  | Fmadd { double; neg; sub; rd; rn; rm; ra } ->
+      let name = match neg, sub with false, false -> "fmadd" | false, true -> "fmsub" | true, false -> "fnmadd" | true, true -> "fnmsub" in
+      let r = freg (fs double) in
+      m name (args [ r rd; r rn; r rm; r ra ])
+  | Fcmp { double; e; rn; rm } ->
+      let r = freg (fs double) in
+      m (if e then "fcmpe" else "fcmp") (args [ r rn; (match rm with Some rm -> r rm | None -> "#0.0") ])
+  | Fcsel { double; rd; rn; rm; cond } ->
+      let r = freg (fs double) in
+      m "fcsel" (args [ r rd; r rn; r rm; cond_name cond ])
+  | Fcvt { to_double; rd; rn } ->
+      m "fcvt" (args [ freg (fs to_double) rd; freg (fs (not to_double)) rn ])
+  | Fcvt_int { double; sf; signed; rd; rn } ->
+      m (if signed then "fcvtzs" else "fcvtzu") (args [ reg_name sf ~sp:false rd; freg (fs double) rn ])
+  | Cvtf { double; sf; signed; rd; rn } ->
+      m (if signed then "scvtf" else "ucvtf") (args [ freg (fs double) rd; reg_name sf ~sp:false rn ])
+  | Fmov_gen { double; to_fp; rd; rn } ->
+      let sf = if double then X else W in
+      if to_fp then m "fmov" (args [ freg (fs double) rd; reg_name sf ~sp:false rn ])
+      else m "fmov" (args [ reg_name sf ~sp:false rd; freg (fs double) rn ])
+  | Fmov_imm { double; rd; imm8 } ->
+      m "fmov" (args [ freg (fs double) rd; Printf.sprintf "#%.18e" (Int64.float_of_bits (fp_expand_imm imm8)) ])
+  | Movi { rd; esize; imm8; amount } ->
+      if esize = 64 then m "movi" (args [ Printf.sprintf "d%d" rd; hex64 (movi_value ~esize ~imm8 ~amount) ])
+      else
+        let lanes = match esize with 8 -> "8b" | 16 -> "4h" | _ -> "2s" in
+        m "movi" (args ([ Printf.sprintf "v%d.%s" rd lanes; hex imm8 ] @ if amount = 0 then [] else [ Printf.sprintf "lsl #%d" amount ]))
+  | Shift_scalar { signed; rd; rn; shift } ->
+      m (if signed then "sshr" else "ushr") (args [ Printf.sprintf "d%d" rd; Printf.sprintf "d%d" rn; dec shift ])
   | Svc imm -> m "svc" (hex imm)
   | Hvc imm -> m "hvc" (hex imm)
   | Smc imm -> m "smc" (hex imm)
@@ -648,6 +857,8 @@ type state = {
   mutable write_sysreg : int -> int64 -> unit;
   mutable system : state -> t -> unit;
   mutable monitor : int;
+  (* claude: v0-v31's low 64 bits, the scalar floating point's s and d *)
+  fp : int64 array;
 }
 
 exception Unimplemented of int * int
@@ -659,7 +870,7 @@ let create mem =
     el = 0; spsel = false; sp_el = Array.make 4 0L; daif = 0;
     elr = Array.make 4 0L; spsr = Array.make 4 0L; esr = Array.make 4 0L; far = Array.make 4 0L; vbar = Array.make 4 0L;
     mmu = false; translate = (fun _ _ -> 0); read_sysreg = undefined; write_sysreg = (fun _ _ -> undefined ());
-    system = (fun _ _ -> undefined ()); monitor = -1 }
+    system = (fun _ _ -> undefined ()); monitor = -1; fp = Array.make 32 0L }
 
 let m32 = 0xffffffffL
 let mask sf v = match sf with X -> v | W -> Int64.logand v m32
@@ -896,7 +1107,111 @@ let write_sysreg st sr v =
        | "far" -> st.far.(n) <- v | "vbar" -> st.vbar.(n) <- v
        | _ -> st.write_sysreg sr v)
 
-let size_shift = function Byte -> 0 | Half -> 1 | Word -> 2 | Dword -> 3
+(* a load's or store's virtual address, and the base register's new
+ * value when it writes back; [shift] the register offset's scale *)
+let effective st ~addr a shift =
+  match a with
+  | Literal off -> of_pc (addr + off), None
+  | Base { rn; offset; mode = (Offset | Unscaled | Unpriv) } -> Int64.add (get_sp st rn) (Int64.of_int offset), None
+  | Base { rn; offset; mode = Pre } -> let v = Int64.add (get_sp st rn) (Int64.of_int offset) in v, Some (rn, v)
+  | Base { rn; offset; mode = Post } -> get_sp st rn, Some (rn, Int64.add (get_sp st rn) (Int64.of_int offset))
+  | Index { rn; rm; extend; s } ->
+      Int64.add (get_sp st rn) (Int64.shift_left (extend_value (get st rm) extend) (if s then shift else 0)), None
+
+let write_back st = function Some (rn, v) -> set_sp st X rn v | None -> ()
+
+(*****************************************************************************)
+(* claude: the scalar floating point *)
+(*****************************************************************************)
+
+(* A single is computed as a double, rounded once when written: exact
+ * for + - * / and the square root (a double's 53 bits are more than
+ * twice a single's 24, plus 2); the multiply-add of singles needs more
+ * care (fma_single). Natively the host's operations are the machine's:
+ * on an aarch64 host, OCaml's float operations are these very
+ * instructions, NaNs included. *)
+let fval st double r =
+  let v = Array.unsafe_get st.fp r in
+  if double then Int64.float_of_bits v else Int32.float_of_bits (Int64.to_int32 v)
+
+(* a write: a single's upper bits cleared, as the register's *)
+let fset st double r f =
+  Array.unsafe_set st.fp r (if double then Int64.bits_of_float f else Int64.logand (Int64.of_int32 (Int32.bits_of_float f)) m32)
+
+let fbits st double r = let v = Array.unsafe_get st.fp r in if double then v else Int64.logand v m32
+
+(* a fused multiply-add of singles, rounded once: the product of two
+ * singles is exact as a double, the sum's error exact by TwoSum; the
+ * sum rounded to odd (its last bit set when inexact) then rounds to a
+ * single as the exact value does. Rounding the sum to double then to
+ * single differed in the last bit (random_blocks -64fp: an fmsub) *)
+let fma_single n m a =
+  let p = n *. m in
+  let s = p +. a in
+  if s <> s || s = infinity || s = neg_infinity then s
+  else begin
+    let bb = s -. p in
+    let e = (p -. (s -. bb)) +. (a -. bb) in
+    let bits = Int64.bits_of_float s in
+    if e = 0.0 || Int64.logand bits 1L = 1L then s
+    else Int64.float_of_bits (if (e > 0.0) = (s > 0.0) then Int64.succ bits else Int64.pred bits)
+  end
+
+(* the NaNs of a multiply-add of singles, on their bits (a signaling
+ * NaN is quieted by a conversion to double, so it is told here), as
+ * FPProcessNaNs3 then FPMulAdd: the first signaling NaN of the addend
+ * and the factors, else the first quiet one, quieted; and a quiet NaN
+ * added to infinity times zero, the default NaN. None: no NaN *)
+let fmadd_nans a n m =
+  (* Int64: a single's bits as an int would not fit js_of_ocaml's 32 *)
+  let has b k = Int64.logand b k <> 0L and is k b = Int64.logand b 0x7fffffffL = k in
+  let is_nan b = Int64.logand b 0x7f800000L = 0x7f800000L && has b 0x7fffffL in
+  let signaling b = is_nan b && not (has b 0x400000L) in
+  let inf = is 0x7f800000L and zero = is 0L in
+  match List.filter signaling [ a; n; m ], List.filter is_nan [ a; n; m ] with
+  | s :: _, _ -> Some (Int64.logor s 0x400000L)
+  | [], _ when is_nan a && ((inf n && zero m) || (zero n && inf m)) -> Some 0x7fc00000L
+  | [], q :: _ -> Some q
+  | [], [] -> None
+
+(* fcvtzs, fcvtzu: toward zero, saturating, a NaN 0 *)
+let two63 = 9223372036854775808.0
+
+let to_int f sf signed =
+  if f <> f then 0L
+  else match sf, signed with
+    | X, true -> if f >= two63 then Int64.max_int else if f <= -. two63 then Int64.min_int else Int64.of_float f
+    | W, true -> if f >= 2147483648.0 then 0x7fffffffL else if f <= -2147483648.0 then -2147483648L else Int64.of_float f
+    | X, false ->
+        if f < 1.0 then 0L else if f >= 2.0 *. two63 then -1L
+        else if f >= two63 then Int64.add (Int64.of_float (f -. two63)) Int64.min_int else Int64.of_float f
+    | W, false -> if f < 1.0 then 0L else if f >= 4294967296.0 then m32 else Int64.of_float f
+
+(* scvtf, ucvtf: an unsigned 64-bit value as a double that rounds to a
+ * single the way the value itself does: its top 53 bits, the others
+ * folded into a sticky bit (then exact as a double) *)
+let of_unsigned v ~single =
+  if Int64.compare v 0L >= 0 && Int64.compare v 0x20000000000000L < 0 then Int64.to_float v
+  else if not single then
+    (* above 2^53 as a double: one bit dropped, kept sticky, rounds once *)
+    if Int64.compare v 0L >= 0 then Int64.to_float v
+    else 2.0 *. Int64.to_float (Int64.logor (Int64.shift_right_logical v 1) (Int64.logand v 1L))
+  else begin
+    let s = 11 - count_leading X v in
+    let hi = Int64.shift_right_logical v s and low = Int64.logand v (ones s) in
+    ldexp (Int64.to_float (if low <> 0L then Int64.logor hi 1L else hi)) s
+  end
+
+let of_int st ~double ~sf ~signed rn =
+  let v = get st rn in
+  let v = match sf, signed with W, true -> sext 32 v | W, false -> Int64.logand v m32 | X, _ -> v in
+  if signed && Int64.compare v 0L < 0 then
+    (* its magnitude as unsigned (min_int's too) *)
+    -. of_unsigned (Int64.neg v) ~single:(not double)
+  else of_unsigned v ~single:(not double)
+
+let fp_load st fsize ea =
+  match fsize with S -> of32 (Memory.load32 st.mem ea) | D | Q -> Memory.load64 st.mem ea
 
 let execute st ~addr ~svc i =
   st.next <- addr + 4;
@@ -1026,25 +1341,100 @@ let execute st ~addr ~svc i =
       st.next <- target
   | Ret rn -> st.next <- jump st (get st rn)
   | Mem { load = l; size; signed; rt; addr = a } ->
-      let base, a', writeback = match a with
-        | Literal off -> None, of_pc (addr + off), None
-        | Base { rn; offset; mode = (Offset | Unscaled | Unpriv) } -> Some rn, Int64.add (get_sp st rn) (Int64.of_int offset), None
-        | Base { rn; offset; mode = Pre } -> let v = Int64.add (get_sp st rn) (Int64.of_int offset) in Some rn, v, Some v
-        | Base { rn; offset; mode = Post } -> Some rn, get_sp st rn, Some (Int64.add (get_sp st rn) (Int64.of_int offset))
-        | Index { rn; rm; extend; s } ->
-            let off = Int64.shift_left (extend_value (get st rm) extend) (if s then size_shift size else 0) in
-            Some rn, Int64.add (get_sp st rn) off, None in
+      let a', writeback = effective st ~addr a (size_shift size) in
       let unpriv = match a with Base { mode = Unpriv; _ } -> 2 | _ -> 0 in
       let ea = phys st a' ((if l then 0 else 1) lor unpriv) in
       if l then begin
         let v = load st size signed ea in
-        (match base, writeback with Some rn, Some wb -> set_sp st X rn wb | _ -> ());
+        write_back st writeback;
         set st (match signed, size with Some sf, _ -> sf | None, Dword -> X | None, _ -> W) rt v
       end
       else begin
         store st size ea (get st rt);
-        match base, writeback with Some rn, Some wb -> set_sp st X rn wb | _ -> ()
+        write_back st writeback
       end
+  | Fmem { load = l; fsize; rt; addr = a } ->
+      let a', writeback = effective st ~addr a (fsize_shift fsize) in
+      let ea = phys st a' (if l then 0 else 1) in
+      if l then begin
+        (* a q's high half not kept (Q) *)
+        let v = fp_load st fsize ea in
+        write_back st writeback;
+        st.fp.(rt) <- v
+      end
+      else begin
+        (match fsize with
+         | S -> Memory.store32 st.mem ea (int32 st.fp.(rt))
+         | D -> Memory.store64 st.mem ea st.fp.(rt)
+         | Q ->
+             Memory.store64 st.mem ea st.fp.(rt);
+             Memory.store64 st.mem (phys st (Int64.add a' 8L) 1) 0L);
+        write_back st writeback
+      end
+  | Fpair { load = l; fsize; rt; rt2; rn; offset; mode } ->
+      let b = get_sp st rn in
+      let moved = Int64.add b (Int64.of_int offset) in
+      let va = match mode with P_post -> b | _ -> moved in
+      let step = Int64.of_int (1 lsl fsize_shift fsize) in
+      let access k = phys st (Int64.add va (Int64.mul step (Int64.of_int k))) (if l then 0 else 1) in
+      if l then begin
+        let v1 = fp_load st fsize (access 0) and v2 = fp_load st fsize (access 1) in
+        st.fp.(rt) <- v1;
+        st.fp.(rt2) <- v2
+      end
+      else begin
+        let put k r =
+          match fsize with
+          | S -> Memory.store32 st.mem (access k) (int32 st.fp.(r))
+          | D -> Memory.store64 st.mem (access k) st.fp.(r)
+          | Q ->
+              let a = Int64.add va (Int64.mul step (Int64.of_int k)) in
+              Memory.store64 st.mem (phys st a 1) st.fp.(r);
+              Memory.store64 st.mem (phys st (Int64.add a 8L) 1) 0L in
+        put 0 rt;
+        put 1 rt2
+      end;
+      (match mode with P_pre | P_post -> set_sp st X rn moved | P_offset | P_nontemporal -> ())
+  | Fop2 { double; op; rd; rn; rm } ->
+      let a = fval st double rn and b = fval st double rm in
+      fset st double rd
+        (match op with Fadd -> a +. b | Fsub -> a -. b | Fmul -> a *. b | Fdiv -> a /. b | Fnmul -> -. (a *. b))
+  | Fop1 { double; op = (Fmov | Fabs | Fneg) as op; rd; rn } ->
+      (* on the bits: a NaN's sign too *)
+      let sign = if double then Int64.min_int else 0x80000000L in
+      let v = fbits st double rn in
+      st.fp.(rd) <- (match op with Fabs -> Int64.logand v (Int64.lognot sign) | Fneg -> Int64.logxor v sign | _ -> v)
+  | Fop1 { double; op = Fsqrt; rd; rn } -> fset st double rd (sqrt (fval st double rn))
+  | Fmadd { double; neg; sub; rd; rn; rm; ra } ->
+      (* d = (-)a + (-)n*m, the negations before, as FMSUB, FNMADD negate
+       * their operands (a NaN's sign follows) *)
+      let n = fval st double rn and mm = fval st double rm and a = fval st double ra in
+      let n = if sub <> neg then -. n else n and a = if neg then -. a else a in
+      if double then fset st double rd (Float.fma n mm a)
+      else begin
+        let bits r flip = let b = fbits st false r in if flip then Int64.logxor b 0x80000000L else b in
+        match fmadd_nans (bits ra neg) (bits rn (sub <> neg)) (bits rm false) with
+        | Some nan -> st.fp.(rd) <- nan
+        | None -> fset st false rd (fma_single n mm a)
+      end
+  | Fcmp { double; e = _; rn; rm } ->
+      let a = fval st double rn and b = match rm with Some r -> fval st double r | None -> 0.0 in
+      let nzcv =
+        if a <> a || b <> b then 0b0011 else if a = b then 0b0110 else if a < b then 0b1000 else 0b0010 in
+      st.n <- nzcv land 8 <> 0; st.z <- nzcv land 4 <> 0; st.c <- nzcv land 2 <> 0; st.v <- nzcv land 1 <> 0
+  | Fcsel { double; rd; rn; rm; cond } -> st.fp.(rd) <- fbits st double (if cond_passed st cond then rn else rm)
+  | Fcvt { to_double; rd; rn } -> fset st to_double rd (fval st (not to_double) rn)
+  | Fcvt_int { double; sf; signed; rd; rn } -> set st sf rd (to_int (fval st double rn) sf signed)
+  | Cvtf { double; sf; signed; rd; rn } -> fset st double rd (of_int st ~double ~sf ~signed rn)
+  | Fmov_gen { double; to_fp = true; rd; rn } -> st.fp.(rd) <- (if double then get st rn else Int64.logand (get st rn) m32)
+  | Fmov_gen { double; to_fp = false; rd; rn } -> set st (if double then X else W) rd (fbits st double rn)
+  | Fmov_imm { double; rd; imm8 } -> fset st double rd (Int64.float_of_bits (fp_expand_imm imm8))
+  | Movi { rd; esize; imm8; amount } -> st.fp.(rd) <- movi_value ~esize ~imm8 ~amount
+  | Shift_scalar { signed; rd; rn; shift } ->
+      let v = st.fp.(rn) in
+      st.fp.(rd) <-
+        (if shift = 64 then (if signed then Int64.shift_right v 63 else 0L)
+         else if signed then Int64.shift_right v shift else Int64.shift_right_logical v shift)
   | Pair { load = l; sf; signed; rt; rt2; rn; offset; mode } ->
       let b = get_sp st rn in
       let moved = Int64.add b (Int64.of_int offset) in

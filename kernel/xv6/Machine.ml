@@ -28,7 +28,6 @@ end
  * pc 15, the CPSR 16 *)
 external tf_get : int -> int = "tf_get"
 external tf_set : int -> int -> unit = "tf_set"
-external tf_get32 : int -> Int32.t = "tf_get32"
 external tf_init : int -> unit = "tf_init"
 external tf_copy : int -> unit = "tf_copy"
 
@@ -55,9 +54,9 @@ external halt : unit -> unit = "machine_halt"
 external fs_base : unit -> int = "fs_base"
 external fs_size : unit -> int = "fs_size"
 
-(* the console's output: a newline goes out as CR LF (xv6 arm-pi1's
- * uartputc) *)
-let putc c = if c = '\n' then uart_putc 13; uart_putc (Char.code c)
+(* the console's output, as it is (xv6-riscv's: no CR added before a
+ * newline, as xv6 arm-pi1's uartputc did) *)
+let putc c = uart_putc (Char.code c)
 let print s = for i = 0 to String.length s - 1 do putc s.[i] done
 
 (* the kernel's end: xv6's panic *)
@@ -70,7 +69,7 @@ let panic s = print ("panic: " ^ s ^ "\n"); halt (); failwith s
 (* little-endian halves and words, the user's and the disk's *)
 let le16 v = let s = String.create 2 in
   String.set s 0 (Char.chr (v land 0xff)); String.set s 1 (Char.chr ((v lsr 8) land 0xff)); s
-let le32 v = le16 (v land 0xffff) ^ le16 ((v lsr 16) land 0xffff)
+let le32 v = le16 (v land 0xffff) ^ le16 ((v asr 16) land 0xffff)
 
 let get_le32 s o =
   let low = Char.code s.[o] lor (Char.code s.[o + 1] lsl 8) lor (Char.code s.[o + 2] lsl 16) in

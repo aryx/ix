@@ -18,6 +18,7 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include "board.h"
 
 void kmain(void);
 void caml_main(char **argv);
@@ -26,8 +27,9 @@ void caml_main(char **argv);
 /* The console: the PL011 */
 /*****************************************************************************/
 
-#define UART_DR ((volatile unsigned int *)0xFE201000)   /* the devices at 0xFE000000 (start.s) */
-#define UART_FR ((volatile unsigned int *)0xFE201018)
+/* the PL011, where the board's start.s maps it (board.h) */
+#define UART_DR ((volatile unsigned int *)(UART_BASE + 0x00))
+#define UART_FR ((volatile unsigned int *)(UART_BASE + 0x18))
 
 static void putc_(char c)
 {
@@ -52,7 +54,7 @@ void exit(int status)
 {
   (void)status;
   for (;;)
-    __asm__ volatile("mcr p15, 0, %0, c7, c0, 4" : : "r"(0));      /* wait for an interrupt: none comes */
+    __asm__ volatile("wfi");      /* wait for an interrupt: none comes */
 }
 
 void abort(void) { panic("abort"); }
@@ -63,13 +65,12 @@ void abort(void) { panic("abort"); }
 
 extern char end[];
 static char *brk_ = end;
-#define HEAP_LIMIT ((char *)0x90000000)  /* KERNBASE + 256MB: the pages above are the processes' */
 
 /* a block: its size in the word before it (realloc needs it) */
 void *malloc(size_t n)
 {
   char *p = (char *)(((size_t)brk_ + 7) & ~(size_t)7) + 8;
-  if (p + n > HEAP_LIMIT) return NULL;
+  if (p + n > (char *)HEAP_LIMIT) return NULL;   /* board.h: the processes' pages above */
   ((size_t *)p)[-1] = n;
   brk_ = p + n;
   return p;
@@ -145,6 +146,9 @@ long strtol(const char *s, char **endp, int base)
  * two halves. */
 /*****************************************************************************/
 
+#ifdef __arm__
+/* claude: the ARM EABI's divisions (arm32 has no divide instruction on
+ * the Pi1, and Ubuntu's libgcc is Thumb-2: plan_kernel.md) */
 static unsigned long long udivmod(unsigned n, unsigned d)
 {
   unsigned q = 0, r = 0;
@@ -175,6 +179,7 @@ int __aeabi_idiv(int n, int d) { return (int)(unsigned)__aeabi_idivmod(n, d); }
 /* the older names, which ocaml-light's arm backend calls for / and mod */
 int __divsi3(int n, int d) { return __aeabi_idiv(n, d); }
 int __modsi3(int n, int d) { return (int)(__aeabi_idivmod(n, d) >> 32); }
+#endif
 
 /*****************************************************************************/
 /* Formatting: the integers, as the runtime's formats ask (flags, width,
@@ -193,15 +198,18 @@ static int format(char *out, const char *fmt, va_list ap)
     }
     if (*fmt == '*') { width = va_arg(ap, int); fmt++; } else while (*fmt >= '0' && *fmt <= '9') width = width * 10 + *fmt++ - '0';
     if (*fmt == '.') { prec = 0; fmt++; if (*fmt == '*') { prec = va_arg(ap, int); fmt++; } else while (*fmt >= '0' && *fmt <= '9') prec = prec * 10 + *fmt++ - '0'; }
-    while (*fmt == 'l' || *fmt == 'h' || *fmt == 'z') fmt++;
+    int longs = 0;
+    while (*fmt == 'l' || *fmt == 'h' || *fmt == 'z') { if (*fmt != 'h') longs++; fmt++; }
     char buf[40], *b = buf + sizeof buf, sign = 0;
     const char *str = NULL; int len;
     switch (*fmt) {
     case 'd': case 'i': case 'u': case 'x': case 'X': case 'o': case 'p': {
       unsigned long u; int base = *fmt == 'o' ? 8 : (*fmt == 'x' || *fmt == 'X' || *fmt == 'p') ? 16 : 10;
-      if (*fmt == 'd' || *fmt == 'i') { long v = va_arg(ap, long); if (v < 0) { sign = '-'; u = -(unsigned long)v; } else { u = v; if (plus) sign = '+'; else if (space) sign = ' '; } }
+      /* claude: an int read as an int (on arm64 its register's upper half
+       * is not the value's), a long as a long */
+      if (*fmt == 'd' || *fmt == 'i') { long v = longs ? va_arg(ap, long) : va_arg(ap, int); if (v < 0) { sign = '-'; u = -(unsigned long)v; } else { u = v; if (plus) sign = '+'; else if (space) sign = ' '; } }
       else if (*fmt == 'p') { u = (unsigned long)va_arg(ap, void *); alt = 1; }
-      else u = va_arg(ap, unsigned long);
+      else u = longs ? va_arg(ap, unsigned long) : va_arg(ap, unsigned);
       const char *digits = *fmt == 'X' ? "0123456789ABCDEF" : "0123456789abcdef";
       do { *--b = digits[u % base]; u /= base; } while (u);
       while (buf + sizeof buf - b < prec) *--b = '0';
@@ -275,7 +283,7 @@ long times(void *t) { (void)t; return 0; }
 char *strerror(int e) { (void)e; return "error"; }
 
 #define STUB(name) void name(void) { panic(#name); }
-STUB(read) STUB(open64) STUB(close) STUB(lseek64) STUB(unlink) STUB(rename) STUB(chdir) STUB(getcwd)
+STUB(read) STUB(open64) STUB(open) STUB(close) STUB(lseek64) STUB(lseek) STUB(stat) STUB(unlink) STUB(rename) STUB(chdir) STUB(getcwd)
 STUB(system) STUB(__stat64_time64) STUB(__isoc99_sscanf) STUB(strtod)
 STUB(acos) STUB(asin) STUB(atan) STUB(atan2) STUB(ceil) STUB(cos) STUB(cosh) STUB(exp) STUB(fabs)
 STUB(floor) STUB(fmod) STUB(frexp) STUB(ldexp) STUB(log) STUB(log10) STUB(modf) STUB(pow) STUB(sin)

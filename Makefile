@@ -31,11 +31,13 @@ test: all
 	./machine/tests/decode_check.py --random 5000
 	./machine/tests/decode_check.py -64
 	./machine/tests/decode_check.py -64 --random 5000
+	./machine/tests/decode_check.py -64fp --random 5000
 	./machine/tests/decode_check.py machine/tests/words_arm_system.txt
 	./machine/tests/decode_check.py -64 machine/tests/words_arm64_system.txt
 	./machine/tests/random_blocks.py 3000 30
 	./machine/tests/random_blocks.py -64 3000 30
 	./machine/tests/random_blocks.py -vfp 1000 30
+	./machine/tests/random_blocks.py -64fp 1000 30
 
 # The same corpus through plan9port (9base) mk and xix's omk too, when
 # they are installed; see builder/tests/differential.sh.

@@ -13,9 +13,6 @@ type perm = Kernel_rw | User_ro | User_rw
 
 type page = { pa : int; perm : perm }
 
-type l1 = L1_fault | Coarse of int
-type l2 = L2_fault | Page of page
-
 type itype = Free | Dir | File | Devnode
 
 type inode = { inum : int; mutable iref : int }
@@ -55,6 +52,7 @@ type proc = {
   mutable sz : int;
   mutable parent : int;
   mutable killed : bool;
+  mutable xstate : int;
   ofile : file option array;
   mutable cwd : inode;
   mutable name : string;

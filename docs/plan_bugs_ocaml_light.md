@@ -44,6 +44,23 @@ option) would make it a supported target.
 `List.init` switches to a tail-recursive version above 10,000
 elements. Worth doing the same, or saying so in `list.mli`.
 
+## 4. A cross build takes Int64's C type from the host (a bug)
+
+**What**: configured on an aarch64 host with `-target-arch arm`,
+`config/m.h` says `#define ARCH_INT64_TYPE long`: `configure` probed
+the *host's* compiler, where `long` has 64 bits; on the arm32 target it
+has 32, so the runtime's `int64` operations there would be 32-bit ones
+(found 2026-09-25, `kernel/xv6`: its Pi1 build uses no Int64 because of
+it, the fault registers cross from C already formatted).
+
+**Fix**: as for issue 1, the target's facts from the target: under
+`-target-arch arm`, `long long` (or a probe compiled with the cross
+compiler, `sizeof` read from its object, as autoconf does).
+
+**Workaround**: none needed while the kernel avoids Int64 on the Pi1;
+the Pi4's build (`-target-arch arm64` on this aarch64 host) is native
+and right.
+
 ## Not ocaml-light's, found on the way
 
 - **Ubuntu's armhf libgcc is Thumb-2 for ARMv7**: an ARMv6 cannot run
@@ -53,3 +70,7 @@ elements. Worth doing the same, or saying so in `list.mli`.
   ocaml-light's arm backend calls for `/` and `mod`).
 - Number literals with `_` (`100_000`) are not accepted: OCaml 1.07's
   lexer. Not a bug; a difference to know when porting code.
+- **GCC vectorizes the runtime's C for arm64** (Advanced SIMD `movi`,
+  `ldr q`): mini-qemu's arm64 does the scalar floating point only, so
+  `kernel/xv6`'s Pi4 build compiles the runtime with
+  `-fno-tree-vectorize`.

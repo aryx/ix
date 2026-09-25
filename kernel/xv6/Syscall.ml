@@ -13,6 +13,7 @@ open Types
 
 let nofile = 16
 let maxarg = 32
+let maxpath = 128
 
 (*****************************************************************************)
 (* The calls (syscall.h) *)
@@ -37,36 +38,27 @@ let decode = function
 (* an argument missing or wrong: the call returns -1 *)
 let ( >>= ) o f = match o with Some x -> f x | None -> -1
 
-(* the user's word at [addr], inside [0, sz) *)
-let fetchint (p : proc) addr =
-  if addr < 0 || addr >= p.sz || addr + 4 > p.sz then None
-  else match Mmu.read p.pgdir addr 4 with Some s -> Some (Machine.get_le32 s 0) | None -> None
+(* the [n]th argument, raw: a register, or a word of the user's stack
+ * (Arch.args_on_stack) *)
+let argraw (p : proc) n =
+  if not Arch.args_on_stack then Some (Machine.tf_get n)
+  else match Mmu.read p.pgdir (Machine.tf_get Arch.tf_sp + (Arch.word * n)) Arch.word with
+    | Some s -> Some (Arch.get_word s 0)
+    | None -> None
 
-(* the user's string at [addr], its NUL before sz *)
-let fetchstr (p : proc) addr =
-  let b = Buffer.create 64 in
-  let rec go va =
-    if va >= p.sz then None
-    else
-      let n = min (Mmu.pgsize - (va land (Mmu.pgsize - 1))) (p.sz - va) in
-      match Mmu.read p.pgdir va n with
-      | None -> None
-      | Some s ->
-          (try Buffer.add_string b (String.sub s 0 (String.index s '\000')); Some (Buffer.contents b)
-           with Not_found -> Buffer.add_string b s; go (va + n)) in
-  if addr < 0 then None else go addr
+let argint p n = match argraw p n with Some v -> Some (Arch.c_int v) | None -> None
+let argaddr = argraw
 
-(* the [n]th argument: a word of the user's stack, the usys.S stub's
- * copy of r0-r3 *)
-let argint p n = fetchint p (Machine.tf_get 13 + (4 * n))
+(* a user's word at [addr], inside [0, sz) (fetchaddr) *)
+let fetchaddr (p : proc) addr =
+  if addr < 0 || addr >= p.sz || addr + Arch.word > p.sz then None
+  else match Mmu.read p.pgdir addr Arch.word with Some s -> Some (Arch.get_word s 0) | None -> None
 
-(* a pointer to [size] bytes of the user's *)
-let argptr (p : proc) n size =
-  match argint p n with
-  | Some a when a >= 0 && a < p.sz && a + size <= p.sz -> Some a
-  | _ -> None
+(* a user's string, its NUL within [max] bytes, through the user's pages
+ * (copyinstr: no bound but those) *)
+let fetchstr (p : proc) max addr = Mmu.read_string p.pgdir addr max
 
-let argstr p n = match argint p n with Some a -> fetchstr p a | None -> None
+let argstr p n max = match argaddr p n with Some a -> fetchstr p max a | None -> None
 
 (* a file descriptor, and its file *)
 let argfd (p : proc) n =
@@ -79,6 +71,10 @@ let fdalloc (p : proc) f =
     if fd = nofile then None
     else match p.ofile.(fd) with None -> p.ofile.(fd) <- Some f; Some fd | Some _ -> go (fd + 1) in
   go 0
+
+(* the user's buffer at [addr], as File reads and writes it *)
+let dst (p : proc) addr o s = Mmu.copyout p.pgdir (addr + o) s
+let src (p : proc) addr o n = Mmu.read p.pgdir (addr + o) n
 
 (*****************************************************************************)
 (* Processes (proc.c, sysproc.c) *)
@@ -96,59 +92,68 @@ let fork (p : proc) =
           Machine.tf_copy slot;
           Proc.procs.(slot) <-
             Some { pid = pid; slot = slot; state = Runnable; pgdir = pgdir; sz = p.sz; parent = p.pid;
-                   killed = false; ofile = Array.map (function Some f -> Some (File.dup f) | None -> None) p.ofile;
+                   killed = false; xstate = 0;
+                   ofile = Array.map (function Some f -> Some (File.dup f) | None -> None) p.ofile;
                    cwd = Fs.idup p.cwd; name = p.name };
           Machine.proc_context slot;
           pid
 
 (* the files closed, the children given to init, the parent woken: a
- * zombie, its memory and kernel stack freed by the parent's wait *)
-let exit (p : proc) =
+ * zombie with its status, its memory and kernel stack freed by the
+ * parent's wait *)
+let exit (p : proc) status =
   if p.pid = 1 then Machine.panic "init exiting";
   Array.iteri (fun fd o -> match o with Some f -> File.close f; p.ofile.(fd) <- None | None -> ()) p.ofile;
   Fs.iput p.cwd;
-  Proc.wakeup (Child_of p.parent);
   List.iter (fun (c : proc) ->
-    if c.parent = p.pid then begin
-      c.parent <- 1;
-      if c.state = Zombie then Proc.wakeup (Child_of 1)
-    end) (Proc.all ());
+    if c.parent = p.pid then begin c.parent <- 1; Proc.wakeup (Child_of 1) end) (Proc.all ());
+  Proc.wakeup (Child_of p.parent);
+  p.xstate <- status;
   p.state <- Zombie;
   Proc.sched ();
   ignore (Machine.panic "zombie exit")
 
-let wait (p : proc) =
+(* a zombie child's pid, its status copied to [addr] (0: not); -1 with
+ * no child, killed, or [addr] out of reach (the zombie then left) *)
+let wait (p : proc) addr =
   let rec loop () =
     let kids = List.filter (fun (c : proc) -> c.parent = p.pid) (Proc.all ()) in
     match List.filter (fun (c : proc) -> c.state = Zombie) kids with
     | c :: _ ->
-        Mmu.free c.pgdir;
-        Machine.proc_free c.slot;
-        Proc.procs.(c.slot) <- None;
-        c.pid
+        if addr <> 0 && not (Mmu.copyout p.pgdir addr (Machine.le32 c.xstate)) then -1
+        else begin
+          Mmu.free c.pgdir;
+          Machine.proc_free c.slot;
+          Proc.procs.(c.slot) <- None;
+          c.pid
+        end
     | [] ->
         if kids = [] || p.killed then -1
         else begin Proc.sleep (Child_of p.pid); loop () end in
   loop ()
 
-(* the old size; the new pages zeroed, the old ones freed *)
+(* the old size; the new pages zeroed, the old ones freed. The size is a
+ * C uint (xv6-multiarch's growproc), [sz + n] 32 bits: a new size that
+ * wraps below the old one leaves it, as a success (sbrk8000) *)
 let sbrk (p : proc) n =
   let addr = p.sz in
+  let newsz = Arch.c_uint (p.sz + n) in
   let r =
-    if n > 0 then match Mmu.alloc p.pgdir p.sz (p.sz + n) with
+    if n > 0 then match Mmu.alloc p.pgdir p.sz newsz with
       | Some sz -> p.sz <- sz; addr
       | None -> -1
     else begin
-      if n < 0 && p.sz + n >= 0 then p.sz <- Mmu.dealloc p.pgdir p.sz (p.sz + n);
+      if n < 0 && newsz >= 0 && newsz < p.sz then p.sz <- Mmu.dealloc p.pgdir p.sz newsz;
       addr
     end in
   Machine.mmu_switch p.pgdir;
   r
 
+(* [n] ticks; a negative [n], a C uint, forever (until killed) *)
 let sleep (p : proc) n =
   let t0 = !Proc.ticks in
   let rec go () =
-    if !Proc.ticks - t0 >= n then 0
+    if n >= 0 && !Proc.ticks - t0 >= n then 0
     else if p.killed then -1
     else begin Proc.sleep Ticks; go () end in
   go ()
@@ -170,7 +175,10 @@ let open_ (p : proc) path omode =
       | Some ip when Fs.itype ip = Dir && omode <> 0 -> Fs.iput ip; None
       | r -> r in
   ip >>= fun ip ->
-  let kind = if Fs.itype ip = Devnode then Device (ip, Fs.get ip Fs.i_major) else Inode_file ip in
+  let major = Fs.get ip Fs.i_major in
+  if Fs.itype ip = Devnode && (major < 0 || major >= 10) then begin Fs.iput ip; -1 end
+  else
+  let kind = if Fs.itype ip = Devnode then Device (ip, major) else Inode_file ip in
   match File.alloc kind (omode land o_wronly = 0) (omode land (o_wronly lor o_rdwr) <> 0) with
   | None -> Fs.iput ip; -1
   | Some f ->
@@ -180,48 +188,45 @@ let open_ (p : proc) path omode =
           if omode land o_trunc <> 0 && Fs.itype ip = File then Fs.itrunc ip;
           fd
 
-(* xv6 reads and writes the user's memory in place; here a string
- * crosses. A negative count is refused (xv6's depends on the file) *)
 let read p =
-  argfd p 0 >>= fun (_, f) -> argint p 2 >>= fun n -> argptr p 1 n >>= fun a ->
-  if n < 0 then -1
-  else File.read f n >>= fun s -> ignore (Mmu.write p.pgdir a s); String.length s
+  argaddr p 1 >>= fun a -> argint p 2 >>= fun n -> argfd p 0 >>= fun (_, f) -> File.read f n (dst p a)
 
 let write p =
-  argfd p 0 >>= fun (_, f) -> argint p 2 >>= fun n -> argptr p 1 n >>= fun a ->
-  if n < 0 then -1 else Mmu.read p.pgdir a n >>= fun s -> File.write f s
+  argaddr p 1 >>= fun a -> argint p 2 >>= fun n -> argfd p 0 >>= fun (_, f) -> File.write f n (src p a)
 
+(* struct stat, 24 bytes (its padding zeros) *)
 let fstat p =
-  argfd p 0 >>= fun (_, f) -> argptr p 1 24 >>= fun st ->
+  argaddr p 1 >>= fun st -> argfd p 0 >>= fun (_, f) ->
   File.inode f >>= fun ip ->
-  ignore (Mmu.write p.pgdir st (Fs.stat_head ip));
-  ignore (Mmu.write p.pgdir (st + 16) (Fs.stat_size ip));
-  0
+  if Mmu.copyout p.pgdir st (Fs.stat_head ip ^ String.make 4 '\000' ^ Fs.stat_size ip) then 0 else -1
 
-let pipe p =
-  argptr p 0 8 >>= fun a ->
+let pipe (p : proc) =
+  argaddr p 0 >>= fun a ->
   File.pipe () >>= fun (rf, wf) ->
   match fdalloc p rf with
   | None -> File.close rf; File.close wf; -1
   | Some fd0 ->
       match fdalloc p wf with
       | None -> p.ofile.(fd0) <- None; File.close rf; File.close wf; -1
-      | Some fd1 -> ignore (Mmu.write p.pgdir a (Machine.le32 fd0 ^ Machine.le32 fd1)); 0
+      | Some fd1 ->
+          if Mmu.copyout p.pgdir a (Machine.le32 fd0) && Mmu.copyout p.pgdir (a + 4) (Machine.le32 fd1) then 0
+          else begin p.ofile.(fd0) <- None; p.ofile.(fd1) <- None; File.close rf; File.close wf; -1 end
 
 let chdir (p : proc) path =
   Fs.namei path >>= fun ip ->
   if Fs.itype ip <> Dir then begin Fs.iput ip; -1 end
   else begin Fs.iput p.cwd; p.cwd <- ip; 0 end
 
-(* the arguments: MAXARG pointers at most, the last 0 *)
+(* the arguments: MAXARG pointers at most, the last 0; each string's NUL
+ * within a page *)
 let exec p =
-  argstr p 0 >>= fun path -> argint p 1 >>= fun uargv ->
+  argstr p 0 maxpath >>= fun path -> argaddr p 1 >>= fun uargv ->
   let rec args i acc =
     if i >= maxarg then None
-    else match fetchint p (uargv + (4 * i)) with
+    else match fetchaddr p (uargv + (Arch.word * i)) with
       | None -> None
       | Some 0 -> Some (List.rev acc)
-      | Some a -> (match fetchstr p a with Some s -> args (i + 1) (s :: acc) | None -> None) in
+      | Some a -> (match fetchstr p Mmu.pgsize a with Some s -> args (i + 1) (s :: acc) | None -> None) in
   args 0 [] >>= fun argv -> Exec.exec path argv
 
 (*****************************************************************************)
@@ -231,35 +236,33 @@ let exec p =
 let call p c =
   match c with
   | Fork -> fork p
-  | Exit -> exit p; 0
-  | Wait -> wait p
+  | Exit -> (argint p 0 >>= fun status -> exit p status; 0)
+  | Wait -> argaddr p 0 >>= wait p
   | Pipe -> pipe p
   | Read -> read p
   | Kill -> argint p 0 >>= Proc.kill
   | Exec -> exec p
   | Fstat -> fstat p
-  | Chdir -> argstr p 0 >>= chdir p
+  | Chdir -> argstr p 0 maxpath >>= chdir p
   | Dup -> argfd p 0 >>= fun (_, f) -> fdalloc p f >>= fun fd -> ignore (File.dup f); fd
   | Getpid -> p.pid
   | Sbrk -> argint p 0 >>= sbrk p
   | Sleep -> argint p 0 >>= sleep p
   | Uptime -> !Proc.ticks
-  | Open -> argstr p 0 >>= fun path -> argint p 1 >>= open_ p path
+  | Open -> argstr p 0 maxpath >>= fun path -> argint p 1 >>= open_ p path
   | Write -> write p
   | Mknod ->
-      argstr p 0 >>= fun path -> argint p 1 >>= fun major -> argint p 2 >>= fun minor ->
+      argint p 1 >>= fun major -> argint p 2 >>= fun minor -> argstr p 0 maxpath >>= fun path ->
       Fs.create path Devnode major minor >>= fun ip -> Fs.iput ip; 0
-  | Unlink -> argstr p 0 >>= Fs.unlink
-  | Link -> argstr p 0 >>= fun old -> argstr p 1 >>= fun new_ -> Fs.link old new_
-  | Mkdir -> argstr p 0 >>= fun path -> Fs.create path Dir 0 0 >>= fun ip -> Fs.iput ip; 0
+  | Unlink -> argstr p 0 maxpath >>= Fs.unlink
+  | Link -> argstr p 0 maxpath >>= fun old -> argstr p 1 maxpath >>= fun new_ -> Fs.link old new_
+  | Mkdir -> argstr p 0 maxpath >>= fun path -> Fs.create path Dir 0 0 >>= fun ip -> Fs.iput ip; 0
   | Close -> argfd p 0 >>= fun (fd, f) -> p.ofile.(fd) <- None; File.close f; 0
 
-(* the number in r0, the result back in r0; but a successful exec's,
- * which leaves argc there *)
+(* the number (Arch.tf_syscall), the result in the first register *)
 let syscall (p : proc) =
-  let n = Machine.tf_get 0 in
+  let n = Arch.c_int (Machine.tf_get Arch.tf_syscall) in
   match decode n with
-  | Some Exec -> if call p Exec = -1 then Machine.tf_set 0 (-1)
   | Some c -> Machine.tf_set 0 (call p c)
   | None ->
       Machine.print (Printf.sprintf "%d %s: unknown sys call %d\n" p.pid p.name n);

@@ -213,7 +213,7 @@ data_entry:
 	save_user
 	cps	#0x13
 	mov	r0, #3
-	bl	user_fault
+	bl	user_abort
 	b	user_return
 kernel_data:
 	mov	r0, #3
@@ -227,7 +227,7 @@ prefetch_entry:
 	save_user
 	cps	#0x13
 	mov	r0, #2
-	bl	user_fault
+	bl	user_abort
 	b	user_return
 kernel_prefetch:
 	mov	r0, #2
@@ -255,7 +255,7 @@ swtch:
 	.global fs_image
 	.global fs_image_end
 fs_image:
-	.incbin	"build/fs.img"
+	.incbin	"build/pi1/fs.img"
 fs_image_end:
 
 @ the page tables of the boot: the kernel's (16KB, 16KB aligned), the

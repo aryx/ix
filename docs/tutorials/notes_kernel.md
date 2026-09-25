@@ -296,9 +296,12 @@ the scheduler's stack; nothing else can run, so the scheduler waits
 for an interrupt. The UART's receive interrupt ends the wait;
 `File.intr` edits the line (echo, backspace, ^U) and at Enter wakes
 the channel; the scheduler switches back into the sleeping `read`, in
-the middle of its OCaml frames, which returns the line as a string;
-the system call copies it into the user's memory through the process's
-table, puts the length in r0, and start.s returns to user mode.
+the middle of its OCaml frames, which hands the line's bytes, one at
+a time, to the destination the system call gave it: a function that
+copies them into the user's memory through the process's table
+(`Mmu.copyout`: the user's pages only, and a byte that cannot be
+copied ends the read, as xv6-riscv's either_copyout does); the length
+goes in r0, and start.s returns to user mode.
 
 **What xv6 needs that mini-xv6 does not.** xv6's layers between a
 system call and the disk -- a buffer cache, a log, in-memory copies
@@ -315,10 +318,48 @@ inode | Device of inode * int`, not a tag and three pointers; what a
 process sleeps on is a channel, a variant (`Child_of pid`,
 `Pipe_readable p`), where xv6 uses any address. Errors are options:
 `>>=` chains the argument checks, and a missing one is -1. Bytes cross
-the kernel as strings. And the words the user hands the kernel are
+the kernel in pieces, through a destination or a source function (the
+user's buffer by offset), so a fault halfway stops a read or a write
+where xv6's would stop. And the words the user hands the kernel are
 32 bits, one more than an OCaml int: `Machine.get_le32` keeps the ones
 from -1GB to 1GB and turns the others into max_int, which every bound
 refuses.
+
+## 7b. Two boards: what is the machine's
+
+The same kernel runs on the Pi4 (ARMv8, arm64: `make BOARD=pi4`),
+each board its own xv6 port's programs and `fs.img`. The kernel is
+written once; a board is a directory, `pi1/` or `pi4/`: its `Arch.ml`
+(one `Arch.mli` for both), its `machine.c` and `start.s` under it. The
+interface came from asking, of every line that mentioned the Pi1, what
+it really depended on:
+
+```
+                     the Pi1 (ARMv6, arm32)        the Pi4 (ARMv8, arm64)
+  a table's levels   1024 x 1MB, 256 x 4KB          512 x 1GB, 2MB, 4KB
+  a page's entry     ARMv6's small page, AP          ARMv8's page, AP, AttrIndx, nG
+  the call's number  r0                              x7
+  the arguments      the user's stack (usys.S)       x0-x5
+  a word             4 bytes, OCaml's int 31 bits    8 bytes, OCaml's int 63 bits
+  the programs       ELF32                           ELF64
+```
+
+Mmu became one radix walk over `Arch.levels`, the entry's bits in
+`Arch.encode_page`, `decode_page`; the rest of the kernel never sees a
+descriptor. Some differences turned out not to be the machine's at
+all. The block size (512 or 1024) is the disk's: Fs reads it from
+where the superblock is. And the two xv6 ports are two xv6s: arm-pi1
+came from x86's xv6, arm64-pi4 from xv6-riscv, and they differ in
+exit's status, how the kernel reaches the user's memory, exec's stack,
+the console, the fault message. Those are not arch: mini-xv6 has one
+xv6, xv6-riscv's, on both boards (plan_kernel.md lists the
+differences, the convergence xv6-multiarch aims at).
+
+Under OCaml, the C divides the same way: `runtime.c` (the processes'
+kernel stacks, the switch, the collector's view of each stack: step 3)
+is the same on both; the trap frame's size and the registers `swtch`
+keeps are `board.h`'s. On arm64 the trap lands on the process's
+kernel stack as on the Pi1: SP_EL1 is banked, as the SVC mode's sp is.
 
 ## 8. How it is tested
 
@@ -333,7 +374,9 @@ test: `kernel/xv6/session.py` types a shell session at sh's prompts,
 under mini-qemu and QEMU; its transcript must be the C kernel's, byte
 for byte (`expected`, made from the C kernel by `make expected`). Then
 usertests must pass (`make check`; under mini-qemu, `make
-usertests-mini`). `./mini-pi mini-xv6` boots it in a terminal.
+usertests-mini`), each board against its own port's C kernel (`BOARD=pi1`,
+`BOARD=pi4`). `./mini-pi mini-xv6-pi1` (or `-pi4`) boots it in a
+terminal.
 
 ## 9. Exercises
 
@@ -345,4 +388,5 @@ usertests-mini`). `./mini-pi mini-xv6` boots it in a terminal.
   collector's pauses inside traps.
 - Step 3 the other way: one kernel stack and blocking calls as
   continuations; compare the two kernels' code.
-- The same kernel on the Pi4 (arm64: 63-bit ints, no 1GB rule).
+- The Pi4's four cores: locks come back, and so does the lost wakeup
+  (`kernel/xv6` has neither: one core, never interrupted).

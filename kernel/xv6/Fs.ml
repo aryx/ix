@@ -13,8 +13,22 @@ open Types
 
 module Phys = Machine.Phys
 
+(*****************************************************************************)
+(* The disk *)
+(*****************************************************************************)
+
+let base = Machine.fs_base ()
+let magic = 0x10203040
+
+(* the block size, the disk's: where block 1, the superblock, starts
+ * (block 0 is empty). xv6's ports differ (arm-pi1's 512, arm64-pi4's
+ * 1024: each fork's driver's), their format otherwise the same *)
+let bsize =
+  if Phys.get32 (base + 512) = magic then 512
+  else if Phys.get32 (base + 1024) = magic then 1024
+  else Machine.panic "fs: not an xv6 file system"
+
 (* fs.h, param.h *)
-let bsize = 512
 let ndirect = 58
 let nindirect = bsize / 4
 let maxfile = ndirect + nindirect
@@ -23,11 +37,6 @@ let dirsiz = 14
 let rootino = 1
 let ninode = 50
 
-(*****************************************************************************)
-(* The disk *)
-(*****************************************************************************)
-
-let base = Machine.fs_base ()
 let block b = base + (b * bsize)
 
 (* the superblock, block 1: magic, size, nblocks, ninodes, nlog,
@@ -37,8 +46,6 @@ let fsize = sb 1
 let ninodes = sb 3
 let inodestart = sb 6
 let bmapstart = sb 7
-
-let () = if sb 0 <> 0x10203040 then Machine.panic "fs: not an xv6 file system"
 
 (*****************************************************************************)
 (* An inode's fields, on the disk *)
@@ -168,10 +175,12 @@ let ialloc t =
 (* An inode's bytes *)
 (*****************************************************************************)
 
-(* [n] bytes at [off], fewer at the end; None when [off] is past it *)
+(* [n] bytes at [off], fewer at the end, none past it (xv6-riscv's
+ * readi: 0, not -1) *)
 let readi ip off n =
   let size = get ip i_size in
-  if off < 0 || n < 0 || off > size then None
+  if off > size then Some ""
+  else if off < 0 || n < 0 then None
   else begin
     let n = min n (size - off) in
     let b = Buffer.create n in
@@ -200,6 +209,45 @@ let writei ip off s =
     go off 0;
     if n > 0 && off + n > get ip i_size then set ip i_size (off + n);
     n
+  end
+
+(* xv6-riscv's readi to the user (a read(2)): [n] bytes at [off], a
+ * block's piece at a time to [dst] (the user's buffer, by offset): the
+ * bytes read, or -1 when [dst] cannot take one (the pieces before it
+ * copied). [n] a C uint: a negative count wraps, past the end (0) or to
+ * the whole file *)
+let readi_to ip off n dst =
+  let size = get ip i_size in
+  if off > size || (n < 0 && off + n >= 0) then 0
+  else begin
+    let n = if n < 0 then size - off else min n (size - off) in
+    let rec go tot off =
+      if tot >= n then tot
+      else begin
+        let m = min (n - tot) (bsize - (off mod bsize)) in
+        if dst tot (Phys.read (block (bmap ip (off / bsize)) + (off mod bsize)) m) then go (tot + m) (off + m) else -1
+      end in
+    go 0 off
+  end
+
+(* xv6-riscv's writei from the user: [n] bytes from [src] at [off], a
+ * block's piece at a time, stopping at one [src] cannot give; the bytes
+ * written, the file grown to them; -1 past the end, past MAXFILE, or a
+ * negative (a C uint: huge) count *)
+let writei_from ip off n src =
+  if n < 0 || off > get ip i_size || off + n > maxfile * bsize then -1
+  else begin
+    let rec go tot off =
+      if tot >= n then tot
+      else begin
+        let m = min (n - tot) (bsize - (off mod bsize)) in
+        match src tot m with
+        | None -> tot
+        | Some s -> Phys.write (block (bmap ip (off / bsize)) + (off mod bsize)) s; go (tot + m) (off + m)
+      end in
+    let tot = go 0 off in
+    if off + tot > get ip i_size then set ip i_size (off + tot);
+    tot
   end
 
 (* struct stat: int dev, uint ino, short type, short nlink, then at 16
@@ -294,7 +342,7 @@ let create path t major minor =
       match dirlookup dp name with
       | Some (ip, _) ->
           iput dp;
-          if t = File && itype ip = File then Some ip else begin iput ip; None end
+          if t = File && (itype ip = File || itype ip = Devnode) then Some ip else begin iput ip; None end
       | None ->
           let ip = ialloc t in
           set ip i_major major;

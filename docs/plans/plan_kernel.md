@@ -276,8 +276,8 @@ collector, the MMU, the timer. Next: `kernel/xv6/`, mini-xv6 itself.
 **mini-xv6 done** (2026-09-25): `kernel/xv6/`, xv6 in OCaml, running xv6
 arm-pi1's own user programs from its own `fs.img` (linked into the
 kernel, xv6's RAM disk): init, sh, the utilities and **usertests, all
-of them passing** under QEMU (9s); under mini-qemu (`make
-usertests-mini`) the run takes over half an hour, its result to record. A
+of them passing** under QEMU (9s) and mini-qemu (`make
+usertests-mini`: 2,439s, 41 minutes, the transcript the C kernel's). A
 shell session (ls, cat, echo, mkdir, ln, wc, rm, grep, forktest, a
 failing cat, sh -c) prints **byte for byte what xv6's C kernel prints**
 under mini-qemu and QEMU (`kernel/xv6/expected`, made from the C
@@ -347,3 +347,111 @@ Found on the way:
   Device (ip, _)`).
 - xv6 runs user mode with FIQs unmasked (userinit's spsr 0x10): the
   fault message showed it (0x60000010), and mini-xv6 now does the same.
+
+**Two boards, one xv6** (2026-09-25): the same kernel on the Pi4,
+`make BOARD=pi4` (`mini-pi mini-xv6-pi1`, `mini-xv6-pi4`). The author:
+handle arm64 "just like for the assembler, linker, compiler, we handle
+the 2 archs", which "would force to make the code more portable and less
+architecture specific, finding the right arch abstraction"; and, the
+two xv6 ports being different xv6s (arm-pi1 descends from x86's xv6,
+arm64-pi4 from xv6-riscv), "one of the goal in xv6-multiarch was to
+gradually merge all those forks in a single codebase ... of course
+having arch specific part, but trying to merge things", with
+"xv6-riscv modern semantic".
+
+So the kernel is written once, and what differs is the board's:
+
+- `kernel/xv6/*.ml` (1,036 lines of OCaml, comments and blank lines
+  left out), `runtime.c` (136: the processes' kernel side, the
+  collector's view of their stacks, the calls into OCaml), `libc.c`
+  (209): the same on both.
+- `pi1/`, `pi4/`: `Arch.ml` (27, 39 lines) behind one `Arch.mli`, and
+  the machine: `machine.c` (112, 134), `start.s` (198, 231), `board.h`,
+  `kernel.ld`.
+
+`Arch` holds what the machines really differ in, and no more: a
+translation table's levels and how an entry says "a table" or "a page"
+(Mmu is one radix walk over them: the Pi1's 2 levels of ARMv6
+descriptors, the Pi4's 3 of ARMv8's); the trap frame's pc, sp and
+system call number; where the arguments are (the Pi1's user stub
+pushes them on its stack, the Pi4's are in x0-x5); the ELF class; a
+user word's size, and C's int and uint of a register (identities on
+the Pi1, whose OCaml ints are narrower than its words); the user's
+address limit; the pages the processes get. What looked like a board's
+parameter but is not: the block size (512 on arm-pi1's fs.img, 1024 on
+arm64-pi4's), which Fs reads from the disk (where block 1's magic is).
+
+**One semantics, xv6-riscv's**, for both, which is where the ports
+differed (a list for xv6-multiarch's convergence):
+
+| | arm-pi1 (x86 xv6's) | arm64-pi4, and mini-xv6 on both |
+| --- | --- | --- |
+| exit, wait | the status ignored | exit(status); wait(&status); a killed process exits -1 |
+| the user's memory | checked against sz, read and written in place (the guard page too) | through its page table, the user's pages only (copyin, copyout, copyinstr), MAXPATH 128 |
+| exec's stack | word-aligned, a fake return pc, r0 left argc | one page, 16-byte aligned, argc the result; the process named after the path's last element |
+| read, write faults | the whole buffer checked first | a piece at a time: a pipe or the console stops where it got to, a file read is -1, a file write -1 after its full chunks |
+| sbrk | the size an int | growproc's `uint`: a size wrapping below leaves it (sbrk8000) |
+| the console | CR before LF, ^D echoed "^D", a raw LF dropped | as it is |
+| a fault | `pid N name: trap 4 ... --kill proc` | `usertrap(): unexpected ec %p %p pid=%d` then elr, far (the Pi1 says it as arm64 does: class 0x24 or 0x20, its FSR as the syndrome) |
+| readi past the end | -1 | 0 |
+
+**Checked**, each board against its port's C kernel (`make check`, in
+`kernel/test.sh`):
+
+- the Pi1: the shell session byte for byte as arm-pi1's C kernel under
+  mini-qemu and QEMU, and usertests (arm-pi1's, 29 tests) passing under
+  QEMU with the new semantics (under mini-qemu, the earlier semantics'
+  run: 41 minutes, above);
+- the Pi4: the session byte for byte as arm64-pi4's C kernel under
+  mini-qemu and QEMU, and **usertests (xv6-riscv's, 62 tests) passing**
+  under QEMU (47s) and mini-qemu (638s), the transcript the C kernel's
+  line for line but for the fault messages' status codes (a level 1
+  permission fault where the C kernel reports a level 3 translation
+  fault: it maps itself with pages, mini-xv6 with 1GB blocks) and pids
+  after forkforkfork (which forks for as long as a race lets it).
+
+**mini-qemu's arm64 got the scalar floating point** (machine/Arm64.ml):
+the OCaml runtime computes with doubles (the collector's slices,
+`float`), and arm64 has no soft-float. The forms the kernel uses, and
+their neighbours: fadd, fsub, fmul, fdiv, fnmul, the multiply-adds,
+fmov, fabs, fneg, fsqrt, fcvt, fcmp(e), fcsel, the conversions with the
+integers, fmov of an immediate and with the core registers, the loads
+and stores of s, d (singles and pairs) and q (a variadic function's
+stores of v0-v7), movi, sshr and ushr of a d. On an aarch64 host
+OCaml's float operations are these instructions, so natively they are
+exact, NaNs included. Checked by `random_blocks.py -64fp` against this
+machine's CPU (10,000 blocks, 0 differ; it found the multiply-add of
+singles rounding twice, then its NaN taken from a factor before the
+addend, both fixed) and `decode_check.py -64fp` against objdump (5,000
+words, 0 differ).
+
+Found on the way:
+
+- **The Pi4's PL011 is off**: nothing enables it (the Pi1's firmware
+  path did), and QEMU drops what a disabled one is sent: `board_init`
+  sets CR first.
+- **GCC vectorizes the runtime's C** (Advanced SIMD): the Pi4 build
+  says `-fno-tree-vectorize`, and libc.c's `%d` reads an int, not a
+  long (an int's register's upper half is undefined on arm64).
+- **An interrupt ended at the GIC before OCaml runs**: the process may
+  give up the CPU in the handler, and an interrupt left active would
+  keep the scheduler's `wfi` from ever seeing the next tick.
+- `Machine.le32` shifted logically: on the Pi1, -1 became `ff ff ff
+  7f` (harmless as exec's fake return pc; a wait status of -1 needs it
+  right).
+- ocaml-light's arm32 build takes Int64's C type from the aarch64 host
+  (`long`, 32 bits on the target): the Pi1 uses no Int64
+  ([`plan_bugs_ocaml_light.md`](../plan_bugs_ocaml_light.md), issue 4);
+  the fault's registers cross from C formatted.
+- **make's built-in rules deleted ~/xv6/forks/arm64-pi4/fs.img**: its
+  `fs.img.o` (newer) matched the `%: %.o` rule, make tried to "rebuild"
+  the image, and the failed link removed it. Restored from `fs.img.o`'s
+  data (`objcopy -O binary -j .data`), byte for byte the copy linked
+  into the port's own kernel, its mtime put back before `fs.img.o`'s;
+  the Makefile now has no built-in rules and an empty rule for the
+  source image. A lesson for any Makefile that names files it must not
+  build.
+
+xv6 arm64-pi4's kernel is 4,562 lines of C and assembly; mini-xv6's,
+for both boards, 1,036 of OCaml, 66 of Arch, and 345 of shared C with
+318 (Pi1) and 374 (Pi4) of the board's C and assembly.

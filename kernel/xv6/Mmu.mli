@@ -1,10 +1,9 @@
 (* mini-xv6's memory (xv6's kalloc.c and vm.c): the physical pages, and
- * a process's address space, xv6 arm-pi1's: its bytes [0, sz) below 1GB,
- * through its own first-level table (TTBR0, TTBCR N = 2: 1024 entries,
- * a page), coarse tables of 256 small pages (kernel/step4).
- *
- * Page table entries are records (Types.l1, l2); only [encode] and
- * [decode] know the bits. *)
+ * a process's address space: its bytes [0, sz) through its own
+ * translation table (TTBR0), a radix tree whose levels and entries are
+ * the board's (Arch: the Pi1's two levels of ARMv6 descriptors, the
+ * Pi4's three of ARMv8's). Pages are records (Types.page); only Arch
+ * knows the bits. *)
 
 val pgsize : int
 val pgroundup : int -> int
@@ -21,8 +20,8 @@ val nfree : unit -> int
 val create : unit -> int option
 
 (* [alloc pgdir oldsz newsz]: [oldsz, newsz) given fresh zeroed pages
- * (allocuvm): the new size, or None (1GB reached, or no page left:
- * what it added freed) *)
+ * (uvmalloc): the new size, or None (past the user's addresses, or no
+ * page left: what it added freed) *)
 val alloc : int -> int -> int -> int option
 
 (* [dealloc pgdir oldsz newsz]: the pages from newsz up freed
@@ -38,10 +37,16 @@ val free : int -> unit
 (* [copy pgdir sz]: [0, sz) copied into a new space (copyuvm), or None *)
 val copy : int -> int -> int option
 
-(* a process's bytes, through its table. [read] and [write] reach any
- * page mapped (xv6's kernel checks the bounds against sz only, the
- * guard page within); [copyout] only the user's pages (exec's). None
- * or false: a page not mapped *)
+(* a process's bytes, through its table (xv6-riscv's copyin, copyout,
+ * copyinstr: the user's pages only, the guard page refused).
+ * [read_prefix]: the bytes before the first page out of reach, [n] at
+ * most; [read]: all [n] or None; [room]: how many of [n] the user can
+ * write; [copyout]: all of [s] (true), or up to the first page out of
+ * reach; [read_string]: a string, its NUL within [max] bytes; [write]:
+ * any page mapped (exec loading a program) *)
+val read_prefix : int -> int -> int -> string
 val read : int -> int -> int -> string option
-val write : int -> int -> string -> bool
+val room : int -> int -> int -> int
 val copyout : int -> int -> string -> bool
+val read_string : int -> int -> int -> string option
+val write : int -> int -> string -> bool

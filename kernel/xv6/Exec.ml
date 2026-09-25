@@ -12,61 +12,91 @@
 open Types
 
 let pgsize = Mmu.pgsize
-let word = Machine.get_le32
+let maxarg = 32
+
+(*****************************************************************************)
+(* ELF, 32 or 64 bits *)
+(*****************************************************************************)
+
 let half s o = Char.code s.[o] lor (Char.code s.[o + 1] lsl 8)
 
-(* the program's loadable segments in [pgdir]: the size, the entry. The
- * ELF header: its entry at 24, phoff at 28, phnum at 44; a program
- * header, 32 bytes: type at 0 (1: PT_LOAD), off 4, vaddr 8, filesz 16,
- * memsz 20 *)
+(* a word of [n] bytes (4 or 8), as Arch reads the user's *)
+let field s o n = if n = 4 then Machine.get_le32 s o else Arch.get_word s o
+
+(* the header: its size, then the entry, phoff, phnum's offsets and the
+ * addresses' size; a program header: its size, then type, offset,
+ * vaddr, filesz, memsz's offsets, by class (1 ELF32, 2 ELF64) *)
+type layout = { ehsize : int; entry : int; phoff : int; phnum : int; addr : int;
+                phsize : int; ptype : int; poffset : int; vaddr : int; filesz : int; memsz : int }
+
+let elf32 = { ehsize = 52; entry = 24; phoff = 28; phnum = 44; addr = 4;
+              phsize = 32; ptype = 0; poffset = 4; vaddr = 8; filesz = 16; memsz = 20 }
+let elf64 = { ehsize = 64; entry = 24; phoff = 32; phnum = 56; addr = 8;
+              phsize = 56; ptype = 0; poffset = 8; vaddr = 16; filesz = 32; memsz = 40 }
+
+(* the program's loadable segments in [pgdir]: the size, the entry *)
 let load ip pgdir =
-  match Fs.readi ip 0 52 with
-  | Some elf when String.length elf = 52 && String.sub elf 0 4 = "\127ELF" ->
+  let l = if Arch.elf_class = 2 then elf64 else elf32 in
+  match Fs.readi ip 0 l.ehsize with
+  | Some elf when String.length elf = l.ehsize && String.sub elf 0 4 = "\127ELF" && Char.code elf.[4] = Arch.elf_class ->
       let rec segment i sz =
-        if i = half elf 44 then Some (sz, word elf 24)
-        else match Fs.readi ip (word elf 28 + (32 * i)) 32 with
-          | Some ph when String.length ph = 32 ->
-              let va = word ph 8 and filesz = word ph 16 and memsz = word ph 20 in
-              if word ph 0 <> 1 then segment (i + 1) sz
-              else if memsz < filesz then None
+        if i = half elf l.phnum then Some (sz, field elf l.entry l.addr)
+        else match Fs.readi ip (field elf l.phoff l.addr + (l.phsize * i)) l.phsize with
+          | Some ph when String.length ph = l.phsize ->
+              let va = field ph l.vaddr l.addr and filesz = field ph l.filesz l.addr and memsz = field ph l.memsz l.addr in
+              if Machine.get_le32 ph l.ptype <> 1 then segment (i + 1) sz
+              else if memsz < filesz || va + memsz < va then None
               else begin match Mmu.alloc pgdir sz (va + memsz) with
                 | None -> None
                 | Some sz ->
-                    if va mod pgsize <> 0 then Machine.panic "loaduvm: addr must be page aligned";
-                    match Fs.readi ip (word ph 4) filesz with
-                    | Some s when String.length s = filesz -> ignore (Mmu.write pgdir va s); segment (i + 1) sz
-                    | _ -> None
+                    if va mod pgsize <> 0 then None
+                    else match Fs.readi ip (field ph l.poffset l.addr) filesz with
+                      | Some s when String.length s = filesz -> ignore (Mmu.write pgdir va s); segment (i + 1) sz
+                      | _ -> None
               end
           | _ -> None in
       segment 0 0
   | _ -> None
 
+(*****************************************************************************)
+(* The stack *)
+(*****************************************************************************)
+
 (* the guard and the stack above [sz], the arguments on it: the new
- * size, sp, argv *)
+ * size, sp, argv; None when they do not fit its page *)
 let stack pgdir sz args =
   let sz = Mmu.pgroundup sz in
   match Mmu.alloc pgdir sz (sz + (2 * pgsize)) with
   | None -> None
   | Some sz ->
       Mmu.guard pgdir (sz - (2 * pgsize));
+      let stackbase = sz - pgsize in
       let rec strings sp ptrs args =
         match args with
         | [] -> Some (sp, List.rev ptrs)
         | a :: rest ->
-            let sp = (sp - (String.length a + 1)) land lnot 3 in
-            if Mmu.copyout pgdir sp (a ^ "\000") then strings sp (sp :: ptrs) rest else None in
+            let sp = (sp - (String.length a + 1)) land lnot 15 in
+            if sp < stackbase || not (Mmu.copyout pgdir sp (a ^ "\000")) then None else strings sp (sp :: ptrs) rest in
       match strings sz [] args with
       | None -> None
       | Some (sp, ptrs) ->
-          let argc = List.length ptrs in
-          let argv = sp - ((argc + 1) * 4) in
-          let ustack = List.map Machine.le32 ([ -1; argc; argv ] @ ptrs @ [ 0 ]) in
-          let sp = sp - ((3 + argc + 1) * 4) in
-          if Mmu.copyout pgdir sp (String.concat "" ustack) then Some (sz, sp, argc, argv) else None
+          let sp = (sp - ((List.length ptrs + 1) * Arch.word)) land lnot 15 in
+          let argv = String.concat "" (List.map Arch.word_bytes (ptrs @ [ 0 ])) in
+          if sp < stackbase || not (Mmu.copyout pgdir sp argv) then None else Some (sz, sp)
 
-(* 0, the process running the program; or -1, the process as it was *)
+(*****************************************************************************)
+(* Exec *)
+(*****************************************************************************)
+
+(* the last element of a path, 15 bytes (xv6's name[16], NUL ended) *)
+let basename path =
+  let last = try String.rindex path '/' + 1 with Not_found -> 0 in
+  let s = String.sub path last (String.length path - last) in
+  String.sub s 0 (min 15 (String.length s))
+
 let exec path args =
-  match Fs.namei path with
+  if List.length args >= maxarg then -1
+  else match Fs.namei path with
   | None -> -1
   | Some ip ->
       match Mmu.create () with
@@ -78,21 +108,19 @@ let exec path args =
             | None -> None
             | Some (sz, entry) ->
                 match stack pgdir sz args with
-                | Some (sz, sp, argc, argv) -> Some (sz, entry, sp, argc, argv)
+                | Some (sz, sp) -> Some (sz, entry, sp)
                 | None -> None in
           match ready with
           | None -> Mmu.free pgdir; -1
-          | Some (sz, entry, sp, argc, argv) ->
+          | Some (sz, entry, sp) ->
               let p = Proc.myproc () in
               let old = p.pgdir in
-              (* its name, for the messages: argv[0], 15 bytes (xv6's 16, NUL ended) *)
-              (match args with a :: _ -> p.name <- String.sub a 0 (min 15 (String.length a)) | [] -> ());
+              p.name <- basename path;
               p.pgdir <- pgdir;
               p.sz <- sz;
-              Machine.tf_set 15 entry;
-              Machine.tf_set 13 sp;
-              Machine.tf_set 0 argc;
-              Machine.tf_set 1 argv;
+              Machine.tf_set Arch.tf_pc entry;
+              Machine.tf_set Arch.tf_sp sp;
+              Machine.tf_set 1 sp;
               Machine.mmu_switch pgdir;
               Mmu.free old;
-              0
+              List.length args

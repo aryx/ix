@@ -9,13 +9,12 @@
 (* Memory *)
 (*****************************************************************************)
 
-(* ARMv6's short descriptors, the kinds the kernel uses (Mmu.ml) *)
+(* a page of a process's: its physical address, who may use it (the
+ * guard page below the stack: the kernel only). Each board's Arch
+ * encodes it in its page table entries *)
 type perm = Kernel_rw | User_ro | User_rw
 
 type page = { pa : int; perm : perm }
-
-type l1 = L1_fault | Coarse of int          (* a second-level table's physical address *)
-type l2 = L2_fault | Page of page
 
 (*****************************************************************************)
 (* Files *)
@@ -71,6 +70,7 @@ type proc = {
   mutable sz : int;             (* its memory: [0, sz) *)
   mutable parent : int;         (* a pid; 0 for init *)
   mutable killed : bool;
+  mutable xstate : int;         (* exit's status, for the parent's wait *)
   ofile : file option array;    (* NOFILE *)
   mutable cwd : inode;
   mutable name : string;
