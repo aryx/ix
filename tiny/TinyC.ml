@@ -75,7 +75,8 @@
  * typedef; functions and prototypes, calls to variadic ones; function
  * pointers (C's declarators inside out, a call through any expression:
  * tiny-os's system call table and devices); every operator, with op=,
- * ++, --, ?:, casts, sizeof and the comma; if, while, do, for, switch,
+ * ++, --, ?:, casts, sizeof and the comma, constant expressions folded
+ * (an array's size, a case); if, while, do, for, switch,
  * break, continue, return, blocks; #include "file", #define of a name.
  * Left out, by what each would cost here: floats, unions, bitfields,
  * structures by value, goto, the preprocessor's macros with arguments
@@ -752,8 +753,26 @@ and primary () =
   | Id x -> let v = lookup x in var v.where v.vty
   | _ -> error "expected an expression"
 
+(* a constant expression, folded: an array's size, a case, an enum's
+ * value (NDIRECT + 1, sizeof a / sizeof a[0]); 64-bit arithmetic, as the
+ * values are *)
 and const_expr () =
-  match (cond_expr ()).d with Const v -> v | _ -> error "not a constant"
+  let rec fold (e : expr) =
+    match e.d with
+    | Const v -> v
+    | Conv a -> fold a
+    | Un (Neg, a) -> Int64.neg (fold a)
+    | Un (Com, a) -> Int64.lognot (fold a)
+    | Bin (A o, a, b) ->
+        let a = fold a and b = fold b in
+        (match o with
+         | Add -> Int64.add a b | Sub -> Int64.sub a b | Mul -> Int64.mul a b
+         | Div -> if b = 0L then error "division by zero" else Int64.div a b
+         | Mod -> if b = 0L then error "division by zero" else Int64.rem a b
+         | And -> Int64.logand a b | Or -> Int64.logor a b | Xor -> Int64.logxor a b
+         | Shl -> Int64.shift_left a (Int64.to_int b) | Shr -> Int64.shift_right a (Int64.to_int b))
+    | _ -> error "not a constant" in
+  fold (cond_expr ())
 
 (* statements *)
 let cond () = expect "("; let c = rv (expr ()) in expect ")"; c

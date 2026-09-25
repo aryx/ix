@@ -1,0 +1,13 @@
+kernel.img
+fs.img
+check.img
+check.out
+main.tm
+vm.tm
+proc.tm
+fs.tm
+file.tm
+user/bin/
+user/[a-t]*.tm
+user/usertests.tm
+user/[w-z]*.tm

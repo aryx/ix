@@ -10,12 +10,13 @@
 # tiny-os: an operating system for tiny-machine, built by the tiny
 # tools as any program is built by its toolchain. A kernel per version,
 # each in its directory with its Makefile (v0/: a page of assembly;
-# v6/, to come, xv6 on tiny-machine, in C), and what they share: the C
+# v6/, xv6's kind of kernel, in C), and what they share: the C
 # runtime (libc/: start.tm, udivmod.tm, libc.c, libc.h), whose system calls are
 # tiny-cpu's and the kernels'. Not TinyKernel.ml,
 # mini-xv6 or mini-9pi, other projects of ix (docs/projects.md).
 #
-#   make run          the latest kernel, v0, on tiny-machine
+#   make run          v6 on tiny-machine: its shell, on the console
+#   make run-v0       v0
 #   make run-hello    hello.c, compiled by tiny-c -tm, on tiny-cpu
 #
 # The tools from the PATH (after `dune install`), or from ix's bin/. A
@@ -27,7 +28,7 @@ export PATH := $(abspath ../../bin):$(PATH)
 
 TC = tiny-c
 CPU = tiny-cpu
-VERSIONS = v0
+VERSIONS = v0 v6
 
 all: libc/libc.tm hello
 	for v in $(VERSIONS); do $(MAKE) -C $$v all || exit 1; done
@@ -42,6 +43,9 @@ hello: libc/start.tm libc/udivmod.tm libc/libc.tm hello.tm
 	$(CPU) -o $@ $^
 
 run:
+	$(MAKE) -C v6 run
+
+run-v0:
 	$(MAKE) -C v0 run
 
 run-hello: hello
@@ -51,4 +55,4 @@ clean:
 	rm -f hello hello.tm libc/libc.tm
 	for v in $(VERSIONS); do $(MAKE) -C $$v clean; done
 
-.PHONY: all run run-hello clean
+.PHONY: all run run-v0 run-hello clean

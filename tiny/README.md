@@ -27,8 +27,9 @@ files, children and pipes they share with the twins come from
 `tiny-os/` is not OCaml: it is an operating system for tiny-machine,
 in its assembly (`.tm`) and in C for tiny-c -tm, built by the tiny
 tools as a program is built by its toolchain. A kernel per version
-(`v0/`: a page of assembly and four programs linked with it; `v6/`, to
-come, xv6 on tiny-machine, in C), and the C runtime they
+(`v0/`: a page of assembly and four programs linked with it; `v6/`,
+xv6's kind of kernel in C, with its disk made by `tiny-mkfs`, a shell
+and `usertests`), and the C runtime they
 share (`libc/`: `start.tm`, `libc.c`, `libc.h`); `hello.c` runs on
 tiny-cpu. Its Makefiles take the tools from the PATH (after `dune
 install`) or from ix's `bin/`: `make -C tiny/tiny-os run`, `make -C

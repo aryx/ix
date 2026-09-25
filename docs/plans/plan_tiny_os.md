@@ -434,3 +434,27 @@ each against its hand-computed `.expected`; the U check, the W check
 and the write-back each broken on purpose fail them. The virtual
 addresses stay below 16 MB (the CPU keeps its pc modulo the memory),
 a limit v6's layout respects.
+
+**v6 runs (2026-09-25).** The machine's last additions (`scratch`,
+`csrrw`; the assembler's origin, `tiny-cpu -a`), `tiny-mkfs` (OCaml,
+`tiny/TinyMkfs.ml`, with `-l` to read an image back), and the kernel in
+`tiny/tiny-os/v6/`: `entry.tm`, `defs.h`, `main.c`, `vm.c`, `proc.c`,
+`fs.c`, `file.c`, as designed; the user side in `user/` (`usys.tm`,
+`init`, `sh`, `cat`, `echo`, `ls`, `mkdir`, `rm`, `wc`, `usertests`),
+linked with `libc/` (whose `exit`, `write` and `read` are sys 0, 1 and
+2 on tiny-cpu and on v6 alike). It booted the first time: `init`, the
+shell, `usertests` all ok (fork and wait, pipes, files, directories,
+sbrk, exec, a store into the kernel killed), and a script through the
+shell (a pipe, `>`, `ls`, `wc`, `rm`). `make check` compares both with
+`check.expected`, in `make test`; `wait` made to lose the status fails
+it. Found on the way, and fixed in the tools: each linked file must
+start on a word (a C file can end with a string's bytes); the kernel
+needs the unsigned division without the user's start
+(`libc/udivmod.tm`); tiny-c folds constant expressions (`name[DIRSIZ +
+1]`).
+
+**Over the budget**: 2,781 lines of code (no comments, no blank
+lines): the kernel 2,178 (`defs.h` 204, `entry.tm` 152, `main.c` 239,
+`vm.c` 191, `proc.c` 382, `fs.c` 448, `file.c` 562), the user side 603
+(`usertests` 172, `sh` 121, the stubs 119). Against 2,000: to review
+with the author (what to trim, or the budget).

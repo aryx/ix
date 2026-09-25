@@ -1,0 +1,16 @@
+tiny-os v6: 2024 free pages
+$ forks ok
+pipes ok
+files ok
+dirs ok
+mem ok
+hello from exec
+pid 16 usertests: trap 3 at 811d68, 1000
+execs ok
+usertests: ALL OK
+$ tiny-os v6: 2024 free pages
+$ hi
+f 2 12 3
+1 1 3
+cat: cannot open f
+$ 
