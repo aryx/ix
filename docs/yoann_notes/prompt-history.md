@@ -4695,3 +4695,55 @@ Claude created tutorial and related-work files for the kernel documenting the OC
 **Yoann:**
 
 > let's maybe have kernel/step6 for xv6? and later on step9 ? or kernel/xv6 and kernel/9pi/ ? or kernel/ov6/ and kernel/o9pi/  ?
+
+**Claude (summary):**
+
+Claude completed Step 4 (MMU) and Step 5 (timer), verifying identical output under mini-qemu and QEMU. Fixed integer overflow using Int32 for fault addresses exceeding 0x80000000 and boot sequencing bug in table setup order. Committed working implementation (cc6eb61, 51c43d5) and documented kernel layout plan for steps 1 through 5. Proposed starting mini-xv6 proper with typed-memory module, fork/exec/wait/pipes, xv6 fs.img filesystem, and original user programs. Claude also rewrote OCaml 1.07-incompatible code lacking inline records, field punning, and labeled arguments.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 15:58
+
+**Yoann:**
+
+> yes!
+
+**Claude (summary):**
+
+Claude will write OCaml code for mini-xv6 kernel, with interface (.mli) files accompanying implementations.
+Claude delegated detailed xv6 arm-pi1 survey to an agent while reviewing headers independently.
+Claude identified inode size at 256 bytes and block size at 512, with init requiring console via mknod.
+File system write path must work immediately since init creates console on first run.
+Implementation design will be determined once the agent survey provides ABI details.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:17
+
+**Yoann:**
+
+> dont forget the .mli
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:34
+
+**Yoann:**
+
+> can we add this xv6 (how to call it?) in the mini-pi toplevel script?
+
+**Claude (summary):**
+
+Mini-xv6 successfully boots xv6 arm-pi1's fs.img, running init, sh, and all user programs.
+All usertests pass under QEMU in 9 seconds with transcripts matching the C kernel exactly.
+Claude wrote 956 lines of OCaml in nine modules following xv6's architecture.
+Each module has an .mli file with docs; tests integrated into kernel/test.sh.
+A bug in the C kernel (O_TRUNC panic on redirects) was discovered; kernel/xv6 ready to commit.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:49
+
+**Yoann:**
+
+> ok great!

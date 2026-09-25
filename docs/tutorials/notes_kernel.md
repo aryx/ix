@@ -263,15 +263,62 @@ memory.
   (notes_pi.md, section 4) decoded into `{ pa; ap; domain; ... }` and
   encoded back, the bit twiddling in one place.
 
-## 7. Step 4: xv6's structure, and a mini twin
+## 7. mini-xv6: xv6 in OCaml (`kernel/xv6/`)
 
-With processes switching, the rest is xv6 itself, in OCaml: fork,
-exec (reading an ELF), wait and exit, sleep and wakeup, the file
-system over xv6's own `fs.img` format, pipes, the console. The test is
-ix's usual one: xv6 arm-pi1's own user programs -- the shell, `ls`,
-`usertests` -- compiled for the C kernel, run unchanged on mini-xv6
-under mini-qemu, their output compared with the C kernel's. That makes
-mini-xv6 a *mini* twin: its behaviour xv6's, its code OCaml's.
+With the ladder climbed, the rest is xv6 itself, in OCaml, running xv6
+arm-pi1's own user programs from its own `fs.img` -- the shell, `ls`,
+`usertests` -- compiled for the C kernel and run unchanged. The
+modules follow xv6's files, in dependency order, each with a `.mli`
+that says what it is:
+
+```
+  Types     the data: proc, file, inode, pipe, chan, as variants
+  Machine   machine.c's primitives (physical memory, the trap frame,
+            the switch, the timer, the UART)
+  Mmu       pages and address spaces (kalloc.c, vm.c)
+  Proc      the table, sleep/wakeup, the scheduler (proc.c)
+  Fs        the file system, in place on the RAM disk (fs.c)
+  File      open files, pipes, the console (file.c, pipe.c, console.c)
+  Exec      exec.c
+  Syscall   the calls (syscall.c, sysproc.c, sysfile.c)
+  Main      the traps, the boot (trap.c, main.c)
+```
+
+A system call, `read(fd, buf, n)` on the console, from end to end:
+usys.S's stub pushes r0-r3, puts 5 in r0 and does `swi`; start.s saves
+the user's registers in the process's trap frame and calls machine.c's
+`trap()`, which calls the OCaml function registered as "trap";
+`Syscall.syscall` decodes 5 into `Read` (a variant: syscall.h as a
+type), reads the arguments from the user's stack as xv6's `argint`
+does, and `File.read` finds the console. No line typed yet: the
+process sleeps on `Console_input`, which switches (Machine.swtch) to
+the scheduler's stack; nothing else can run, so the scheduler waits
+for an interrupt. The UART's receive interrupt ends the wait;
+`File.intr` edits the line (echo, backspace, ^U) and at Enter wakes
+the channel; the scheduler switches back into the sleeping `read`, in
+the middle of its OCaml frames, which returns the line as a string;
+the system call copies it into the user's memory through the process's
+table, puts the length in r0, and start.s returns to user mode.
+
+**What xv6 needs that mini-xv6 does not.** xv6's layers between a
+system call and the disk -- a buffer cache, a log, in-memory copies
+of the inodes, and locks around all of it -- exist for a real disk,
+for crashes, for several CPUs. A RAM disk on one core that the kernel
+never lets interrupt it needs none of them: a block is an address, an
+inode's field is read and written where it lies (`Fs.get ip i_size`:
+a view, section 6), and a check followed by a sleep cannot be split by
+a wakeup. What the disk cannot say stays in memory: which inodes are
+in use, and by how many.
+
+**What OCaml changes.** A file is `Pipe_end of pipe | Inode_file of
+inode | Device of inode * int`, not a tag and three pointers; what a
+process sleeps on is a channel, a variant (`Child_of pid`,
+`Pipe_readable p`), where xv6 uses any address. Errors are options:
+`>>=` chains the argument checks, and a missing one is -1. Bytes cross
+the kernel as strings. And the words the user hands the kernel are
+32 bits, one more than an OCaml int: `Machine.get_le32` keeps the ones
+from -1GB to 1GB and turns the others into max_int, which every bound
+refuses.
 
 ## 8. How it is tested
 
@@ -281,11 +328,19 @@ does), the console compared with the step's `expected`. It is part of
 `make test-pi`; ocaml-light's cross compiler is built once, in /tmp,
 from a clone of ~/ocaml-light (`kernel/ocaml-light.sh`).
 
+mini-xv6 is tested against xv6's C kernel, ix's usual differential
+test: `kernel/xv6/session.py` types a shell session at sh's prompts,
+under mini-qemu and QEMU; its transcript must be the C kernel's, byte
+for byte (`expected`, made from the C kernel by `make expected`). Then
+usertests must pass (`make check`; under mini-qemu, `make
+usertests-mini`). `./mini-pi mini-xv6` boots it in a terminal.
+
 ## 9. Exercises
 
 - A guard page under each kernel stack (step 1's overflow, caught).
-- The console's input: the PL011's receive interrupt, a line
-  discipline, `read` on fd 0.
+- ^P, the console's process listing (xv6's procdump).
+- The log back, for a real disk (the Pi's SD card): what it takes, and
+  whether a crash test can show it is needed.
 - A system call that allocates a lot, and a measurement of the
   collector's pauses inside traps.
 - Step 3 the other way: one kernel stack and blocking calls as

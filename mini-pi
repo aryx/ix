@@ -17,6 +17,8 @@
 #   ./mini-pi xv6-pi4        xv6 arm64-pi4, the Pi4 (one core; -c 4 its four)
 #   ./mini-pi 9pi            principia's 9pi, its SD card image, the console
 #                       in this terminal (the mini UART)
+#   ./mini-pi mini-xv6       ix's mini-xv6 (kernel/xv6/: xv6 in OCaml), with
+#                       xv6 arm-pi1's fs.img; built first (its Makefile)
 #
 # Options:
 #   -g   a window: the framebuffer (and for xv6, a USB keyboard: type in
@@ -25,14 +27,15 @@
 #        in memory and lost at exit, QEMU's snapshot=on)
 #   -q   run QEMU instead, with the same arguments (to compare)
 #   -d   mini-qemu's log of unassigned I/O and undefined instructions
-#   -n   no build (use mini-qemu as last built)
+#   -n   no build (use mini-qemu, and mini-xv6, as last built)
 #   -c N xv6-pi4: N cores (1 to 4, default 1; xv6's idle cores spin, so
 #        each one more slows it down)
 #
 # Quit with Ctrl-A then x (or close the window).
 #
 # Where the kernels are: $XV6 (default ~/xv6: xv6-multiarch, its ports
-# built), $PRINCIPIA (default ~/principia: 9pi built, qemu-sd.img).
+# built), $PRINCIPIA (default ~/principia: 9pi built, qemu-sd.img),
+# mini-xv6 in ix's kernel/xv6/ (with $XV6's arm-pi1 fs.img).
 
 set -e
 # claude: ix's checkout, also when run as bin/mini-pi (a link into
@@ -46,7 +49,7 @@ XV6=${XV6:-$HOME/xv6}
 PRINCIPIA=${PRINCIPIA:-$HOME/principia}
 graphics=0; write=0; qemu=0; debug=0; build=1; cores=1
 
-usage() { sed -n '/^# mini-pi:/,/^# built), /p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '/^# mini-pi:/,/^# mini-xv6 in ix/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 while getopts gwqdnc:h o; do
   case $o in
@@ -70,6 +73,14 @@ case $1 in
     # QEMU's raspi4b wants its four cores
     smp=$cores; [ $qemu = 1 ] && smp=4
     args=(-cpu cortex-a72 -M raspi4b -kernel $image -m 2G -smp $smp -nographic)
+    ;;
+  mini-xv6)
+    dir=$ROOT/kernel/xv6; image=kernel.img
+    [ $graphics = 1 ] && { echo "mini-pi: mini-xv6 has no graphics"; exit 1; }
+    if [ $build = 1 ]; then
+      $ROOT/kernel/ocaml-light.sh > /dev/null && make -C $dir XV6=$XV6 > /dev/null || { echo "mini-pi: mini-xv6 not built"; exit 1; }
+    fi
+    args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on -nographic)
     ;;
   9pi)
     dir=$PRINCIPIA

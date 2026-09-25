@@ -272,3 +272,78 @@ in all.
 
 The ladder is done: OCaml bare-metal, a trap, processes and the
 collector, the MMU, the timer. Next: `kernel/xv6/`, mini-xv6 itself.
+
+**mini-xv6 done** (2026-09-25): `kernel/xv6/`, xv6 in OCaml, running xv6
+arm-pi1's own user programs from its own `fs.img` (linked into the
+kernel, xv6's RAM disk): init, sh, the utilities and **usertests, all
+of them passing** under QEMU (9s); under mini-qemu (`make
+usertests-mini`) the run takes over half an hour, its result to record. A
+shell session (ls, cat, echo, mkdir, ln, wc, rm, grep, forktest, a
+failing cat, sh -c) prints **byte for byte what xv6's C kernel prints**
+under mini-qemu and QEMU (`kernel/xv6/expected`, made from the C
+kernel by `make expected`); usertests' transcript is the C kernel's
+too, the same pids and lines, but for timing (validatetest's race
+between a child's fault and its parent's kill) and where memory runs
+out (`allocuvm out of memory`: the C kernel has 128MB, mini-xv6 192MB).
+`make check` (in `kernel/test.sh`, so `make test-pi`); `mini-pi
+mini-xv6` boots it.
+
+The modules, in dependency order, each with its `.mli` (the
+documentation), 956 lines of OCaml without comments or blank lines:
+
+| module | xv6 | lines |
+| --- | --- | --- |
+| Types | the headers' structs (proc.h, file.h) as variants and records | 40 |
+| Machine | machine.c's primitives; C's bytes (le16, le32) | 44 |
+| Mmu | kalloc.c, vm.c: pages, spaces, the user's bytes | 122 |
+| Proc | proc.c: the table, sleep and wakeup, the scheduler | 55 |
+| Fs | fs.c, and sysfile.c's create, link, unlink | 237 |
+| File | file.c, pipe.c, console.c | 132 |
+| Exec | exec.c | 75 |
+| Syscall | syscall.c, sysproc.c, sysfile.c, fork/exit/wait | 193 |
+| Main | trap.c, main.c | 58 |
+
+and in C and assembly the machine: `machine.c` (222: the primitives,
+the kernel stacks' switch and the collector's view of them) and
+`start.s` (198: the boot, the tables, the vectors), plus `libc.c` (206)
+for the runtime. xv6 arm-pi1's kernel is 4,286 lines of C and assembly
+(USB keyboard and framebuffer console included); tiny-os v6, xv6
+simplified in C, about 2,600.
+
+What xv6 has and mini-xv6 does not, and why:
+
+- **No locks**: one core, and a kernel never interrupted (IRQs arrive
+  in user mode only: step 5); a check and the sleep after it cannot be
+  separated by a wakeup, so sleep needs no lock to release.
+- **No buffer cache** (bio.c): the disk is RAM; a block is its address.
+  An inode's fields are read and written on the disk too (`Fs.get`,
+  `Fs.set` over a `field` view): no in-memory copy, no I_VALID, no
+  iupdate. What stays in memory is what the disk cannot say: the
+  inodes in use and their references (NINODE of them, as xv6).
+- **No log** (log.c): a RAM disk is lost whole with the machine, never
+  half written; filewrite's chunking for the log's size goes with it.
+- **No initcode**: the kernel execs /init itself in the first
+  process's start.
+- **Bytes cross as strings**: a read returns what it read and the
+  system call copies it to the user; xv6 reads and writes the user's
+  memory in place. A negative count is refused (-1); xv6's result
+  depends on the file.
+- ^P's process listing is not done. The fault message is xv6's up to
+  the user's CPSR, then the fault's address (not xv6's kernel CPSR and
+  IFAR).
+
+Found on the way:
+
+- **xv6 arm-pi1's C kernel panics on `>`**: "write outside of trans".
+  The O_TRUNC its sys_open was given (for the shared sh.c) calls itrunc
+  outside a log transaction, so any redirection kills it (in ~/xv6, left
+  untouched; the comparison session avoids `>`, mini-xv6's own run of it
+  works).
+- **A word from the user is not an int**: an argument, read as 32 bits,
+  may not fit OCaml's 31. `Machine.get_le32` keeps the words from -1GB
+  to 1GB exact and makes the others max_int, which every bound refuses
+  (an address 0x80001000 must not alias 0x1000).
+- OCaml 1.07 has no or-patterns binding variables (`Inode_file ip |
+  Device (ip, _)`).
+- xv6 runs user mode with FIQs unmasked (userinit's spsr 0x10): the
+  fault message showed it (0x60000010), and mini-xv6 now does the same.
