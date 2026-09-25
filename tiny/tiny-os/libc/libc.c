@@ -72,8 +72,15 @@ int
 print(char *fmt, ...)
 {
 	char buf[1024];
+	int n, done, w;
 
-	return write(1, buf, format(buf, fmt, (int*)&fmt + 1));
+	n = format(buf, fmt, (int*)&fmt + 1);
+	// a write may be short (t6's pipes give what fits), so again with
+	// the rest
+	for(done = 0; done < n; done += w)
+		if((w = write(1, buf + done, n - done)) <= 0)
+			return -1;
+	return n;
 }
 
 int

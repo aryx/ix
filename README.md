@@ -51,8 +51,9 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
   QEMU does, and a Pi 4 that boots xv6's 64-bit port on one to four
   cores ([`raspberry/`](raspberry/), run by `./mini-pi`); tiny-machine,
   TinyCPU's CPU with pages, traps, a timer and a disk, which boots
-  tiny-os, v0 (a page of assembly) or v6 (xv6's kind of kernel in C, to
-  a shell), by `./tiny-machine v0` or `v6`; and
+  tiny-os, v0 (a page of assembly), v6 (xv6's kind of kernel in C, to
+  a shell) or t6 (v6's free variant: spawn, a FAT, one kernel stack),
+  by `./tiny-machine v0`, `v6` or `t6`; and
   tiny-pi, TinyCPUArm's CPU in a Pi1 with its modes, exceptions, timer
   and UART, whose page of kernel runs the same under QEMU.
 

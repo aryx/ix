@@ -1,0 +1,11 @@
+kernel.img
+fs.img
+check.img
+check.out
+main.tm
+proc.tm
+file.tm
+user/bin/
+user/[a-r]*.tm
+user/t6tests.tm
+user/[w-z]*.tm

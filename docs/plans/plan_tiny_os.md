@@ -458,3 +458,106 @@ lines): the kernel 2,178 (`defs.h` 204, `entry.tm` 152, `main.c` 239,
 `vm.c` 191, `proc.c` 382, `fs.c` 448, `file.c` 562), the user side 603
 (`usertests` 172, `sh` 121, the stubs 119). Against 2,000: to review
 with the author (what to trim, or the budget).
+
+## t6, tiny-os's free kernel (`tiny/tiny-os/t6/`)
+
+Added 2026-09-25, the author: "can we do a tiny version of this v6/,
+still in C, where we don't have to follow xv6 (or unix) but provide
+similar features to the user and developer?", then "let's try your
+spawn idea, and possibly other original one, including for academic
+research in OS, with nice refs ... let's do tiny-os/t6/ and see how
+things go; we can always revert or refine".
+
+v6 is xv6's kind of kernel; t6 keeps what a user and a developer get
+from it (processes, programs from a disk, a shell with pipes and
+redirections, files and directories, the console, protection between
+processes, C with the same libc and tools) and takes other roads, each
+one a known idea of operating systems research, small enough here to
+be read in an afternoon:
+
+- **One kernel stack; a call that must wait is run again.** A trap
+  saves the registers in the process's struct, the kernel runs on its
+  one stack, and it leaves by `resume`, loading a process's registers:
+  there is no kernel stack per process, no `swtch`, no `sleep` inside
+  the kernel. A call that must wait records what for and returns
+  `BLOCKED`: the pc goes back onto the `sys`, and the call runs again,
+  from its start, when the process is woken. So a call is written to
+  be rerun: it has done nothing when it blocks, or it returns what it
+  did (a short write; libc's `print` loops). R. Draves, B. Bershad,
+  R. Rashid, R. Dean, "Using Continuations to Implement Thread
+  Management and Communication in Operating Systems" (SOSP 1991): Mach
+  3's continuations; B. Ford, M. Hibler, J. Lepreau, R. McGrath, P.
+  Tullmann, "Interface and Execution Models in the Fluke Kernel" (OSDI
+  1999): the atomic, restartable system call; G. Klein et al., "seL4:
+  Formal Verification of an OS Kernel" (SOSP 2009): one kernel stack,
+  calls restarted (all from memory).
+- **spawn, and no fork.** `spawn(path, argv, map)` makes a process
+  running a program, its descriptors 0, 1 and 2 the caller's `map[0]`,
+  `map[1]`, `map[2]`, and nothing else: no descriptor is inherited.
+  The shell opens what a command gets and names it; a pipe's end is
+  never left open in a child, the bug of fork's inheritance (a pipe
+  that never ends). A. Baumann, J. Appavoo, O. Krieger, T. Roscoe, "A
+  fork() in the road" (HotOS 2019); R. Watson, J. Anderson, B. Laurie,
+  K. Kennaway, "Capsicum: Practical Capabilities for UNIX" (USENIX
+  Security 2010): descriptors as capabilities, the least authority; J.
+  Dennis and E. Van Horn, "Programming Semantics for Multiprogrammed
+  Computations" (CACM 1966): capabilities (all from memory).
+- **A partition a process, relocated.** Fourteen partitions of 1 MB,
+  a process's addresses relative to its own (tiny-machine's window,
+  relocating: status's bit 16); no pages. So a t6 program is a
+  tiny-cpu program, linked at 0, its arguments where tiny-cpu puts
+  them; one runs on either as far as their calls agree. IBM's OS/360
+  MFT (1966); P. Denning, "Virtual Memory" (Computing Surveys 1970),
+  which places partitions and relocation before pages.
+- **A FAT, in memory.** The disk is blocks and a table of each block's
+  next; a file is its directory entry, a directory a file of entries;
+  no inodes, no bitmap, no buffer cache (the disk is instant). The
+  current directory is a path, and ".." is resolved by the path's
+  text, as Plan 9's `cleanname`: no "." or ".." entries. MS-DOS (T.
+  Paterson's 86-DOS, 1980, after Microsoft's Standalone Disk BASIC,
+  1977); R. Pike, "Lexical File Names in Plan 9, or Getting Dot-Dot
+  Right" (USENIX 2000) (from memory).
+- **A lottery for the scheduler.** Each process holds tickets
+  (`tickets(n)`), and a draw among the ready ones picks who runs next,
+  at each timer interrupt and each block: a process's share of the
+  machine is its share of the tickets, with no priorities to tune. The
+  draws come from xorshift, the same every run. C. Waldspurger and W.
+  Weihl, "Lottery Scheduling: Flexible Proportional-Share Resource
+  Management" (OSDI 1994); G. Marsaglia, "Xorshift RNGs" (Journal of
+  Statistical Software 2003) (from memory).
+- **One core, no locks**: the kernel runs with interrupts off, but in
+  its idle loop. The price of this simplicity is the multicore
+  readiness v6 keeps (principle 2), which t6 gives up on purpose.
+
+Kept the same as v6: the machine, the toolchain (`tiny-c -tm`), libc
+(`libc/`, whose `exit`, `write` and `read` are sys 0, 1, 2 on tiny-cpu,
+v6 and t6), the user programs' sources where they use only common
+calls (`mkdir`, `rm`, `wc`, copied from v6). What the tools gained:
+tiny-machine's relocating window (10 lines, `reloc.tm`), `tiny-mkfs
+-fat` (60 lines).
+
+It booted the first time; `t6tests` (spawns, pipes with a child
+writer, capabilities: a child given nothing can write nowhere, files,
+directories with "..", sbrk, a fault killed, the lottery: of two
+children doing the same work, the one of 9 tickets ends before the one
+of 1) found one bug, `split` comparing a name with ".." before its
+end was cut; and one slowness, the partitions zeroed by a C loop (16
+s), now `memzero` in `.tm` (7 s). `make check`, against
+`check.expected`, in `make test`.
+
+**1,756 lines of code** (no comments, no blank lines), against v6's
+2,781: the kernel 1,163 (`t6.h` 99, `entry.tm` 138, `main.c` 115,
+`proc.c` 287, `file.c` 524) against v6's 2,178, the user side 593
+(`t6tests` 216, `sh` 124, the stubs 91). The kernel is half of v6's;
+it is more than the 800 estimated, `file.c` the most (the FAT, the
+paths, pipes, the console and eight system calls).
+
+Exercises, each cheap in this design:
+- the FAT kept twice on the disk (MS-DOS does) and a crash between two
+  writes survived; or a whole-directory commit, copy-on-write, as
+  TinyDatabase's tree;
+- tickets transferred: a process waiting on another lends it its
+  tickets (Waldspurger's ticket transfers);
+- the map widened to any descriptors (posix_spawn's file actions);
+- a partition's size chosen at spawn (variable partitions, MVT, and
+  their fragmentation: the reason pages came).

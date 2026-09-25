@@ -1,0 +1,27 @@
+t6: tiny-os's free kernel, 14 partitions of 1024 KB
+$ spawns ok
+pipes ok
+capabilities ok
+files ok
+dirs ok
+mem ok
+t6: 16 t6tests: trap 3 at 12454, 200000: killed
+fault ok
+lottery ok
+t6tests: ALL OK
+$ t6: tiny-os's free kernel, 14 partitions of 1024 KB
+$ hi
+init 2 69600
+sh 2 76007
+cat 2 70529
+echo 2 69602
+ls 2 70006
+mkdir 2 69594
+rm 2 69591
+wc 2 70794
+t6tests 2 76029
+console 3 0
+f 2 3
+1 1 3
+cat: cannot open f
+$ 

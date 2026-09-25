@@ -5,7 +5,7 @@ files ok
 dirs ok
 mem ok
 hello from exec
-pid 16 usertests: trap 3 at 811d68, 1000
+pid 16 usertests: trap 3 at 811e18, 1000
 execs ok
 usertests: ALL OK
 $ tiny-os v6: 2024 free pages

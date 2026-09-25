@@ -15,6 +15,8 @@
 #   ./tiny-machine v6          tiny-os v6 (tiny/tiny-os/v6/): xv6's kind
 #                              of kernel in C, its disk, the shell on
 #                              the console (the default)
+#   ./tiny-machine t6          tiny-os t6 (tiny/tiny-os/t6/): v6's free
+#                              variant (spawn, a FAT, one kernel stack)
 #   ./tiny-machine v0          tiny-os v0 (tiny/tiny-os/v0/): a page of
 #                              assembly and its four programs
 #   ./tiny-machine kernel.tm prog.tm...
@@ -22,11 +24,11 @@
 #
 # Options:
 #   -l   the listing of the kernel's image instead of running it
-#   -w   v6: write to its disk, fs.img (by default a copy, its writes
+#   -w   v6, t6: write to its disk, fs.img (by default a copy, its writes
 #        lost at exit, as mini-pi's snapshot)
 #   -n   no build (the tools and the kernel as last built)
 #
-# Quit v6 with Ctrl-D: the shell's input ends, then init, and the machine
+# Quit v6 or t6 with Ctrl-D: the shell's input ends, then init, and the machine
 # halts. This script is not installed: bin/tiny-machine is the machine
 # itself, which does each step (-o to link, an image to run, -d a disk).
 
@@ -52,8 +54,8 @@ if [ $build = 1 ]; then
 fi
 
 case $1 in
-  v6)
-    dir=$ROOT/tiny/tiny-os/v6
+  v6|t6)
+    dir=$ROOT/tiny/tiny-os/$1
     if [ $build = 1 ]; then
       make -s -C $dir TC=$B/TinyC.exe CPU=$B/TinyCPU.exe MACHINE=$machine MKFS=$B/TinyMkfs.exe kernel.img fs.img >&2 || exit 1
     fi
@@ -74,7 +76,7 @@ case $1 in
 esac
 
 # .tm files: the kernel first, at 0, then its programs
-for f in "$@"; do [ -f "$f" ] || { echo "tiny-machine: no $f (a kernel's name: v0, v6)" >&2; exit 1; }; done
+for f in "$@"; do [ -f "$f" ] || { echo "tiny-machine: no $f (a kernel's name: v0, v6, t6)" >&2; exit 1; }; done
 image=$B/kernel.img
 say "assemble and link: $(short $1)(the kernel, at 0)$( [ $# -gt 1 ] && echo ", then $(short "${@:2}")")"
 $machine -o $image "$@"
