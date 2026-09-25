@@ -9,7 +9,7 @@
  * {b The environment.} Every variable is exported, a list joined by
  * \001 so that a child rc splits it back; an empty list is not
  * exported (on Plan 9 it is an empty /env file, which reads back as
- * (); a Unix program given X= sees one empty string -- the bug TinyMk
+ * (); a Unix program given X= sees one empty string -- the bug mini-mk
  * met building xix). Functions are exported too, as fn#name={body}
  * and a newline (checked on 9base's rc: fn#g={echo g} and a newline,
  * which it needs to read one back), and read back when rc starts.

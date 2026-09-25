@@ -8,7 +8,7 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny editor, in one file, in sam's command language rather than
- * ed's. TinyEd (editor/) is ed, faithfully: a buffer of lines, commands on
+ * ed's. mini-ed (editor/) is ed, faithfully: a buffer of lines, commands on
  * line ranges, g to loop over lines. This is what Rob Pike made of ed
  * in sam ("The Text Editor sam", "Structural Regular Expressions",
  * 1987), without the screen:
@@ -45,11 +45,11 @@
  * range after an x, an empty range after t), dot is here simply the
  * text the command made. The matcher is a small backtracker, leftmost-
  * longest like sam's, with a memo of (node, position) pairs; libregexp's
- * answers differ from it in corner cases (TinyEd's Regex.mli).
+ * answers differ from it in corner cases (mini-ed's Regex.mli).
  *
  * The test: test.sh runs scripts through it and through 9base's sam -d.
  *
- * Usage: tinyeditor [file] -- the commands on standard input
+ * Usage: tiny-editor [file] -- the commands on standard input
  *
  * References: Rob Pike, "The Text Editor sam" (Software -- Practice and
  * Experience, 1987), for the command language, the addresses as

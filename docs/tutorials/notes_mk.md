@@ -4,7 +4,7 @@ What a build system does, and how mk does it: a mkfile read line by
 line, targets matched against patterns, a graph of dependencies built
 from them, date stamps deciding what is out of date, and recipes run
 by a shell, several at a time. It is written for **a reader of
-TinyMk's code, not a user of mk**, and it explains the ideas in the
+mini-mk's code, not a user of mk**, and it explains the ideas in the
 order the code needs them.
 
 It was the specification of the program planned in
@@ -13,10 +13,10 @@ has since been checked against it (2026-09-23): where the code turned
 out otherwise, the text now says what the code does, and the numbers
 are measured. Companions:
 [`notes_mk_related_work.md`](../related-work/notes_mk_related_work.md)
-(Make, mk, redo, Ninja, Shake, Bazel, and where TinyMk stops). Its
+(Make, mk, redo, Ninja, Shake, Bazel, and where mini-mk stops). Its
 full-size twins are the Principia book `builders/Make.nw` (the C
 mk, explained chunk by chunk) and xix's `builder/` (omk). This
-tutorial names both where TinyMk does something differently.
+tutorial names both where mini-mk does something differently.
 
 ## 0. Where the code is, and a reading order
 
@@ -103,7 +103,7 @@ early:V:
 
 The recipe sees `changed`, because recipes are expanded later by the
 shell, with the variables' final values in its environment. This is
-why TinyMk has no AST (plan, decision 1). omk parses the whole file
+why mini-mk has no AST (plan, decision 1). omk parses the whole file
 into an AST and evaluates it afterwards, which is correct but does in
 two passes what the semantics lets you do in one.
 
@@ -113,7 +113,7 @@ The command line has one twist, and the man page and the program
 disagree about it. mk(1) says `mk CC=z` "overrides the first (but not
 any subsequent) assignment". But on plan9port mk, with `CC=a`,
 `x:V: $CC`, `CC=b`, `y:V: $CC`, both `x` and `y` get `z`: every
-assignment is overridden. omk agrees with the program. TinyMk follows
+assignment is overridden. omk agrees with the program. mini-mk follows
 the program, and a test records the discrepancy.
 
 ## 3. Words, and lists of words
@@ -146,7 +146,7 @@ two words, and `$OBJS` in a rule header gives two prerequisites.
 plan9port mk: "don't know how to make 'a'"). rc would distribute. mk
 glues the text onto the list's last word. omk rejects this outright
 ("use of list variable 'X' in scalar context"). That is safer, but it
-changes what an existing mkfile means, so TinyMk does what mk does,
+changes what an existing mkfile means, so mini-mk does what mk does,
 and a differential test records the three answers.
 
 **Unicode costs nothing.** Every byte of a UTF-8 multibyte character
@@ -216,7 +216,7 @@ simple rules and metarules are treated differently:
 The result is an immutable value: nodes, arcs to prerequisite nodes,
 shared when two targets need the same file (`mkfiles/mkcommon`'s
 `.depend` makes that common). mk and omk store the build's progress in
-the nodes themselves (flag bits in C, mutable fields in OCaml). TinyMk
+the nodes themselves (flag bits in C, mutable fields in OCaml). mini-mk
 keeps the graph fixed and the progress elsewhere (§9). Tests can then
 build a graph from a fake file system, with no disk.
 
@@ -242,7 +242,7 @@ do extra building rather than not enough." The three twins, on
 `foo.o: foo.c` (checked on plan9port mk and omk, 2026-09-23):
 
 ```
-   foo.c        foo.o          plan9port mk      omk              TinyMk
+   foo.c        foo.o          plan9port mk      omk              mini-mk
    10:00:00     10:00:00       rebuilds          up to date       rebuilds
    10:00:00.2   10:00:00.7     rebuilds          up to date       up to date
    10:00:00.7   10:00:00.2     rebuilds          rebuilds         rebuilds
@@ -251,7 +251,7 @@ do extra building rather than not enough." The three twins, on
 mk has whole seconds, so it can't tell the second row from the first,
 and recompiles a `.o` built in the same second as its source on every
 run until the clock moves on. omk has sub-second times but uses `<`,
-so a real tie counts as up to date. TinyMk uses sub-second times with
+so a real tie counts as up to date. mini-mk uses sub-second times with
 mk's `<=` (plan, decision 6).
 
 Three flags change the question rather than the answer: `-a` (every
@@ -281,14 +281,14 @@ from content hashes (related work, Part 2). Here it falls out of the
 order of two lines in `update()`. It also constrains the design. The
 build can't be planned in advance and then executed, because what is
 out of date depends on what the recipes actually did. That is why
-TinyMk's `Build` asks the question again after every job (§9; the
+mini-mk's `Build` asks the question again after every job (§9; the
 plan's decision 4 records the design this ruled out).
 
 **Archive members** have a date stamp of their own: `lib.a(foo.o)`
 is `foo.o`'s date in the archive's header (`Archive`), so a library
 is rebuilt one changed member at a time, and `$newmember` names them.
 
-**`-H`, content hashes instead of times**, is TinyMk's one feature
+**`-H`, content hashes instead of times**, is mini-mk's one feature
 from outside mk. A target's *trace* is a digest of its recipe and of
 its prerequisites' contents, kept in `.mkhash`; the target is out of
 date if it is missing, virtual, or its trace changed. Early cutoff
@@ -300,7 +300,7 @@ measurement without that rule rebuilt another directory's `Cap.cmi`
 from `lib_core/commons`, which had no trace for it -- recursive make
 considered harmful, in one line (plan, phase 7).
 
-## 7. Missing intermediates: what mk does, and TinyMk doesn't
+## 7. Missing intermediates: what mk does, and mini-mk doesn't
 
 Plan 9's mk has one more rule, on by default. Suppose `foo.o` is
 missing, but `foo` is newer than `foo.c`. Then mk *pretends* `foo.o`
@@ -314,12 +314,12 @@ be caught pretending by a parent that is out of date for another
 reason, and be "unpretended" and built after all). It also misfires
 in practice: principia's mk turned it off by default, after compiling
 `libc/` skipped directories because another directory had already
-made `libc.a` (`globals.c`, the comment on `iflag`). TinyMk always
+made `libc.a` (`globals.c`, the comment on `iflag`). mini-mk always
 builds a missing intermediate, which is what `mk -i` does.
 
 The differential tests found one thing this section did not say:
 9base pretends for a *virtual* prerequisite too. With `out: gen`,
-`gen:V: src` and `out` newer than `src`, 9base runs nothing and TinyMk
+`gen:V: src` and `out` newer than `src`, 9base runs nothing and mini-mk
 runs `gen` (the corpus case `pretend.mk`). Every other comparison runs
 9base with `-i`, and none of the 379 directories compared differs
 because of it; xix builds without it. So it stays out.
@@ -361,17 +361,17 @@ with it. `Recipe` runs it:
   file, which rc reads as `()`, but a Unix rc reads `X=` as `('')`,
   one empty word, and `ocamlc $SYSLIBS` then fails on an empty
   argument. 9base exports it anyway; omk does not, and neither does
-  TinyMk, because building xix needs it (the plan's phase 5 found it).
+  mini-mk, because building xix needs it (the plan's phase 5 found it).
 - **Printing**: the recipe is printed before it runs, unless the rule
   is `:Q:`. mk(1)'s bugs section warns that the printed version
   expands variables "sometimes erroneously" ("Don't trust what's
-  printed"). TinyMk prints it exactly as 9base does, errors included,
+  printed"). mini-mk prints it exactly as 9base does, errors included,
   because that is what the differential tests compare: the variables
   mk set are expanded, `$HOME` and anything quoted are left for the
   shell, and a `}` right after an unbraced `$name` is swallowed, as
   `shprint.c` does (`{cmd $X}` prints without its brace). Standard
   output is buffered and standard error is not, so under `-n` an error
-  comes out before the recipes printed first; TinyMk buffers the same
+  comes out before the recipes printed first; mini-mk buffers the same
   way.
 - **Failure**: mk stops (or, with `-k`, goes on with whatever doesn't
   depend on the failed target). With `:D:` the target is deleted, so
@@ -414,12 +414,12 @@ depth-first walk from the target, prerequisites in the graph's order,
 jobs queued as found. Measured on every directory with a mkfile: 68 of
 xix's 73 give the same output and exit status as 9base, and 277 of
 principia's 306; the others are 9base rejecting omk's `:I:`
-attribute, which TinyMk accepts, and 9base's whole seconds.
+attribute, which mini-mk accepts, and 9base's whole seconds.
 
 **The simple version, and the faster one.** Re-walking the whole
 graph after every job costs O(nodes) per job, O(n²) in all. mk does
 the same, and on xix it doesn't matter: `-n` over all 73 directories
-takes 1.94 s with TinyMk, 1.56 s with 9base's mk (and 11.35 s with
+takes 1.94 s with mini-mk, 1.56 s with 9base's mk (and 11.35 s with
 omk), most of it starting processes and running backquotes. The faster
 version keeps, for each node, the count of prerequisites not yet
 made, and puts a node in the ready queue when its count reaches zero
@@ -454,7 +454,7 @@ happens when the recipe leaves the file alone, and only then.
 
 And the differential tests (plan, "Tests"): 34 mkfiles in
 `builder/tests/corpus/`, one per feature or quirk, whose outputs were
-recorded from 9base's mk. TinyMk gives the same output on 31; the
+recorded from 9base's mk. mini-mk gives the same output on 31; the
 other three are the differences on purpose, each with its own expected
 output: sub-second times (§6), pretending (§7), and the empty list
 under rc (§8). omk, its markers stripped, agreed with 9base on 2 of
@@ -465,7 +465,7 @@ the 32 cases of the first live run.
 The same language and nearly the same semantics, reached by a
 different route:
 
-| | mk (C, principia) | omk (OCaml, xix) | TinyMk |
+| | mk (C, principia) | omk (OCaml, xix) | mini-mk |
 |---|---|---|---|
 | reading | hand-written, evaluated as read | ocamllex + menhir, an AST, then `Eval` | hand-written, evaluated as read, no AST |
 | rules | two lists: rules and metarules | two lists | one list, the target a `Pattern.t` |
@@ -478,7 +478,7 @@ different route:
 | lines of code | 5,980 (4,280 by the book's count) | 2,879 (`.ml`, `.mll`, `.mly`) | 1,782 (1,398 without blanks and comments) |
 
 The last row is the claim this program existed to test, and it came
-out half-true: TinyMk is 62% of omk's size with more of mk in it, but
+out half-true: mini-mk is 62% of omk's size with more of mk in it, but
 the plan's target was 750 lines, and the faithful details -- 9base's
 messages and quirks, archives, `:P:`, `-H` -- cost more than that
 estimate allowed.
@@ -504,7 +504,7 @@ rough order of difficulty:
   they run. The dependencies are discovered during the build, so the
   graph can't be built first, and `Build`'s loop has to change shape.
   That is the most instructive exercise here, because it shows which
-  of TinyMk's decisions came from mk's static graph;
+  of mini-mk's decisions came from mk's static graph;
 - **pretending** (§7): add it back behind a flag, and count its lines
   against the estimate of 40 (`Build`, `Outofdate`);
 - **one `.mkhash` for a whole tree** under `-H`, so that a recursive
@@ -515,7 +515,7 @@ rough order of difficulty:
 
 ## 13. In ix
 
-TinyMk is a terminal program and depends on nothing graphical. It runs
+mini-mk is a terminal program and depends on nothing graphical. It runs
 on the host, and builds all of xix from its mkfiles: its milestone was
 building omk, its own full-size twin, and the omk it builds rebuilds
 xix to the same 476 files (the plan's phase 5). Later it builds

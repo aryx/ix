@@ -1,4 +1,4 @@
-# Plan: TinyRc, a shell from scratch, for teaching (`shell/`)
+# Plan: mini-rc, a shell from scratch, for teaching (`shell/`)
 
 Companions:
 [`notes_rc.md`](../tutorials/notes_rc.md), the tutorial: what happens
@@ -13,7 +13,7 @@ by the book's own count, 6,879 in `SRC/cmd/rc/*.[chy]` without the
 generated parser) and xix's `shell/` (orc, rc in OCaml, 2,876 lines of
 `.ml`, `.mll` and `.mly`).
 
-The second ix program, after TinyMk ([`plan_mk.md`](plan_mk.md)),
+The second ix program, after mini-mk ([`plan_mk.md`](plan_mk.md)),
 and planned the same way; the principles are now in
 [`../README.md`](../README.md).
 
@@ -34,25 +34,25 @@ the grammar is a yacc file of 116 lines.
 
 Why rc second:
 
-- **It is TinyMk's shell.** Principia's and xix's mkfiles run their
-  recipes with rc, and TinyMk built all of xix with 9base's rc as
-  `MKSHELL`. TinyMk and TinyRc building xix together is the
+- **It is mini-mk's shell.** Principia's and xix's mkfiles run their
+  recipes with rc, and mini-mk built all of xix with 9base's rc as
+  `MKSHELL`. mini-mk and mini-rc building xix together is the
   milestone: two ix programs doing real work, without their full-size
   twins.
 - **A reference runs today**: 9base's rc, `/usr/lib/plan9/bin/rc`
-  (plan9port's, as Debian packages it), as 9base's mk was TinyMk's.
+  (plan9port's, as Debian packages it), as 9base's mk was mini-mk's.
 - **xix's twin is partial.** orc is 2,876 lines and stops on a
   17-line script of the most common rc (checked 2026-09-23): no `$"x`
   ("TODO compile: Stringify"), no `^` on a variable ("TODO compile:
-  Concat"), and `$x(2)` prints `a b c 2` instead of `b`. So TinyRc
-  can be, unlike TinyMk, both smaller than its OCaml twin and more
+  Concat"), and `$x(2)` prints `a b c 2` instead of `b`. So mini-rc
+  can be, unlike mini-mk, both smaller than its OCaml twin and more
   complete, and the comparison that matters is with 9base.
 
 ## Principles
 
 Those of [`../README.md`](../README.md), and three of its own:
 
-- **Scripts are the inputs.** Where TinyMk had mkfiles, TinyRc has
+- **Scripts are the inputs.** Where mini-mk had mkfiles, mini-rc has
   scripts: principia's rc scripts (133 distinct, 6,442 lines) and the
   recipes of principia's and xix's mkfiles (247 distinct mkfiles,
   4,110 recipe lines). The feature table below is counted over them.
@@ -60,7 +60,7 @@ Those of [`../README.md`](../README.md), and three of its own:
   reader, one evaluator, for a script, `-c`, `.` and the prompt; no
   line editing, as in rc, where the window system (rio) edits.
 - **Plan 9 names on a Unix host.** rc assumes Plan 9 (`rfork`, `/env`,
-  `/dev/cons`); on the host TinyRc does what 9base's rc does, which is
+  `/dev/cons`); on the host mini-rc does what 9base's rc does, which is
   usually to accept and do nothing. On TinyKernel, later, the same
   builtins become real.
 
@@ -68,12 +68,12 @@ Those of [`../README.md`](../README.md), and three of its own:
 
 rc's language, command line (`rc [-eiIlrvx] [-c cmd] [-m rcmain]
 [file [arg ...]]`) and builtins are kept. A script 9base's rc runs,
-TinyRc runs the same way. How often each feature is used, counted by a
+mini-rc runs the same way. How often each feature is used, counted by a
 script over the two corpora (files using it, and occurrences; comments
 and single-quoted strings removed first, binaries and duplicates
 skipped, 2026-09-23):
 
-| feature | rc scripts (133) | mkfile recipes (247) | TinyRc |
+| feature | rc scripts (133) | mkfile recipes (247) | mini-rc |
 |---|---:|---:|---|
 | `$*`, `$1` ... | 79 / 297 | 1 / 3 | kept |
 | `x=y` assignment | 77 / 536 | 9 / 92 | kept |
@@ -124,12 +124,12 @@ sigint`), which no script of the corpora defines -- and which the
 counts can't see, because they matter at the terminal, not in scripts.
 That is the kind of choice the counts guide and a judgment makes.
 
-The command's name: `tinyrc`, as `tinymk`.
+The command's name: `mini-rc`, as `mini-mk`.
 
 ## Target layout
 
 ```
-shell/                   library ix_rc + the tinyrc executable
+shell/                   library ix_rc + the mini-rc executable
   Ast.ml                 commands and words, as the parser builds them
   Lexer.ml(i)            by hand: rc's tokens, free carets, keywords
                          only where a command starts, newlines after
@@ -158,7 +158,7 @@ Eleven modules; orc has 24. **The size target**: about 1,500 lines of
 `.ml` and `.mly` -- a quarter of the C rc, half of orc, and complete
 where orc is not. It is set by module this time (Lexer 200, Parser
 130, Ast 60, Word 200, Glob 60, Env 100, Process 150, Eval 300,
-Builtin 200, CLI 100), because TinyMk's single figure was 2.4 times
+Builtin 200, CLI 100), because mini-mk's single figure was 2.4 times
 too low; the Status will compare.
 
 ## Groundwork decisions
@@ -187,7 +187,7 @@ the thread queue -- about a third of the C.
 `$status` after each command, `if not` (the one construct that
 remembers the previous command's outcome), the order of redirections
 and forks in a pipeline, and signals, which rc checks between
-instructions and TinyRc will check between commands. Each gets a
+instructions and mini-rc will check between commands. Each gets a
 corpus case, and the Status says if the tree walker had to bend.
 
 ### 2. The grammar in menhir; the lexer by hand
@@ -213,7 +213,7 @@ so.
 rc globs after expansion, and only the pattern characters that were
 not quoted: `'*'.c` is literal, `$x.c` with `x='*'` is literal too,
 but `*.c` is a pattern. rc marks unquoted `*`, `?` and `[` with a
-special byte as it expands. TinyRc keeps it as a type: an expanded
+special byte as it expands. mini-rc keeps it as a type: an expanded
 word is a list of pieces, each quoted or not, and the glob looks only
 at the unquoted ones. A pattern that matches nothing stays itself
 (`nomatch*` prints `nomatch*`, checked).
@@ -228,7 +228,7 @@ joined by `|`, so `true | false` leaves `|1` (checked on 9base).
 
 ### 5. The environment: lists joined by `\001`, functions exported
 
-As TinyMk found for its recipes: a list goes to a child joined by
+As mini-mk found for its recipes: a list goes to a child joined by
 `\001`, and comes back split; an empty list is not exported at all
 (an empty `/env` file is `()` on Plan 9). Functions are exported
 too -- `fn f {...}` then `rc -c f` runs it in the child, checked on
@@ -239,7 +239,7 @@ the body as `whatis` prints it), which orc's Prelude lists as missing.
 
 rc starts by running `rcmain` (`/rc/lib/rcmain` on Plan 9), which
 reads the profile and then the script, the `-c` command or the
-terminal. TinyRc embeds plan9port's rcmain, as a string, overridable
+terminal. mini-rc embeds plan9port's rcmain, as a string, overridable
 with `-m`. xix's `shell/data/rcmain-unix` is the same idea, and was
 what orc needed to run at all (`-m`).
 
@@ -254,22 +254,22 @@ and `mount` are not the shell's business -- they are commands.
 ### 8. Where the code goes
 
 `shell/`, xix's name (principia's is `shells/`), as `builder/` was
-xix's. The binary is `tinyrc`; the free variant goes in `tiny/`.
+xix's. The binary is `mini-rc`; the free variant goes in `tiny/`.
 
 ## Outside rc: TinyShell.ml
 
-As TinyBuildSystem.ml followed TinyMk, `tiny/TinyShell.ml`
-follows TinyRc: one file, no compatibility, only what a shell is --
+As TinyBuildSystem.ml followed mini-mk, `tiny/TinyShell.ml`
+follows mini-rc: one file, no compatibility, only what a shell is --
 "the power of pipes, redirections, variables, and basic control flow
 constructs" (the Principia book's introduction). It is written
-**after** TinyRc, from what writing TinyRc taught, as the author
+**after** mini-rc, from what writing mini-rc taught, as the author
 asked; this plan does not design it, only records the question it
 will answer: which of rc's features are fundamental enough. The
 starting guess, to be revised then: commands, quoting, lists as the
 only value, `$x`, `^`, globbing, `|`, `<` `>` `>>`, `&&` `||`, `if`,
 `for`, `fn`, `` `{} ``, `&`, `cd` and `exit`; and a real script to
-prove it, as TinyBuildSystem built TinyMk -- probably the recipes of
-xix's mkfiles, run by TinyMk.
+prove it, as TinyBuildSystem built mini-mk -- probably the recipes of
+xix's mkfiles, run by mini-mk.
 
 ## The modules, with their references
 
@@ -297,7 +297,7 @@ written):
 - **The corpus**, `shell/tests/corpus/`: one small script per feature
   of the table and per quirk found, principia's `ROOT/tests/rc/` (5
   scripts) and xix's `tests/rc/` (9), each with its stdout, stderr
-  and exit status recorded from 9base's rc -- TinyMk's
+  and exit status recorded from 9base's rc -- mini-mk's
   `differential.sh`, for scripts.
 - **The laws**: `whatis` prints what re-reads as the same (for each
   function of the corpus, print, read, print again: the same text); a
@@ -306,10 +306,10 @@ written):
   directory.
 - **Milestone 1: principia's scripts.** Those of the 133 that make
   sense on a Unix host (`ROOT/rc/bin`'s `lc`, `man`'s helpers, ...),
-  run by TinyRc and by 9base's rc on the same input: the same output.
+  run by mini-rc and by 9base's rc on the same input: the same output.
   The count that do, and why the others don't, go in the Status.
-- **Milestone 2: TinyMk and TinyRc build xix.** `MKSHELL=tinyrc
-  tinymk MK=tinymk all` in a copy of xix: the same 476 files as with
+- **Milestone 2: mini-mk and mini-rc build xix.** `MKSHELL=mini-rc
+  mini-mk MK=mini-mk all` in a copy of xix: the same 476 files as with
   9base's rc -- two ix programs doing a real build with neither of
   their full-size twins.
 - **Milestone 3: an interactive session**, scripted through a pipe:
@@ -334,7 +334,7 @@ written):
 5. **The rest**: here documents, `<{}` `>{}`, `|[2]`, `>[2=1]`,
    `flag`, `rfork`, `ifs`, signal handlers (decided by lines),
    rcmain and the command-line flags, the prompt.
-6. **The milestones**: principia's scripts; TinyMk and TinyRc build
+6. **The milestones**: principia's scripts; mini-mk and mini-rc build
    xix; the interactive session; the LOC count against the twins.
 7. **`tiny/TinyShell.ml`**, from what phases 1-6 taught.
 8. **Docs**: `notes_rc.md` checked against the code, the numbers
@@ -352,7 +352,7 @@ written):
   judgments, not just statistics").
 - **2026-09-23, the principles moved** to `docs/README.md`, as
   `plan_mk.md` said they would when a second plan started, with what
-  TinyMk taught added (a runnable reference, the program over the man
+  mini-mk taught added (a runnable reference, the program over the man
   page, documented differences, a target set by module).
 - **2026-09-23, the counts behind the feature table**: a script
   (regular expressions per construct, after removing comments and
@@ -434,26 +434,26 @@ written):
     law I wrote wrong, not the code; and the embedded rcmain had lost
     the blank and tab of its `ifs` line when it was written. Then 33
     of 36, and the other 3 are **documented differences**, each with
-    a `.tiny.out`: principia's split backquote `` `sep{cmd} ``, which
+    a `.mini.out`: principia's split backquote `` `sep{cmd} ``, which
     9base's rc lacks (two cases), and a missing program as the last
     command of a subshell, which 9base execs without forking and so
-    leaves status 0 -- an artifact of an optimization, where TinyRc
+    leaves status 0 -- an artifact of an optimization, where mini-rc
     keeps 1. orc, given its rcmain: 4 of 36.
-  - **Milestone 2: TinyMk and TinyRc build xix.** `MKSHELL=tinyrc`,
-    `tinymk MK=tinymk depend`, then `all`, in a nuked copy: exit 0,
+  - **Milestone 2: mini-mk and mini-rc build xix.** `MKSHELL=mini-rc`,
+    `mini-mk MK=mini-mk depend`, then `all`, in a nuked copy: exit 0,
     33 s, and the same 435 files in the 17 built directories as omk
-    with 9base's rc; the orc it builds runs. (TinyMk's Status said
+    with 9base's rc; the orc it builds runs. (mini-mk's Status said
     "the same 476 files": 41 of those were stale objects outside the
     built directories, present in both copies -- equal, but not built.)
-    TinyRc starts in 5.2 ms against 9base's 3.4 (100 runs of `-c
+    mini-rc starts in 5.2 ms against 9base's 3.4 (100 runs of `-c
     true`), about half a second over the build's recipes: the build's
-    time is TinyMk's and the compilers'.
+    time is mini-mk's and the compilers'.
   - **Lines: 1,595 of `.ml`** (1,248 without blanks and comments),
     against the 1,500 planned: Eval 278, Parser 261, Lexer 236, Builtin
     154, Ast 139 (the printer is half of it), Process 133, Glob 111,
     CLI 108, Word 96, Env 67, Main 12. Set by module this time, the
     target missed by modules in both directions (the parser doubled,
-    Word halved) and came out 6% over in total, where TinyMk's single
+    Word halved) and came out 6% over in total, where mini-mk's single
     figure was 2.4 times too low. The C rc: 5,678 by the book, orc
     2,876 and partial.
 
@@ -483,9 +483,9 @@ written):
 
   The 13 left: 4 where 9base's rc, after a failed `exec`, spins
   forever and is killed (`git/rm`, `upas/mail`, `mk9660.rc`,
-  `psh.rc`; a case, `exec_fail`, with only a `.tiny.out`); 3 using
+  `psh.rc`; a case, `exec_fail`, with only a `.mini.out`); 3 using
   `` `sep{} ``, which 9base lacks (`compat` then runs the system's rc
-  on TinyRc's exported functions); `tests/rc/loop.rc`, the documented
+  on mini-rc's exported functions); `tests/rc/loop.rc`, the documented
   subshell one; 3 that print what changes run to run (`who`'s ps,
   `unpack`'s page faults) or the order of two failing stages' errors
   (`mkdev`); and `scsicodes`, where a missing program in a pipe's
@@ -498,7 +498,7 @@ written):
   feature counts are `shell/tests/count_features.py` (`scripts` and
   `recipes`; rerun, the same numbers as the table), and milestone 1 is
   `shell/tests/principia_scripts.sh`, with its stubs. Rerun after
-  TinyEd's work: 119 of 133 the same. `dopermind` is now the same (the
+  mini-ed's work: 119 of 133 the same. `dopermind` is now the same (the
   here document read raw); two more differ, `kernel/conf/mkrootc` and
   `rc/bin/kmem`, by a line "signal: sys: write on closed pipe": their
   first stage writes into a pipe whose reader is gone (`acid` is not
@@ -507,7 +507,7 @@ written):
   runs of kmem. Two more of the "changes run to run" kind.
 - **2026-09-23, phase 7: `tiny/TinyShell.ml`.** One file, 598
   lines (423 of code, counted as for TinyBuildSystem's 261): a third of
-  TinyRc. The subset was chosen by its real test, the recipes of xix's
+  mini-rc. The subset was chosen by its real test, the recipes of xix's
   mkfiles, which need very little: the only rc construct in them past
   words, `$x` and `&&` is `~` (8 times). So it keeps what makes rc rc
   and not sh, which is lists as the only value, words joined by
@@ -516,11 +516,11 @@ written):
   every script needs: `|`, `&&` `||` `!`, `if` `while` `for`, `{}`
   `@{}`, `fn`, `` `{} ``, `&` and `wait`, `cd` `exit` `shift` and `~`,
   and `-e` and `-c`. The table in its header lists what it drops.
-  What writing TinyRc taught, and TinyShell does differently:
+  What writing mini-rc taught, and TinyShell does differently:
   - **A word is its pieces.** Free carets need a lexer that remembers
     the last token. Here the lexer reads a word as everything with no
     blank in it, and `^` is just a piece that joins nothing.
-  - **The marker byte.** TinyRc keeps quoted and unquoted pieces as
+  - **The marker byte.** mini-rc keeps quoted and unquoted pieces as
     far as globbing. TinyShell escapes a character not to glob with a
     `\000` as the word is built, as the C rc does. That is less
     structure, and less code, once lists and concatenation are
@@ -540,11 +540,11 @@ written):
   takes the first word of its arguments as the subject, even when a
   list gave several. **The test**: `test.sh`, 25 scripts of the
   subset through both shells, the same output (the `rc (argv0)`
-  prefix normalized), plus `-e`. **The milestone**: TinyMk with
+  prefix normalized), plus `-e`. **The milestone**: mini-mk with
   `MKSHELL` a link named `rc` to TinyShell (checked: `readlink
   /proc/$pid/exe` in a recipe names it) builds xix from nuked in 32.7
   s, to the same 435 files as omk with 9base's rc. Startup: 5.0 ms,
-  as TinyRc's 4.9, so the cost is OCaml's runtime, not rcmain.
+  as mini-rc's 4.9, so the cost is OCaml's runtime, not rcmain.
 
 - **2026-09-23, phase 8: the docs checked.** `notes_rc.md` had three
   things wrong, now corrected: the menhir grammar, "a pipeline of n
@@ -563,7 +563,7 @@ written):
 
 ## Out of scope
 
-- sh, POSIX or bash compatibility: TinyRc is rc.
+- sh, POSIX or bash compatibility: mini-rc is rc.
 - Line editing, history and completion (rc has none; the terminal or
   the window system edits), job control (`^Z`, `fg`, `bg`: not in rc).
 - Plan 9's namespaces on the host: `rfork n`, `bind`, `mount` do

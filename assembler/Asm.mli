@@ -1,6 +1,6 @@
 (* Plan 9's assembly language, for arm and arm64: the instructions
- * TinyAsm reads and writes, unencoded, into an object file, and that
- * TinyLd lays out and encodes.
+ * mini-asm reads and writes, unencoded, into an object file, and that
+ * mini-ld lays out and encodes.
  *
  *     TEXT  strchr(SB), $8           a function, the size of its frame
  *     MOVW  c+4(FP), R6              an argument: FP is the caller's frame

@@ -7,4 +7,4 @@
  * (LGPL) as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *)
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinydb"; CapStdlib.exit caps (Ix_db.CLI.main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"mini-chidb"; CapStdlib.exit caps (Ix_db.CLI.main caps))

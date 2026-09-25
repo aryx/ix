@@ -15,13 +15,13 @@
  * ("It's a race, and the safer option is to do extra building", mk.c).
  * On foo.o: foo.c (checked on 9base's mk and omk, 2026-09-23):
  *
- *     foo.c        foo.o          9base mk     omk          TinyMk
+ *     foo.c        foo.o          9base mk     omk          mini-mk
  *     10:00:00     10:00:00       rebuilds     up to date   rebuilds
  *     10:00:00.2   10:00:00.7     rebuilds     up to date   up to date
  *     10:00:00.7   10:00:00.2     rebuilds     rebuilds     rebuilds
  *
  * 9base has whole seconds, so it can't tell the second row from the
- * first; omk has sub-second times but compares with <. TinyMk takes
+ * first; omk has sub-second times but compares with <. mini-mk takes
  * sub-second times and mk's <=.
  *
  * {b Re-stat after the recipe.} A recipe that leaves its target alone

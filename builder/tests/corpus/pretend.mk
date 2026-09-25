@@ -2,7 +2,7 @@
 #!args
 # 9base pretends a missing intermediate is made when its parent is up to
 # date with the intermediate's prerequisites; principia's mk does not
-# (-i by default), nor TinyMk: this case records the difference
+# (-i by default), nor mini-mk: this case records the difference
 out: gen
 	echo making out; touch out
 gen:V: src

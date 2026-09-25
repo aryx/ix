@@ -9,14 +9,14 @@
  *)
 (* A tiny ARM computer in one file: an assembler for a subset of arm32,
  * the interpreter that runs what it assembles, and the ELF writer that
- * lets the real CPU run it too. TinyArm (machine/) is 5i's twin: a
+ * lets the real CPU run it too. mini-5i (machine/) is 5i's twin: a
  * decoder for every word the toolchains emit, two architectures,
  * Linux's and Plan 9's system calls. This is what is left when the
  * program run is one we write:
  *
- *     tinyarmasm hello.s              assembled and run
- *     tinyarmasm -o hello hello.s     the executable, for Linux on ARM
- *     tinyarmasm -l hello.s           the listing, as objdump prints it
+ *     tiny-arm hello.s              assembled and run
+ *     tiny-arm -o hello hello.s     the executable, for Linux on ARM
+ *     tiny-arm -l hello.s           the listing, as objdump prints it
  *
  * What makes it small, and still a real machine:
  *
@@ -62,10 +62,10 @@
  * The tests: TinyArm_test.sh assembles the programs of TinyArm_tests/
  * with GNU as and with this, the text section byte for byte the same;
  * lists them against objdump; runs each here, on the CPU (the ELF
- * written) and under machine/'s tinyarm, the outputs and exit statuses
+ * written) and under machine/'s mini-5i, the outputs and exit statuses
  * the same; and assembles random instructions of the subset both ways.
  *
- * Usage: tinyarmasm [-o out | -l | -b out] file.s [args...]
+ * Usage: tiny-arm [-o out | -l | -b out] file.s [args...]
  *   -b: the text alone, assembled at address 0 (for GNU as's object)
  *
  * References: ARM Architecture Reference Manual, ARMv7-A (ARM DDI 0406;
@@ -751,7 +751,7 @@ let main (caps : < caps; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
         Files.write caps ~perm:0o755 (Fpath.v out) (elf image labels); 0
     | "-b" :: out :: file :: _ -> let image, _, _ = assemble ~origin:0 (read file) in Files.write caps (Fpath.v out) image; 0
     | file :: _ when file.[0] <> '-' -> let image, labels, _ = assemble ~origin (read file) in run caps image labels args
-    | _ -> Console.eprint caps "usage: tinyarmasm [-o out | -l | -b out] file.s [args...]\n"; 2
-  with Error e | Sys_error e -> Console.eprint caps ("tinyarmasm: " ^ e ^ "\n"); 1
+    | _ -> Console.eprint caps "usage: tiny-arm [-o out | -l | -b out] file.s [args...]\n"; 2
+  with Error e | Sys_error e -> Console.eprint caps ("tiny-arm: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

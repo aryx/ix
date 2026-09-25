@@ -1,5 +1,5 @@
 # `sep{cmd} splits on sep: principia's rc (9front's extension) has it,
-# 9base's rc does not (a syntax error): backquote.tiny.out is TinyRc's
+# 9base's rc does not (a syntax error): backquote.mini.out is mini-rc's
 x=`{echo one two three}
 echo $#x $x(3)
 y=`:{echo a:b:c}

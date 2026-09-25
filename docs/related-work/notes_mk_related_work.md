@@ -1,10 +1,10 @@
-# TinyMk vs. the rest of the build systems
+# mini-mk vs. the rest of the build systems
 
 Where a tiny mk sits among the build systems people actually use:
 Make and its fifty years of descendants, Plan 9's mk, the
 content-hashing systems of the big companies, the minimalist ones, and
 the theory that finally put them all in one table. It covers what they
-do that TinyMk won't, and which of their ideas fit in a few hundred
+do that mini-mk won't, and which of their ideas fit in a few hundred
 readable lines. Companions:
 [`notes_mk.md`](../tutorials/notes_mk.md) (how it works) and
 [`plan_mk.md`](../plans/plan_mk.md) (what gets built, in what order).
@@ -25,7 +25,7 @@ The author's own genealogy of the field, with dates, is
 | Blaze/Bazel (2006/2015), Buck, Pants, Please | Monorepos, remote caches, reproducibility | Declarative targets in Starlark, hermetic actions, content hashes |
 | Nix (2004) | Reproducible *deployment*, not just builds | Pure functions from inputs to store paths |
 | Language tools: Cargo, go, dune | Zero configuration for one language | Almost nothing: the tool knows the language |
-| `builder/` (TinyMk) | Seeing *why* a build system decides what it decides, on real mkfiles | A plain mkfile, run by 1,782 lines of OCaml with the algorithm in view |
+| `builder/` (mini-mk) | Seeing *why* a build system decides what it decides, on real mkfiles | A plain mkfile, run by 1,782 lines of OCaml with the algorithm in view |
 
 ## Part 1: where it came from
 
@@ -64,7 +64,7 @@ The author's own genealogy of the field, with dates, is
   dependencies across directories wrong and parallelizes badly.
   Miller's answer is a single graph for the whole tree. Plan 9's
   mkfiles, principia's and xix's are recursive too, so the article
-  applies to TinyMk's milestone. That is worth knowing before
+  applies to mini-mk's milestone. That is worth knowing before
   measuring it.
 
 ## Part 2: the systems today
@@ -76,7 +76,7 @@ The author's own genealogy of the field, with dates, is
   language: no metarules, barely any variables, just edges and
   commands, because a generator writes it and speed is all that is
   left to want. It showed that the language and the engine can be
-  separated, and TinyMk's `Graph`, which takes rules and not text,
+  separated, and mini-mk's `Graph`, which takes rules and not text,
   follows it.
 - **Content hashes and hermeticity**: Google's **Blaze** (around
   2006; open-sourced as **Bazel**, 2015), Facebook's **Buck** (2013),
@@ -85,7 +85,7 @@ The author's own genealogy of the field, with dates, is
   result computed anywhere can be fetched from a **remote cache**
   instead of rebuilt. The price is declaring everything, a server
   process, and a build description that is its own discipline. None of
-  it fits in a tiny program, and TinyMk's content-hash option (the
+  it fits in a tiny program, and mini-mk's content-hash option (the
   plan's phase 7) keeps only the part that does: early cutoff when an
   output doesn't change.
 - **Nix** (Eelco Dolstra, 2004; the thesis 2006) applies the same
@@ -111,7 +111,7 @@ the *ideas* are small:
   can't be wrong, and there is no language to parse. apenwarr also
   wrote a "minimal do" in about 100 lines of shell. It is the tiniest
   real build system there is, and the tutorial's TinyRedo exercise
-  (§12) is about exactly what TinyMk would have to change to become
+  (§12) is about exactly what mini-mk would have to change to become
   it.
 - **tup** (Mike Shal, "Build System Rules and Algorithms", 2009) turns
   the walk upside down. Instead of starting at the target and asking
@@ -133,7 +133,7 @@ the *ideas* are small:
   constructive traces), over static or dynamic dependencies. Make,
   Excel, Shake, Bazel, CloudBuild and Nix are each a few lines of
   Haskell in it. In their terms, **mk is a topological scheduler with
-  a modification-time rebuilder and static dependencies**. TinyMk's
+  a modification-time rebuilder and static dependencies**. mini-mk's
   modules follow that split (`Graph`, `Build`, `Outofdate`), and its
   tests are the paper's definitions of correctness and minimality.
   mk's re-stat after a recipe (the tutorial, §6) is a small twist the
@@ -173,20 +173,20 @@ the *ideas* are small:
   Shake; Jane Street's **Jenga** (around 2013), then **jbuilder**
   (2016), renamed **dune** (2018), today's standard. Dune is
   memoized, content-hashed and language-aware, and it is the obvious
-  way to build ix's OCaml until TinyMk can. (Dates from memory, to
+  way to build ix's OCaml until mini-mk can. (Dates from memory, to
   check.)
-- **xix's omk** is the full-size OCaml mk, and TinyMk's twin. Its
+- **xix's omk** is the full-size OCaml mk, and mini-mk's twin. Its
   Prelude lists what it dropped from mk (regexp rules, archives,
   `:P:`, `&`, missing intermediates, Unicode...) and what it added: a
   strict mode that rejects undefined variables, and the `:I:`
-  attribute for interactive recipes. TinyMk keeps most of what omk
+  attribute for interactive recipes. mini-mk keeps most of what omk
   dropped (the plan's feature table), and not its additions, because
   they change what a mkfile means.
 - **Plan 9 itself** is built by mk, from `/sys/src/mkfile` down,
   recursively (Part 1's warning applies). The prototype files are
   where its conventions live: `$objtype` (used by 624 of the 861 mkfiles
   in xix and principia together) selects the architecture, and `%.$O`
-  rules compile with `$O`c. TinyMk has to read those files unchanged
+  rules compile with `$O`c. mini-mk has to read those files unchanged
   to reach its milestone.
 
 ## Where `builder/` actually sits
@@ -213,7 +213,7 @@ OCaml. The goal is that a reader can predict exactly which recipes
 
 ## Postscript: the numbers (measured 2026-09-23)
 
-- **Size**: TinyMk is 1,782 lines of `.ml` (1,398 without blanks and
+- **Size**: mini-mk is 1,782 lines of `.ml` (1,398 without blanks and
   comments): `Mkfile` 371, `Build` 295, `CLI` 252, `Recipe` 213,
   `Word` 199, `Graph` 194, `Outofdate` 87, `Archive` 81, `Pattern` 77,
   `Main` 13. omk is 2,879 lines of `.ml`, `.mll` and `.mly`; the C mk
@@ -222,13 +222,13 @@ OCaml. The goal is that a reader can predict exactly which recipes
 - **Agreement with 9base's mk**, `-n`, stdout and exit status compared
   exactly: 68 of xix's 73 directories, 277 of principia's 306. The
   others are all explained: 9base rejects omk's `:I:` attribute (26
-  directories), or sees equal whole seconds where TinyMk sees
+  directories), or sees equal whole seconds where mini-mk sees
   sub-second times (8). On the corpus of 34 mkfiles, 31 identical, and
   3 differences on purpose. omk: 21 of xix's 73 directories.
 - **Speed**: `-n` over xix's 73 directories in 1.94 s (9base's mk
   1.56 s, omk 11.35 s). Building all of xix from scratch: 346 recipes,
   32 s, nearly all of it `ocamlc`.
-- **The milestone**: TinyMk builds all of xix, and the omk it builds
+- **The milestone**: mini-mk builds all of xix, and the omk it builds
   rebuilds xix to the same 476 files.
 - **Content hashes** (`-H`), after touching every source: 0 recipes
   in 1.1 s, against 363 in 32 s with times. After a comment added to

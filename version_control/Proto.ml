@@ -144,7 +144,7 @@ let curl caps args =
   Unix.close wr;
   rd, pid
 
-let temp h = let f = Filename.temp_file "tinygit" "" in h.temps <- f :: h.temps; f
+let temp h = let f = Filename.temp_file "mini-git" "" in h.temps <- f :: h.temps; f
 
 let dial_http caps uri dir =
   let service = service dir in

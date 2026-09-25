@@ -10,7 +10,7 @@
 #
 # Milestone 2 of plan_ed.md: a repository's history, replayed. For each
 # .ml file changed by each of the last N commits, the ed script of
-# `diff -e old new` is run by tinyed and by 9base's ed on old; both
+# `diff -e old new` is run by mini-ed and by 9base's ed on old; both
 # must give new, and print the same (the counts).
 #
 #   history.sh [repo] [N]      default: ~/github/xix, 300
@@ -20,7 +20,7 @@
 REPO=${1:-$HOME/github/xix}
 N=${2:-300}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TINYED=${TINYED:-$ROOT/_build/default/editor/Main.exe}
+MINIED=${MINIED:-$ROOT/_build/default/editor/Main.exe}
 ED=${ED:-/usr/lib/plan9/bin/ed}
 dir=$(mktemp -d)
 total=0 same=0 skipped=0 bad=0
@@ -36,7 +36,7 @@ for c in $(git -C "$REPO" rev-list --no-merges -n "$N" HEAD); do
     total=$((total + 1))
     cp "$dir/old" "$dir/a"; cp "$dir/old" "$dir/b"
     (cd "$dir" && $ED a < script > out.a 2>&1)
-    (cd "$dir" && $TINYED b < script > out.b 2>&1)
+    (cd "$dir" && $MINIED b < script > out.b 2>&1)
     if cmp -s "$dir/a" "$dir/new" && cmp -s "$dir/b" "$dir/new" && cmp -s "$dir/out.a" "$dir/out.b"; then
       same=$((same + 1))
     else

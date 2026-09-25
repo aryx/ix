@@ -11,8 +11,8 @@
 # The interpreters' speed (plan_arm.md, decision 3 and phase 6): a
 # static ELF looping N times over 7 instructions (add, eor shifted,
 # ldr, str, multiply-accumulate, subs, bne), for arm32 (5) or arm64
-# (7), run under TinyArm with -s (its MIPS), under qemu-user, and on
-# the CPU, whose checksum TinyArm's must equal.
+# (7), run under mini-5i with -s (its MIPS), under qemu-user, and on
+# the CPU, whose checksum mini-5i's must equal.
 #
 # Usage: bench.py 5|7 [iterations, default 20000000] [-o program]
 # (-o: the program written, for a profiler, and nothing run)

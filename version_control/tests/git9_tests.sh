@@ -10,7 +10,7 @@
 #
 # git9's own tests (principia's version_control/git9/test/*.rc),
 # translated from rc to bash, each test a function run in a fresh
-# scratch directory, each check the rc one's. git/CMD is tinygit CMD.
+# scratch directory, each check the rc one's. git/CMD is mini-git CMD.
 # git9's tests name the default branch front (9front's); this git/init
 # makes master, which they say here. export and rebase come with patch
 # (phase 9).

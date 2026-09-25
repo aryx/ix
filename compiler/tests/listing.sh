@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 2: tinycc's listings (-S) against 5c -O0's, file by file, over
+# Phase 2: mini-cc's listings (-S) against 5c -O0's, file by file, over
 # goken's libraries and utilities (and the programs given), with each
 # file's flags from mk -n.
 # usage: listing.sh 5 workdir [prog.c...]

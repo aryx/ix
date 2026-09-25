@@ -5,7 +5,7 @@
 
 (executable
  (name Main)
- (public_name tinymk)
+ (public_name mini-mk)
  (package ix)
  (modules Main)
  (libraries ix_mk caps))

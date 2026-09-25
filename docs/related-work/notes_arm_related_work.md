@@ -1,6 +1,6 @@
 # Related work: emulators, from the IBM 360 to QEMU and Rosetta
 
-Where TinyArm ([`plan_arm.md`](../plans/plan_arm.md),
+Where mini-5i ([`plan_arm.md`](../plans/plan_arm.md),
 [`notes_arm.md`](../tutorials/notes_arm.md)) sits among the real
 systems. principia's `machine/lineage.txt` (349 lines; checked) lists
 the family; what is not from it or from code read here is **from
@@ -21,7 +21,7 @@ Rosetta and Rosetta 2; the hypervisors, VMware to Firecracker; box64.
 
 - **Interpretation** (5i, SimH, Bochs, SPIM): fetch, decode, execute,
   one instruction at a time. Simple, portable, exact, slow -- a factor
-  of 10 to 100 below native (from memory). TinyArm starts here.
+  of 10 to 100 below native (from memory). mini-5i starts here.
 - **Threaded code and pre-decoding**: J. R. Bell, "Threaded Code"
   (CACM, 1973; from memory), for Forth-like interpreters; applied to
   emulators, instructions are decoded once into a form that dispatches
@@ -35,7 +35,7 @@ Rosetta and Rosetta 2; the hypervisors, VMware to Firecracker; box64.
   and Portable Dynamic Translator", USENIX ATC 2005; from memory):
   guest blocks translated to host code through a small intermediate
   language (TCG), chained, cached. qemu-user is QEMU with Linux's
-  system calls emulated instead of a machine: exactly TinyArm's
+  system calls emulated instead of a machine: exactly mini-5i's
   interface, and its reference. Rosetta 2 (Apple, 2020; from memory)
   translates ahead of time where it can.
 
@@ -44,7 +44,7 @@ Rosetta and Rosetta 2; the hypervisors, VMware to Firecracker; box64.
 - **5i** (Plan 9, 1993; principia's Machine book, checked): about
   3,200 lines, an interpreter with a table of handlers, lazy flags
   (no V: enough for 5c's code), Plan 9 system calls, a db-like
-  debugger and a profiler. TinyArm's twin in structure.
+  debugger and a profiler. mini-5i's twin in structure.
 - **TinyEMU** (F. Bellard, 2017-2019; from memory): a RISC-V and x86
   system emulator of a few thousand lines of C, virtio devices, the
   engine of JSLinux in the browser. The model of a small, complete,
@@ -68,7 +68,7 @@ Rosetta and Rosetta 2; the hypervisors, VMware to Firecracker; box64.
   derived from the specification, the opposite end from a hand-written
   one; a useful oracle for corner cases the corpus does not reach.
 
-## Where TinyArm sits
+## Where mini-5i sits
 
 An interpreter, like 5i, for two architectures, running what ix's
 toolchains make, in OCaml with instructions as variants; tested not

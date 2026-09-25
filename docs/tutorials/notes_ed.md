@@ -3,7 +3,7 @@
 What a line editor does, and how ed does it: a buffer of lines, a
 current line, commands with addresses read one at a time, regular
 expressions to find and change text, and the files the buffer comes
-from and goes to. It is written for **a reader of TinyEd's code, not
+from and goes to. It is written for **a reader of mini-ed's code, not
 a user of ed**, and explains the ideas in the order the code needs
 them.
 
@@ -11,7 +11,7 @@ It is the specification of the program planned in
 [`plan_ed.md`](../plans/plan_ed.md). It was written before the code and
 then checked against it, as [`notes_rc.md`](notes_rc.md) was. It got
 two things wrong, corrected here and listed in the plan's Status: how
-TinyEd matches (§4: libregexp's own way, not the planned backtracker)
+mini-ed matches (§4: libregexp's own way, not the planned backtracker)
 and the line count (1,264, not about 1,000). Every example
 below was run on 9base's ed (`/usr/lib/plan9/bin/ed`) on 2026-09-23,
 unless it says "to check". Companions:
@@ -32,7 +32,7 @@ and the twins, the Principia book `editors/ed.nw` (the C ed) and xix's
 | `CLI` | `-`, `-o`, the file argument, signals | §9, §10 |
 
 Read §1 for the question, §2-§3 for the model, §4 for the algorithm,
-§5-§10 for the commands, and §11-§14 for how TinyEd differs from its
+§5-§10 for the commands, and §11-§14 for how mini-ed differs from its
 twins, how it is tested, and what is left as exercises.
 
 ## 1. What an editor is, when there is no screen
@@ -79,7 +79,7 @@ buffer has `$` = 0 and dot 0. A line is a string without its newline.
 
 ed.c keeps the lines' text in a temporary file and the buffer as an
 array of offsets into it, and it steals the low bit of each offset
-for `g` (§6). TinyEd keeps the lines in memory, and **each line is a
+for `g` (§6). mini-ed keeps the lines in memory, and **each line is a
 record, whose identity matters**: a mark (`ka` names the current line
 `a`, `'a` finds it again) holds the record, not the number, so it
 follows its line when lines are moved or inserted above it, and it is
@@ -134,7 +134,7 @@ dot before the next one, and `/re/` becomes the remembered pattern
 (an empty `//` means it), which `s//x/` then uses. And a command reads
 its own arguments from the same input: `a` reads lines until one is
 `.`, `s` reads a pattern and a replacement that may go on past a `\`
-at the end of a line, `w` a file name. So TinyEd keeps ed.c's shape:
+at the end of a line, `w` a file name. So mini-ed keeps ed.c's shape:
 the loop and the commands read from one input with one character of
 pushback (ed.c's `peekc`).
 
@@ -169,7 +169,7 @@ libregexp's):
 The last line is the subtle one: when several ways of matching give
 the same longest match, which one's captures you get is not fixed by
 the notation. It is decided by how libregexp runs the pattern, and ed
-is specified by libregexp, so that is what TinyEd has to copy.
+is specified by libregexp, so that is what mini-ed has to copy.
 
 **How libregexp does it.** It compiles the pattern to a small program
 (`RUNE c`, `ANY`, `CCLASS`, `OR` with two successors, `LBRA n` and
@@ -197,7 +197,7 @@ steps. Three details of it decide the corner cases:
 So `((x?)?)*` on `xxb` matches the empty string (checked on 9base):
 the list overflows, and the empty match at 0 was the only one found.
 
-**How TinyEd does it: the same way.** The plan chose something that
+**How mini-ed does it: the same way.** The plan chose something that
 looks different and gives the same answers: backtracking over the
 pattern's tree, keeping the longest end and the captures of the first
 path to reach it, and remembering each (node, position) pair visited,
@@ -215,7 +215,7 @@ a pair can only find ends already found, by a path of lower priority.
 So its answers are those of a Pike VM whose threads are in priority
 order, like RE2's. libregexp's are not in priority order, and a fuzzer
 against 9base's ed found the difference in its first 5,000 scripts.
-So TinyEd compiles to regcomp's program and runs regexec's lists,
+So mini-ed compiles to regcomp's program and runs regexec's lists,
 sizes and overflow included. One more thing the fuzzer found is in the
 parser: regcomp applies postfix operators through its operator stack,
 where `*` < `+` < `?`, so `x*+` is `(x+)*`. The backtracker lives on
@@ -259,7 +259,7 @@ of the `s` is moved down by as many.
 `g/re/cmds` runs `cmds` on every line matching `re`, with dot on
 that line; `v` on every line not matching. It does it **in two
 passes**: first it marks the matching lines (in ed.c the low bit of
-the offset, in TinyEd the line record's flag), then it walks the
+the offset, in mini-ed the line record's flag), then it walks the
 buffer, and for each marked line clears the mark, sets dot and runs
 the list. Why not one pass: the list may delete or move lines, or add
 some; the marks are on the lines, so they survive that, and a line
@@ -340,7 +340,7 @@ prints `?` and returns to the loop; a hangup writes the buffer to
 
 ## 11. Compared with ed.c and oed
 
-| | ed.c (C, principia) | oed (OCaml, xix) | TinyEd |
+| | ed.c (C, principia) | oed (OCaml, xix) | mini-ed |
 |---|---|---|---|
 | the buffer | offsets into a temp file, low bit stolen | lines in memory | lines in memory, records with identity |
 | input | `getchr`, `peekc`, `globp` | ocamllex | `getchr`, `peekc`, `globp` |
@@ -381,7 +381,7 @@ design (§4).
 
 ## 14. In ix
 
-TinyEd is the editor of the ix user who has a terminal and no screen,
+mini-ed is the editor of the ix user who has a terminal and no screen,
 and its regular expressions are the first piece of text processing
 the other programs can share (a grep, a sed, sam's language in
 `tiny/`). TinyEditor.ml, in `tiny/`, came after it:

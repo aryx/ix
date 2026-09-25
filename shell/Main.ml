@@ -7,6 +7,6 @@
  * (LGPL) as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *)
-(* tinyrc, the ix shell: see CLI.mli *)
+(* mini-rc, the ix shell: see CLI.mli *)
 
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyrc"; CapStdlib.exit caps (Ix_rc.CLI.main caps (CapSys.argv caps)))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"mini-rc"; CapStdlib.exit caps (Ix_rc.CLI.main caps (CapSys.argv caps)))

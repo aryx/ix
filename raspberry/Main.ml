@@ -7,10 +7,10 @@
  * (LGPL) as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *)
-(* tinypi: QEMU's command line, the part the Pi kernels' Makefiles use
+(* mini-qemu: QEMU's command line, the part the Pi kernels' Makefiles use
  * (plan_pi.md, "The kernels it must boot"):
  *
- *     tinypi -M raspi1ap -nographic -kernel kernel.img
+ *     mini-qemu -M raspi1ap -nographic -kernel kernel.img
  *
  * -M/-machine (raspi1ap), -kernel, -m (ignored: the board's 512MB),
  * -nographic, -serial and -monitor (the UART on standard input and
@@ -22,7 +22,7 @@
 
 open Ix_raspberry
 
-let usage = "usage: tinypi -M raspi1ap [-nographic] (-kernel image | -device loader,file=F,addr=A | -bios F) [-drive file=F,if=sd] [-serial S]... [-ips N] [-d]"
+let usage = "usage: mini-qemu -M raspi1ap [-nographic] (-kernel image | -device loader,file=F,addr=A | -bios F) [-drive file=F,if=sd] [-serial S]... [-ips N] [-d]"
 
 let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
@@ -43,7 +43,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
         let o = options d in
         (match List.assoc_opt "file" o, List.assoc_opt "addr" o with
          | Some f, Some a -> loader := Some (f, int_of_string a)
-         | _ -> Console.eprint caps "tinypi: -device loader needs file= and addr=\n"; exit 2);
+         | _ -> Console.eprint caps "mini-qemu: -device loader needs file= and addr=\n"; exit 2);
         parse rest
     | "-bios" :: f :: rest -> loader := Some (f, 0x8000); parse rest
     | "-drive" :: d :: rest ->
@@ -55,13 +55,13 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
     | "-nographic" :: rest -> graphics := false; parse rest
     | ("-m" | "-monitor" | "-smp" | "-device" | "-append" | "-D" | "-display") :: _ :: rest -> parse rest
     | ("-no-reboot" | "-S") :: rest -> parse rest
-    | a :: _ -> Console.eprint caps (Printf.sprintf "tinypi: unknown option %s\n%s\n" a usage); exit 2 in
+    | a :: _ -> Console.eprint caps (Printf.sprintf "mini-qemu: unknown option %s\n%s\n" a usage); exit 2 in
   parse args;
   match !kernel, !loader with
   | None, None -> Console.eprint caps (usage ^ "\n"); 2
-  | _ when !machine <> "raspi1ap" -> Console.eprint caps (Printf.sprintf "tinypi: machine %s not (yet) supported\n" !machine); 2
+  | _ when !machine <> "raspi1ap" -> Console.eprint caps (Printf.sprintf "mini-qemu: machine %s not (yet) supported\n" !machine); 2
   | kernel, loader ->
-      let log s = if !debug then Console.eprint caps ("tinypi: " ^ s ^ "\n") in
+      let log s = if !debug then Console.eprint caps ("mini-qemu: " ^ s ^ "\n") in
       let out = Buffer.create 256 in
       (* the serials, QEMU's order: the PL011, the mini UART; stdio (or
        * mon:stdio) the console, null or absent nowhere; with none said,
@@ -70,14 +70,14 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
       let target i = match List.nth_opt serials i with
         | Some ("stdio" | "mon:stdio") -> Buffer.add_char out
         | Some "null" | None -> ignore
-        | Some s -> Console.eprint caps ("tinypi: -serial " ^ s ^ ": only stdio, mon:stdio, null\n"); exit 2 in
+        | Some s -> Console.eprint caps ("mini-qemu: -serial " ^ s ^ ": only stdio, mon:stdio, null\n"); exit 2 in
       let console = match List.nth_opt serials 1 with Some ("stdio" | "mon:stdio") -> 1 | _ -> 0 in
       let sd = Option.map (fun (f, snapshot) -> Storage.file f ~snapshot) !drive in
       let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_keyboard = !kbd; sd;
                                  serial0 = target 0; serial1 = target 1; console } in
       let read f = match Files.read caps (Fpath.v f) with
         | image -> image
-        | exception Sys_error m -> Console.eprint caps ("tinypi: " ^ m ^ "\n"); exit 1 in
+        | exception Sys_error m -> Console.eprint caps ("mini-qemu: " ^ m ^ "\n"); exit 1 in
       (match kernel, loader with
        | _, Some (f, addr) -> Board.load_raw board ~addr (read f)
        | Some k, None -> Board.load_kernel board (read k)
@@ -105,7 +105,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
           | _ -> () in
       (* the window, unless -nographic or no display; QMP's socket *)
       let display =
-        if !graphics && Sys.getenv_opt "DISPLAY" <> None then Sdl_display.create ~title:"tinypi" else Display.none in
+        if !graphics && Sys.getenv_opt "DISPLAY" <> None then Sdl_display.create ~title:"mini-qemu" else Display.none in
       let qmp = Option.map Qmp.create !qmp in
       let quit () = restore (); exit 0 in
       let last_frame = ref 0. in

@@ -10,11 +10,11 @@
  *   0000
  *
  * The transports: a local repository (git9 runs its own git/serve -w
- * over a pipe: here tinygit serve -w over a socketpair), git:// (TCP,
+ * over a pipe: here mini-git serve -w over a socketpair), git:// (TCP,
  * port 9418, the request "git-upload-pack /path\000host=h\000" as the
  * first pkt-line), ssh ("ssh host git-upload-pack path"; $GIT_SSH, as
  * C git reads it, instead of ssh), and smart http(s): git9 opens
- * URLs through Plan 9's webfs, TinyGit through curl, a child process:
+ * URLs through Plan 9's webfs, mini-git through curl, a child process:
  *
  *   GET  URL/info/refs?service=git-upload-pack   the references, after
  *        "# service=git-upload-pack" and a flush, if the content type
@@ -24,7 +24,7 @@
  *        curl gives it
  *
  * with git9's user agent, git/2.24.1 (github answers smart http to a
- * git/ agent). git9 dials https whatever the URL says; TinyGit keeps
+ * git/ agent). git9 dials https whatever the URL says; mini-git keeps
  * http as http, so that a local git http-backend tests it (deliberate
  * difference 7). *)
 

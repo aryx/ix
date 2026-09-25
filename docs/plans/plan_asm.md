@@ -1,4 +1,4 @@
-# Plan: TinyAsm and TinyLd, an assembler and a linker from scratch, for arm and arm64 (`assembler/`, `linker/`)
+# Plan: mini-asm and mini-ld, an assembler and a linker from scratch, for arm and arm64 (`assembler/`, `linker/`)
 
 Companions:
 [`notes_asm.md`](../tutorials/notes_asm.md), the tutorial: from a `.s`
@@ -198,7 +198,7 @@ header comments of `linker/Link.mli` and `assembler/Asm.mli`.
 
 xix has a typed syntax tree per architecture (`Ast_asm5`, `Ast_asm7`,
 and one grammar each, `Parser_asm5.mly`, `Parser_asm7.mly`): the
-assembler rejects `ADD R1<<2, R2` on arm64 as a type error. TinyAsm
+assembler rejects `ADD R1<<2, R2` on arm64 as a type error. mini-asm
 has **one instruction type**: an opcode (a string, with its suffixes
 split off) and a list of operands, from one small set:
 
@@ -213,7 +213,7 @@ and one parser, since the syntax is the same; what differs per
 architecture is a table: the register names (`R0`-`R15` and `PC`, or
 `R0`-`R30`, `RSP`, `ZR`) and nothing else. The checking moves to the
 encoder, which pattern-matches (opcode, operands) and says "illegal
-combination" for the rest, as 5l does. TinyAsm calls the same
+combination" for the rest, as 5l does. mini-asm calls the same
 classifier, without addresses, to report the error at assembly time
 with its line: one check, in one place. This single decision is most
 of the difference in size with xix (below).
@@ -251,18 +251,18 @@ pools and the large constants make: layout is one pass, then pools.
 ### 5. Byte for byte against goken, with goken's help
 
 The test oracle is goken's executable, and the text and data segments
-are to be **identical**. goken does things TinyLd won't, which a flag
+are to be **identical**. goken does things mini-ld won't, which a flag
 in goken will turn off for the comparison (phase 0, in goken):
 
 - 5l's `follow()` reorders the code: it removes the jumps to jumps and
   the unreachable instructions 5c leaves (`B 3(PC); B 2(PC); B 17(PC)`
-  in `strcpy`). TinyLd keeps the code in order; a goken flag keeps 5l's
-  too. (Or TinyLd does it, if it is small: the Status will say.)
+  in `strcpy`). mini-ld keeps the code in order; a goken flag keeps 5l's
+  too. (Or mini-ld does it, if it is small: the Status will say.)
 - 7l loads some small constants from a literal pool that fit an
   instruction (checked: `MOV $12, R0` became a pool load in the exit
   program); a flag, or the same choice, whichever is smaller.
 - The Plan 9 symbol table and line tables (`-s` strips them in goken,
-  and TinyLd writes none); 5l's section headers (TinyLd writes the same
+  and mini-ld writes none); 5l's section headers (mini-ld writes the same
   three if that costs less than 30 lines, else the headers are compared
   apart).
 
@@ -270,7 +270,7 @@ And one fix in goken, for the corpus: `5c -S` and `7c -S` print a few
 operands that 5a and 7a don't read back (`BL 0(R6)` for `BL (R6)`;
 arm64's stack pointer as `R31`). Checked: where they do read back
 (`strchr`), the two listings are the same but for source lines. With
-the fix, all of goken's C libraries become assembly TinyAsm reads.
+the fix, all of goken's C libraries become assembly mini-asm reads.
 
 ### 6. Large constants, bitmask immediates, and literal pools
 
@@ -279,7 +279,7 @@ come from a literal pool, a word after the function loaded PC-relative
 (and data is reached from R12, set to the data segment plus 4,092:
 5l's `setR12` and `BIG`). arm64's logical instructions take a "bitmask
 immediate", a repeated pattern of ones; 7l tabulates them in
-`bits.c`, **5,382 lines**. TinyLd computes them: decomposing a
+`bits.c`, **5,382 lines**. mini-ld computes them: decomposing a
 constant into element size, run of ones and rotation is some 30 lines,
 the same answer as the table.
 
@@ -288,7 +288,7 @@ the same answer as the table.
 The author: "we might want to also support Mach-O at least (Plan9
 a.out and Windows PE are optional, add them if it does not add too
 much code). With Mach-O I could also run binaries produced by tinyas
-and tinyld on my macbook pro". So, one module per format, all behind
+and mini-ld on my macbook pro". So, one module per format, all behind
 the same interface (the laid-out segments in, a file out), as 5l's and
 7l's `-H`:
 
@@ -309,9 +309,9 @@ and the format principia's own kernel runs, for later.
 (a silent SIGKILL at exec otherwise):
 
 - **Signed.** An ad-hoc signature is enough, and `codesign -s -`
-  adds it on the Mac (goken's `scripts/macos-codesign`); TinyLd leaves
+  adds it on the Mac (goken's `scripts/macos-codesign`); mini-ld leaves
   room for it (`__LINKEDIT` last, page-aligned, space after the load
-  commands). Computing the signature in TinyLd needs SHA-256, which
+  commands). Computing the signature in mini-ld needs SHA-256, which
   OCaml 4.14's standard library lacks: an exercise.
 - **Dynamic in name.** The kernel runs no static executable: the file
   names `/usr/lib/dyld` and `libSystem.B.dylib`, and its entry is
@@ -333,7 +333,7 @@ table or pc/line table, no DWARF; an entry symbol (`-E`, default
 ### 8. Where the code goes, and the names
 
 `assembler/` and `linker/`, xix's names (principia's are
-`assemblers/` and `linkers/`). The commands are `tinyasm` and `tinyld`,
+`assemblers/` and `linkers/`). The commands are `mini-asm` and `mini-ld`,
 the target a flag (`-m 5` or `-m 7`), as one executable each serves
 both. The instruction type and the object format are in the assembler's
 library, which the linker and later the compiler use.
@@ -344,9 +344,9 @@ xix's 5 and 7 path (assembler, linker, their shared types and file
 formats) is **11,036 lines, 5,542 of code** (counted without blanks
 and comments, as TinyBuildSystem's 261). goken's C for the same:
 5a 2,886, 7a 3,581, libas 2,235, 5l 8,210, 7l 13,685, lk 1,737: about
-**32,000**. Where TinyAsm and TinyLd save, against xix:
+**32,000**. Where mini-asm and mini-ld save, against xix:
 
-| xix | lines of code | TinyAsm and TinyLd | why |
+| xix | lines of code | mini-asm and mini-ld | why |
 |---|---:|---|---|
 | a grammar and a typed AST per architecture (`Parser_asm5.mly` 422, `Parser_asm7.mly` 331, `Ast_asm5` 166, `Ast_asm7` 154, `Parse_asm5/7`, `Check_asm5`) | ~1,400 | one parser, one instruction type | decision 2 |
 | an ocamllex lexer (`Lexer_asm.mll`) | ~200 | a hand-written one, ~80 | the tokens are few |
@@ -355,7 +355,7 @@ and comments, as TinyBuildSystem's 261). goken's C for the same:
 | `CLI.ml`s (160 + 339), `Flags`, `Profile`, `Optimize5` | ~650 | ~80 | no listing, profiling or optimizer |
 | per-architecture `Types5/7`, `Layout5/7`, `Rewrite5/7` | ~700 | one file per architecture, with the encoder | decision 1 |
 
-**The target**, set by module as for TinyRc and TinyEd:
+**The target**, set by module as for mini-rc and mini-ed:
 
 | module | lines | what |
 |---|---:|---|
@@ -371,7 +371,7 @@ and comments, as TinyBuildSystem's 261). goken's C for the same:
 | `linker/CLI.ml`, `Main.ml` | 60 | |
 | **total** | **about 2,090** | two fifths of xix's code (which has no Mach-O), 6% of the C |
 
-TinyEd came out 26% over its line target (and on it in code lines);
+mini-ed came out 26% over its line target (and on it in code lines);
 the Status will compare.
 
 ## Outside the toolchain: the one-file variant
@@ -416,15 +416,15 @@ lines; the test is the same: the same executables, running.
   from an object reads back to the same object); the code bytes of the
   subset are goken's; every program of the corpus runs to its output,
   on both targets.
-- **A fuzzer**, as TinyEd's: random instructions of the subset,
-  through goken's 5a/5l or 7a/7l and through TinyAsm/TinyLd; the code
+- **A fuzzer**, as mini-ed's: random instructions of the subset,
+  through goken's 5a/5l or 7a/7l and through mini-asm/mini-ld; the code
   bytes must be the same. The encoders' oracle.
 - **Milestone 1: goken's `tests/s`**: `exit` and `hello_arch` for 5
   and 7, assembled and linked by ix, running, byte for byte.
 - **Milestone 2: C programs with goken's libc, through ix.** libc's
   `.s` files and the `5c -S`/`7c -S` output of its C files and of a
   program (hello, a sort, a few of principia's utilities), assembled by
-  TinyAsm, linked by TinyLd: the same output as goken's executables,
+  mini-asm, linked by mini-ld: the same output as goken's executables,
   on both targets, natively.
 - **Milestone 3: a Raspberry Pi.** The arm executables of milestone 2,
   on a Pi (by the author).
@@ -439,10 +439,10 @@ lines; the test is the same: the same executables, running.
 0. **Groundwork**: `assembler/` and `linker/`'s dune, the counting
    script, the corpus harness; in goken, the `-S` fixes and the
    comparison flags (decision 5).
-1. **TinyAsm**: the types, the lexer and the parser for both targets;
+1. **mini-asm**: the types, the lexer and the parser for both targets;
    the objects; the round-trip law over the corpus and goken's libc
    `.s`.
-2. **TinyLd, general part**: load, libraries, symbols, layout, data,
+2. **mini-ld, general part**: load, libraries, symbols, layout, data,
    ELF32 and ELF64, and a.out.
 3. **arm**: rewrite, classify, encode; milestone 1 for 5; the fuzzer.
 4. **arm64**: the same, and a look back at what the second target
@@ -478,7 +478,7 @@ lines; the test is the same: the same executables, running.
 - **2026-09-23, the formats widened, before any code** (the author:
   "we might want to also support Mach-O at least (Plan9 a.out and
   Windows PE are optional, add them if it does not add too much code).
-  With Mach-O I could also run binaries produced by tinyas and tinyld
+  With Mach-O I could also run binaries produced by tinyas and mini-ld
   on my macbook pro"). Decision 7 is now three formats. Checked for
   it: 7l writes Mach-O for arm64 (`-H6`) and 5l and 7l a.out (`-H2`);
   goken's `hello_plan9_arm.exe` runs under 5i here; goken has no PE
@@ -487,7 +487,7 @@ lines; the test is the same: the same executables, running.
   independence, 16 KB pages); the line target grows by 240, to about
   2,090.
 
-- **2026-09-23, TinyAsm, and TinyLd for arm: milestones 1 and 2 on
+- **2026-09-23, mini-asm, and mini-ld for arm: milestones 1 and 2 on
   arm, byte for byte.** `assembler/` (Asm, Lexer, Parser, CLI) and
   `linker/` (Link, Arm, Exe for ELF and a.out, CLI).
   - Milestone 1: `linker/tests/fixtures5.sh` over xix's `arm_diff`
@@ -496,8 +496,8 @@ lines; the test is the same: the same executables, running.
     in xix-only syntax (goken's 5a rejects them), and 4 outside the
     subset (PSR and FPSR moves, SWP, coprocessor registers).
   - Milestone 2: `linker/tests/libc5.sh` builds goken's libc twice,
-    with 5c and 5a into goken's objects, and with `5c -S`, TinyAsm and
-    `tinyld -a` into ix's (149 files, all through). It then links the
+    with 5c and 5a into goken's objects, and with `5c -S`, mini-asm and
+    `mini-ld -a` into ix's (149 files, all through). It then links the
     17 programs of goken's `tests/c/hello_libc` both ways. All 17 are
     the same, byte for byte (`linker/tests/elfcmp.py`), except for
     the one goken bug below, and they print the same.
@@ -522,11 +522,11 @@ lines; the test is the same: the same executables, running.
     - 5l's ELF section table goes at HEADR+text+data, which is inside
       the data's page, so it overwrites the end of a large data
       segment. 9 of the 17 programs have it, and goken's `dirread`
-      fails because of it (patched with ix's bytes, it passes). TinyLd
+      fails because of it (patched with ix's bytes, it passes). mini-ld
       puts the table after the data, and `elfcmp.py` skips it.
     - 5l's `immrot` runs in a 64-bit `ulong`, so only 0..255 are
       immediates; `$0x400` goes to a literal pool. The code is correct
-      but longer. TinyLd does the same, with a `rotate` flag for the
+      but longer. mini-ld does the same, with a `rotate` flag for the
       real rule.
   - Code lines (no blanks or comments): assembler 516, linker 1,075
     (Link 275, Arm 680, Exe 71, CLI 49), so 1,591 against the
@@ -535,7 +535,7 @@ lines; the test is the same: the same executables, running.
   - Next: arm64 (Arm64.ml, milestone 1 for 7), then milestone 2 on
     arm64 and Mach-O.
 
-- **2026-09-23, TinyLd for arm64: milestones 1 and 2 on arm64, byte
+- **2026-09-23, mini-ld for arm64: milestones 1 and 2 on arm64, byte
   for byte** (the author: "let's do it"). `linker/Arm64.ml`, from 7l's
   optab, span, noops and asmout.
   - Milestone 1: `fixtures.sh 7` gives 20 the same as 7l `-H7 -s`:
@@ -550,7 +550,7 @@ lines; the test is the same: the same executables, running.
     data alignment (8 and 16), and one literal pool at the end of the
     program, with 8-byte words for MOV. There are no FMOV immediates:
     every float constant goes in the data. The frame is 16-aligned
-    with R30 at its bottom. TinyLd reproduces 7l's bitmask encoding
+    with R30 at its bottom. mini-ld reproduces 7l's bitmask encoding
     (the element size is left out below 64 bits), and it generates
     the table of 5,334 immediates rather than copying bits.c.
   - The design held: `follow` and the float constants moved into Link,
@@ -587,7 +587,7 @@ lines; the test is the same: the same executables, running.
   finalization** (the author: "yes let's make the tiny/ one and
   finalize the assember and linker part").
   - `tiny/TinyAssembler.ml`, 410 lines of code (the arm64 path through
-    TinyAsm and TinyLd is about 1,580). It is arm64 only: it runs here
+    mini-asm and mini-ld is about 1,580). It is arm64 only: it runs here
     and on the Mac, and it has no FPA and no division calls. It takes
     all of a program's assembly and writes a one-segment ELF. It drops
     the byte identity with 7l, so every size is known before any
@@ -656,7 +656,7 @@ hello_libc programs, byte for byte and run) and TinyAssembler's test.
 Dynamic linking and shared libraries (Mach-O's dyld and libSystem are
 named, not used); debugging information (Plan 9's symbol table,
 DWARF); PE, for which goken has no arm or arm64 reference; Mach-O for
-anything but arm64, and universal binaries; signing Mach-O in TinyLd
+anything but arm64, and universal binaries; signing Mach-O in mini-ld
 (`codesign` does it); the other architectures of goken (386, amd64, mips,
 riscv...); running arm floating point (FPA is encoded, as libc has it,
 but no machine runs it; VFP until a later phase);

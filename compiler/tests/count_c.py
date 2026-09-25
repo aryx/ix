@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The C that TinyCompiler must take, counted: over goken's libc (all of
+# The C that mini-cc must take, counted: over goken's libc (all of
 # it), libbio, libregexp, libstring, the hello_libc programs and
 # goken's utilities, with their headers, the keywords, Plan 9's extensions and the
 # preprocessor's directives, file by file and in all. Tokens, not a

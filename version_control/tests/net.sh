@@ -8,17 +8,17 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# Phase 8: TinyGit's protocol against C git's, both ways.
+# Phase 8: mini-git's protocol against C git's, both ways.
 #
-#   tinygit clone from git daemon (git://), over ssh ($GIT_SSH: a
+#   mini-git clone from git daemon (git://), over ssh ($GIT_SSH: a
 #   stand-in running git-upload-pack here), over smart http (git
 #   http-backend behind http_backend.py; curl), and from a local C git
 #   repository: the work tree git clone checks out, the x bits, fsck;
-#   tinygit push to git daemon (receive-pack) and over http, C git
+#   mini-git push to git daemon (receive-pack) and over http, C git
 #   reading the result;
-#   tinygit pull of commits C git pushed;
-#   C git clone and push through tinygit serve (git's ext:: transport,
-#   "tinygit serve %G/path"): fsck, and tinygit reading the push.
+#   mini-git pull of commits C git pushed;
+#   C git clone and push through mini-git serve (git's ext:: transport,
+#   "mini-git serve %G/path"): fsck, and mini-git reading the push.
 #
 # Usage: net.sh [repository to serve]   (default: ix itself)
 
@@ -63,13 +63,13 @@ for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null http://127.0.0.1:$HPORT/ 
 (cd $W && $T clone http://127.0.0.1:$HPORT/src.git c_http > /dev/null 2>&1) || fail "clone http"
 same_tree $W/c_http "clone http"
 (cd $W && $T clone $W/reference c_local > /dev/null 2>&1) || fail "clone local"
-same_tree $W/c_local "clone local (git's repository, tinygit serve)"
+same_tree $W/c_local "clone local (git's repository, mini-git serve)"
 
-# push from tinygit to git daemon, C git reads it
+# push from mini-git to git daemon, C git reads it
 cd $W/c_git
-echo "a tinygit change" >> README.md
+echo "a mini-git change" >> README.md
 mkdir -p newdir && echo new > newdir/file && $T add newdir/file
-GIT_AUTHOR_DATE="1700000000 +0000" $T commit -m "tinygit commit" . > /dev/null || fail "commit"
+GIT_AUTHOR_DATE="1700000000 +0000" $T commit -m "mini-git commit" . > /dev/null || fail "commit"
 out=$($T push 2>&1) || fail "push git://: $out"
 [ "$(git --git-dir=$W/src.git rev-parse $BR)" = "$($T query HEAD)" ] && ok "push git://" || fail "push git://: ref"
 git --git-dir=$W/src.git fsck --strict > /dev/null 2>&1 || fail "push git://: fsck of the server"
@@ -83,18 +83,18 @@ out=$($T push 2>&1) || fail "push http: $out"
 [ "$(git --git-dir=$W/src.git rev-parse $BR)" = "$($T query HEAD)" ] && ok "push http" || fail "push http: ref"
 git --git-dir=$W/src.git fsck --strict > /dev/null 2>&1 || fail "push http: fsck of the server"
 
-# C git pushes; tinygit pulls
+# C git pushes; mini-git pulls
 (cd $W/reference && git pull -q && echo "from C git" > cfile && git add cfile && git commit -q -m "C git commit" && git push -q) || fail "C git push"
 (cd $W/c_git && $T pull > /dev/null 2>&1) || fail "pull git://"
 same_tree $W/c_git "pull git://"
 
-# C git through tinygit serve
+# C git through mini-git serve
 X="-c protocol.ext.allow=always"
-git $X clone -q "ext::$T serve %G$W/c_git" $W/g_from_tiny 2> $W/err || fail "git clone from tinygit serve: $(cat $W/err)"
+git $X clone -q "ext::$T serve %G$W/c_git" $W/g_from_tiny 2> $W/err || fail "git clone from mini-git serve: $(cat $W/err)"
 git --git-dir=$W/g_from_tiny/.git fsck --strict > /dev/null 2>&1 && [ "$(git -C $W/g_from_tiny rev-parse HEAD)" = "$(cd $W/c_git && $T query HEAD)" ] \
-  && ok "git clone from tinygit serve" || fail "git clone from tinygit serve"
-(cd $W/g_from_tiny && echo more >> cfile && git commit -q -am "pushed into tinygit" && git $X push -q "ext::$T serve -w %G$W/c_git" $BR 2> $W/err) || fail "git push to tinygit serve: $(cat $W/err)"
+  && ok "git clone from mini-git serve" || fail "git clone from mini-git serve"
+(cd $W/g_from_tiny && echo more >> cfile && git commit -q -am "pushed into mini-git" && git $X push -q "ext::$T serve -w %G$W/c_git" $BR 2> $W/err) || fail "git push to mini-git serve: $(cat $W/err)"
 [ "$(cd $W/c_git && $T query $BR)" = "$(git -C $W/g_from_tiny rev-parse HEAD)" ] && git --git-dir=$W/c_git/.git fsck --strict > /dev/null 2>&1 \
-  && ok "git push to tinygit serve" || fail "git push to tinygit serve"
+  && ok "git push to mini-git serve" || fail "git push to mini-git serve"
 echo "net: $failures failures"
 exit $((failures > 0))

@@ -9,7 +9,7 @@
  *)
 (* The test suite of database/: chidb's 131 .dbmf cases (its course's
  * tests: a program, the rows and registers it must produce), run on
- * TinyDb's machine. The corpus is read from chidb's checkout
+ * mini-chidb's machine. The corpus is read from chidb's checkout
  * ($CHIDB_DIR, ~/github/chidb by default), as the toolchain's tests
  * read goken's. From the root: make test. *)
 open Ix_db
@@ -18,7 +18,7 @@ let chidb_dir = match Sys.getenv_opt "CHIDB_DIR" with Some d -> d | None -> File
 let files = Filename.concat chidb_dir "tests/files"
 
 (* Filename.temp_dir is OCaml 5.1's *)
-let temp_dir () = let d = Filename.temp_file "tinydb" "" in Sys.remove d; Sys.mkdir d 0o700; d
+let temp_dir () = let d = Filename.temp_file "mini-chidb" "" in Sys.remove d; Sys.mkdir d 0o700; d
 
 let rec find dir =
   Sys.readdir dir |> Array.to_list |> List.sort compare |> List.concat_map (fun f ->

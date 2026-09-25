@@ -4,14 +4,14 @@ What a version control system does, and how git9 (Plan 9's git) does
 it: objects named by their hashes, trees and commits built from them,
 references, a staging file, commits made from the work tree, packs and
 deltas, the wire protocol, and the diff and three-way merge the
-commands use. It is written for **a reader of TinyGit's code, not a
+commands use. It is written for **a reader of mini-git's code, not a
 user of git**, and follows the code bottom up.
 
 The program is planned in [`plan_vcs.md`](../plans/plan_vcs.md);
 related systems are in
 [`notes_vcs_related_work.md`](../related-work/notes_vcs_related_work.md).
 The twin is git9's C and rc in principia's `version_control/git9`,
-and its `diff/`. Every example below was run with tinygit, and C git
+and its `diff/`. Every example below was run with mini-git, and C git
 2.43 where it says so, on 2026-09-24.
 
 ## 0. Where the code is, and a reading order
@@ -31,19 +31,19 @@ and its `diff/`. Every example below was run with tinygit, and C git
 ## 1. What version control is
 
 ```
-   $ tinygit init
+   $ mini-git init
    $ echo hello > hello.txt; mkdir lib; echo 'let x = 1' > lib/a.ml
-   $ tinygit add hello.txt lib
-   $ tinygit walk
+   $ mini-git add hello.txt lib
+   $ mini-git walk
    A hello.txt
    A lib/a.ml
-   $ tinygit commit -m first .
+   $ mini-git commit -m first .
    heads/master: 71abf094a75033bef182f413614a3d080801f5dd
    $ echo 'hello world' > hello.txt
-   $ tinygit walk
+   $ mini-git walk
    M hello.txt
    T lib/a.ml
-   $ tinygit commit -m second .
+   $ mini-git commit -m second .
    heads/master: 94c0224253c29d59002347c8008d25122b12ac04
 ```
 
@@ -77,7 +77,7 @@ git keeps it, hardened.
 A loose object is a file, `.git/objects/ce/013625...`, holding those
 bytes deflated. Deflate (`lib_compression/Zlib`, RFC 1951) is LZ77 --
 "copy N bytes from D back" -- with Huffman codes for the literals,
-lengths and distances. TinyGit's inflate reads the three kinds of
+lengths and distances. mini-git's inflate reads the three kinds of
 block (stored, fixed codes, dynamic codes); its deflate writes fixed
 codes only. The compressed bytes are not the ones C git writes, and
 need not be: a name is the hash of the *uncompressed* bytes, so two
@@ -121,7 +121,7 @@ The commit:
 ```
 
 and the second one adds `parent 71abf094...`. git9 writes the zone as
-`+0000` always. With the same author, date and message, tinygit and
+`+0000` always. With the same author, date and message, mini-git and
 `git commit` make the same commit hash: the test that holds the whole
 format together (`session.py`, 200 random sessions).
 
@@ -138,9 +138,9 @@ and pushes their lowest common ancestor, and `a..b` is what `b`
 reaches and `a` does not, oldest first:
 
 ```
-   $ tinygit query HEAD~ HEAD @
+   $ mini-git query HEAD~ HEAD @
    71abf094a75033bef182f413614a3d080801f5dd
-   $ tinygit query -c HEAD~ HEAD
+   $ mini-git query -c HEAD~ HEAD
    @ hello.txt
 ```
 
@@ -166,13 +166,13 @@ scripts read history with `cat` and `cp`. `Fs` keeps the paths
 without the mount:
 
 ```
-   $ tinygit fs HEAD
+   $ mini-git fs HEAD
    tree/
    parent
    msg
    hash
    author
-   $ tinygit fs HEAD/parent
+   $ mini-git fs HEAD/parent
    71abf094a75033bef182f413614a3d080801f5dd
 ```
 
@@ -202,7 +202,7 @@ Two quirks to know. With `-b`, or no INDEX9, the "index" is the
 commit's own files. And git9 counts a path as in the commit if
 `access()` finds it there, a directory included: a stale line for a
 file that became a directory then read as its removal, and the next
-commit dropped the directory. TinyGit counts files only (deliberate
+commit dropped the directory. mini-git counts files only (deliberate
 difference 6).
 
 ## 6. A commit from the work tree
@@ -283,11 +283,11 @@ transports only carry the bytes: a local repository (a `serve`
 process on a socketpair), TCP for `git://`, `ssh`, and smart http,
 where the conversation is cut in two stateless requests -- a GET for
 the references, then one POST carrying the whole request (wants,
-haves, done), its reply the pack. TinyGit runs `curl` for http(s), as
+haves, done), its reply the pack. mini-git runs `curl` for http(s), as
 git9 uses Plan 9's webfs; that is how it clones ix from GitHub:
 
 ```
-   $ tinygit clone https://github.com/aryx/ix ix
+   $ mini-git clone https://github.com/aryx/ix ix
    fetching...
    checking out repository...
 ```
@@ -305,7 +305,7 @@ line of the second file each line of the first matches, from which
 every output format is printed:
 
 ```
-   $ tinygit diff
+   $ mini-git diff
    diff 94c0224253c29d59002347c8008d25122b12ac04 uncommitted
    --- a/lib/a.ml
    +++ b/lib/a.ml
@@ -320,7 +320,7 @@ ranges overlap are widened to the same range and taken once if equal,
 else written as a conflict with the base in the middle:
 
 ```
-   $ tinymerge3 ours.ml base.ml theirs.ml
+   $ mini-merge3 ours.ml base.ml theirs.ml
    <<<<<<<<<< ours.ml
    let x = 10
    ========== original
@@ -347,11 +347,11 @@ copies the files that differ from the target commit out of git/fs,
 merging any the user changed; `merge` is `merge3` on each file both
 sides changed, and a commit later with two parents; `pull` is `get`
 and a fast-forward, or "diverged"; `clone` is `init`, `get`, and a
-checkout. In TinyGit each script is an OCaml function in `Commands`,
+checkout. In mini-git each script is an OCaml function in `Commands`,
 in the script's order, calling `Walk`, `Save`, `Query` rather than
 programs.
 
-## 11. How TinyGit differs from git9
+## 11. How mini-git differs from git9
 
 Deliberately, each with a test: `repositoryformatversion = 0` (C git
 refuses git9's `p9.0`); `packed-refs` read; a commit's unknown headers

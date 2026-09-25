@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# Phase 4: TinyGit's revision language against C git, on random
+# Phase 4: mini-git's revision language against C git, on random
 # histories built by git commit-tree (branches, merges of two or
 # three parents, dates never decreasing from parent to child, as
 # git9's walk by time assumes; equal dates in some sessions):

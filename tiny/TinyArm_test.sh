@@ -14,7 +14,7 @@
 #    TinyArm.ml: the text section byte for byte the same;
 # 2. its listing, instruction by instruction, as objdump prints it;
 # 3. run here, on the CPU (the ELF TinyArm.ml writes; this machine runs
-#    arm32) and under machine/'s tinyarm: the same output and status;
+#    arm32) and under machine/'s mini-5i: the same output and status;
 # 4. random lines of the subset's syntax (N, default 3000), assembled
 #    both ways, the same bytes, listed as objdump lists them.
 #
@@ -52,12 +52,12 @@ for s in $ROOT/tiny/TinyArm_tests/*.s; do
   listing_check $p $s $W/$p.bin
   # 3. the runs, the same input
   $T -o $W/$p.elf $s
-  echo "hello tinyarm" | $T $s > $W/$p.out1; s1=$?
-  echo "hello tinyarm" | $M $W/$p.elf > $W/$p.out3; s3=$?
-  if echo "hello tinyarm" | $W/$p.elf > $W/$p.out2 2>/dev/null; s2=$?; [ $s2 -ne 126 ]; then :; else cp $W/$p.out1 $W/$p.out2; s2=$s1; fi
+  echo "hello mini-5i" | $T $s > $W/$p.out1; s1=$?
+  echo "hello mini-5i" | $M $W/$p.elf > $W/$p.out3; s3=$?
+  if echo "hello mini-5i" | $W/$p.elf > $W/$p.out2 2>/dev/null; s2=$?; [ $s2 -ne 126 ]; then :; else cp $W/$p.out1 $W/$p.out2; s2=$s1; fi
   if cmp -s $W/$p.out1 $W/$p.out2 && cmp -s $W/$p.out1 $W/$p.out3 && [ $s1 = $s2 ] && [ $s1 = $s3 ]; then
-    echo "ok $p: runs the same here, on the CPU and under tinyarm (status $s1)"
-  else fail "$p: runs differently: status $s1 (here), $s2 (CPU), $s3 (tinyarm)"; fi
+    echo "ok $p: runs the same here, on the CPU and under mini-5i (status $s1)"
+  else fail "$p: runs differently: status $s1 (here), $s2 (CPU), $s3 (mini-5i)"; fi
 done
 
 # 4. random instructions

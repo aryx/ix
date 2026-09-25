@@ -6,7 +6,7 @@
 
 (executable
  (name Main)
- (public_name tinyld)
+ (public_name mini-ld)
  (package ix)
  (modules Main)
  (libraries ix_ld caps))

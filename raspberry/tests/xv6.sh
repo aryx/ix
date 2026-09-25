@@ -8,14 +8,14 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# TinyRaspberryPi against QEMU on xv6's Pi ports (plan_pi.md, phase A
-# on): for each port (default: those tinypi boots so far),
+# mini-qemu against QEMU on xv6's Pi ports (plan_pi.md, phase A
+# on): for each port (default: those mini-qemu boots so far),
 #
 # 1. the boot: the console's output until the shell's prompt, under
-#    QEMU and under tinypi, byte for byte the same;
+#    QEMU and under mini-qemu, byte for byte the same;
 # 2. with -u, the port's own acceptance test, unchanged: its
 #    test-xv6.py (boot, usertests to ALL TESTS PASSED) run with
-#    QEMU=tinypi (the release build: dune build --profile release).
+#    QEMU=mini-qemu (the release build: dune build --profile release).
 #
 # Needs ~/xv6 (xv6-multiarch, its ports built) and qemu-system-arm.
 #
@@ -48,9 +48,9 @@ for port in $ports; do
   img=$d/$(image $port)
   [ -f $img ] || { echo "skip $port: not built"; continue; }
   boot qemu qemu-system-arm -M raspi1ap -nographic -kernel $img
-  boot tinypi $TP -M raspi1ap -nographic -kernel $img
-  if cmp -s $W/qemu $W/tinypi && [ -s $W/qemu ]; then echo "ok $port: boots as under QEMU ($(wc -l < $W/qemu) lines)"
-  else echo "FAIL $port: the boot differs from QEMU's"; diff $W/qemu $W/tinypi | head -5; failures=$((failures + 1)); fi
+  boot mini-qemu $TP -M raspi1ap -nographic -kernel $img
+  if cmp -s $W/qemu $W/mini-qemu && [ -s $W/qemu ]; then echo "ok $port: boots as under QEMU ($(wc -l < $W/qemu) lines)"
+  else echo "FAIL $port: the boot differs from QEMU's"; diff $W/qemu $W/mini-qemu | head -5; failures=$((failures + 1)); fi
   if [ $full = 1 ]; then
     if (cd $d && QEMU=$TP timeout 900 python3 test-xv6.py) > $W/log 2>&1 && grep -q "ALL TESTS PASSED" $W/log; then
       echo "ok $port: usertests, ALL TESTS PASSED"

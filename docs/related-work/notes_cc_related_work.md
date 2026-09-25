@@ -1,4 +1,4 @@
-# TinyCompiler vs. the rest of the C compilers
+# mini-cc vs. the rest of the C compilers
 
 Where a tiny C compiler sits among the real ones: the first compilers
 of expressions, Ritchie's and Johnson's C compilers, Plan 9's, the
@@ -24,7 +24,7 @@ on them for teaching.
 | GCC (1987), LLVM (2003) | Every language, every machine, optimizing | an IR (RTL, GIMPLE; LLVM's) and passes |
 | C-- (1997-), QBE (2015-) | A portable assembly language as the target | an IR small enough to target |
 | Small-C (1980), tcc (2001), c4 (2014), chibicc (2019) | A compiler one person reads, or writes | none, or a stack machine |
-| `compiler/` (TinyCompiler) | Seeing what a C compiler does, on real programs | Plan 9's instructions, one generator, a record per machine |
+| `compiler/` (mini-cc) | Seeing what a C compiler does, on real programs | Plan 9's instructions, one generator, a record per machine |
 
 ## Part 1: code from expressions
 
@@ -35,7 +35,7 @@ on them for teaching.
   ("The Generation of Optimal Code for Arithmetic Expressions", 1970):
   how many registers an expression needs, and that computing the
   hungrier side first is optimal. 5c's `complex` field is this number,
-  and TinyCompiler's code generator is built on it.
+  and mini-cc's code generator is built on it.
 
 ## Part 2: C's compilers on Unix
 
@@ -66,7 +66,7 @@ on them for teaching.
   when programs got large and speed mattered.
 - **goken** (goken9cc) keeps both lineages, principia's (5c on `cc/`)
   and kencc's (5ck, 7c on `cck/`), with `-O0` to turn the optimizer
-  off; TinyCompiler compares against both. **xix's occ** is the same
+  off; mini-cc compares against both. **xix's occ** is the same
   design in OCaml, its front end complete and its code generator
   started.
 
@@ -76,7 +76,7 @@ on them for teaching.
   Retargetable C Compiler: Design and Implementation*, 1995): ANSI C,
   written as a literate program, with an interface of some twenty
   functions between the front end and a back end, and code selection by
-  tree grammars (lburg). The closest in spirit to TinyCompiler's
+  tree grammars (lburg). The closest in spirit to mini-cc's
   record per machine, with a grammar where the record has functions.
 - **GCC** (Richard Stallman, 1987) took RTL from Davidson and Fraser's
   peephole optimizer; **LLVM** (Chris Lattner, 2003) made the IR the
@@ -109,10 +109,10 @@ on them for teaching.
 - **Small-C** (Ron Cain, *Dr. Dobb's*, 1980): a subset of C for the
   8080, generating code for a stack machine with two registers; the
   compiler hobbyists read for a decade.
-- **tcc** (Fabrice Bellard, TinyCC, 2001): a whole C99 compiler,
+- **tcc** (Fabrice Bellard, mini-cc, 2001): a whole C99 compiler,
   assembler and linker in one program, one pass, fast enough to boot
-  Linux from source (tccboot, 2004). Its common name, `tinycc`, is also
-  TinyCompiler's command's: the two are unrelated.
+  Linux from source (tccboot, 2004). Its common name, `mini-cc`, is also
+  mini-cc's command's: the two are unrelated.
 - **c4** (Robert Swierczek, 2014): C in four functions, compiling to a
   virtual machine that it also runs, and compiling itself.
 - **8cc, 9cc, chibicc** (Rui Ueyama, 2012-2020): C compilers written in
@@ -135,9 +135,9 @@ on them for teaching.
 - **Nisan and Schocken, *The Elements of Computing Systems***
   (nand2tetris): the Jack compiler, to a stack machine, for teaching.
 - **The Principia book `compilers/`**: 5c's C, literate, which
-  TinyCompiler reads beside goken's.
+  mini-cc reads beside goken's.
 
-## What TinyCompiler takes, and leaves
+## What mini-cc takes, and leaves
 
 - **The language, at the real end**: the C that goken's libc and
   programs are written in, compiled to what 5c and 7c at `-O0` make,
@@ -153,7 +153,7 @@ output; two machines.
 
 ## Postscript: the numbers (to come)
 
-Once built: TinyCompiler's lines per module against the plan's
+Once built: mini-cc's lines per module against the plan's
 targets, against goken's 16,700 lines (22,100 with the optimizers) and
 xix's 5,553; the size of each machine's record, which is decision 1's
 test; the corpus and the fuzzer against goken; and the programs of

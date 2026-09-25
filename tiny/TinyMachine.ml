@@ -10,13 +10,13 @@
 (* A tiny machine of our own, in one file: its instruction set, an
  * assembler, an interpreter, and a translator to arm32 that makes a
  * Linux executable of a program. Knuth's road with MIX and MMIX: when
- * the machine is for teaching, design it; TinyArm (machine/) and
+ * the machine is for teaching, design it; mini-5i (machine/) and
  * TinyArm.ml emulate the machine history left us, this one the machine
  * fifty years of hindsight would draw:
  *
- *     tinymachine prog.tm            assembled and interpreted
- *     tinymachine -o prog prog.tm    translated to arm32: an ELF
- *     tinymachine -l prog.tm         the listing
+ *     tiny-machine prog.tm            assembled and interpreted
+ *     tiny-machine -o prog prog.tm    translated to arm32: an ELF
+ *     tiny-machine -l prog.tm         the listing
  *
  * The machine: 16 registers of 32 bits, r0 always 0 (a zero at hand
  * and a place to throw a result away, RISC-V's and MMIX's choice); a
@@ -67,12 +67,12 @@
  *   and the interpreter can, is run code the program writes: the
  *   translation is made once, before the run.
  * - {b The laws}: interpreting a program and running its translation
- *   (on the CPU, and under machine/'s tinyarm) print the same and exit
+ *   (on the CPU, and under machine/'s mini-5i) print the same and exit
  *   the same; TinyMachine_test.sh checks them on the programs of
  *   TinyMachine_tests/, whose outputs are known otherwise, and on
  *   random programs that dump every register.
  *
- * Usage: tinymachine [-o out | -l] file.tm [args...]
+ * Usage: tiny-machine [-o out | -l] file.tm [args...]
  *
  * References: D. E. Knuth, The Art of Computer Programming, vol. 1
  * (MIX, 1968; MMIX, fascicle 1, 2005): a machine designed to teach;
@@ -580,7 +580,7 @@ let main (caps : < caps; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
         done; 0
     | "-o" :: out :: file :: _ -> Files.write caps ~perm:0o755 (Fpath.v out) (translate (assemble (read file))); 0
     | file :: _ when file.[0] <> '-' -> interpret caps (assemble (read file))
-    | _ -> Console.eprint caps "usage: tinymachine [-o out | -l] file.tm [args...]\n"; 2
-  with Error e | Sys_error e -> Console.eprint caps ("tinymachine: " ^ e ^ "\n"); 1
+    | _ -> Console.eprint caps "usage: tiny-machine [-o out | -l] file.tm [args...]\n"; 2
+  with Error e | Sys_error e -> Console.eprint caps ("tiny-machine: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

@@ -4,7 +4,7 @@ How a program written in assembly becomes a file Linux runs, on arm
 and arm64, the Plan 9 way: an assembler that only parses, and a linker
 that lays out the whole program, then chooses and encodes each
 instruction, and writes the ELF file. It is written for **a reader of
-TinyAsm's and TinyLd's code, not a user of an assembler**, and explains
+mini-asm's and mini-ld's code, not a user of an assembler**, and explains
 the ideas in the order the code needs them.
 
 It was the specification of the programs planned in
@@ -28,7 +28,7 @@ goken's 5a/5l and 7a/7l, and xix's `assembler/` and `linker/`.
 | `linker/Arm` | arm: frames, classes and rules, pools, encoding | §6, §8 |
 | `linker/Arm64` | arm64: the same | §7, §8 |
 | `linker/Exe` | the file the kernel runs: ELF, a.out, Mach-O | §9 |
-| `linker/CLI` | `tinyld`: the passes in order, per machine | §5 |
+| `linker/CLI` | `mini-ld`: the passes in order, per machine | §5 |
 | `tiny/TinyAssembler` | the one-file variant, without separate compilation | §13 |
 
 Read §1 for the whole trip, §2 for the language, §3 for the design,
@@ -104,7 +104,7 @@ turns each into a real register and an offset, per machine.
 
 What differs is the opcodes (`MOV` and `MOVW` for 64 and 32 bits,
 `SVC` for `SWI`), the registers (`R0`-`R30`, `RSP`, `ZR`), and a few
-operands (arm's shifts, arm's register lists). So TinyAsm has **one
+operands (arm's shifts, arm's register lists). So mini-asm has **one
 parser and one instruction type** for both, and a table of register
 names per machine; which instructions exist, and with which operands,
 is the linker's business (§3).
@@ -258,7 +258,7 @@ first of the rules for the opcode whose classes take the operands' is
 the one. The rules are sorted as 5l sorts its optab, so the first is
 5l's first. goken computes `immrot` in a 64-bit `ulong`, where the
 rotation never wraps: only 0 to 255 rotate there, and `$0x400` goes to
-a pool. TinyLd does the same (checked), with a flag for the real rule.
+a pool. mini-ld does the same (checked), with a flag for the real rule.
 
 **Literal pools** go after an unconditional branch or a return, when
 the pool's first use is getting far (5l's `checkpool`), or at the end,
@@ -293,10 +293,10 @@ Also one 32-bit word, and there the resemblance ends:
   program became a pool load, `58000060`).
 - **Bitmask immediates**: `AND`, `ORR`, `EOR` take a constant that is
   a repeated element (2, 4, ..., 64 bits) made of a rotated run of
-  ones. 7l keeps a table of them, 5,334 entries in `bits.c`; TinyLd
+  ones. 7l keeps a table of them, 5,334 entries in `bits.c`; mini-ld
   makes the same table by enumerating the element sizes, the runs and
   the rotations, in 15 lines. 7l's encoding leaves out the element's
-  size below 64 bits (a known 7l bug), and so, to match it, does TinyLd.
+  size below 64 bits (a known 7l bug), and so, to match it, does mini-ld.
 - **The literal pool** is one, at the end of the program, with 8-byte
   words for `MOV`; and there are no float immediates in 7l: every
   `FMOVD $c` loads from a symbol in the data.
@@ -336,7 +336,7 @@ arm needs one more thing: `e_flags` must say EABI version 5
 needed to run. 5l writes three anyway, at HEADR+text+data, which is
 inside the data's page: when the data is large the table overwrites its
 end, a goken bug that breaks its own `dirread` (checked: patched with
-ix's bytes, it passes). TinyLd puts the table after the data.
+ix's bytes, it passes). mini-ld puts the table after the data.
 
 **Plan 9's a.out** is simpler still: 32 bytes, eight big-endian words
 -- the magic (`0x647` on arm), the sizes of the text, the data, the bss
@@ -368,7 +368,7 @@ the kernel insists; it makes its system calls itself (number in R16,
 
 ## 10. Compared with goken and xix
 
-| | goken (C) | xix (OCaml) | TinyAsm and TinyLd |
+| | goken (C) | xix (OCaml) | mini-asm and mini-ld |
 |---|---|---|---|
 | assembler | a grammar per machine (yacc) | a grammar and a typed AST per machine | one parser, one instruction type |
 | objects | Plan 9's format | marshalled | marshalled |
@@ -388,7 +388,7 @@ the kernel insists; it makes its system calls itself (number in R16,
   same. It found two bugs the corpus hadn't: the rounding of a
   negative frame, and which literal pool words are shared.
 - **Real programs** (`linker/tests/libc.sh 5|7`): goken's libc through
-  `5c -S` or `7c -S` and TinyAsm, and goken's 17 `hello_libc` programs
+  `5c -S` or `7c -S` and mini-asm, and goken's 17 `hello_libc` programs
   linked with it, byte for byte against goken's, and run.
   `fixtures.sh` compares any `.s` against goken, and `elfcmp.py`
   compares two executables but for goken's misplaced section table.
@@ -406,7 +406,7 @@ the kernel insists; it makes its system calls itself (number in R16,
 
 ## 13. In ix
 
-TinyAsm and TinyLd are the first half of ix's toolchain; the C compiler
+mini-asm and mini-ld are the first half of ix's toolchain; the C compiler
 comes next, and writes their objects directly.
 
 The one-file variant, `tiny/TinyAssembler.ml`, asks what is left
@@ -420,7 +420,7 @@ plain passes: expand, lay out, encode. The expansion makes each
 instruction a list of closures from their own pc to a word, run once
 the addresses are known. A library becomes the functions reachable from
 the entry. It is 410 lines of code, against about 1,580 for the same
-arm64 path through TinyAsm and TinyLd, and it runs goken's 17
+arm64 path through mini-asm and mini-ld, and it runs goken's 17
 `hello_libc` programs with all of libc, including the two that goken's
 own executables get wrong.
 

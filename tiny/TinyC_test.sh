@@ -46,13 +46,13 @@ for c in "${progs[@]}"; do
   b=$(basename $c .c)
   # claude: 7c -O0: its optimizer gets some constants wrong (plan_bugs_goken.md)
   (cd $(dirname $c) && 7c -O0 -S -o $W/$b.7 $b.c 2>/dev/null | grep '^	' > $W/$b.ref.s) || { echo "7c-FAIL $b"; continue; }
-  $TC -o $W/$b.s $c || { echo "FAIL $b: tinyc"; failures=$((failures + 1)); continue; }
+  $TC -o $W/$b.s $c || { echo "FAIL $b: tiny-c"; failures=$((failures + 1)); continue; }
   $TA -o $W/$b.ref $W/$b.ref.s "${libc[@]}" || { echo "FAIL $b: assembling 7c's"; failures=$((failures + 1)); continue; }
   $TA -o $W/$b.exe $W/$b.s "${libc[@]}" || { echo "FAIL $b: assembling"; failures=$((failures + 1)); continue; }
   # the same name in two directories, for argv[0]
-  mkdir -p $W/ref $W/tinyc; cp $W/$b.ref $W/ref/$b; cp $W/$b.exe $W/tinyc/$b
+  mkdir -p $W/ref $W/tiny-c; cp $W/$b.ref $W/ref/$b; cp $W/$b.exe $W/tiny-c/$b
   want=$(cd $W/ref && timeout 10 ./$b one two 2>&1; echo "exit $?")
-  got=$(cd $W/tinyc && timeout 10 ./$b one two 2>&1; echo "exit $?")
+  got=$(cd $W/tiny-c && timeout 10 ./$b one two 2>&1; echo "exit $?")
   if [ "$want" = "$got" ]; then echo "ok $b"; else echo "FAIL $b"; /usr/bin/diff <(echo "$want") <(echo "$got") | /usr/bin/head -10; failures=$((failures + 1)); fi
 done
 echo "$failures failure(s)"

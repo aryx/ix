@@ -9,10 +9,10 @@
 # 2 of the License, or (at your option) any later version.
 #
 # Phases 2 and 3: each program of the corpus run on the CPU (this
-# machine runs arm32 and arm64 natively) and under TinyArm, in fresh
+# machine runs arm32 and arm64 natively) and under mini-5i, in fresh
 # directories, with the same arguments and standard input: standard
 # output, the exit status, and the sequence of system calls (strace on
-# the native run, TinyArm's -y log; the main process's) compared.
+# the native run, mini-5i's -y log; the main process's) compared.
 #
 # Usage: corpus.py 5|7 program...
 
@@ -23,7 +23,7 @@ TA = os.path.join(ROOT, "_build/default/machine/Main.exe")
 arch, progs = sys.argv[1], sys.argv[2:]
 failures = 0
 ARGS = ["one", "two"]
-# the native runs without address randomization: TinyArm's layout is
+# the native runs without address randomization: mini-5i's layout is
 # fixed, and goken's brk takes any answer at or above its request as
 # success, so under a randomized heap mem.exe uses memory it never got
 # (it segfaults on arm64; on arm32 it happens to stay in its last page)
@@ -71,7 +71,7 @@ for p in progs:
     if (want[0], want[1]) != (got[0], got[1]):
         failures += 1
         err = got[2].decode(errors="replace").strip().splitlines()
-        print("FAIL %s: status native %s, tinyarm %s%s\n    %s" % (name, want[1], got[1],
+        print("FAIL %s: status native %s, mini-5i %s%s\n    %s" % (name, want[1], got[1],
               "" if want[0] == got[0] else ", stdout differs", err[-1] if err else ""))
     else:
         d1, d2 = tempfile.mkdtemp(), tempfile.mkdtemp()
@@ -80,7 +80,7 @@ for p in progs:
         if NAMES and a != b:
             failures += 1
             i = next((k for k in range(min(len(a), len(b))) if a[k] != b[k]), min(len(a), len(b)))
-            print("FAIL %s: system calls differ at %d: native %s, tinyarm %s" % (name, i, a[i:i+3], b[i:i+3]))
+            print("FAIL %s: system calls differ at %d: native %s, mini-5i %s" % (name, i, a[i:i+3], b[i:i+3]))
         else:
             print("ok %s (%d system calls)" % (name, len(a)))
 print("corpus: %d programs, %d failures" % (len(progs), failures))

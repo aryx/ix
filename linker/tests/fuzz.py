@@ -9,7 +9,7 @@
 # 2 of the License, or (at your option) any later version.
 #
 # The encoders' fuzzer: random programs of the subset's instructions,
-# through goken (5a/5l, 7a/7l -H7 -s) and through ix (tinyasm, tinyld);
+# through goken (5a/5l, 7a/7l -H7 -s) and through ix (mini-asm, mini-ld);
 # the executables must be the same (elfcmp.py's rule). A program goken
 # rejects is skipped; one only ix rejects is a gap, and one whose bytes
 # differ a bug; each is kept in the work directory.

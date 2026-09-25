@@ -8,7 +8,7 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny relational database, in one file, whose query language is the
- * relational algebra itself. TinyDb (database/) is chidb, faithfully:
+ * relational algebra itself. mini-chidb (database/) is chidb, faithfully:
  * SQL compiled to a register machine over B-trees of fixed pages,
  * changed in place. This keeps the ideas and takes the other roads:
  *
@@ -70,7 +70,7 @@
  *   a snapshot, with no lock (LMDB's design);
  * - rebalancing on delete: merge an underfull node with a sibling.
  *
- * Usage: tinydatabase file.db -- statements on standard input, one a
+ * Usage: tiny-db file.db -- statements on standard input, one a
  * line, # for comments
  *
  * References: R. Bayer and E. McCreight, "Organization and Maintenance
@@ -219,7 +219,7 @@ let open_db (_ : < Cap.open_in; Cap.open_out; .. >) path =
     write_at file 0 (magic ^ String.make 8 '\000');
     { file; tables = [] }
   end
-  else if Bytes.to_string (read_at file 0 8) <> magic then error "%s: not a tinydb file" path
+  else if Bytes.to_string (read_at file 0 8) <> magic then error "%s: not a mini-chidb file" path
   else
     let off = Int64.to_int (Bytes.get_int64_be (read_at file 8 8) 0) in
     { file; tables = (if off = 0 then [] else load file off) }
@@ -578,12 +578,12 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr; 
         | None -> 0
         | Some line ->
             (try match tokens line with [] -> () | ts -> exec caps db (parse ts)
-             with Error m -> flush stdout; prerr_endline (Printf.sprintf "tinydatabase: line %d: %s" n m));
+             with Error m -> flush stdout; prerr_endline (Printf.sprintf "tiny-db: line %d: %s" n m));
             loop (n + 1)
       in
       let code = loop 1 in
       flush stdout;
       code
-  | _ -> prerr_endline "usage: tinydatabase file.db"; 1
+  | _ -> prerr_endline "usage: tiny-db file.db"; 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

@@ -459,7 +459,7 @@ let show_prog (q : prog) =
 (* claude: 5c prints END as an instruction, a tab after it *)
 let listing () = String.concat "" (List.rev_map (fun q -> show_prog q ^ "\n") !progs) ^ "\tEND\t\n"
 
-(* the object: what TinyAsm makes of the listing *)
+(* the object: what mini-asm makes of the listing *)
 let obj file : A.obj =
   let ps = Array.of_list (List.rev !progs) in
   let of_pc = Hashtbl.create 64 in

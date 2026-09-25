@@ -1,6 +1,6 @@
 # Related work: version control, from SCCS to git and its clones
 
-Where TinyGit ([`plan_vcs.md`](../plans/plan_vcs.md),
+Where mini-git ([`plan_vcs.md`](../plans/plan_vcs.md),
 [`notes_vcs.md`](../tutorials/notes_vcs.md)) sits among the real
 systems. principia's `version_control/lineage.txt` lists the family
 (checked); dates and names below that are not from it or from the
@@ -61,7 +61,7 @@ ocamlgit (2017, the author's), git9 (2021).
 ## The git implementations
 
 - **C git** (Torvalds, 2005; Hamano since): the reference. What git9,
-  and TinyGit, leave out: the binary index, packed-refs writing,
+  and mini-git, leave out: the binary index, packed-refs writing,
   protocol v2, thin packs, OFS deltas on write, commit-graph,
   multi-pack index, submodules, hooks, rename detection, rebase with
   a sequencer, and much more.
@@ -75,7 +75,7 @@ ocamlgit (2017, the author's), git9 (2021).
   as small scripts over a few programs; the revision language as a
   stack machine with `@` for the common ancestor.
 
-## Where TinyGit sits
+## Where mini-git sits
 
 A twin of git9, in OCaml, for Linux: git9's behaviour where git9 has
 one (its commands, their outputs, INDEX9, the query language, merge3),

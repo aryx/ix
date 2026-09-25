@@ -10,7 +10,7 @@
 #
 # Milestone 1 of plan_rc.md: principia's rc scripts (the 133 of
 # count_features.py), each run with no arguments, in an empty
-# directory, under 9base's rc and tinyrc; one line per script, "same"
+# directory, under 9base's rc and mini-rc; one line per script, "same"
 # or "diff", and the two outputs of each diff in $OUT.
 #
 #   shell/tests/principia_scripts.sh      # takes a few minutes
@@ -23,7 +23,7 @@
 # directory. Not in make test: the scripts are principia's, not ix's.
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-TINYRC=${TINYRC:-$ROOT/_build/default/shell/Main.exe}
+MINIRC=${MINIRC:-$ROOT/_build/default/shell/Main.exe}
 RC=${RC:-/usr/lib/plan9/bin/rc}
 OUT=${OUT:-/tmp/principia_scripts}
 rm -rf "$OUT"; mkdir -p "$OUT/stubs"
@@ -43,11 +43,11 @@ run() {
 
 same=0 diff=0
 for f in $("$ROOT/shell/tests/count_features.py" scripts --list | sed 's|^\./||'); do
-  run "$RC" "$f" > "$OUT/rc.out"; run "$TINYRC" "$f" > "$OUT/tinyrc.out"
-  if cmp -s "$OUT/rc.out" "$OUT/tinyrc.out"; then echo "same $f"; same=$((same + 1))
+  run "$RC" "$f" > "$OUT/rc.out"; run "$MINIRC" "$f" > "$OUT/mini-rc.out"
+  if cmp -s "$OUT/rc.out" "$OUT/mini-rc.out"; then echo "same $f"; same=$((same + 1))
   else
     echo "diff $f"; diff=$((diff + 1))
-    k=$(echo "$f" | tr / _); cp "$OUT/rc.out" "$OUT/$k.rc"; cp "$OUT/tinyrc.out" "$OUT/$k.tinyrc"
+    k=$(echo "$f" | tr / _); cp "$OUT/rc.out" "$OUT/$k.rc"; cp "$OUT/mini-rc.out" "$OUT/$k.mini-rc"
   fi
 done
 echo "$same the same, $diff different (outputs in $OUT)"

@@ -1,1 +1,8 @@
 (dirs :standard \ docs)
+
+; the script that boots the Pi kernels under mini-qemu, installed with
+; the programs (dune install)
+(install
+ (section bin)
+ (package ix)
+ (files mini-pi))

@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# Phase 6: TinyDiff against principia's own diff and merge3, built for
+# Phase 6: mini-diff against principia's own diff and merge3, built for
 # Linux by goken (build_plan9_diff.sh). Random files -- few distinct
 # lines, so that the longest common subsequence has choices; runs
 # inserted, deleted, changed; a last line without its newline; blanks

@@ -10,7 +10,7 @@
 (* A tiny build system: the idea of make (Stuart Feldman, 1976) and mk
  * (Andrew Hume, 1987) -- describe the dependencies between files
  * concisely, and maintain them efficiently -- without their language.
- * TinyMk (builder/) is mk, faithfully; this is what is left when
+ * mini-mk (builder/) is mk, faithfully; this is what is left when
  * compatibility is dropped and only the idea is kept.
  *
  * A Buildfile has five kinds of lines:
@@ -35,7 +35,7 @@
  *
  *     stamp(hello) = md5(recipe, "hello.o", md5(hello.o), "world.o", ...)
  *
- * The stamps of the last build are kept in .tinybuild; a target is
+ * The stamps of the last build are kept in .tiny-build; a target is
  * rebuilt when it is missing or its stamp changed. That is the
  * "verifying traces" rebuilder of Mokhov, Mitchell and Peyton Jones,
  * "Build Systems a la Carte" (2018), and it removes three of mk's
@@ -65,7 +65,7 @@
  * <file includes a file, if it exists (a generated .depend may not, the
  * first time), and a backslash-newline continues a line, as ocamldep
  * writes them: that is enough for a Buildfile of 13 lines to build
- * TinyMk's ten modules from ocamldep's output, with -j 4 in about a
+ * mini-mk's ten modules from ocamldep's output, with -j 4 in about a
  * second. There, a comment added to Recipe.ml recompiles Recipe.ml
  * only: its object comes out identical, so nothing is relinked.
  *
@@ -77,7 +77,7 @@
  * trusting times. A file named like a virtual target (a file "clean")
  * makes it look like a real one.
  *
- * Usage: tinybuild [-f Buildfile] [-j N] [-n] [-g] [target ...]
+ * Usage: tiny-build [-f Buildfile] [-j N] [-n] [-g] [target ...]
  *   -n prints the recipes that would run, -g prints the graph for dot.
  *
  * Exercises: add ${X:%.c=%.o}; make the stamp of a source file its
@@ -315,7 +315,7 @@ let start (caps : < Cap.fork; Cap.exec; .. >) (env : string array) (recipe : str
 (* Building *)
 (*****************************************************************************)
 
-let stampfile = ".tinybuild"
+let stampfile = ".tiny-build"
 
 let build (caps : < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.env; .. >)
     ~(vars : (string, string list) Hashtbl.t) ~(stamps : (string, string) Hashtbl.t)
@@ -327,7 +327,7 @@ let build (caps : < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.env; .. >)
     Array.to_list (CapUnix.environment caps ())
     @ Hashtbl.fold (fun k v acc -> (k ^ "=" ^ String.concat " " v) :: acc) vars []
   in
-  (* a source's recipe is "", as .tinybuild's stamps have it *)
+  (* a source's recipe is "", as .tiny-build's stamps have it *)
   let stamp n =
     let recipe = match n.make with Source -> "" | Recipe r -> r.text in
     Digest.to_hex (Digest.string (String.concat "\n" (recipe :: List.map (fun d ->
@@ -360,7 +360,7 @@ let build (caps : < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.env; .. >)
     | Some n ->
         Hashtbl.remove running pid;
         if st = Unix.WEXITED 0 then (Hashtbl.replace stamps n.name (stamp n); finish n)
-        else (Printf.eprintf "tinybuild: %s failed\n%!" n.name; failed := true)
+        else (Printf.eprintf "tiny-build: %s failed\n%!" n.name; failed := true)
   in
   let rec loop todo =
     let ready n = List.for_all (fun d -> Hashtbl.mem digests d.name) n.deps in
@@ -375,7 +375,7 @@ let build (caps : < Cap.fork; Cap.exec; Cap.wait; Cap.open_in; Cap.env; .. >)
     else if todo <> [] && not !failed && List.exists ready todo then loop todo
   in
   loop (order root);
-  if !ran = 0 && not !failed then Printf.printf "tinybuild: %s is up to date\n" root.name;
+  if !ran = 0 && not !failed then Printf.printf "tiny-build: %s is up to date\n" root.name;
   not !failed
 
 (*****************************************************************************)
@@ -390,7 +390,7 @@ let main (caps : Cap.all_caps) : int =
       "-j", Arg.Set_int jobs, " how many recipes at once";
       "-n", Arg.Set dry, " print the recipes, run nothing";
       "-g", Arg.Set dot, " print the graph, for dot" ]
-    (fun t -> targets := !targets @ [ t ]) "tinybuild [-f file] [-j N] [-n] [-g] [target ...]";
+    (fun t -> targets := !targets @ [ t ]) "tiny-build [-f file] [-j N] [-n] [-g] [target ...]";
   try
     let text = match read_file caps !file with Some s -> s | None -> error "no %s" !file in
     let rules, vars = parse ~read:(read_file caps) text in
@@ -420,6 +420,6 @@ let main (caps : Cap.all_caps) : int =
     in
     if not !dry then Files.write caps (Fpath.v stampfile) (Hashtbl.fold (fun k v acc -> acc ^ Printf.sprintf "%s %s\n" k v) stamps "");
     if ok then 0 else 1
-  with Error msg -> Printf.eprintf "tinybuild: %s\n" msg; 1
+  with Error msg -> Printf.eprintf "tiny-build: %s\n" msg; 1
 
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinybuild"; CapStdlib.exit caps (main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tiny-build"; CapStdlib.exit caps (main caps))

@@ -2,7 +2,7 @@
 # elfcmp.py goken.exe ix.exe: SAME when the two ELF files are equal, or
 # equal but for goken's section table where 5l writes it over the end of
 # the data (at HEADR+text+data, inside the data's page: a goken bug that
-# TinyLd doesn't reproduce: it puts the table after the data). Else DIFF
+# mini-ld doesn't reproduce: it puts the table after the data). Else DIFF
 # and the first offset that differs.
 import struct, sys
 g, t = open(sys.argv[1], 'rb').read(), open(sys.argv[2], 'rb').read()

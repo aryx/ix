@@ -9,7 +9,7 @@
 # 2 of the License, or (at your option) any later version.
 #
 # The tests of TinyShell.ml: each script, of the subset it keeps, runs
-# through tinyshell and through 9base's rc in a fresh directory; what
+# through tiny-shell and through 9base's rc in a fresh directory; what
 # they print (stdout, stderr, and the exit status) must be the same.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -22,15 +22,15 @@ run() {
   dir=$(mktemp -d)
   (cd "$dir" && printf "%s\n" "$script" > script &&
    env -i PATH=/usr/bin:/bin HOME="$dir" "$prog" ./script a1 'a 2' 2>&1; echo "[exit $?]") |
-    sed 's/^rc ([^)]*): /tinyshell: /'   # the one name that differs
+    sed 's/^rc ([^)]*): /tiny-shell: /'   # the one name that differs
   rm -rf "$dir"
 }
 
-# same NAME SCRIPT: tinyshell prints what rc prints
+# same NAME SCRIPT: tiny-shell prints what rc prints
 same() {
   expected=$(run "$RC" "$2") actual=$(run "$TS" "$2")
   if [ "$expected" = "$actual" ]; then echo "ok   $1"
-  else echo "FAIL $1"; echo "--- rc"; echo "$expected"; echo "--- tinyshell"; echo "$actual"
+  else echo "FAIL $1"; echo "--- rc"; echo "$expected"; echo "--- tiny-shell"; echo "$actual"
        failures=$((failures + 1)); fi
 }
 

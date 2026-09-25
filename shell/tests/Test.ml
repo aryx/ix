@@ -27,12 +27,12 @@ let corpus () =
         then Alcotest.fail ("differs from 9base: " ^ f);
         Testo.Promise.return ()))
 
-let tinyrc = "./_build/default/shell/Main.exe"
+let mini_rc = "./_build/default/shell/Main.exe"
 
-(* what [script] prints under tinyrc *)
+(* what [script] prints under mini-rc *)
 let output script =
-  let tmp = Filename.temp_file "tinyrc" ".out" in
-  ignore (Sys.command (Printf.sprintf "%s -c %s > %s 2>&1" tinyrc (Filename.quote script) tmp));
+  let tmp = Filename.temp_file "mini-rc" ".out" in
+  ignore (Sys.command (Printf.sprintf "%s -c %s > %s 2>&1" mini_rc (Filename.quote script) tmp));
   let s = In_channel.with_open_bin tmp In_channel.input_all in
   Sys.remove tmp;
   s
@@ -62,7 +62,7 @@ let session =
   Testo.create "session: the prompt, errors, exit" (fun () ->
     let cmd =
       Printf.sprintf "cd /tmp && env -i PATH=/usr/bin:/bin HOME=/nonexistent %s -i < %s/session.in 2>&1; echo \"[exit $?]\""
-        (Sys.getcwd () ^ "/" ^ tinyrc) (Sys.getcwd () ^ "/" ^ corpus_dir)
+        (Sys.getcwd () ^ "/" ^ mini_rc) (Sys.getcwd () ^ "/" ^ corpus_dir)
     in
     let tmp = Filename.temp_file "session" ".out" in
     ignore (Sys.command (Printf.sprintf "(%s) | sed 's|rc ([^)]*)|rc (ARGV0)|' > %s" cmd tmp));

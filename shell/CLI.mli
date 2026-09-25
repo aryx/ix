@@ -1,13 +1,13 @@
-(* The command line: tinyrc [-eiIlrvxp] [-c cmd] [-m rcmain] [file [arg ...]]
+(* The command line: mini-rc [-eiIlrvxp] [-c cmd] [-m rcmain] [file [arg ...]]
  *
  * rc does not start in C: it runs a script, rcmain, which reads the
  * profile if asked, then the -c command, the file, or the terminal
  * (plan9port's rcmain, embedded here as it is in 9base; -m reads
  * another):
  *
- *     tinyrc script a b     *=(script a b); . rcmain -> . $*
- *     tinyrc -c 'cmd'       cflag=cmd; . rcmain -> eval $cflag
- *     tinyrc                . rcmain -> . -i /dev/stdin, with a prompt
+ *     mini-rc script a b     *=(script a b); . rcmain -> . $*
+ *     mini-rc -c 'cmd'       cflag=cmd; . rcmain -> eval $cflag
+ *     mini-rc                . rcmain -> . -i /dev/stdin, with a prompt
  *                           if the input is a terminal, or with -i
  *
  *     -e  a failed command ends rc      -x  print each command run

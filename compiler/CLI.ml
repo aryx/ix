@@ -77,5 +77,5 @@ let main (caps : < caps; .. >) (argv : string array) : int =
       match compile caps !mach ~dump:!dump ~listing:!listing ~out (List.rev !defs) incs file with
       | Ok () -> 0
       | Error m -> eprint caps (m ^ "\n"); 1)
-  | exception Failure m -> eprint caps ("tinycc: " ^ m ^ "\n"); 1
-  | _, _ -> eprint caps "usage: tinycc -m 5|7 [-x] [-S] [-Idir] [-Dname=value] [-o out] file.c\n"; 1
+  | exception Failure m -> eprint caps ("mini-cc: " ^ m ^ "\n"); 1
+  | _, _ -> eprint caps "usage: mini-cc -m 5|7 [-x] [-S] [-Idir] [-Dname=value] [-o out] file.c\n"; 1

@@ -7,20 +7,20 @@
  * (LGPL) as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *)
-(* A tiny version control system, in one file. TinyGit (version_control/)
+(* A tiny version control system, in one file. mini-git (version_control/)
  * is git9, faithfully: git's formats, a staging file, packs, a wire
  * protocol. This keeps git's ideas -- objects named by the hash of
  * their content, trees of them, a DAG of commits, three-way merge --
  * and takes, for the rest, the roads the systems after git took:
  *
- *     tinyvcs init
+ *     tiny-vcs init
  *     echo hello > a.txt
- *     tinyvcs status                     A a.txt
- *     tinyvcs commit -m "first"
- *     tinyvcs branch feature; tinyvcs switch feature
- *     tinyvcs log; tinyvcs diff; tinyvcs merge master
- *     tinyvcs ops; tinyvcs undo
- *     tinyvcs clone ../repo copy; tinyvcs pull ../repo; tinyvcs push ../repo
+ *     tiny-vcs status                     A a.txt
+ *     tiny-vcs commit -m "first"
+ *     tiny-vcs branch feature; tiny-vcs switch feature
+ *     tiny-vcs log; tiny-vcs diff; tiny-vcs merge master
+ *     tiny-vcs ops; tiny-vcs undo
+ *     tiny-vcs clone ../repo copy; tiny-vcs pull ../repo; tiny-vcs push ../repo
  *
  * - {b The repository is one hash.} Objects are appended to one file,
  *   never changed; the state -- the branches, the current one -- is an
@@ -55,7 +55,7 @@
  * holds both; undo restores the branches; a clone has the same log)
  * and diff against GNU patch (applying the diff gives the new file).
  *
- * Usage: tinyvcs CMD [args], in a directory with .tvcs, or below it.
+ * Usage: tiny-vcs CMD [args], in a directory with .tvcs, or below it.
  *
  * References: E. W. Myers, "An O(ND) Difference Algorithm and Its
  * Variations" (Algorithmica, 1986; from memory); S. Khanna, K. Kunal and
@@ -497,7 +497,7 @@ let short h = String.sub h 0 10
 let first_line s = match String.index_opt s '\n' with Some i -> String.sub s 0 i | None -> s
 
 let find_root () =
-  let rec up d = if Sys.file_exists (Filename.concat d ".tvcs/head") then d else if Filename.dirname d = d then error "not a tinyvcs repository" else up (Filename.dirname d) in
+  let rec up d = if Sys.file_exists (Filename.concat d ".tvcs/head") then d else if Filename.dirname d = d then error "not a tiny-vcs repository" else up (Filename.dirname d) in
   up (Sys.getcwd ())
 
 let author () = Option.value (Sys.getenv_opt "TINYVCS_AUTHOR") ~default:(Option.value (Sys.getenv_opt "USER") ~default:"nobody")
@@ -650,12 +650,12 @@ let run (caps : caps) (args : string list) =
             | n :: rest -> (match List.assoc_opt n es with Some (Dir h) -> find (tree r h) rest | _ -> error "no file %s" path)
             | [] -> error "no file" in
           print (find (tree_of_commit r (tip r)) (String.split_on_char '/' path))
-      | _ -> error "usage: tinyvcs init|status|diff|commit -m msg|log|branch [b]|switch b|merge b|ops|undo|clone src dst|pull src|push dst|show path")
-  | [] -> error "usage: tinyvcs CMD"
+      | _ -> error "usage: tiny-vcs init|status|diff|commit -m msg|log|branch [b]|switch b|merge b|ops|undo|clone src dst|pull src|push dst|show path")
+  | [] -> error "usage: tiny-vcs CMD"
 
 let () =
   Cap.main (fun caps ->
     let code =
       try run (caps :> caps) (List.tl (Array.to_list (CapSys.argv caps))); 0
-      with Error m -> Console.eprint caps ("tinyvcs: " ^ m ^ "\n"); 1 in
+      with Error m -> Console.eprint caps ("tiny-vcs: " ^ m ^ "\n"); 1 in
     CapStdlib.exit caps code)

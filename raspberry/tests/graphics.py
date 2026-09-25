@@ -8,8 +8,8 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# TinyRaspberryPi's graphics and USB keyboard against QEMU (plan_pi.md,
-# phase B), headless: each port booted under QEMU and under tinypi with
+# mini-qemu's graphics and USB keyboard against QEMU (plan_pi.md,
+# phase B), headless: each port booted under QEMU and under mini-qemu with
 # a keyboard (-device usb-kbd) and QMP, no window (-display none);
 # once at the prompt, a screendump, "ls" and Enter typed by QMP's
 # send-key, another screendump. The serial output (the USB devices
@@ -19,7 +19,7 @@
 # xv6's own graphical check (scripts/test_qemu_graphics.py: pixels on
 # the screen, more after typing, the command on the serial console),
 # which opens a window on $DISPLAY, runs unchanged with
-# MAKEFLAGS=QEMU_ARM=tinypi.
+# MAKEFLAGS=QEMU_ARM=mini-qemu.
 #
 # Usage: graphics.py [port...]   (default arm-pi1-bis arm-pi1)
 

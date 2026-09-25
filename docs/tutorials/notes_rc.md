@@ -3,13 +3,13 @@
 What a shell does, and how rc does it: a line read, cut into words,
 parsed into a tree, and run -- by forking processes, wiring their file
 descriptors into pipes and files, and waiting for them. It is written
-for **a reader of TinyRc's code, not a user of rc**, and explains the
+for **a reader of mini-rc's code, not a user of rc**, and explains the
 ideas in the order the code needs them.
 
 It is the specification of the program planned in
 [`plan_rc.md`](../plans/plan_rc.md). It was written before the code and
 then checked against it, as [`notes_mk.md`](notes_mk.md) was for
-TinyMk. This one got three things wrong, all corrected and listed in
+mini-mk. This one got three things wrong, all corrected and listed in
 the plan's Status: the grammar in menhir (it is a recursive descent),
 a pipeline's n statuses (rc folds them into two), and the line count
 (1,634, not about 1,500). Every example below was
@@ -35,7 +35,7 @@ xix's `shell/` (orc).
 
 Read §1 for the question, §2-§4 for the language, §5-§6 for how a
 command runs, §7-§9 for the rest of rc, §10 for how it starts, and
-§11-§13 for how TinyRc differs from its twins, how it is tested, and
+§11-§13 for how mini-rc differs from its twins, how it is tested, and
 what is left as exercises.
 
 ## 1. What happens when you type `ls`
@@ -90,7 +90,7 @@ A command is words, and rc's grammar has one idea per construct:
 condition is a command whose status is tested, with no `then`, `fi`,
 `do` or `done`. That is why the grammar (`syn.y`) is 116 lines: it
 nests, and it has precedences (`|` binds tighter than `&&`, which
-binds tighter than `;`). TinyRc parses it by recursive descent, one
+binds tighter than `;`). mini-rc parses it by recursive descent, one
 function per level of precedence. The plan first chose menhir, and
 reading `syn.y` changed that: prefix redirections and assignments
 lean on `%prec`, `skipnl()` is called in the middle of rules, and
@@ -138,8 +138,8 @@ Every value in rc is a list of strings; there is no other type:
 ```
 
 This is the opposite of mk, whose `$X.o` with `X=a b` glues `.o` to
-the last word only (`a b.o`; TinyMk's tutorial, §3): two tools of the
-same system, two rules, and a reason TinyRc's `Word` is not TinyMk's.
+the last word only (`a b.o`; mini-mk's tutorial, §3): two tools of the
+same system, two rules, and a reason mini-rc's `Word` is not mini-mk's.
 
 **Command substitution**, `` `{cmd} ``, runs `cmd` and splits its
 output into words on the characters of `$ifs` (blank, tab, newline):
@@ -162,7 +162,7 @@ file names:
 The subtle part is "unquoted": the quoting must survive expansion, so
 that `x='*'; echo $x` prints `*` without globbing (rc's rule: only
 characters that appeared unquoted in the source are pattern
-characters). rc marks them with a special byte as it expands; TinyRc
+characters). rc marks them with a special byte as it expands; mini-rc
 keeps each expanded word as pieces, each quoted or not, and `Glob`
 looks only at the unquoted ones (the plan's decision 3). Matching is
 by path component, `*/*.c` reading two directory levels, and the
@@ -261,8 +261,8 @@ elements are separated by a zero byte). **Functions are exported
 too**, as `fn#f={echo in f $*}`, so `rc -c f` in a child finds `f`.
 An empty list is not exported: on Plan 9 it is an empty `/env` file,
 which reads back as `()`, and a Unix program given `X=` sees one empty
-string -- the bug TinyMk found building xix (`ocamlc $SYSLIBS`, with
-an empty argument; TinyMk's plan, phase 5).
+string -- the bug mini-mk found building xix (`ocamlc $SYSLIBS`, with
+an empty argument; mini-mk's plan, phase 5).
 
 ## 9. Backquotes, here documents, pipe substitution
 
@@ -305,7 +305,7 @@ why a syntax error late in a script is found only when rc gets there.
 
 ## 11. Compared with rc and orc
 
-| | rc (C, principia) | orc (OCaml, xix) | TinyRc | TinyShell.ml |
+| | rc (C, principia) | orc (OCaml, xix) | mini-rc | TinyShell.ml |
 |---|---|---|---|---|
 | lexing | hand-written | ocamllex | hand-written | hand-written |
 | parsing | yacc, 116 lines | ocamlyacc | recursive descent, 261 lines | recursive descent, in the same file |
@@ -328,13 +328,13 @@ and the queue, a third of the C, go.
 
 - **Differential tests**: a corpus of scripts, one per feature and
   quirk, whose stdout, stderr and exit status are recorded from
-  9base's rc; TinyRc must print the same (TinyMk's method).
+  9base's rc; mini-rc must print the same (mini-mk's method).
 - **Laws**: `whatis`'s output re-reads as the same definition; a
   pipeline is true exactly when all its commands are (not "leaves n
   statuses", as this note first said: see §5); `{cmd}` and `@{cmd}`
   print the same when `cmd` changes no variable or directory.
 - **Real scripts**: principia's, run by both shells; and the recipes
-  of xix's mkfiles, run by TinyRc for TinyMk, building xix.
+  of xix's mkfiles, run by mini-rc for mini-mk, building xix.
 
 ## 13. What's missing, and exercises
 
@@ -355,12 +355,12 @@ Beyond the plan's phases (in rough order of difficulty):
 
 ## 14. In ix
 
-TinyRc is TinyMk's shell first: `MKSHELL=tinyrc`, and the two build
+mini-rc is mini-mk's shell first: `MKSHELL=mini-rc`, and the two build
 xix together (the plan's milestone). Later it is the shell of
 TinyKernel, where `rfork`, `/env` and notes stop being no-ops, and the
 first program to read `/dev/cons`. TinyShell.ml, in `tiny/`,
-came after it: one file, only what a shell is, written from what TinyRc
-taught. Its test is the same build: with it as TinyMk's shell, xix
+came after it: one file, only what a shell is, written from what mini-rc
+taught. Its test is the same build: with it as mini-mk's shell, xix
 builds to the same files.
 
 ## Glossary

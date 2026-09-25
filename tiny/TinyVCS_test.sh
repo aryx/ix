@@ -12,7 +12,7 @@
 #
 #  - diff: random pairs of files (few distinct lines, a last line
 #    without its newline at times); GNU patch applied to the old file
-#    with tinyvcs's diff gives the new one;
+#    with tiny-vcs's diff gives the new one;
 #  - switch: random commits on random branches; switching to a branch
 #    gives back exactly the files (and x bits) it had when committed;
 #  - merge: two branches editing different files, and different ends
@@ -45,7 +45,7 @@ def tv(d, *args, ok=True):
     p = subprocess.run([V] + list(args), cwd=d, capture_output=True, text=True,
                        env=dict(os.environ, TINYVCS_AUTHOR="glenda", TINYVCS_DATE=str(1600000000 + r.randrange(10**6))))
     if ok and p.returncode != 0:
-        raise RuntimeError("tinyvcs %s: %s" % (" ".join(args), p.stderr.strip()))
+        raise RuntimeError("tiny-vcs %s: %s" % (" ".join(args), p.stderr.strip()))
     return p.stdout
 
 def text(n):

@@ -1,4 +1,4 @@
-# TinyAsm and TinyLd vs. the rest of the assemblers and linkers
+# mini-asm and mini-ld vs. the rest of the assemblers and linkers
 
 Where a tiny assembler and linker sit among the real ones: the first
 assemblers and loaders, Unix's as and ld and their formats, the GNU
@@ -24,7 +24,7 @@ teaching.
 | Plan 9's 2a/5a/8a and 2l/5l/8l (1990) | Small, fast, portable compilers | the linker selects and encodes |
 | Go's toolchain (2009), liblink (2013), cmd/link (2015) | Plan 9's, then link speed at scale | encoding moved back to the assembler and compiler |
 | Oberon (1987), tcc (2001) | A whole system, or a whole toolchain, in one program | none, or all in one |
-| `assembler/`, `linker/` (TinyAsm, TinyLd) | Seeing what an assembler and a linker do, on real programs | Plan 9's |
+| `assembler/`, `linker/` (mini-asm, mini-ld) | Seeing what an assembler and a linker do, on real programs | Plan 9's |
 
 ## Part 1: the first assemblers and loaders
 
@@ -132,7 +132,7 @@ teaching.
   linker does, and why.
 - **"A Whirlwind Tutorial on Creating Really Teensy ELF Executables
   for Linux"** (Brian Raiter, late 1990s): how little Linux needs to
-  run a file, down to 45 bytes; the reason TinyLd's ELF writer can be
+  run a file, down to 45 bytes; the reason mini-ld's ELF writer can be
   some 120 lines.
 - **Knuth's MIXAL and MMIXAL** (*The Art of Computer Programming*,
   1968, and the MMIX fascicle, 1999): assembly languages for imaginary
@@ -141,9 +141,9 @@ teaching.
 - **Nisan and Schocken, *The Elements of Computing Systems*** (nand2tetris,
   2005): the assembler chapter, for a machine designed for teaching.
 - **The Principia books** on 5a/5l and 8a/8l, the literate C sources
-  TinyAsm and TinyLd read beside goken's.
+  mini-asm and mini-ld read beside goken's.
 
-## What TinyAsm and TinyLd take, and leave
+## What mini-asm and mini-ld take, and leave
 
 - **The language, at the real end**: Plan 9's assembly, what 5c and 7c
   emit over goken's libraries, checked byte for byte against goken's
@@ -167,7 +167,7 @@ Built (2026-09-23; plan_asm.md's Status has the details):
   plan's 2,090, xix's 5,542 for 5 and 7, and goken's 32,000 of C.
   The one-file variant, `tiny/TinyAssembler.ml`, is 410.
 - goken's 17 hello_libc programs, with all of goken's libc through
-  `5c -S` or `7c -S`, TinyAsm and TinyLd: byte for byte the same as
+  `5c -S` or `7c -S`, mini-asm and mini-ld: byte for byte the same as
   goken's on arm and arm64, and running. Mach-O too (15 of them).
 - The fuzzer: 1,500 random programs on arm and 1,398 on arm64 the same
   as goken's.

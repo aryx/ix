@@ -8,8 +8,8 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# A fuzzer for TinyEd: random files and random scripts (every command,
-# the whole regexp notation), through 9base's ed and tinyed, which must
+# A fuzzer for mini-ed: random files and random scripts (every command,
+# the whole regexp notation), through 9base's ed and mini-ed, which must
 # print and leave the same. It found what the corpus missed (plan_ed.md,
 # Status). From the root, after dune build:
 #
@@ -76,5 +76,5 @@ for i in range(int(sys.argv[2]) if len(sys.argv)>2 else 200):
         bad+=1
         if bad<=5:
             print("=== case",i); print("--- text"); print(text,end=""); print("--- script"); print(script,end="")
-            print("--- ed"); print(a.decode(errors="replace")); print("--- tinyed"); print(b.decode(errors="replace"))
+            print("--- ed"); print(a.decode(errors="replace")); print("--- mini-ed"); print(b.decode(errors="replace"))
 print("mismatches:",bad)

@@ -6,7 +6,7 @@ six Pi ports: the machine
 as a CPU, RAM and devices at addresses; ARM's privileged state (modes,
 banked registers, exceptions); the coprocessor that controls the MMU,
 and the page tables it walks; the devices a kernel needs and nothing
-more; then the 64-bit Pi. Written for **a reader of TinyRaspberryPi's
+more; then the 64-bit Pi. Written for **a reader of mini-qemu's
 code**, before the code, as the specification of
 [`plan_pi.md`](../plans/plan_pi.md). It follows
 [`notes_arm.md`](notes_arm.md), whose CPU cores it extends. Related
@@ -226,13 +226,13 @@ a stepping stone to the boards must do what the boards do; QEMU's
 behaviour is kept too, for comparing with QEMU (plan_pi.md, decision
 8).
 
-## 9. How TinyRaspberryPi will be tested
+## 9. How mini-qemu will be tested
 
-xv6's ports' own tests, unchanged, with TinyRaspberryPi in QEMU's
+xv6's ports' own tests, unchanged, with mini-qemu in QEMU's
 place: boot, a shell prompt, `ls`, `usertests` to "ALL TESTS PASSED".
-For 9pi, the same kernel image under QEMU and under TinyRaspberryPi:
+For 9pi, the same kernel image under QEMU and under mini-qemu:
 the console output compared line by line; QEMU's instruction trace
-(`-d in_asm,cpu`) against TinyRaspberryPi's `-t` for the first
+(`-d in_asm,cpu`) against mini-qemu's `-t` for the first
 divergence; each device's registers checked against what 9pi's driver
 expects of them.
 

@@ -4,7 +4,7 @@ What an emulator is, and how to write one for the programs ix's
 toolchain makes: the fetch-decode-execute loop, ARM's 32-bit encodings
 and AArch64's, flags and conditions, addressing, the ELF process a
 program starts as, and the Linux system calls it makes. It is written
-for **a reader of TinyArm's code**, before the code, as the
+for **a reader of mini-5i's code**, before the code, as the
 specification of the program planned in
 [`plan_arm.md`](../plans/plan_arm.md), to be checked against it.
 Related systems: [`notes_arm_related_work.md`](../related-work/notes_arm_related_work.md).
@@ -44,7 +44,7 @@ program uses to call its operating system: the emulator does the call
 itself, on the host.
 
 ```
-   $ tinyarm hello.exe                  (planned)
+   $ mini-5i hello.exe                  (planned)
    hello from libc.a: 2 + 2 = 4
 ```
 
@@ -61,7 +61,7 @@ calls runs it.
 
 ## 2. The process: ELF, memory, the stack
 
-ix's linker (`tinyld -H7`) writes ELF executables; readelf on
+ix's linker (`mini-ld -H7`) writes ELF executables; readelf on
 `hello.exe`:
 
 ```
@@ -260,15 +260,15 @@ at run time), and **dynamic binary translation** (QEMU: translate a
 block of guest instructions into host machine code, cache it, run
 it) -- hard in OCaml, and not needed for this corpus.
 
-## 8. How TinyArm will be tested
+## 8. How mini-5i will be tested
 
 - the **decoder** against objdump, on every word the corpus runs;
-- **programs** run three ways -- on the CPU, under qemu, under TinyArm
+- **programs** run three ways -- on the CPU, under qemu, under mini-5i
   -- their output, status and system calls compared;
 - **states** against qemu's register log after each instruction, the
   first divergence found automatically;
 - **random instructions** of the census's forms, assembled into a
-  harness and run on the CPU and in TinyArm, registers compared: the
+  harness and run on the CPU and in mini-5i, registers compared: the
   hardware as the oracle for every flag of every shifter form.
 
 ## 9. Exercises

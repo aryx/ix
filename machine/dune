@@ -1,4 +1,4 @@
-; claude: TinyArm (plan_arm.md): the CPU cores, the process, the CLI
+; claude: mini-5i (plan_arm.md): the CPU cores, the process, the CLI
 (library
  (name ix_machine)
  (modules Bits Memory Elf Arm32 Mmu32 Arm64 Linux Plan9 Host Cpu CLI)
@@ -6,7 +6,7 @@
 
 (executable
  (name Main)
- (public_name tinyarm)
+ (public_name mini-5i)
  (package ix)
  (modules Main)
  (libraries ix_machine caps))

@@ -1,4 +1,4 @@
-# Plan: TinyDb, a relational database from scratch, for teaching (`database/`)
+# Plan: mini-chidb, a relational database from scratch, for teaching (`database/`)
 
 Companions:
 [`notes_db.md`](../tutorials/notes_db.md), the tutorial: pages and the
@@ -18,7 +18,7 @@ out), and 600 in the shell, `src/shell`. Principia lists it under
 `database/chidb`, and the fork has a literate stub
 (`docs/literate/Database.nw`, 361 lines). There is no xix twin.
 
-The sixth ix program, after TinyMk, TinyRc, TinyEd, the toolchain
+The sixth ix program, after mini-mk, mini-rc, mini-ed, the toolchain
 and the C compiler, planned the same way; the principles are in
 [`../README.md`](../README.md). The author chose it ("let's do tiny
 sqlite under database/ (and its TinyDatabase.ml more free form
@@ -70,11 +70,11 @@ Those of [`../README.md`](../README.md), and three of its own:
   binary disagree, the binary wins, since the corpus is recorded
   from it.
 - **The file is an output, compared byte for byte.** A database file
-  written by TinyDb from the same statements is the same bytes as
+  written by mini-chidb from the same statements is the same bytes as
   chidb's, free space included (see decision 2). A difference is a
   bug, unless it is one of the documented deliberate differences.
 - **Three references in one: `sqlite3` checks the files.** Since the
-  format is a subset of SQLite's, a file TinyDb writes must open in
+  format is a subset of SQLite's, a file mini-chidb writes must open in
   SQLite and give the same rows (Python's `sqlite3` module, which is
   installed, SQLite 3.45: it reads a chidb file's rows, the primary
   key from the rowid, checked) can do it. That checks the format
@@ -82,11 +82,11 @@ Those of [`../README.md`](../README.md), and three of its own:
 
 ## The interface: chidb's shell, unchanged
 
-`tinydb [-c COMMAND] [-v] [-h] [DATABASE]`, the shell's prompt
+`mini-chidb [-c COMMAND] [-v] [-h] [DATABASE]`, the shell's prompt
 (`chidb> `, printed even when the input is not a terminal, as chidb
 does; the name kept, since the prompt is output), and:
 
-| input | what | TinyDb |
+| input | what | mini-chidb |
 |---|---|---|
 | `CREATE TABLE t(c type [constraints], ...)` | a table; its first column the INTEGER PRIMARY KEY | kept |
 | `CREATE [UNIQUE] INDEX i ON t(c)` | an index on an integer column, populated | kept |
@@ -103,13 +103,13 @@ does; the name kept, since the prompt is output), and:
 Nothing that runs is dropped; every limit of chidb's is kept, since
 it is chidb's behaviour: 4-byte integers only, an index only on an
 integer column and assumed unique, the first column the primary key,
-a two-way join at most. The names: `tinydb`, and the directory
+a two-way join at most. The names: `mini-chidb`, and the directory
 `database/`, principia's.
 
 ## Target layout
 
 ```
-database/                  library ix_db + the tinydb executable
+database/                  library ix_db + the mini-chidb executable
   Pager.ml(i)              the file as numbered pages of bytes; the
                            100-byte header (decision 2)
   Record.ml(i)             a row's values to bytes and back: NULL, 1-,
@@ -139,7 +139,7 @@ tiny/                      TinyDatabase.ml (see "Outside chidb")
 Cursor 70, Ast 280 (with the printer), Lexer 80, Parser 260, Schema 60,
 Dbm 380, Codegen 560, Optimizer 70, Dbmfile 140, Shell 220, CLI 60,
 Main 10: about **2,600 lines of OCaml**, a quarter of chidb's C
-counted as above. TinyRc came out 6% over its target and TinyMk 2.4
+counted as above. mini-rc came out 6% over its target and mini-mk 2.4
 times; the Status will compare.
 
 ## Groundwork decisions
@@ -195,7 +195,7 @@ the real one.
 
 chidb's instruction is an opcode and `int32 p1, p2, p3` and a `char
 *p4`, whose meaning depends on the opcode: a register, a cursor, a
-jump target, a column number, a constant. In TinyDb an instruction is
+jump target, a column number, a constant. In mini-chidb an instruction is
 `Integer of int32 * reg | OpenRead of cursor * reg * int | Rewind of
 cursor * label | Column of cursor * int * reg | Eq of reg * label * reg
 | ...`, 37 constructors whose operands say what they are (`reg`,
@@ -222,7 +222,7 @@ is a `char`, a chidb quirk kept).
 
 chidb's codegen emits into an array and patches forward jumps later
 (`stmt->ops[addr].p2 = ...`), keeping the addresses to patch in
-arrays. TinyDb's emits a list of instructions and `Label l` markers,
+arrays. mini-chidb's emits a list of instructions and `Label l` markers,
 jumps naming labels, and one pass numbers the instructions and
 replaces labels by addresses. The register and cursor numbering, and
 the order of the instructions, are chidb's exactly, since `EXPLAIN`
@@ -244,7 +244,7 @@ tree marshalled, SQL as a small hand-written parser (the grammar that
 runs, not chidb's whole one), the machine kept (it is the lesson) or
 replaced by an interpreter over the relational algebra (the road the
 tutorial compares). Checked by running the same SQL sessions and
-comparing rows (not files) with TinyDb.
+comparing rows (not files) with mini-chidb.
 
 **Chosen** (2026-09-24, when written): not SQL at all, and not the
 machine. What was taken, and why:
@@ -273,7 +273,7 @@ machine. What was taken, and why:
 - *Deletion without rebalancing*: an underfull node, even an empty
   leaf, stays and searches stay right.
 
-**Checked** against SQLite rather than TinyDb, since the language is not
+**Checked** against SQLite rather than mini-chidb, since the language is not
 SQL: `tiny/TinyDatabase_test.sh` draws random sessions (inserts with
 duplicate keys, deletes, sets, queries over every stage, indexes, some
 sessions with 3,000 keys for three-level trees), writes each statement
@@ -308,7 +308,7 @@ in the code"), checked, not from memory:
   check the runner.
 - **Differential scripts**: SQL sessions (the demos, the corpus's SQL,
   and scripts written for each statement shape and each quirk) run by
-  `chidb` and by `tinydb`; stdout compared exactly, then the database
+  `chidb` and by `mini-chidb`; stdout compared exactly, then the database
   files with `cmp`. EXPLAIN'd versions of every SELECT shape compare
   the programs.
 - **A fuzzer** (the lesson of editor/ and linker/): random schemas,
@@ -379,7 +379,7 @@ sessions (`fuzz.py`, seeds 1 to 4). `make test` runs the corpus,
   global state;
 - the schema's stored SQL needs the `;` the parser adds;
 - chidb crashes or prints garbage in five places
-  ([`../plan_bugs_chidb.md`](../plan_bugs_chidb.md)); TinyDb's
+  ([`../plan_bugs_chidb.md`](../plan_bugs_chidb.md)); mini-chidb's
   deliberate differences are those;
 - the fuzzer found a miscompilation in OCaml's arm64 native code
   (4.11 to 5.3), a stale derived pointer after a minor GC
@@ -398,7 +398,7 @@ code, as the earlier ones were.
 
 ## Out of scope
 
-What chidb does not do, since TinyDb is its twin: transactions and a
+What chidb does not do, since mini-chidb is its twin: transactions and a
 journal, overflow pages (a row larger than a page), deletes, updates,
 joins of three tables, a cost-based optimizer, types other than
 4-byte integers and text. The plan of the fork

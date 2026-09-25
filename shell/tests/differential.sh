@@ -8,13 +8,13 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The differential tests of TinyRc: the same scripts through tinyrc
+# The differential tests of mini-rc: the same scripts through mini-rc
 # and 9base's rc (plan9port's, as Debian packages it), like
 # builder/tests/differential.sh for mk.
 #
 #   differential.sh record [case.rc ...]  write case.out from 9base's rc
-#   differential.sh check  [case.rc ...]  compare tinyrc with case.out
-#                                         (or case.tiny.out, where TinyRc
+#   differential.sh check  [case.rc ...]  compare mini-rc with case.out
+#                                         (or case.mini.out, where mini-rc
 #                                         differs from 9base on purpose)
 #   differential.sh live   [case.rc ...]  compare both, live (and orc)
 #
@@ -25,7 +25,7 @@
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 CORPUS=$ROOT/shell/tests/corpus
-TINYRC=${TINYRC:-$ROOT/_build/default/shell/Main.exe}
+MINIRC=${MINIRC:-$ROOT/_build/default/shell/Main.exe}
 RC=${RC:-/usr/lib/plan9/bin/rc}
 ORC=${ORC:-$(command -v orc)}
 
@@ -55,13 +55,13 @@ for case in $cases; do
   case $mode in
     record) run_case "$RC" "$case" > "$out"; echo "recorded $name";;
     check)
-      [ -f "${case%.rc}.tiny.out" ] && out=${case%.rc}.tiny.out
-      if run_case "$TINYRC" "$case" | diff -u "$out" - > /tmp/$$.diff; then echo "ok   $name"
+      [ -f "${case%.rc}.mini.out" ] && out=${case%.rc}.mini.out
+      if run_case "$MINIRC" "$case" | diff -u "$out" - > /tmp/$$.diff; then echo "ok   $name"
       else echo "FAIL $name"; cat /tmp/$$.diff; status=1; fi;;
     live)
       run_case "$RC" "$case" > /tmp/$$.rc
-      run_case "$TINYRC" "$case" > /tmp/$$.tiny
-      if cmp -s /tmp/$$.rc /tmp/$$.tiny; then r="tinyrc=rc"; else r="tinyrc!=rc"; status=1; fi
+      run_case "$MINIRC" "$case" > /tmp/$$.mini
+      if cmp -s /tmp/$$.rc /tmp/$$.mini; then r="mini-rc=rc"; else r="mini-rc!=rc"; status=1; fi
       if [ -n "$ORC" ]; then
         run_case "$ORC" "$case" | sed 's/\x1b\[[0-9;]*m//g' > /tmp/$$.orc
         if cmp -s /tmp/$$.rc /tmp/$$.orc; then r="$r orc=rc"; else r="$r orc!=rc"; fi

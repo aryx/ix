@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# tinycc against 5c -O0 and 7c -O0 on random programs (TinyC's
+# mini-cc against 5c -O0 and 7c -O0 on random programs (TinyC's
 # generator, tiny/TinyC_fuzz.py): the listings the same, instruction
 # for instruction, on both machines.
 # usage: fuzz.sh workdir count [seed]

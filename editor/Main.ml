@@ -7,6 +7,6 @@
  * (LGPL) as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *)
-(* tinyed, the ix editor: see CLI.mli *)
+(* mini-ed, the ix editor: see CLI.mli *)
 
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyed"; CapStdlib.exit caps (Ix_ed.CLI.main caps (CapSys.argv caps)))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"mini-ed"; CapStdlib.exit caps (Ix_ed.CLI.main caps (CapSys.argv caps)))

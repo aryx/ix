@@ -6,7 +6,7 @@
 
 (executable
  (name Main)
- (public_name tinypi)
+ (public_name mini-qemu)
  (package ix)
  (modules Main Sdl_display Qmp Storage)
  (flags (:standard -open Ix_machine))

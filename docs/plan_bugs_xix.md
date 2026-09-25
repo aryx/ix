@@ -3,7 +3,7 @@
 ix builds each program as a twin of a Principia program, tested
 against a reference, and reads xix (`~/github/xix`) as the earlier OCaml
 port. Its differential tests ran xix's omk and orc beside 9base's mk
-and rc (TinyMk's and TinyRc's phases, 2026-09-23): what they found is
+and rc (mini-mk's and mini-rc's phases, 2026-09-23): what they found is
 below. For the toolchain, ix's tests have not run xix's programs yet,
 only read their code: that part lists what goken's output depends on
 and xix doesn't do yet. Bugs in goken, principia's C, 9base and
@@ -37,7 +37,7 @@ omk agrees with 9base's mk on 2 of the 32 corpus cases (after
 stripping its `|recipe|` markers and its colours); most differences
 are messages and its parallel default, the ones above are semantics.
 `-n` over xix's 73 directories: 21 identical to 9base's, and 11.35 s,
-against 1.56 s for 9base's mk and 1.94 s for TinyMk. (omk does skip
+against 1.56 s for 9base's mk and 1.94 s for mini-mk. (omk does skip
 an empty variable when exporting to rc, which 9base's mk does not:
 there omk is right, `plan_bugs_goken.md`, 16.)
 
@@ -68,7 +68,7 @@ a conditional branch is inverted when that makes its target the next
 instruction, up to four instructions are copied instead of branching
 back, and what the flow never reaches is dropped. xix has no such
 pass (`grep follow linker/*.ml`), so its layout is the objects'
-order. ix's TinyLd has it (`Link.follow`), and needs it to be the
+order. ix's mini-ld has it (`Link.follow`), and needs it to be the
 same as 5l on goken's libc.
 
 ### 8. NOPs: xix drops them as 5l does
@@ -77,8 +77,8 @@ same as 5l on goken's libc.
 5l and 7l remove (`noop.c`), moving a branch to one to the next
 instruction; `follow`'s four-instruction lookahead doesn't count them.
 xix removes them too (`Rewritei.ml`, `Rewritev.ml`,
-`find_first_no_nop_node`). Not a bug: noted because TinyLd had missed
-it (ix's libc builds were from optimized 5c until tinycc).
+`find_first_no_nop_node`). Not a bug: noted because mini-ld had missed
+it (ix's libc builds were from optimized 5c until mini-cc).
 
 ## The compiler (xix's `compiler/`)
 
@@ -87,7 +87,7 @@ it (ix's libc builds were from optimized 5c until tinycc).
 xix's occ aims at 5c's code (its comments cross-reference 5c's
 functions), and its Codegen is started (its TODO: fields and
 structures, float, other integer types, alignment). For its code to
-be 5c's byte for byte, as ix's tinycc is, it will need:
+be 5c's byte for byte, as ix's mini-cc is, it will need:
 
 - **the reassociation** (cck's `acom`): `a + b + c` and `p->base + len
   - 1` are regrouped by multiplier, which changes the evaluation
@@ -103,7 +103,7 @@ be 5c's byte for byte, as ix's tinycc is, it will need:
 ### 10. 7l's bitmask bug is documented in xix
 
 xix's `docs/claude_notes/arm64_port.md` describes 7l's logical
-immediates that leave out the element size below 64 bits; ix's TinyLd
+immediates that leave out the element size below 64 bits; ix's mini-ld
 reproduces it (`plan_bugs_goken.md`, 3).
 
 ## To do

@@ -9,7 +9,7 @@
 # 2 of the License, or (at your option) any later version.
 #
 # principia's own diff and merge3 (version_control/diff, 9front's), the
-# reference for TinyDiff, built for Linux by goken: its libc and libbio
+# reference for mini-diff, built for Linux by goken: its libc and libbio
 # compiled by 7c, the programs by 7c, linked by 7l -H7 (as
 # linker/tests/libc.sh builds goken's C programs). Two changes to a copy
 # of the sources, for Linux: REGULAR_FILE without Plan 9's device type

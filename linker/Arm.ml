@@ -156,7 +156,7 @@ let rec cmp a b =
 (* 5l's immrot: v as an 8-bit value rotated by an even amount. goken
  * computes it in a 64-bit ulong on today's hosts, where the rotation
  * never comes back to 32 bits: only 0..255 fit (checked: 5l puts 0x400
- * in a literal pool). TinyLd does the same, to be byte-identical; with
+ * in a literal pool). mini-ld does the same, to be byte-identical; with
  * [rotate], it does the real 32-bit rotation, as ARM can *)
 let rotate = ref false
 

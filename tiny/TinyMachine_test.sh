@@ -13,7 +13,7 @@
 # 1. each program of TinyMachine_tests/, interpreted, prints its
 #    .expected (computed otherwise: Python's factorials, primes, sort);
 # 2. its translation to arm32 prints and exits the same, run on the CPU
-#    (when this machine runs arm32) and under machine/'s tinyarm;
+#    (when this machine runs arm32) and under machine/'s mini-5i;
 # 3. random programs (N, default 200), each a straight line of every
 #    kind of instruction with branches and jal over one, dumping its
 #    registers at the end: the same bytes interpreted and translated.
@@ -37,7 +37,7 @@ three() { # source
   echo "$INPUT" | $M $W/x > $W/o3 2>/dev/null; s3=$?
   if echo "$INPUT" | $W/x > $W/o2 2>/dev/null; s2=$?; [ $s2 -eq 126 ]; then cp $W/o1 $W/o2; s2=$s1; fi
   if cmp -s $W/o1 $W/o2 && cmp -s $W/o1 $W/o3 && [ $s1 = $s2 ] && [ $s1 = $s3 ]; then echo same
-  else echo "interpreted: status $s1, $(wc -c < $W/o1) bytes; on the CPU: $s2, $(wc -c < $W/o2); under tinyarm: $s3, $(wc -c < $W/o3)"; fi
+  else echo "interpreted: status $s1, $(wc -c < $W/o1) bytes; on the CPU: $s2, $(wc -c < $W/o2); under mini-5i: $s3, $(wc -c < $W/o3)"; fi
 }
 
 for s in $ROOT/tiny/TinyMachine_tests/*.tm; do
@@ -45,7 +45,7 @@ for s in $ROOT/tiny/TinyMachine_tests/*.tm; do
   echo "$INPUT" | $T $s > $W/$p.out 2>&1
   if cmp -s $W/$p.out ${s%.tm}.expected; then echo "ok $p: its expected output"; else fail "$p: $(diff $W/$p.out ${s%.tm}.expected | head -3)"; fi
   r=$(three $s)
-  if [ "$r" = same ]; then echo "ok $p: its translation runs the same, on the CPU and under tinyarm"; else fail "$p: $r"; fi
+  if [ "$r" = same ]; then echo "ok $p: its translation runs the same, on the CPU and under mini-5i"; else fail "$p: $r"; fi
 done
 
 # random programs
@@ -90,9 +90,9 @@ EOF
 bad=0
 for k in $(seq 0 $((N - 1))); do
   r=$(three $W/f$k.tm)
-  if [ "$r" != same ]; then bad=$((bad + 1)); [ $bad -le 3 ] && echo "  random program $k: $r"; cp $W/f$k.tm /tmp/tinymachine_fail_$k.tm 2>/dev/null; fi
+  if [ "$r" != same ]; then bad=$((bad + 1)); [ $bad -le 3 ] && echo "  random program $k: $r"; cp $W/f$k.tm /tmp/tiny-machine_fail_$k.tm 2>/dev/null; fi
 done
-if [ $bad = 0 ]; then echo "ok random: $N programs, interpreted and translated the same"; else fail "random: $bad of $N differ (kept as /tmp/tinymachine_fail_*.tm)"; fi
+if [ $bad = 0 ]; then echo "ok random: $N programs, interpreted and translated the same"; else fail "random: $bad of $N differ (kept as /tmp/tiny-machine_fail_*.tm)"; fi
 
 echo "TinyMachine_test: $failures failures"
 exit $((failures > 0))

@@ -199,3 +199,34 @@ So the two projects are twins in a second way:
 Each Tiny program next to its xix twin is therefore also a comparison:
 the same system, the same language and the same taste, once written by
 hand at full size and once written tiny by an AI under direction.
+
+## mini and tiny (2026-09-25)
+
+Five days in, "tiny" meant two different things. It named the reduced
+but faithful twins (TinyMk, TinyDb, TinyArm in `machine/`, whose
+output is the original's byte for byte), and it named the free
+one-file variants in `tiny/` (TinyBuildSystem.ml, TinyDatabase.ml),
+which keep only the idea. A header could read "A tiny relational
+database, in one file ... TinyDb (database/) is chidb, faithfully",
+with two different tinies in one sentence. As Yoann put it: "we have
+been using many times tiny for 2 different things ... I think this is
+confusing."
+
+The fix was two words for the two sizes:
+
+- **mini-xxx**, named after the original program: mini-mk, mini-rc,
+  mini-ed, mini-asm, mini-ld, mini-cc, mini-chidb, mini-git,
+  mini-diff, mini-merge3, mini-5i (the emulator), mini-qemu (the
+  Raspberry Pi, which takes QEMU's command line);
+- **tiny-xxx**, named after what it does: tiny-build, tiny-shell,
+  tiny-editor, tiny-assembler, tiny-c, tiny-db, tiny-vcs, tiny-arm,
+  tiny-machine.
+
+Together the minis are **m-ix**, a nod to Knuth's MIX, and the tinies
+**t-ix**. The names have hyphens, which suits executables: dune
+installs them all (`dune install`), with the `mini-pi` script (was
+`pi`) that boots xv6 and 9pi under mini-qemu. The source files
+(`tiny/TinyXxx.ml`), the directories and the libraries kept their
+names. This settles the command names the previous section left open,
+though not with two letters: the mini names say which program they
+twin, and the host's `mk` or `rc` stay unshadowed.

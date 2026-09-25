@@ -5,7 +5,7 @@ does it: a file of pages, B-trees in the pages, rows packed into
 records, a table of tables, a small machine with registers and
 cursors that runs compiled SQL, the compiler from SQL to that
 machine, indexes, and an optimizer that moves a condition down a
-join. It is written for **a reader of TinyDb's code, not a user of
+join. It is written for **a reader of mini-chidb's code, not a user of
 SQL**, and explains the ideas in the order the code needs them,
 bottom up, as the layers are built.
 
@@ -33,7 +33,7 @@ and the twin, chidb's C (`~/github/chidb/src`).
 | `Dbmfile`, `Shell`, `CLI` | `.dbmf` programs; the shell | §11 |
 
 Read §1 for the question, §2-§5 for the file, §6 for the machine,
-§7-§10 for the compiler, and §11-§14 for the shell, how TinyDb
+§7-§10 for the compiler, and §11-§14 for the shell, how mini-chidb
 differs from its twin, how it is tested, and the exercises.
 
 ## 1. What a database is
@@ -186,7 +186,7 @@ table's root, page 2; the 21st splits it:
 (Checked on chidb, inserting `(i, "name number i padded to be
 longer")`.) A split leaves the old cells' bytes where they were in
 the page that keeps the upper half: they are in its free space now,
-unreferenced. TinyDb writes the same bytes, so that its files are
+unreferenced. mini-chidb writes the same bytes, so that its files are
 chidb's byte for byte (the plan, decision 2).
 
 ## 5. The schema: a table of tables
@@ -371,7 +371,7 @@ to a tree.
 
 ## 11. The shell
 
-`tinydb [file]` reads lines: a line starting with `.` is a shell
+`mini-chidb [file]` reads lines: a line starting with `.` is a shell
 command (`.open`, `.headers on`, `.mode column`, `.explain on`,
 `.parse`, `.opt`, `.dbmrun`, `.help`), anything else is SQL. Rows are
 printed separated by `|` (`.mode list`) or in 10-character columns
@@ -383,7 +383,7 @@ cases (`.dbmf`).
 
 ## 12. Compared with chidb and SQLite
 
-TinyDb is chidb's twin: the same files, the same programs, the same
+mini-chidb is chidb's twin: the same files, the same programs, the same
 output. Inside, C's unions and integer codes are OCaml variants: an
 instruction is `Integer of int32 * reg | Column of cursor * int * reg |
 ...`, a cell is one of four constructors, a register's value is
@@ -399,7 +399,7 @@ Against chidb, three ways: the rows the shell prints, the programs
 `EXPLAIN` prints, and the database files, byte for byte. The course's
 131 `.dbmf` cases are the corpus; a fuzzer generates schemas, inserts
 enough to split pages, and queries of every supported shape. And
-SQLite reads every file TinyDb writes, and must give the same rows.
+SQLite reads every file mini-chidb writes, and must give the same rows.
 
 ## 14. Exercises
 

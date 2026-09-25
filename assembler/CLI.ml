@@ -33,5 +33,5 @@ let main (caps : < caps; .. >) (argv : string array) : int =
           0
       | exception Parser.Error (l, m) -> eprint caps (Printf.sprintf "%s:%d: %s\n" (Fpath.to_string file) l m); 1
       | exception Sys_error m -> eprint caps (m ^ "\n"); 1)
-  | [ Error m ] -> eprint caps ("tinyasm: " ^ m ^ "\n"); 1
-  | _ -> eprint caps "usage: tinyasm -m 5|7 [-o out] file.s\n"; 1
+  | [ Error m ] -> eprint caps ("mini-asm: " ^ m ^ "\n"); 1
+  | _ -> eprint caps "usage: mini-asm -m 5|7 [-o out] file.s\n"; 1

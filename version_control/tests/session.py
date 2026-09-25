@@ -8,13 +8,13 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# Phase 5: the same random work through tinygit and through C git, in
+# Phase 5: the same random work through mini-git and through C git, in
 # two work trees: files written, appended to, deleted, made executable,
 # a file turned into a directory and back, directories emptied;
 # commits (same author, date, message), branches made and switched.
 # After each commit, both HEADs must be the same hash; after each
 # switch, both work trees the same files and x bits; at the end,
-# git fsck --strict on tinygit's repository and git log reading it.
+# git fsck --strict on mini-git's repository and git log reading it.
 #
 # Usage: session.py [sessions] [seed] [session to trace]
 
@@ -42,7 +42,7 @@ trace = []
 
 def run(cmd, cwd, date=1600000000):
     p = subprocess.run(cmd, cwd=cwd, env=env(date), capture_output=True, text=True)
-    if TG in cmd[0]: trace.append("tinygit %s -> %d %s" % (" ".join(repr(a) for a in cmd[1:]), p.returncode, (p.stdout + p.stderr).strip().replace("\n", " / ")))
+    if TG in cmd[0]: trace.append("mini-git %s -> %d %s" % (" ".join(repr(a) for a in cmd[1:]), p.returncode, (p.stdout + p.stderr).strip().replace("\n", " / ")))
     return p
 
 def snapshot(d):
@@ -117,7 +117,7 @@ def session(n):
                 ha = run([TG, "query", "HEAD"], A).stdout.strip()
                 hb = run(["git", "rev-parse", "-q", "--verify", "HEAD"], B).stdout.strip()
                 if (ta.returncode == 0) != (tb.returncode == 0) or ha != hb:
-                    raise Failed("commit %r: tinygit %s (%s %s), git %s (%s)" % (msg, ha, ta.returncode, (ta.stderr + ta.stdout).strip(), hb, tb.returncode))
+                    raise Failed("commit %r: mini-git %s (%s %s), git %s (%s)" % (msg, ha, ta.returncode, (ta.stderr + ta.stdout).strip(), hb, tb.returncode))
             else:
                 # a branch: new, or switch to one, with a clean tree
                 if run([TG, "walk", "-q"], A).returncode != 0 or run(["git", "rev-parse", "HEAD"], B).returncode != 0:

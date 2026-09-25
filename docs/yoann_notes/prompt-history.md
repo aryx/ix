@@ -3516,3 +3516,56 @@ Claude replaced the QEMU-style quit message with `tinypi: terminated` in commit 
 **Yoann:**
 
 > in the pi script
+
+**Claude (summary):**
+
+Claude modified the `pi` script to print file paths and sizes before booting, committed as 902652e.
+Output shows the emulator path, kernel path with build timestamp and byte size, and SD image path.
+For xv6, the SD card line is replaced with a note that filesystem is built into kernel.
+Lines go to stderr to avoid interfering with kernel output or scripts reading the console.
+The full command can be copied and run directly; the -g flag adds a display window.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 07:47
+
+**Yoann:**
+
+> ok, but before continuing, let's change some naming conventions that I think are currently confusing
+
+------------------------------------------------------------------------
+
+## 2026-09-25 07:47
+
+**Yoann:**
+
+> let me explain
+
+**Claude (summary):**
+
+(no answer: Claude only acknowledged the request to continue, providing no substantive response to summarize)
+
+------------------------------------------------------------------------
+
+## 2026-09-25 07:58
+
+**Yoann:**
+
+> we have been using many times tiny for 2 different things, the reduced goken/xix program version, and the really tinier free-form version of it. I think this is confusing. Even in the header of the TinyXxx.ml we get: "A tiny relational database, in one file, whose query language is the
+>  * relational algebra itself. TinyDb (database/) is chidb, faithfully: " ... I think we should instead use mini-xxx and tiny-xxx and so the ix project would host both te mini-ix (or m-ix, which would be a nice reference to KNUTH mix), and then tiny-ix (or t-ix). What do you think?
+
+**Claude (summary):**
+
+Claude recommended separating the tiny project into mini for faithful twins and tiny for free variants.
+He created a detailed mapping showing all renames like tinymk→mini-mk→tiny-build, tinyarm→mini-arm→tiny-arm across all tools.
+He asked three decisions: hyphens in names, original program names for minis versus generic names, and whether to rename ./pi script.
+Yoann approved using hyphens because they enable dune bin section installation, chose original names for mini variants only.
+He also confirmed renaming the ./pi script to ./mini-pi to match the new naming scheme.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 08:08
+
+**Yoann:**
+
+> ok perfect, let's rename things. hyphens are good, actually it's good because we can add a bin section in the dune file and install them. let's pick the original name, mini-mk (but tiny-build). and yes let's rename it ./mini-pi

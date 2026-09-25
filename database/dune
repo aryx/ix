@@ -9,7 +9,7 @@
 
 (executable
  (name Main)
- (public_name tinydb)
+ (public_name mini-chidb)
  (package ix)
  (modules Main)
  (libraries ix_db ix_core caps))

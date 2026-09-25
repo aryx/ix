@@ -11,7 +11,7 @@
  * texture in its own format (RGB565 for 16 bits: no conversion), sized
  * at its first frame, drawn when it changed; the keys by SDL's
  * scancodes, which are USB HID usages (SDL took them from there). The
- * one module of tinypi linking a C library (plan_pi.md, decision 9). *)
+ * one module of mini-qemu linking a C library (plan_pi.md, decision 9). *)
 
 open Tsdl
 open Ix_raspberry

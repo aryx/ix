@@ -1,4 +1,4 @@
-# Plan: TinyGit, git9 in OCaml, and its diff (`version_control/`)
+# Plan: mini-git, git9 in OCaml, and its diff (`version_control/`)
 
 Companions: [`notes_vcs.md`](../tutorials/notes_vcs.md), the
 tutorial (content-addressed objects, trees as Merkle trees, commits as
@@ -82,25 +82,25 @@ Those of [`../README.md`](../README.md), and three of its own:
   second read (principle 3's "the program is the specification" --
   here the program is read, since it cannot be run; said so).
 - **Every object hash equal to C git's.** The same edits committed by
-  tinygit and by `git commit` (with the same author, dates and
+  mini-git and by `git commit` (with the same author, dates and
   message) give the same commit hash; git9 writes the timezone as
   `+0000`, so the tests set `GIT_*_DATE="N +0000"`.
-- **C git reads everything tinygit writes, and the reverse**:
-  `git fsck --strict` on every repository a test leaves, and tinygit
+- **C git reads everything mini-git writes, and the reverse**:
+  `git fsck --strict` on every repository a test leaves, and mini-git
   reading repositories made, packed and served by C git.
 
 ## The interface: git9's commands, as one executable
 
-`tinygit CMD args`, where git9 has `git/CMD` (a directory of programs
+`mini-git CMD args`, where git9 has `git/CMD` (a directory of programs
 on Plan 9's `$path`); the flags and outputs are git9's.
 
-| git9 | what | TinyGit |
+| git9 | what | mini-git |
 |---|---|---|
 | `init [-u url] [-b branch]` | a repository | kept; `repositoryformatversion = 0`, not git9's `p9.0`, which C git refuses (deliberate difference 1) |
 | `add [-r]`, `rm` | lines appended to `.git/INDEX9` | kept |
 | `commit [-m msg] [-r]`, `save` | the tree from the files, the commit, the branch | kept; `-e` (the editor) kept through `$EDITOR`; `-p` (hunk picking, interactive, through patch and /dev/cons) dropped |
 | `walk [-qcfbI...]` | status: `A M R U` against HEAD's tree | kept; INDEX9's qid is a stat fingerprint (decision 5) |
-| `diff [-c] [-s] [-u]` | `diff -u` of each changed file | kept, through TinyDiff (decision 8) |
+| `diff [-c] [-s] [-u]` | `diff -u` of each changed file | kept, through mini-diff (decision 8) |
 | `log [-s] [-n] [-c] [-e expr] [files]` | history, by commit time | kept, dates in GMT |
 | `query [-cpr] expr` | the revision language: `^ ~ @ .. :` | kept (decision 6) |
 | `branch [-abrnsmM]` | list, create, switch, merging dirty files | kept |
@@ -110,18 +110,18 @@ on Plan 9's `$path`); the flags and outputs are git9's.
 | `serve [-w] [-r]` | the server side, on stdin/stdout | kept |
 | `repack` | all objects into one pack | kept |
 | `conf [-ra] [-f]` | `.git/config` lookups | kept |
-| `fs` | the repository as a 9P file system | replaced by `tinygit fs PATH`, the same paths read without a mount (decision 4) |
+| `fs` | the repository as a 9P file system | replaced by `mini-git fs PATH`, the same paths read without a mount (decision 4) |
 | `export`, `import`, `rebase`, `hist` | patches by mail, and what is built on them | later, with a patch (phase 9) |
 | `compat` | a `git` command for Go's tools | dropped |
 
-And `tinydiff` and `tinymerge3`, principia's `diff` and `merge3`.
+And `mini-diff` and `mini-merge3`, principia's `diff` and `merge3`.
 
 ## Target layout
 
 ```
 lib_security/Sha1.ml(i)      SHA-1 (principia's libsec)          done
 lib_compression/Zlib.ml(i)   inflate, deflate (libflate)          done
-version_control/             library ix_vcs; tinygit, tinydiff, tinymerge3
+version_control/             library ix_vcs; mini-git, mini-diff, mini-merge3
   Hash.ml(i)                 20 bytes, hex, the zero hash
   Object.ml(i)               Blob | Tree | Commit | Tag, parsed and
                              printed; tree order (entcmp)
@@ -209,7 +209,7 @@ The scripts read history through `.git/fs/`: `$gitfs/HEAD/tree/f`,
 `object/H/parent`, `branch/heads/x/tree`. A 9P or FUSE server on
 Linux is a lot of machinery for a namespace nothing else needs to
 mount; the paths are kept (`Fs.resolve : string -> File of string |
-Dir of string list`, and `tinygit fs PATH` prints one), and the
+Dir of string list`, and `mini-git fs PATH` prints one), and the
 commands, being OCaml, call it rather than a mounted file. Where a
 script copied a tree out of the file system (`cp`, `tar`), the command
 writes the tree's blobs.
@@ -244,12 +244,12 @@ script's order, with its messages and exit statuses (walk's status
 is its dirty letters, `RMAU`; a failure is exit 1 with the letters on
 stderr, as rc's non-empty status becomes).
 
-### 8. diff and merge3 are principia's, and TinyDiff is their twin
+### 8. diff and merge3 are principia's, and mini-diff is their twin
 
 git9 calls `diff -u` and `merge3`; principia's are 9front's (Stone's
 algorithm with line hashing, `-u`, "\ No newline at end of file",
 merge3's ten-character markers with the base section). Ported
-faithfully as `Diff` and `Merge3`, with `tinydiff` and `tinymerge3`:
+faithfully as `Diff` and `Merge3`, with `mini-diff` and `mini-merge3`:
 the diff corpus (`diff/test/`, 28 cases) must pass, and every format
 9base's diff has (`-e -f -n -c -a`, the default) is compared with it
 on random files. patch (767 lines) waits for phase 9.
@@ -261,11 +261,11 @@ path`), a local path (its own `serve` over a pipe), and http(s)
 through Plan 9's webfs. OCaml has no TLS in its standard library, so
 http(s) goes through `curl` as a child process standing in for webfs
 (through the capabilities, `Cap.fork` and `Cap.exec`, as every child
-TinyGit starts): a GET for the references, the request written to a
+mini-git starts): a GET for the references, the request written to a
 file during git9's write phase, then one POST, its reply read as curl
 gives it. Checked against `git http-backend` (behind a small Python
 server, `tests/http_backend.py`) for clone and push, and against
-GitHub (`make test-github`: ix cloned by tinygit).
+GitHub (`make test-github`: ix cloned by mini-git).
 
 ## Deliberate differences
 
@@ -286,7 +286,7 @@ GitHub (`make test-github`: ix cloned by tinygit).
    reports it `R`, and the next commit removes the whole directory
    (found by `session.py`; git9's own tests commit only once after the
    change).
-7. http stays http: git9 dials https whatever the URL says; TinyGit
+7. http stays http: git9 dials https whatever the URL says; mini-git
    keeps the scheme, so a local `git http-backend` can test it.
 
 Each with a test case of its own.
@@ -294,14 +294,14 @@ Each with a test case of its own.
 ## Phases
 
 1. SHA-1 and zlib (done: `lib_security/`, `lib_compression/`).
-2. Hash, Object, Loose, Store: `tinygit cat`-style checks, every
+2. Hash, Object, Loose, Store: `mini-git cat`-style checks, every
    object of a C git repository read and re-hashed; `print . parse`.
 3. Pack and Delta, read: every object of a `git gc`'d repository
    (OFS deltas) and of a `git repack --no-delta-base-offset` one.
 4. Refs, Conf, Query, Log, Fs: against `git rev-parse`, `merge-base`,
    `rev-list` on random DAGs built by C git.
 5. Index9, Walk, Save and the local commands (init, add, rm, commit,
-   branch, revert, diff -s): the same random sessions through tinygit
+   branch, revert, diff -s): the same random sessions through mini-git
    and C git, commit hashes equal; `git fsck --strict`.
 6. Diff and Merge3, `diff`, `merge`: principia's corpus, 9base's diff,
    git9's merge tests.
@@ -357,7 +357,7 @@ pull give the same log.
 ## Status
 
 2026-09-24: phases 1 to 8, 8b (http(s) through curl: ix cloned from
-GitHub by tinygit) and 10 (`tiny/TinyVCS.ml`, see "Outside git9")
+GitHub by mini-git) and 10 (`tiny/TinyVCS.ml`, see "Outside git9")
 done in a day; 9 (patch and what uses it) left.
 
 **Size**: 3,609 lines of `.ml` (with 261 of copyright headers), the
@@ -380,12 +380,12 @@ file handling (cp, tar, walk, mkdir -p) being code here.
 
 **Checked**:
 - every object of ix, xix and principia (65,234), loose, packed by
-  `git gc`, repacked with REF deltas, and repacked by tinygit, read
+  `git gc`, repacked with REF deltas, and repacked by mini-git, read
   as `git cat-file` reads them (`objects.sh`);
 - the revision language against `git merge-base`, `rev-list` and
   `rev-parse` on 110 random histories (`query.py`);
 - 200 random sessions of edits, commits and branch switches through
-  tinygit and C git, every commit hash equal (`session.py`);
+  mini-git and C git, every commit hash equal (`session.py`);
 - principia's own diff and merge3, built for Linux by goken
   (`build_plan9_diff.sh`), byte for byte on 14 of principia's 15 diff
   cases, its 13 merge cases, and 2,000 random ones (`diff_fuzz.py`);

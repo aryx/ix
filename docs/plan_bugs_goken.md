@@ -8,7 +8,7 @@ packages them). None is fixed in goken; each is for the author to decide
 (goken may be modified). ix reproduces goken's output where the output
 is the contract (the listings, the executables' bytes), and says so in
 its code where it does. Found 2026-09-23 and 24, while building
-TinyMk, TinyRc, TinyEd, TinyAsm, TinyLd and TinyCompiler. Bugs in xix
+mini-mk, mini-rc, mini-ed, mini-asm, mini-ld and mini-cc. Bugs in xix
 are in [`plan_bugs_xix.md`](plan_bugs_xix.md).
 
 Each entry: what, the evidence and how to reproduce it, what ix does.
@@ -29,9 +29,9 @@ executable then misbehaves:
   with `7c`.
 
 The bytes are otherwise the same as ix's. Reproduce:
-`TINYCC=1 linker/tests/libc.sh 5 /tmp/w ~/goken/tests/c/hello_libc/*.c`
+`MINICC=1 linker/tests/libc.sh 5 /tmp/w ~/goken/tests/c/hello_libc/*.c`
 (and 7): the lines "SAME but the section table ... RUNS DIFFERENTLY".
-ix: TinyLd puts the table after the data; `linker/tests/elfcmp.py`
+ix: mini-ld puts the table after the data; `linker/tests/elfcmp.py`
 compares everything else. Fix: place the table after the data, or
 page-align it.
 
@@ -40,13 +40,13 @@ page-align it.
 The rotation that decides whether a constant is an immediate runs in
 the host's 64-bit `ulong`, so only 0..255 are found immediate:
 `$0x400` goes to a literal pool. The code is correct, but longer.
-ix: TinyLd does the same, with a `rotate` flag for the real rule
+ix: mini-ld does the same, with a `rotate` flag for the real rule
 (`linker/Arm.ml`).
 
 ### 3. 7l's logical immediates leave out the element size
 
 Below 64 bits, the bitmask encoding drops the element size of the
-pattern (known: xix's `docs/claude_notes/arm64_port.md`). ix: TinyLd
+pattern (known: xix's `docs/claude_notes/arm64_port.md`). ix: mini-ld
 reproduces it (`linker/Arm64.ml`, case 53).
 
 ### 4. 7l -H6 fails on the darwin libc
@@ -59,12 +59,12 @@ reproduces it (`linker/Arm64.ml`, case 53).
 ### 5. 7c -O0 generates code that crashes: `mem` and `stat` on arm64
 
 With `7c -O0`, the hello_libc programs `mem` (segmentation fault) and
-`stat` (illegal instruction) crash. tinycc's executables are the same
+`stat` (illegal instruction) crash. mini-cc's executables are the same
 bytes and crash the same way; on arm (`5c -O0`) both run. `mem` also
-crashed in goken's own optimized build (`plans/plan_asm.md`, TinyLd's
+crashed in goken's own optimized build (`plans/plan_asm.md`, mini-ld's
 milestone 2 on arm64). Not investigated yet:
 the bug is in 7c's code generator or in libc's C that only `-O0`
-exposes. Reproduce: `TINYCC=1 linker/tests/libc.sh 7 /tmp/w
+exposes. Reproduce: `MINICC=1 linker/tests/libc.sh 7 /tmp/w
 ~/goken/tests/c/hello_libc/*.c` (exit 139 and 132).
 
 ### 5b. 7c's optimizer loads a negative 64-bit constant with MOVW
@@ -82,7 +82,7 @@ row of TDOUBLE) gives TFLOAT for a double and a float, while a float
 and a double give TDOUBLE. So `d * f` loses the double's precision:
 7c -O0 on `r1 = d * f; r2 = f * d;` emits `FCVTDS F0,F0` and `FMULS`
 for the first, `FCVTSD` and `FMULD` for the second. Probably a typo
-in the table. TinyCompiler reproduces it (`compiler/Tree.ml`'s
+in the table. mini-cc reproduces it (`compiler/Tree.ml`'s
 `arith_tab`, which says so).
 
 ### 5d. A narrowing cast tested as a condition is not narrowed
@@ -94,7 +94,7 @@ registers (txt.c's `gmove`, short to uchar) is a plain move, the
 truncation left to a store; in a condition nothing is stored. Found by
 TinyC's fuzzer (fuzz44 of `tiny/TinyC_fuzz.py`, seed 11: `x0 ^=
 (uchar)((uchar)x3 ? 256 ^ x2 : x5)`), where TinyC is right and 7c the
-reference. TinyCompiler reproduces it, being 7c's twin.
+reference. mini-cc reproduces it, being 7c's twin.
 
 ### 6. The code depends on the host's `qsort`
 
@@ -133,7 +133,7 @@ computes in the host's `long` (64 bits), 7c's in `int32`.
 5ck (and cck's other back ends) print a float constant with `%e`, six
 digits: `$4.294967e+09`, so a `5ck -S` listing doesn't reassemble to
 the same object. Principia's 5c prints `%.17e` (with Plan 9's fmt,
-the fewest digits that read back, then zeros). ix: tinycc prints as
+the fewest digits that read back, then zeros). ix: mini-cc prints as
 principia's 5c (`compiler/Emit.ml`, `e17`).
 
 ### 10. cck's `-x` dump: runes and offsets
@@ -141,7 +141,7 @@ principia's 5c (`compiler/Emit.ml`, `e17`).
 `prtree` prints an `L"..."` string with `%S` on 4-byte runes, which
 comes out as `"\072\z\z\z..."`, and an offset as an unsigned 32-bit
 number (`4294967288` for `-8`). Debug output only.
-`compiler/tests/strip_x.py` normalized the first, while tinycc's `-x`
+`compiler/tests/strip_x.py` normalized the first, while mini-cc's `-x`
 printed 5c's trees (until 2026-09-24, when the trees became an OCaml
 ADT and `-x` its own dump; the script is in the history).
 
@@ -171,19 +171,19 @@ don't add it. Known: `utilities/mkfile` has them commented out
 
 ## mk, rc, ed and sam: principia's C, 9base, plan9port
 
-From the differential tests of TinyMk, TinyRc and TinyEd (their
+From the differential tests of mini-mk, mini-rc and mini-ed (their
 plans' Status sections: `plans/plan_mk.md`, `plan_rc.md`,
 `plan_ed.md`).
 
 ### 14. principia's mk loses a `:R:` rule's arcs
 
 principia's refactored `graph.c` drops the arcs of a regular-expression
-rule; 9base's does not, and TinyMk follows 9base.
+rule; 9base's does not, and mini-mk follows 9base.
 
 ### 15. mk swallows a `}` after an unbraced name
 
 `shprint.c`'s `vexpand()`, printing a recipe: `{cmd $X}` prints
-without its `}` (9base's mk). TinyMk prints the same, as its tests
+without its `}` (9base's mk). mini-mk prints the same, as its tests
 compare the printed lines.
 
 ### 16. mk exports an empty variable as one empty word
@@ -192,7 +192,7 @@ compare the printed lines.
 empty word (`$#E` is 1), so `ocamlc $SYSLIBS` gets an empty argument
 and fails: found building xix's `generators/lex/`. On Plan 9 an empty
 `/env` file is `()`. omk skips empty variables (its comment says its
-author met this with plan9port's mk); TinyMk doesn't export them, a
+author met this with plan9port's mk); mini-mk doesn't export them, a
 documented difference (`empty_rc`).
 
 ### 17. mk(1) is wrong about command-line assignments
@@ -210,7 +210,7 @@ adds the same instruction until the list of 10 overflows, then the one
 of 50; `rregexec` returns -1, which ed takes for a match. `((x?)?)*` on
 `xxb` matches the empty string. When the list overflows before any
 match, 9base's ed segfaults (exit -11, dosub reading a null pointer).
-TinyEd reproduces the lists, sizes and all.
+mini-ed reproduces the lists, sizes and all.
 
 ### 19. 9base's sam: character classes, and a stray `d`
 
@@ -226,7 +226,7 @@ class, and take the `d` out.
 
 The last command of a subshell is exec'ed without a fork, so a missing
 program there leaves `$status` 0 where rc means 1 (an artifact of the
-optimization; TinyRc keeps 1, a documented difference). And in a
+optimization; mini-rc keeps 1, a documented difference). And in a
 pipe, a missing program's stage exits with the `$status` it inherited
 (`scsicodes`; not copied).
 
@@ -238,7 +238,7 @@ pipe, a missing program's stage exits with the `$status` it inherited
 ## How they were found
 
 The runners that compare ix with its reference, case by case or file
-by file: TinyMk's, TinyRc's and TinyEd's `differential.sh` and
+by file: mini-mk's, mini-rc's and mini-ed's `differential.sh` and
 fuzzers, against 9base; `compiler/tests/front.sh` (trees, while they were 5c's),
 `compiler/tests/listing.sh` (listings), `linker/tests/libc.sh`
 (executables, and running them) and `linker/tests/fuzz.py`, against

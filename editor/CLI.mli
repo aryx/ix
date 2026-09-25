@@ -1,4 +1,4 @@
-(* tinyed's command line, ed's: ed [-] [-o] [file]
+(* mini-ed's command line, ed's: ed [-] [-o] [file]
  *
  *     -       quiet: no counts, no ! after a shell command, and q and e
  *             quit or edit even with changes not written

@@ -11,7 +11,7 @@
 
 type caps = < Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
 
-let src = Logs.Src.create "tinydb" ~doc:"the shell"
+let src = Logs.Src.create "mini-chidb" ~doc:"the shell"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type db = { bt : Btree.t; mutable schema : Schema.item list }

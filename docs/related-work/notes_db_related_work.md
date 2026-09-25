@@ -1,6 +1,6 @@
 # Related work: relational databases, from the model to the teaching systems
 
-Where TinyDb ([`plan_db.md`](../plans/plan_db.md),
+Where mini-chidb ([`plan_db.md`](../plans/plan_db.md),
 [`notes_db.md`](../tutorials/notes_db.md)) sits among the real
 systems. What was checked here is said so, with where; the rest is
 **from memory**, marked, to check before it is quoted in a `.mli`
@@ -12,14 +12,14 @@ memory).
 - **Codd (1970)**, "A Relational Model of Data for Large Shared Data
   Banks" (CACM; from memory): data as relations, sets of tuples,
   queried by operators independent of how the data is stored. The
-  operators TinyDb's parse tree is made of -- selection σ, projection
+  operators mini-chidb's parse tree is made of -- selection σ, projection
   π, join ⋈ -- are the algebra that followed from it. chidb's point
   is to make that algebra the compiler's intermediate representation
   (checked, in the SIGCSE paper below: "a direct encoding of the
   relational algebra").
 - **SQL**, from IBM's System R (SEQUEL; from memory), is what won:
   a declarative language whose meaning is the algebra, compiled by the
-  system into a plan. TinyDb's grammar is chidb's subset.
+  system into a plan. mini-chidb's grammar is chidb's subset.
 
 ## The systems
 
@@ -28,7 +28,7 @@ memory).
   cost-based optimizer. **Selinger et al. (1979)**, "Access Path
   Selection in a Relational Database Management System" (SIGMOD;
   from memory), chose among scans and index seeks by estimated cost
-  and ordered joins by dynamic programming. chidb, and TinyDb, choose
+  and ordered joins by dynamic programming. chidb, and mini-chidb, choose
   by the *shape* of the WHERE instead (the tutorial's §9): the road
   not taken, and an exercise.
 - **Ingres** (Stonebraker, Berkeley, 1970s; from memory), System R's
@@ -109,7 +109,7 @@ SIGCSE '16, Memphis, DOI 10.1145/2839509.2844638):
   up to the SQL compiler", run five times in the University of
   Chicago's undergraduate databases course. Four assignments: the
   B-tree, the database machine, the code generator, the optimizer.
-  The fork TinyDb twins has all four, the optimizer's σ-pushing
+  The fork mini-chidb twins has all four, the optimizer's σ-pushing
   included, and extensions (range seeks, both sides of a join seeked).
 - **SimpleDB** (Sciore, SIGCSE 2007, and the book *Database Design and
   Implementation*, Wiley 2008): a Java multiuser system for teaching
@@ -125,9 +125,9 @@ Not in the paper, from memory: CMU's BusTub (15-445), MIT's
 build a SQLite clone" tutorials, which stop, as a rule, before the
 optimizer.
 
-## Where TinyDb sits
+## Where mini-chidb sits
 
-TinyDb is a twin, not a new design: chidb's layers, file and programs,
+mini-chidb is a twin, not a new design: chidb's layers, file and programs,
 byte for byte. What it adds is the OCaml representation (instructions,
 cells, registers and the algebra as variants; labels instead of
 patched jumps; the optimizer as a function) and the tests: chidb's

@@ -8,13 +8,13 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny assembler for arm64 that writes the executable, in one file.
- * TinyAsm and TinyLd (assembler/, linker/) are Plan 9's split,
+ * mini-asm and mini-ld (assembler/, linker/) are Plan 9's split,
  * faithfully: an assembler that only parses into objects, and a linker
  * that loads them and their libraries, lays out and encodes, choosing
  * for each instruction the form 7l would, byte for byte. This is what
  * is left without separate compilation:
  *
- *     tinyassembler -o hello hello.s libc/*.s && ./hello
+ *     tiny-assembler -o hello hello.s libc/*.s && ./hello
  *
  * all the assembly of a program, its own and its libc's (7c -S output,
  * and libc's .s), read at once, and the ELF executable written.
@@ -59,7 +59,7 @@
  * FMOVS, FADD FSUB FMUL FDIV FCMP (D and S), the conversions. TEXT
  * DATA GLOBL, labels, // and /* comments.
  *
- * Left out, against TinyLd: arm (5, and its conditional execution,
+ * Left out, against mini-ld: arm (5, and its conditional execution,
  * pools and division calls); Mach-O (its code would be the same, being
  * pc-relative; the rebase of the data's pointers is the missing part:
  * an exercise) and a.out; libraries and objects, which is the point;
@@ -73,7 +73,7 @@
  * compares what they print with goken's expected outputs (two of them,
  * dirread and mem, pass here and fail with goken's own 7l).
  *
- * Usage: tinyassembler [-e entry] [-o out] file.s...
+ * Usage: tiny-assembler [-e entry] [-o out] file.s...
  *
  * References: M. V. Wilkes, D. J. Wheeler and S. Gill, The Preparation
  * of Programs for an Electronic Digital Computer (1951), the EDSAC
@@ -645,8 +645,8 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.open_out; Cap.stderr; .. >) =
     | [] -> entry, out, List.rev files
   in
   match args "_main" "a.out" [] (List.tl (Array.to_list (CapSys.argv caps))) with
-  | _, _, [] -> eprint caps "usage: tinyassembler [-e entry] [-o out] file.s..."; 1
+  | _, _, [] -> eprint caps "usage: tiny-assembler [-e entry] [-o out] file.s..."; 1
   | entry, out, files -> (
-      try link caps files entry out; 0 with Error m | Sys_error m -> eprint caps ("tinyassembler: " ^ m); 1)
+      try link caps files entry out; 0 with Error m | Sys_error m -> eprint caps ("tiny-assembler: " ^ m); 1)
 
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyassembler"; CapStdlib.exit caps (main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tiny-assembler"; CapStdlib.exit caps (main caps))

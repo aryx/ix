@@ -8,12 +8,12 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The differential tests: the same mkfiles through tinymk, 9base's mk
+# The differential tests: the same mkfiles through mini-mk, 9base's mk
 # (plan9port's, as packaged by Debian) and xix's omk.
 #
 #   differential.sh record [case.mk ...]  write case.out from 9base's mk
-#   differential.sh check  [case.mk ...]  compare tinymk with case.out
-#                                         (or case.tiny.out, where TinyMk
+#   differential.sh check  [case.mk ...]  compare mini-mk with case.out
+#                                         (or case.mini.out, where mini-mk
 #                                         differs from 9base on purpose)
 #   differential.sh live   [case.mk ...]  compare all three, live
 #
@@ -30,7 +30,7 @@
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 CORPUS=$ROOT/builder/tests/corpus
-TINYMK=${TINYMK:-$ROOT/_build/default/builder/Main.exe}
+MINIMK=${MINIMK:-$ROOT/_build/default/builder/Main.exe}
 MK=${MK:-/usr/lib/plan9/bin/mk}
 OMK=${OMK:-$(command -v omk)}
 
@@ -68,21 +68,21 @@ for case in $cases; do
       run_case "$MK" "$case" > "$out"
       echo "recorded $name";;
     check)
-      # a documented difference from 9base: TinyMk's own expected output
-      [ -f "${case%.mk}.tiny.out" ] && out=${case%.mk}.tiny.out
-      if run_case "$TINYMK" "$case" | diff -u "$out" - > /tmp/$$.diff; then
+      # a documented difference from 9base: mini-mk's own expected output
+      [ -f "${case%.mk}.mini.out" ] && out=${case%.mk}.mini.out
+      if run_case "$MINIMK" "$case" | diff -u "$out" - > /tmp/$$.diff; then
         echo "ok   $name"
       else
         echo "FAIL $name"; cat /tmp/$$.diff; status=1
       fi;;
     live)
       run_case "$MK" "$case" > /tmp/$$.mk
-      run_case "$TINYMK" "$case" > /tmp/$$.tiny
+      run_case "$MINIMK" "$case" > /tmp/$$.mini
       # omk prints a recipe as |recipe| and colours its errors: strip both
       if [ -n "$OMK" ]; then
         run_case "$OMK" "$case" | sed -e 's/^|\(.*\)|$/\1/' -e 's/\x1b\[[0-9;]*m//g' > /tmp/$$.omk
       fi
-      if cmp -s /tmp/$$.mk /tmp/$$.tiny; then r="tinymk=mk"; else r="tinymk!=mk"; status=1; fi
+      if cmp -s /tmp/$$.mk /tmp/$$.mini; then r="mini-mk=mk"; else r="mini-mk!=mk"; status=1; fi
       if [ -n "$OMK" ]; then
         if cmp -s /tmp/$$.mk /tmp/$$.omk; then r="$r omk=mk"; else r="$r omk!=mk"; fi
       fi

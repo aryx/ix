@@ -7,4 +7,4 @@
  * (LGPL) as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *)
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinygit"; CapStdlib.exit caps (Ix_vcs.CLI.main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"mini-git"; CapStdlib.exit caps (Ix_vcs.CLI.main caps))

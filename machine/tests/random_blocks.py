@@ -9,7 +9,7 @@
 # 2 of the License, or (at your option) any later version.
 #
 # Phase 4: random blocks of arm32 instructions run on the CPU (this
-# machine runs AArch32 natively) and under TinyArm, the final states
+# machine runs AArch32 natively) and under mini-5i, the final states
 # compared. The corpus executes few of the operand forms, flag cases
 # and conditions; here every data processing form, multiplies, clz,
 # mrs/msr, and loads and stores of every size and addressing mode run
@@ -125,7 +125,7 @@ class Gen:
             # machine's (this one's ARMv8 SSBS, bit 23; the mode reads 0)
             rd = self.dest()
             return [self.cond() | 0x010f0000 | rd << 12, 0xe200020f | rd << 16 | rd << 12]
-        # msr CPSR_f, #N << 28: the flags only (not Q, which TinyArm lacks)
+        # msr CPSR_f, #N << 28: the flags only (not Q, which mini-5i lacks)
         return self.cond() | 0x0328f200 | r.randrange(16)
 
     def transfer(self, span, align):
@@ -421,9 +421,9 @@ def explain(a, b):
         lines = []
         for k in range(32):
             x, y = struct.unpack_from("<Q", oa, 8 * k)[0], struct.unpack_from("<Q", ob, 8 * k)[0]
-            if x != y: lines.append("  %-4s cpu %016x  tinyarm %016x" % (names[k], x, y))
+            if x != y: lines.append("  %-4s cpu %016x  mini-5i %016x" % (names[k], x, y))
         for o in range(256, OUT64):
-            if oa[o] != ob[o]: lines.append("  buffer+%d cpu %02x  tinyarm %02x" % (o - 256, oa[o], ob[o]))
+            if oa[o] != ob[o]: lines.append("  buffer+%d cpu %02x  mini-5i %02x" % (o - 256, oa[o], ob[o]))
         return "\n".join(lines[:12])
     names = ["r%d" % k for k in range(13)] + ["lr", "cpsr"]
     if sa != sb or len(oa) != OUT or len(ob) != OUT:
@@ -432,9 +432,9 @@ def explain(a, b):
     for k in range(15):
         x, y = struct.unpack_from("<I", oa, 4 * k)[0], struct.unpack_from("<I", ob, 4 * k)[0]
         if k == 14: x, y = x & 0xf0000000, y & 0xf0000000
-        if x != y: lines.append("  %-4s cpu %08x  tinyarm %08x" % (names[k], x, y))
+        if x != y: lines.append("  %-4s cpu %08x  mini-5i %08x" % (names[k], x, y))
     for o in range(64, OUT):
-        if oa[o] != ob[o]: lines.append("  buffer+%d cpu %02x  tinyarm %02x" % (o - 64, oa[o], ob[o]))
+        if oa[o] != ob[o]: lines.append("  buffer+%d cpu %02x  mini-5i %02x" % (o - 64, oa[o], ob[o]))
     return "\n".join(lines[:12])
 
 # the flags compared, not the rest of the CPSR (its mode and mask bits)

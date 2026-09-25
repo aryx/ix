@@ -118,7 +118,7 @@ let main (caps : < caps; .. >) =
   match Array.to_list (CapSys.argv caps) with
   | _ :: name :: args -> (
       match List.find_opt (fun (n, _, _) -> n = name) commands with
-      | None -> Console.eprint caps (Printf.sprintf "tinygit: unknown command %s\n" name); 1
+      | None -> Console.eprint caps (Printf.sprintf "mini-git: unknown command %s\n" name); 1
       | Some (_, f, usage) -> (
           let die m = Console.eprint caps (Printf.sprintf "git/%s: %s\n" name m); 1 in
           try f caps args with
@@ -130,5 +130,5 @@ let main (caps : < caps; .. >) =
           | Object.Corrupt m -> die m
           | Commands.Die m -> die m))
   | _ ->
-      Console.eprint caps ("usage: tinygit CMD args, CMD one of: " ^ String.concat " " (List.map (fun (n, _, _) -> n) commands) ^ "\n");
+      Console.eprint caps ("usage: mini-git CMD args, CMD one of: " ^ String.concat " " (List.map (fun (n, _, _) -> n) commands) ^ "\n");
       1

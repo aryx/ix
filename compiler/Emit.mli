@@ -4,8 +4,8 @@
  * frame's safe area and outgoing arguments, the data of initializers
  * and strings; at the end the listing (-S) and the object.
  *
- * The object is TinyAsm's Asm.obj, not goken's format: the compiler
- * produces what the assembler would, and TinyLd encodes both. The
+ * The object is mini-asm's Asm.obj, not goken's format: the compiler
+ * produces what the assembler would, and mini-ld encodes both. The
  * listing is byte for byte 5c's and 7c's at -O0, including Plan 9's
  * %.17e for floats ([listing]); tests/listing.sh compares them.
  *
@@ -157,6 +157,6 @@ val gextern : Tree.sym -> Tree.expr -> int -> int -> unit
 val init : unit -> unit
 val gclean : unit -> unit
 
-(* the program as 5c's -S prints it; as TinyAsm's object *)
+(* the program as 5c's -S prints it; as mini-asm's object *)
 val listing : unit -> string
 val obj : Fpath.t -> Ix_asm.Asm.obj

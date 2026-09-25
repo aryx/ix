@@ -8,21 +8,21 @@ where it sits among the real systems). `yoann_notes/` is the author's.
 
 | program | plan | tutorial | related work | code |
 |---|---|---|---|---|
-| TinyMk, the build system | [plan_mk.md](plans/plan_mk.md) | [notes_mk.md](tutorials/notes_mk.md) | [notes_mk_related_work.md](related-work/notes_mk_related_work.md) | `builder/`, `tiny/TinyBuildSystem.ml` |
-| TinyRc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/`, `tiny/TinyShell.ml` |
-| TinyEd, the editor | [plan_ed.md](plans/plan_ed.md) | [notes_ed.md](tutorials/notes_ed.md) | [notes_ed_related_work.md](related-work/notes_ed_related_work.md) | `editor/`, `tiny/TinyEditor.ml` |
-| TinyAsm and TinyLd, the assembler and the linker | [plan_asm.md](plans/plan_asm.md) | [notes_asm.md](tutorials/notes_asm.md) | [notes_asm_related_work.md](related-work/notes_asm_related_work.md) | `assembler/`, `linker/`, `tiny/TinyAssembler.ml` |
-| TinyCompiler, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `compiler/`, `tiny/TinyC.ml` |
-| TinyDb, the relational database | [plan_db.md](plans/plan_db.md) | [notes_db.md](tutorials/notes_db.md) | [notes_db_related_work.md](related-work/notes_db_related_work.md) | `database/`, `tiny/TinyDatabase.ml` |
-| TinyGit and TinyDiff, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
-| TinyArm, the ARM emulator (arm32, arm64, Linux system calls) | [plan_arm.md](plans/plan_arm.md) | [notes_arm.md](tutorials/notes_arm.md) | [notes_arm_related_work.md](related-work/notes_arm_related_work.md) | `machine/` (planned) |
-| TinyRaspberryPi, the Pi emulator (9pi, 9pi2, xv6's six Pi ports) | [plan_pi.md](plans/plan_pi.md) | [notes_pi.md](tutorials/notes_pi.md) | [notes_pi_related_work.md](related-work/notes_pi_related_work.md) | `raspberry/` (planned) |
+| mini-mk, the build system | [plan_mk.md](plans/plan_mk.md) | [notes_mk.md](tutorials/notes_mk.md) | [notes_mk_related_work.md](related-work/notes_mk_related_work.md) | `builder/`, `tiny/TinyBuildSystem.ml` |
+| mini-rc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/`, `tiny/TinyShell.ml` |
+| mini-ed, the editor | [plan_ed.md](plans/plan_ed.md) | [notes_ed.md](tutorials/notes_ed.md) | [notes_ed_related_work.md](related-work/notes_ed_related_work.md) | `editor/`, `tiny/TinyEditor.ml` |
+| mini-asm and mini-ld, the assembler and the linker | [plan_asm.md](plans/plan_asm.md) | [notes_asm.md](tutorials/notes_asm.md) | [notes_asm_related_work.md](related-work/notes_asm_related_work.md) | `assembler/`, `linker/`, `tiny/TinyAssembler.ml` |
+| mini-cc, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `compiler/`, `tiny/TinyC.ml` |
+| mini-chidb, the relational database | [plan_db.md](plans/plan_db.md) | [notes_db.md](tutorials/notes_db.md) | [notes_db_related_work.md](related-work/notes_db_related_work.md) | `database/`, `tiny/TinyDatabase.ml` |
+| mini-git and mini-diff, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
+| mini-5i, the ARM emulator (arm32, arm64, Linux system calls) | [plan_arm.md](plans/plan_arm.md) | [notes_arm.md](tutorials/notes_arm.md) | [notes_arm_related_work.md](related-work/notes_arm_related_work.md) | `machine/` (planned) |
+| mini-qemu, the Pi emulator (9pi, 9pi2, xv6's six Pi ports) | [plan_pi.md](plans/plan_pi.md) | [notes_pi.md](tutorials/notes_pi.md) | [notes_pi_related_work.md](related-work/notes_pi_related_work.md) | `raspberry/` (planned) |
 
 ## The principles
 
 They were first stated in [plan_mk.md](plans/plan_mk.md), the first
 plan, which said they would move here when a second plan started; the
-lessons of building TinyMk are folded in. They descend from the
+lessons of building mini-mk are folded in. They descend from the
 Playground's (`~/playground/docs/claude_notes/README.md`), and a
 plan restates only where it differs.
 
@@ -36,16 +36,16 @@ plan restates only where it differs.
    OCaml are the specification and the inspiration, not the template.
    Each plan says where its design departs from both and why that is
    smaller -- and keeps the design that turned out wrong in its Status
-   (TinyMk's first one did).
+   (mini-mk's first one did).
 3. **Differential tests against a runnable reference.** The same input
-   through the Tiny program and the real one, outputs compared exactly.
-   The reference is a binary that runs today (for TinyMk, 9base's mk,
+   through the mini program and the real one, outputs compared exactly.
+   The reference is a binary that runs today (for mini-mk, 9base's mk,
    `/usr/lib/plan9/bin/mk`), and **the program is the specification,
    the man page a hint**: where they disagree, the program wins (mk(1)
    was wrong about command-line assignments). Quirks the reference
    has are kept, each with a corpus case; the few differences made on
    purpose are documented, each with an expected output of its own
-   (`case.tiny.out` beside the reference's `case.out`).
+   (`case.mini.out` beside the reference's `case.out`).
 4. **Test against the field's own laws**, where it has them (for a
    build system: correct, minimal, idempotent, parallel = sequential).
 5. **The `.mli` explains, and the tests check its worked example**: an
@@ -60,9 +60,10 @@ plan restates only where it differs.
 9. **Several files for the faithful program, lex/yacc where the grammar
    nests; then a free variant in one file.** Once the faithful program
    is done, a second one drops compatibility and keeps only the idea,
-   in a single `TinyXxx.ml` under the top-level `tiny/`, beside its
+   in a single `TinyXxx.ml` under the top-level `tiny/` (the tiny
+   program, tiny-xxx, where the faithful one is mini-xxx), beside its
    siblings (`tiny/TinyBuildSystem.ml`: 261 lines of code
-   against TinyMk's 1,398), so the one-file programs read as a set. Choosing its features is the hard part:
+   against mini-mk's 1,398), so the one-file programs read as a set. Choosing its features is the hard part:
    fundamental enough to do real work, checked on a real input, and
    not too big.
    Code that several programs really share may go into an intermediate
@@ -73,7 +74,7 @@ plan restates only where it differs.
    Factor what is duplicated in fact, not in advance.
 10. **Honest, and counted**: lines per module against the twins in the
     Status, the ceiling stated up front, a target set before and
-    compared after (TinyMk missed its 750 by a factor of 2.4), and
+    compared after (mini-mk missed its 750 by a factor of 2.4), and
     dates and names from memory marked as such.
 11. **Comments describe the code as it is**; new comments in existing
     code are tagged `claude:`.
@@ -113,7 +114,7 @@ tested against, for their authors to decide:
 [`plan_bugs_goken.md`](plan_bugs_goken.md) (goken's toolchain and
 sources, principia's C, 9base and plan9port) and
 [`plan_bugs_xix.md`](plan_bugs_xix.md) (xix's omk and orc, and what
-its toolchain doesn't do yet that goken's output depends on). TinyDb's found some in chidb
+its toolchain doesn't do yet that goken's output depends on). mini-chidb's found some in chidb
 ([`plan_bugs_chidb.md`](plan_bugs_chidb.md)), and its fuzzer one in
 OCaml's arm64 native code generator
 ([`plan_bugs_ocaml.md`](plan_bugs_ocaml.md)).

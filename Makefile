@@ -39,7 +39,7 @@ test-differential: all
 # (golden.sh record re-records the fixtures' bytes from goken). The
 # compiler's listings against 5c -O0's and 7c -O0's, on the corpus, on
 # compiler/tests/c/ and on random programs; see compiler/tests/ (and
-# TINYCC=1 linker/tests/libc.sh for the executables tinycc and tinyld
+# MINICC=1 linker/tests/libc.sh for the executables mini-cc and mini-ld
 # make).
 GOKEN_W = /tmp/ix-goken
 test-goken: all
@@ -79,7 +79,7 @@ build-docker-ocaml5:
 
 .PHONY: all test test-differential test-goken test-chidb clean build-docker build-docker-ocaml5
 
-# TinyGit over the Internet: ix cloned from GitHub by tinygit (https,
+# mini-git over the Internet: ix cloned from GitHub by mini-git (https,
 # through curl), checked by git fsck and walk.
 test-github: all
 	rm -rf /tmp/ix-github && ./_build/default/version_control/Main.exe clone https://github.com/aryx/ix /tmp/ix-github

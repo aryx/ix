@@ -1,7 +1,7 @@
-(* tinycc [-m 5|7] [-S] [-x] [-o out] [-Idir] [-Dname[=value]] file.c
+(* mini-cc [-m 5|7] [-S] [-x] [-o out] [-Idir] [-Dname[=value]] file.c
  * -m the machine (5, arm, the default; 7, arm64), -S the listing on
- * stdout, -x each function's trees on stdout too; the object in TinyAsm's
- * format, for TinyLd, to out or x.5 (x.7) in the current directory,
+ * stdout, -x each function's trees on stdout too; the object in mini-asm's
+ * format, for mini-ld, to out or x.5 (x.7) in the current directory,
  * as 5c. 5c's other flags are ignored. *)
 
 type caps =

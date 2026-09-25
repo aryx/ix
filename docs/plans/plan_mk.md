@@ -1,4 +1,4 @@
-# Plan: TinyMk, a build system from scratch, for teaching (`builder/`)
+# Plan: mini-mk, a build system from scratch, for teaching (`builder/`)
 
 Companions:
 [`notes_mk.md`](../tutorials/notes_mk.md), the tutorial: what a
@@ -25,7 +25,7 @@ itself:
   testing, the README's "run it on both and compare", works from the
   first commit, as it will later for the emulator against qemu-arm.
 - **It builds the others.** Principia and xix are built with mk, and
-  ix's programs will be too, eventually with TinyMk itself.
+  ix's programs will be too, eventually with mini-mk itself.
 - **It sets the ix conventions on a small program**: the layout, the
   `Cap` style, Testo, how an `.mli` explains, how a plan logs. These
   documents are the first of their kind here, and they are meant to be
@@ -62,7 +62,7 @@ plans list only their differences.
 3. **Differential tests against the real thing.** The same input goes
    to the Tiny program and to the full-size one, and their outputs are
    compared. For mk, `mk -n` output and the files a build leaves are
-   compared across TinyMk, plan9port mk and omk. Where the twins
+   compared across mini-mk, plan9port mk and omk. Where the twins
    disagree, a test records who is right and why.
 4. **Test against the field's own laws.** For a build system these are
    correctness, minimality and idempotence (Mokhov, Mitchell and Peyton
@@ -100,7 +100,7 @@ plans list only their differences.
 
 No Evan-style API to invent here: the interface is the mkfile
 language and `mk`'s command line, and it is kept. A mkfile that mk
-builds, TinyMk builds the same way.
+builds, mini-mk builds the same way.
 
 The decisions follow data rather than taste. Here is how many of
 the 472 mkfiles reachable from `~/xix` use each feature -- 82 of
@@ -108,7 +108,7 @@ xix's own and 390 of principia's, through the `xix/principia` link, a
 count first taken for xix's alone (`grep -l`, 2026-09-23; principia's
 389 give the same proportions):
 
-| feature | mkfiles | TinyMk |
+| feature | mkfiles | mini-mk |
 |---|---:|---|
 | `<file` include | 425 | kept |
 | `:V:` virtual | 187 | kept |
@@ -129,13 +129,13 @@ count first taken for xix's alone (`grep -l`, 2026-09-23; principia's
 | missing intermediates (pretending) | (default in Plan 9's mk) | off, as in principia's mk; see decision 5 |
 
 Command-line flags: `-f -n -e -a -k -t -w -s -i -u -d`, and
-`var=value`. `-i` is accepted, and is already TinyMk's behaviour (see
+`var=value`. `-i` is accepted, and is already mini-mk's behaviour (see
 decision 5).
 
 omk drops `:R:`, `&`, `:P:`, archives, private variables, missing
 intermediates, several `-f`s, dynamic assignments and patterns,
 top-level backquotes and Unicode (`~/xix/builder/CLI.ml`, its
-Prelude). TinyMk tries to keep them all, except the missing
+Prelude). mini-mk tries to keep them all, except the missing
 intermediates.
 The rest of this plan argues that a different design makes that
 cheaper, not dearer.
@@ -143,12 +143,12 @@ cheaper, not dearer.
 **The command's name is open.** `mk` shadows the host's mk and xix's
 `mk`/`omk`. The README's two-letter-name scheme (`ia`, `il`, `ic`...)
 has no obvious slot for it. Until that is settled the binary is
-`tinymk`.
+`mini-mk`.
 
 ## Target layout
 
 ```
-builder/                 library ix_mk + the tinymk executable
+builder/                 library ix_mk + the mini-mk executable
   Word.ml(i)             words and lists of words: quoting, $v and ${v},
                          ${v:A%B=C%D}, `{cmd} (through a callback)
   Pattern.ml(i)          a target as a pattern: literal, %, &, :R: regexp;
@@ -177,7 +177,7 @@ Ten modules with `Archive`, where omk has nineteen (`Globals`, `Flags`, `Ast`,
 `Shellenv`, `Shell`, `File`, `Graph`, `Job`, `Scheduler`, `Outofdate`,
 `CLI`, `Main`). Where each of theirs went:
 
-| TinyMk | omk (xix) | mk (principia C) |
+| mini-mk | omk (xix) | mk (principia C) |
 |---|---|---|
 | `Word` | `Lexer.mll` (the word part), `Eval.eval_word`, `Env` | `lex.c`, `word.c`, `var.c`, `varsub.c`, `rc.c` (part) |
 | `Pattern` | `Percent` | `match.c`, `rule.c` (regexps) |
@@ -227,7 +227,7 @@ is taken by readability, not dogma (principle 9).
 ### 2. One kind of rule: the target is a pattern
 
 omk and mk keep simple rules and metarules in separate lists and
-handle them by separate code. TinyMk has a single `Pattern.t`:
+handle them by separate code. mini-mk has a single `Pattern.t`:
 
 ```ocaml
 type t = Literal of string | Percent of string * string   (* A%B *)
@@ -253,7 +253,7 @@ mk's `Node` has five flag bits (`VIRTUAL`, `PROBABLE`, `BEINGMADE`,
 mutable fields. They mix two things: what the graph *is* (known once
 it is built) and how far the build *has got* (changing every job).
 
-TinyMk separates them:
+mini-mk separates them:
 
 ```ocaml
 (* Graph: built once, never changed *)
@@ -314,7 +314,7 @@ principia, with the reason in the source (`globals.c`, `iflag`):
 compiling `principia/libc/` skipped directories because another
 directory had already created `libc.a`. omk doesn't have it either.
 
-So TinyMk always builds missing intermediates, which is what
+So mini-mk always builds missing intermediates, which is what
 `mk -i` does and what principia's mk does by default. This is the one
 feature this plan defers. Phase 6 revisits it if a real mkfile needs
 it, with its cost measured (an estimated 40 lines in `Outofdate`), and
@@ -326,7 +326,7 @@ Checked on plan9port mk: it compares whole seconds, and treats equal
 times as out of date (`mk.c`: "It's a race, and the safer option is
 to do extra building"). So a `.o` compiled in the same second as its
 `.c` is recompiled on every run until the clock moves on. omk compares
-sub-second times with `<`, so equal times count as up to date. TinyMk
+sub-second times with `<`, so equal times count as up to date. mini-mk
 takes each side's good half: sub-second times (`Unix.stat`'s float),
 compared with mk's `<=`. The differential corpus therefore uses mtimes
 whole seconds apart, where all three must agree. The same-second cases
@@ -348,7 +348,7 @@ defaults to `sh` on the host, the way plan9port does, and uses rc's
 quoting rules when its first word ends in `rc`. The whole recipe goes
 to the shell's standard input, with `-e`, as in mk. Later, when
 TinyShell exists, it is one more value of `MKSHELL`, and the first
-program to run inside TinyMk's recipes on real work.
+program to run inside mini-mk's recipes on real work.
 
 ### 9. Where `Cap` comes from
 
@@ -356,7 +356,7 @@ program to run inside TinyMk's recipes on real work.
 is xix's capability library, published separately as `aryx/ocaml-caps`
 (0.1.0 is in the public opam repository, and xix uses it as a git
 submodule). ix gets it through opam, with no copy and no submodule.
-The decision covers all of ix, not only TinyMk, and the reason is the
+The decision covers all of ix, not only mini-mk, and the reason is the
 twins: if the capability types diverged, every comparison with xix
 would be noisier. When ix needs a capability `caps` lacks, it is
 added upstream in `ocaml-caps`, not worked around here.
@@ -366,7 +366,7 @@ added upstream in `ocaml-caps`, not worked around here.
 The goal is a *Tiny build system*. mk is the natural one to
 build, because it is the Principia book's, but it isn't the only
 candidate, and some of the others are tinier. What each would give,
-and what TinyMk takes from it:
+and what mini-mk takes from it:
 
 - **redo** (Daniel J. Bernstein's design, around 2003; apenwarr's
   implementation, 2010). No language at all: each target `foo.o` has a
@@ -458,19 +458,19 @@ programs the equivalent is real inputs:
   output recorded from plan9port mk and checked into git, so the tests
   don't need plan9port installed.
 - **Live differential runs**, when the references are present
-  (`make test-differential`): the same corpus, through TinyMk,
+  (`make test-differential`): the same corpus, through mini-mk,
   plan9port mk and omk; and `builder/tests/tree_differential.sh DIR`,
   `-n` in every directory of a tree that has a mkfile (xix's 73,
   principia's 306). The
   number that matters is how many agree, and every disagreement is
   explained.
-- **The milestone: TinyMk builds its own twin.** `cd ~/xix/builder &&
-  tinymk` builds omk from xix's real `mkfile` (which includes
+- **The milestone: mini-mk builds its own twin.** `cd ~/xix/builder &&
+  mini-mk` builds omk from xix's real `mkfile` (which includes
   `mkconfig`, `mkfiles/mkprog`, `mkcommon`, `mkparser` and a
   generated `.depend`), and the resulting omk passes xix's tests. Then
   all of xix. A Tiny mk that builds the full-size one is the plainest
   way to say "not a toy".
-- **Later: ix builds itself.** Once ix's programs have mkfiles, TinyMk
+- **Later: ix builds itself.** Once ix's programs have mkfiles, mini-mk
   is how they are built, and the first real user of TinyShell as
   `MKSHELL`.
 
@@ -493,7 +493,7 @@ programs the equivalent is real inputs:
 4. **Parallel**: `$NPROC` slots, `$nproc`, output not interleaved within
    a line. Tests: "parallel = sequential" in files built and contents,
    for NPROC 1-8, on the corpus and on random DAGs from a seed.
-5. **The milestone**: omk built by TinyMk from xix's mkfile; then xix;
+5. **The milestone**: omk built by mini-mk from xix's mkfile; then xix;
    the differential numbers over the 472 mkfiles; the LOC count
    against the twins.
 6. **The long tail**: `:R:` (with `re`), archives (`Archive`, `:N:`,
@@ -515,7 +515,7 @@ numbers and the wrong turns, phase by phase.
 | 0 | dune layout, `caps` from opam, Testo, the corpus recorded from 9base's mk, `differential.sh` | |
 | 1-2 | `Word`, `Pattern`, `Mkfile` (no AST, no yacc), `Graph` | |
 | 3-4 | `Outofdate`, `Recipe`, `Build`: sequential and `$NPROC` | |
-| 5 | TinyMk builds all of xix, and its omk rebuilds xix to the same 476 files; `-n` identical to 9base's in 68 of xix's 73 directories and 277 of principia's 306, the rest explained | |
+| 5 | mini-mk builds all of xix, and its omk rebuilds xix to the same 476 files; `-n` identical to 9base's in 68 of xix's 73 directories and 277 of principia's 306, the rest explained | |
 | 6 | `:R:`, archives, `-u` | pretending (decision 5) |
 | 7 | `-H`: after touching every source of xix, 0 recipes instead of 363 | one `.mkhash` per tree rather than per directory |
 | 8 | the tutorial checked against the code; this plan's and the related-work note's numbers filled in | |
@@ -540,7 +540,7 @@ planned, 2,879 for omk and 5,980 for mk's C.
 - **2026-09-23, the measurements behind the feature table**: `grep -l`
   over xix's 472 mkfiles (and principia's 389), one feature at a time.
   These are counts of files, not uses, and some patterns are crude
-  (`&` in a rule header, `%` anywhere). To be redone with TinyMk's own
+  (`&` in a rule header, `%` anywhere). To be redone with mini-mk's own
   reader once phase 1 exists, as a check on both.
 - **2026-09-23, checked on plan9port mk before writing it down**:
   rule headers are expanded when read; `$X.o` with `X=a b` gives the
@@ -551,7 +551,7 @@ planned, 2,879 for omk and 5,980 for mk's C.
   last one sank the first design (decision 4). And one place where mk(1)
   is wrong about mk: a command-line `CC=z` overrides every assignment
   to `CC`, not only "the first (but not any subsequent)" one. omk
-  agrees with the program. The rule for TinyMk: **the program is the
+  agrees with the program. The rule for mini-mk: **the program is the
   specification, and the man page is a hint**.
 - **2026-09-23, `Cap` from the opam package `caps`** (the author:
   "use it as a dependency", choosing the recommendation of decision 9
@@ -587,14 +587,14 @@ planned, 2,879 for omk and 5,980 for mk's C.
   - **First run of the corpus: 16 of 30 cases matched**; after the
     fixes, 30 of 30, plus two cases of their own, `pretend` and
     `subsecond`, recording the two differences on purpose (decisions 5
-    and 6) with a `.tiny.out` beside 9base's `.out`.
+    and 6) with a `.mini.out` beside 9base's `.out`.
   - **9base pretends by default** (missing intermediates, decision 5):
     it showed up on a virtual prerequisite, which the tutorial's §7 did
     not anticipate -- `out: gen`, `gen:V: src`, with `out` newer than
-    `src`: 9base runs nothing, TinyMk (like principia's mk) runs `gen`.
+    `src`: 9base runs nothing, mini-mk (like principia's mk) runs `gen`.
     Kept as decided; the cases that would be affected run with `-i`.
   - **omk agrees with 9base on 2 of the 32 cases**, after stripping its
-    `|recipe|` markers and colours (`differential.sh live`); TinyMk on
+    `|recipe|` markers and colours (`differential.sh live`); mini-mk on
     30, and the other two are the documented differences. Most of omk's
     disagreements are messages and its parallel default, some are
     semantics (it rejects `$X.o` on a list, has no `:P:` -- `prog.mk`
@@ -613,13 +613,13 @@ planned, 2,879 for omk and 5,980 for mk's C.
     `:P:`, `<|`, `-w`, `-u`, UTF-8) and 9base's messages. A compaction
     pass is due before the milestone's count.
 
-- **2026-09-23, phase 5 DONE: TinyMk builds its twin, and all of xix.**
-  In a copy of xix, `tinymk MK=tinymk depend` then `tinymk MK=tinymk
+- **2026-09-23, phase 5 DONE: mini-mk builds its twin, and all of xix.**
+  In a copy of xix, `mini-mk MK=mini-mk depend` then `mini-mk MK=mini-mk
   all`, with `MKSHELL=rc` as xix's `env.sh` sets it: the 17 directories
   of xix's `DIRS`, from `caps/` to `utilities/files/`, in 18 s (153
   compilations shown for the first 7 directories; exit 0), and "is up
   to date" for every directory already built when run again. Then the
-  omk and orc that TinyMk built rebuilt a fresh copy of xix from
+  omk and orc that mini-mk built rebuilt a fresh copy of xix from
   scratch (22 s, exit 0), and the two builds left the same 476 files
   (`.cm[oixa]`, and omk, orc, o5c, o5a, o5l, olex, oyacc). The numbers
   and the one bug the milestone found:
@@ -627,15 +627,15 @@ planned, 2,879 for omk and 5,980 for mk's C.
     `generators/lex/`: `SYSLIBS=` exported as `SYSLIBS=`, which
     Debian's rc (plan9port's) reads as one empty word, so `ocamlc
     $SYSLIBS` got an empty argument. 9base's mk does the same (checked:
-    `$#E` is 1), so TinyMk was "equivalent" and still wrong; omk skips
+    `$#E` is 1), so mini-mk was "equivalent" and still wrong; omk skips
     empty variables, with a comment saying the author met this with
     plan9port's mk too. Now an empty list is not exported to rc -- which
     is also what an empty `/env` file means on Plan 9 -- and `empty_rc`
     is the third documented difference in the corpus.
   - **`-n` over every directory with a mkfile**, 9base (`-i`) against
-    TinyMk, stdout and exit status compared exactly: **xix, 68 of 73
+    mini-mk, stdout and exit status compared exactly: **xix, 68 of 73
     identical** in a nuked tree, the other 5 because 9base rejects
-    `:I:` (omk's interactive attribute, which principia's mk and TinyMk
+    `:I:` (omk's interactive attribute, which principia's mk and mini-mk
     accept); **principia, 277 of 306 identical**, 21 more because of
     `:I:` (in `docs/latex/mkcommon`), and 8 because of whole seconds:
     `-e` shows 9base finding `a(t) < b(t)` with equal `t` in each, and
@@ -662,7 +662,7 @@ planned, 2,879 for omk and 5,980 for mk's C.
   against 1: the only `:R:` left is in a comment. The decisions stand: none depended on the difference.
 - **2026-09-23, phase 6 DONE, but for pretending.** `:R:` (with `re`'s
   POSIX parser; principia's refactored `graph.c` loses the arcs of a
-  regexp rule, 9base's does not, and TinyMk follows 9base), archives
+  regexp rule, 9base's does not, and mini-mk follows 9base), archives
   (`Archive`, 70 lines: member dates from the `ar` headers, archive.c's
   two corrections, `-t` rewriting a date in place, `$newmember`),
   `-u` (identical to 9base's on the case tried). **Pretending is left
@@ -700,7 +700,7 @@ planned, 2,879 for omk and 5,980 for mk's C.
   second failed run was the author of these lines truncating
   `Common.ml` with a `git show` of a submodule's file; restored.)
 - **`-n` over xix's 73 directories**, three runs averaged: 1.94 s for
-  TinyMk, 1.56 s for 9base's mk, 11.35 s for omk.
+  mini-mk, 1.56 s for 9base's mk, 11.35 s for omk.
 
 - **2026-09-23, phase 8 DONE: the documents checked against the code.**
   The tutorial was written ahead of the code, as its specification;
@@ -708,9 +708,9 @@ planned, 2,879 for omk and 5,980 for mk's C.
   - it promised a cycle's whole path, `a -> b -> a`; the code prints
     mk's "cycle in graph detected at target a", because the
     differential tests wanted mk's words;
-  - it said TinyMk would print recipes unexpanded, "at least never
+  - it said mini-mk would print recipes unexpanded, "at least never
     wrong", and that the tests would compare the commands run; in fact
-    TinyMk prints them exactly as 9base does, `}`-swallowing included,
+    mini-mk prints them exactly as 9base does, `}`-swallowing included,
     and the tests compare the printed lines, which is simpler and
     stricter;
   - it left the export of lists to rc "to be checked"; checking found
@@ -734,18 +734,18 @@ planned, 2,879 for omk and 5,980 for mk's C.
   (the author: "removing the constraint of being compatible with mk ...
   express concisely dependencies and maintain them efficiently", as
   principia's `builders/Intro.nw` puts it, in a single file, shorter
-  than TinyMk). 404 lines, 261 of code, against TinyMk's 1,398: five
+  than mini-mk). 404 lines, 261 of code, against mini-mk's 1,398: five
   kinds of lines (comments, `X = words`, `targets: prereqs` with blank-
   indented recipes, `%` patterns, `<file`), no attributes, recipes run
   by `sh -e -c` with `$target`, `$prereq`, `$stem` in the environment;
   up to date by content (the stamps of `-H`, now the only rebuilder,
-  in one `.tinybuild`); and one topological pass with `-j N`, a node
+  in one `.tiny-build`); and one topological pass with `-j N`, a node
   decided when it becomes ready -- the plan-then-run design that
   decision 4 rejected for mk, right once the stamp replaces mk's
   re-stat. Checks before running: cycles (with their path), ambiguous
   patterns, unknown targets, a pattern at most once per path. 18
   scenarios in `tiny/TinyBuildSystem_test.sh`, in `make test`; and a 13-line
-  Buildfile builds TinyMk itself from `ocamldep`'s output, with `-j 4`
+  Buildfile builds mini-mk itself from `ocamldep`'s output, with `-j 4`
   in 1.1 s, where a comment added to `Recipe.ml` recompiles it and
   relinks nothing, its object being identical.
 
@@ -757,10 +757,10 @@ planned, 2,879 for omk and 5,980 for mk's C.
   the corpus, live, against both; `builder/tests/tree_differential.sh`
   on a copy of xix or principia: the agreement count, directory by
   directory.
-- By hand, and then scripted: omk built by TinyMk, passing xix's
+- By hand, and then scripted: omk built by mini-mk, passing xix's
   tests.
 - Numbers, in this document: lines per module against the twins;
-  agreement counts; the time `tinymk -n` takes on all of xix against
+  agreement counts; the time `mini-mk -n` takes on all of xix against
   mk's and omk's.
 
 ## Out of scope
@@ -780,4 +780,4 @@ planned, 2,879 for omk and 5,980 for mk's C.
 
 In [`notes_mk_related_work.md`](../related-work/notes_mk_related_work.md):
 Make's history, mk and its descendants, the modern systems, the
-teaching lineage, what OCaml has, and TinyMk's ceiling.
+teaching lineage, what OCaml has, and mini-mk's ceiling.

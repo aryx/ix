@@ -1,4 +1,4 @@
-# Plan: TinyArm, an ARM emulator for user programs, arm32 and arm64 (`machine/`)
+# Plan: mini-5i, an ARM emulator for user programs, arm32 and arm64 (`machine/`)
 
 Companions: [`notes_arm.md`](../tutorials/notes_arm.md), the tutorial
 (fetch, decode, execute; ARM's and AArch64's encodings, flags and
@@ -36,14 +36,14 @@ system for something (a system call), the emulator asks the host's.
 Why now, and why this way:
 
 - **ix's toolchain makes ARM programs; nothing of ix runs them yet.**
-  tinycc, tinyasm and tinyld produce arm and arm64 Linux executables,
+  mini-cc, mini-asm and mini-ld produce arm and arm64 Linux executables,
   byte for byte goken's; so far Linux runs them. An emulator closes the
   loop, and is the base of the kernel and debugger books.
 - **The oracle is the hardware itself.** This machine's CPU (a
   Neoverse-N1) runs AArch32 at user level and the kernel has
   `CONFIG_COMPAT`: goken's arm32 `hello.exe` prints its line natively,
   as it does under `qemu-arm` (checked, 2026-09-24). So a program can
-  be run three ways -- on the CPU, under qemu-user, under TinyArm --
+  be run three ways -- on the CPU, under qemu-user, under mini-5i --
   its output, exit status and system calls (`strace`) compared; and
   qemu logs the registers after each instruction, which finds the
   first one that diverges.
@@ -70,7 +70,7 @@ Those of [`../README.md`](../README.md), and three of its own:
   (a program's output, exit status and system calls: `strace` on the
   native run); qemu-user for state (the registers after each
   instruction, `-d cpu -one-insn-per-tb`); binutils' objdump for the
-  decoder (every word of the census decoded by TinyArm's disassembler
+  decoder (every word of the census decoded by mini-5i's disassembler
   and by objdump, the same instruction). 5i is the twin for structure
   and the book, not for behaviour (it has no V flag, no ADC/SBC, and
   Plan 9's system calls).
@@ -86,26 +86,26 @@ Those of [`../README.md`](../README.md), and three of its own:
 - **Hardware as fuzzing oracle.** Beyond the corpus, random instruction
   sequences of the forms the census found (data processing with every
   shifter form and flag, loads and stores with every addressing mode)
-  are assembled by tinyasm into a harness, run natively and under
-  TinyArm, and the registers and flags compared.
+  are assembled by mini-asm into a harness, run natively and under
+  mini-5i, and the registers and flags compared.
 
 ## The interface
 
 ```
-tinyarm [-t] [-s] program.exe [args...]      arm32 or arm64, by the ELF header
+mini-5i [-t] [-s] program.exe [args...]      arm32 or arm64, by the ELF header
   -t   trace: each instruction, disassembled, and the registers it wrote
   -s   statistics: instructions run, by kind; MIPS
-tinyarm -d program.exe                       the disassembly (checked against objdump)
+mini-5i -d program.exe                       the disassembly (checked against objdump)
 ```
 
-The program's standard input, output and error are TinyArm's; its
-exit status is TinyArm's. A debugger (5i's `:b`, `:s`, `$r`) is the
+The program's standard input, output and error are mini-5i's; its
+exit status is mini-5i's. A debugger (5i's `:b`, `:s`, `$r`) is the
 Debuggers book's; the `-t` trace is what the tests need now.
 
 ## Target layout
 
 ```
-machine/                     library ix_machine; the tinyarm executable
+machine/                     library ix_machine; the mini-5i executable
   Bits.ml(i)                 fields, sign extension, rotations, 32/64-bit
                              arithmetic with carry and overflow
   Memory.ml(i)               the address space: segments of Bytes, a
@@ -137,7 +137,7 @@ they are other books').
 
 5i decodes into an index into a table of handler functions
 (`arm_class` then `itab[]`), and each handler re-extracts its fields
-from the word. TinyArm decodes a word once into a value that says what
+from the word. mini-5i decodes a word once into a value that says what
 it is:
 
 ```ocaml
@@ -161,7 +161,7 @@ against objdump on every word the corpus runs.
 5i keeps the last comparison's operands and recomputes a condition
 from them (a lazy scheme with no V flag and a partial carry); it is
 enough for 5c's code and wrong for ADC, SBC and overflow conditions,
-and the Pi's kernel reads and writes the CPSR. TinyArm's state has N,
+and the Pi's kernel reads and writes the CPSR. mini-5i's state has N,
 Z, C, V as they are, computed by each flag-setting instruction, so the
 state is the architecture's and comparable with qemu's after every
 instruction.
@@ -184,7 +184,7 @@ unsigned comparison, never as `a + b > 0xffffffff`), and tested under
 both; the cores use no C stubs, and `Unix` only at the edges (`Linux`,
 the CLI).
 
-TinyRaspberryPi constrains this from the start (plan_pi.md, decision
+mini-qemu constrains this from the start (plan_pi.md, decision
 2): xv6's arm-pi3 enters AArch64 and drops to AArch32 on the same core,
 whose 32-bit registers are the low halves of x0-x14. So the two cores
 share one register file (the 64-bit one), the AArch32 core reading and
@@ -236,7 +236,7 @@ calls (and the capabilities). What needs care:
 
 Principle 8's simple version: fetch through the decode cache, one
 `match` on the instruction, the condition first. The target is 30
-MIPS on the corpus and on a CPU-bound benchmark (tinycc compiling
+MIPS on the corpus and on a CPU-bound benchmark (mini-cc compiling
 itself would do), measured against qemu-arm (translation to host code)
 and goken's 5i (an interpreter). Only if the target is missed: flags
 as ints, unchecked access within a segment, specialized closures per
@@ -246,11 +246,11 @@ exercises otherwise).
 
 ### 8. arm32 floating point: FPA, later, checked against arm64
 
-5c's floating point is assembled by 5l, and by tinyld, as **FPA**
+5c's floating point is assembled by 5l, and by mini-ld, as **FPA**
 instructions (the old ARM floating-point coprocessor), which Plan 9's
 kernel emulates in software; no Linux, qemu-arm or Raspberry Pi runs
 them (plan_asm.md: "encoded, not run"). The corpus runs none. If a
-program needs them (phase 7), TinyArm emulates FPA with host doubles,
+program needs them (phase 7), mini-5i emulates FPA with host doubles,
 checked by running the same C compiled for arm64 natively (VFP there:
 the same IEEE doubles, the same output).
 
@@ -271,10 +271,10 @@ the same IEEE doubles, the same output).
    the few differences, e.g. `push` for `stmdb sp!`).
 2. **Memory, Elf, the loop, Arm32's execution, write and exit.**
    `hello.exe` runs. Checked: its output and exit status, native and
-   TinyArm.
+   mini-5i.
 3. **Linux's system calls for the corpus.** All 34 arm32 programs (and
    ix's `t/` builds): output, exit status and the sequence of system
-   calls (TinyArm's `-t` log of them against strace) identical.
+   calls (mini-5i's `-t` log of them against strace) identical.
 4. **The random harness**: random instruction blocks against the
    CPU. (Planned also: the registers after each instruction against
    qemu-arm's `-d cpu` log; dropped, see Status.)
@@ -300,12 +300,12 @@ one file, so that a program is written, assembled and run in it; or an
 emulator of a toy load-store machine of our own design, 16 registers,
 fixed 32-bit encoding, as a teaching machine (MIX's and MMIX's road).
 Checked by its laws: an assembled program runs to its expected
-result; the same program on TinyArm (machine/) gives the same output.
+result; the same program on mini-5i (machine/) gives the same output.
 
 ## Verification
 
 `make test` runs the decoder check on the census, the corpus
-differential (native, qemu, TinyArm), and a short random harness;
+differential (native, qemu, mini-5i), and a short random harness;
 `make test-goken` rebuilds the corpus from goken.
 
 ## Status
@@ -331,10 +331,10 @@ unsigned test written as `<= 0xff`: hence `Bits.ule32`.
 **Phases 2 and 3 done for arm32** (2026-09-24): `Memory`, `Elf`,
 `Arm32`'s execution, `Cpu`'s loop with its decode cache, `Linux` (the
 process, 30 system calls, signals, fork, exec) behind a host record,
-`Host` on Unix, `tinyarm [-t] [-s] [-y]`. All 34 programs of the arm32
+`Host` on Unix, `mini-5i [-t] [-s] [-y]`. All 34 programs of the arm32
 corpus (goken's and ix's links of the 17 hello_libc tests) run with
 the same standard output, exit status and **system-call sequence**
-(`strace` on the native run, TinyArm's `-y`) as on this machine's CPU
+(`strace` on the native run, mini-5i's `-y`) as on this machine's CPU
 (`machine/tests/corpus.py`).
 
 What the runs found: the kernel maps an ELF's segments by whole pages,
@@ -344,14 +344,14 @@ at or above the request as success, and Linux's randomized heap answers
 far above) -- found by reading the native process's `/proc/PID/maps`
 under a delayed `exit`; `openat` relative to a directory descriptor
 (`dirread`); goken's arm signal handlers have no restorer, so a handler
-returns through the kernel's sigpage: TinyArm maps a trampoline
+returns through the kernel's sigpage: mini-5i maps a trampoline
 (`mov r7, #119; svc 0`) and builds its own frame.
 **Phase 4 done** (2026-09-24), in a different shape than planned:
 `machine/tests/random_blocks.py` writes random blocks of arm32
 instructions, each into its own static ELF (a prologue loading random
 registers and flags, the block, an epilogue writing all registers, the
 flags and a 512-byte buffer to stdout). It runs each ELF on the CPU
-and under TinyArm, and on a difference bisects to the first differing
+and under mini-5i, and on a difference bisects to the first differing
 instruction. It covers every data processing form (immediate, rotated
 immediate, shift by immediate and by register, RRX), all conditions,
 the multiplies, `clz`, `mrs`/`msr`, and word, byte, halfword, signed
@@ -367,7 +367,7 @@ right instruction.
 
 The qemu-arm per-instruction log was not built: the CPU itself is the
 stronger oracle, and qemu places the stack, auxv and heap elsewhere,
-so its registers differ from TinyArm's at the first stack address.
+so its registers differ from mini-5i's at the first stack address.
 `qemu-arm -d cpu -one-insn-per-tb` remains the tool to trace a
 divergence the corpus finds.
 
@@ -375,13 +375,13 @@ What it found: nothing wrong in the execution; for the decoder, `mrs`
 and `msr` (added, the harness needing them to set and read the flags).
 And the CPSR's other bits belong to the machine: this ARMv8 core's
 AArch32 `mrs` returns the flags plus SSBS (bit 23), with the mode bits
-0. TinyArm returns the flags plus `usr` (0x10), as an ARMv6 or ARMv7
+0. mini-5i returns the flags plus `usr` (0x10), as an ARMv6 or ARMv7
 does; the harness compares the flags only.
 
 **Phase 5 done** (2026-09-24): `Arm64`, decode, print and execute;
 `Linux.syscall64` (asm-generic's numbers: the `*at` calls, `clone` as
 fork, a 128-byte `struct stat`, 64-bit timespecs and vectors, its own
-signal frame and trampoline); `Cpu.run64`; `tinyarm` runs either.
+signal frame and trampoline); `Cpu.run64`; `mini-5i` runs either.
 Checked:
 
 - the decoder (`decode_check.py -64`): the 2,218 words of the corpus,
@@ -402,10 +402,10 @@ What they found: `csneg` decoded as `csinv`, the move to sp's `mov`
 alias (`movz` cannot write sp, so objdump keeps `mov` whatever the
 value), `adrp`'s offset too large for js_of_ocaml's ints (kept in
 pages), and `adr` to a negative address, which wraps in 64 bits
-(TinyArm zero-extended it). And the corpus harness now runs the native
+(mini-5i zero-extended it). And the corpus harness now runs the native
 programs under `setarch -R`: goken's `brk` takes any answer at or
 above its request as success, and Linux's randomized heap made arm64
-`mem.exe` use memory it never got (a native segfault; TinyArm, whose
+`mem.exe` use memory it never got (a native segfault; mini-5i, whose
 layout is fixed, ran it).
 
 Decision 3, measured (`machine/tests/bench64.py`, a 7-instruction
@@ -419,14 +419,14 @@ the 30 target: phase 6.
 
 **Phase 6 done** (2026-09-24): over 30 MIPS on both, measured by
 `machine/tests/bench.py 5|7` (a loop of 7 instructions, 140 million
-run; TinyArm's checksum equal to the CPU's), in dune's release profile:
+run; mini-5i's checksum equal to the CPU's), in dune's release profile:
 
 | | arm32 | arm64 |
 |---|---|---|
-| TinyArm, before phase 6 (dev profile) | 18.5 | 20.9 |
+| mini-5i, before phase 6 (dev profile) | 18.5 | 20.9 |
 | the same code, release profile | 24.8 | 29.2 |
-| TinyArm now, release profile | **36.0** | **34.5** |
-| TinyArm now, dev profile | 22.8 | 27.1 |
+| mini-5i now, release profile | **36.0** | **34.5** |
+| mini-5i now, dev profile | 22.8 | 27.1 |
 | goken's 5i (`bench_plan9_arm.s`, its default build) | 6 | -- |
 | qemu-user (translation to host code) | 1,100 | 1,035 |
 | the CPU (Neoverse-N1) | ~5,000 | ~3,600 |
@@ -464,13 +464,13 @@ Directories read as 9P stat records; notes are delivered as
 principia's kernel does (a Ureg and the note on the stack, the
 `notify` handler called, `noted(NCONT)` putting the Ureg back, a note
 no one handles killing); a child's exit string reaches its parent's
-`await` through a pipe `rfork` makes. `tinyarm` tells an a.out from an
+`await` through a pipe `rfork` makes. `mini-5i` tells an a.out from an
 ELF by its magic.
 
 The corpus: goken's 17 `hello_libc` programs, built with `GOOS=plan9`
-(`linker/tests/libc.sh`, now `H=-H2`: goken's 5l and ix's tinyld write
+(`linker/tests/libc.sh`, now `H=-H2`: goken's 5l and ix's mini-ld write
 all 17 byte for byte the same). Checked by `machine/tests/plan9.py`:
-each run under TinyArm, under 5i, and as the same C program's Linux
+each run under mini-5i, under 5i, and as the same C program's Linux
 build on the CPU (the tests print the same lines everywhere). **17 of
 17 as expected**:
 
@@ -485,14 +485,14 @@ build on the CPU (the tests print the same lines everywhere). **17 of
   `_exits`): a goken libc bug;
 - `dirread` by its own checks: **its Linux build fails natively**, arm32
   and arm64, creating directories with garbage names (`mkdir("\7")`,
-  strace) -- a goken bug that `corpus.py` counted as agreement, TinyArm
+  strace) -- a goken bug that `corpus.py` counted as agreement, mini-5i
   reproducing the native failure faithfully.
 
-5i agrees with TinyArm on 10 of the 17; the other 7 need system calls
+5i agrees with mini-5i on 10 of the 17; the other 7 need system calls
 5i lacks (`alarm`, `rfork`, `fstat`) or files it does not provide
 (`#c/pid`, `/env`, `/proc/PID/note`).
 
-**Phase 9a done** (2026-09-24): `tiny/TinyArm.ml` (`tinyarmasm`, 760
+**Phase 9a done** (2026-09-24): `tiny/TinyArm.ml` (`tiny-arm`, 760
 lines), a computer in one file: an assembler for an arm32 subset in
 GNU as's syntax (data processing with every operand form and the
 shift aliases, conditions and `s` everywhere, mul and mla, word and
@@ -507,7 +507,7 @@ Checked by `tiny/TinyArm_test.sh` against the real tools:
   standard input, a checksum over the other forms) assemble to GNU as's
   text section byte for byte; their listing, each word decoded back,
   is objdump's text; each runs the same here, on the CPU (the ELF
-  written) and under machine/'s `tinyarm`, output and status;
+  written) and under machine/'s `mini-5i`, output and status;
 - random lines of the subset's syntax (3,000 in `make test`; 120,000
   over several seeds tried): GNU as's bytes, objdump's text.
 
@@ -518,7 +518,7 @@ mvn when the value fits one, the pool deduplicated, after everything;
 a single-register push or pop as a str or ldr, but for `push {sp}`
 (whose store would write back the register it stores), kept a block.
 
-**Phase 9b done** (2026-09-25): `tiny/TinyMachine.ml` (`tinymachine`,
+**Phase 9b done** (2026-09-25): `tiny/TinyMachine.ml` (`tiny-machine`,
 590 lines), a machine of our own for teaching (MIX's and MMIX's road):
 16 registers of 32 bits, r0 zero, 2^20 bytes of memory taken modulo
 its size, no flags (a branch compares two registers; slt), one 32-bit
@@ -537,7 +537,7 @@ Checked by `tiny/TinyMachine_test.sh`: seven programs
 (`TinyMachine_tests/`: hello, fib, recursive factorials, a sieve, an
 insertion sort, upper-casing standard input, calls through a table)
 print their `.expected` (computed by Python), and their translations
-print and exit the same on the CPU and under machine/'s `tinyarm`; 200
+print and exit the same on the CPU and under machine/'s `mini-5i`; 200
 random programs in `make test` (3,000 tried), straight lines of every
 instruction with branches and jal over one, their registers dumped:
 interpreted and translated, the same bytes. The random programs catch

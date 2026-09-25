@@ -13,7 +13,7 @@
 #  - random sessions: statements drawn at random (inserts, some with a
 #    duplicate key, deletes, sets, queries with where, select, join,
 #    group, sort, take), each written in the pipeline language for
-#    tinydatabase and in SQL for SQLite, the rows compared (as sets,
+#    tiny-db and in SQL for SQLite, the rows compared (as sets,
 #    unless the query sorts), and each session's tables at the end;
 #    enough rows in some for trees of three levels, an index on some;
 #  - persistence: each statement run by a new process on the same file;
@@ -151,7 +151,7 @@ def session(n):
     stmts.append(("t", "select * from t", False, False))
     for s in stmts:
         # SQLite: the reference; an error (a duplicate key, an index that
-        # exists) must be one in tinydatabase too, and change nothing
+        # exists) must be one in tiny-db too, and change nothing
         try:
             cur = db.execute(s[1])
             want, err = sql_rows(cur), False

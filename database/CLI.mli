@@ -1,4 +1,4 @@
-(* tinydb [-c COMMAND] [-v] [-h] [DATABASE]: chidb's command line.
+(* mini-chidb [-c COMMAND] [-v] [-h] [DATABASE]: chidb's command line.
  *
  * With -c, the one command, and done; otherwise the prompt chidb> and
  * a line at a time until the end of the input, the prompt printed even

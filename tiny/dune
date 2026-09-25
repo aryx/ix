@@ -1,61 +1,61 @@
 (executable
  (name TinyBuildSystem)
- (public_name tinybuild)
+ (public_name tiny-build)
  (package ix)
  (modules TinyBuildSystem)
  (libraries ix_core fpath unix caps))
 
 (executable
  (name TinyShell)
- (public_name tinyshell)
+ (public_name tiny-shell)
  (package ix)
  (modules TinyShell)
  (libraries ix_core fpath unix caps))
 
 (executable
  (name TinyEditor)
- (public_name tinyeditor)
+ (public_name tiny-editor)
  (package ix)
  (modules TinyEditor)
  (libraries unix))
 
 (executable
  (name TinyAssembler)
- (public_name tinyassembler)
+ (public_name tiny-assembler)
  (package ix)
  (modules TinyAssembler)
  (libraries ix_core fpath caps))
 
 (executable
  (name TinyC)
- (public_name tinyc)
+ (public_name tiny-c)
  (package ix)
  (modules TinyC))
 
 (executable
  (name TinyDatabase)
- (public_name tinydatabase)
+ (public_name tiny-db)
  (package ix)
  (modules TinyDatabase)
  (libraries unix caps))
 
 (executable
  (name TinyVCS)
- (public_name tinyvcs)
+ (public_name tiny-vcs)
  (package ix)
  (modules TinyVCS)
  (libraries ix_core unix caps ix_security ix_compression))
 
 (executable
  (name TinyArm)
- (public_name tinyarmasm)
+ (public_name tiny-arm)
  (package ix)
  (modules TinyArm)
  (libraries ix_core fpath caps))
 
 (executable
  (name TinyMachine)
- (public_name tinymachine)
+ (public_name tiny-machine)
  (package ix)
  (modules TinyMachine)
  (libraries ix_core fpath caps))

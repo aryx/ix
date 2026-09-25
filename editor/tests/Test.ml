@@ -9,11 +9,11 @@
  *)
 (* The test suite of editor/: the .mli examples (Unit_ed), the corpus
  * against the outputs recorded from 9base's ed (differential.sh check,
- * one test per case), and the laws, on tinyed run as a program. From
+ * one test per case), and the laws, on mini-ed run as a program. From
  * the root: make test. *)
 
 let corpus_dir = "editor/tests/corpus"
-let tinyed = "./_build/default/editor/Main.exe"
+let mini_ed = "./_build/default/editor/Main.exe"
 
 let corpus () =
   Sys.readdir corpus_dir |> Array.to_list
@@ -25,18 +25,18 @@ let corpus () =
       Testo.Promise.return ()))
 
 (* Filename.temp_dir is OCaml 5.1's *)
-let temp_dir () = let d = Filename.temp_file "tinyed" "" in Sys.remove d; Sys.mkdir d 0o700; d
+let temp_dir () = let d = Filename.temp_file "mini-ed" "" in Sys.remove d; Sys.mkdir d 0o700; d
 
 let write file s = Out_channel.with_open_bin file (fun oc -> output_string oc s)
 let read file = In_channel.with_open_bin file In_channel.input_all
 
-(* [edit text script]: the file after tinyed ran script on it *)
+(* [edit text script]: the file after mini-ed ran script on it *)
 let edit text script =
   let dir = temp_dir () in
   let f = Filename.concat dir "f" and s = Filename.concat dir "s" in
   write f text;
   write s script;
-  ignore (Sys.command (Printf.sprintf "%s - %s < %s > /dev/null 2>&1" tinyed f s));
+  ignore (Sys.command (Printf.sprintf "%s - %s < %s > /dev/null 2>&1" mini_ed f s));
   let r = read f in
   ignore (Sys.command ("rm -rf " ^ Filename.quote dir));
   r
@@ -69,7 +69,7 @@ let laws = [
       let f = Filename.concat dir "f" in
       write f a;
       let run cmd = let ic = Unix.open_process_in cmd in let s = In_channel.input_all ic in ignore (Unix.close_process_in ic); s in
-      let ours = run (Printf.sprintf "printf 'g/%s/p\\nq\\n' | %s - %s" re tinyed f) in
+      let ours = run (Printf.sprintf "printf 'g/%s/p\\nq\\n' | %s - %s" re mini_ed f) in
       let grep = run (Printf.sprintf "grep -E '%s' %s" re f) in
       str re grep ours;
       ignore (Sys.command ("rm -rf " ^ Filename.quote dir))) texts) [ "o"; "^t"; "e$"; "[a-c]"; "x|y"; "(on)+" ]);

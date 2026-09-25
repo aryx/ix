@@ -8,7 +8,7 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny shell, in one file: pipes, redirections, variables and basic
- * control flow. TinyRc (shell/) is rc, faithfully; this is what is left
+ * control flow. mini-rc (shell/) is rc, faithfully; this is what is left
  * when compatibility is dropped, written after it, from what it taught.
  * The language is rc's, cut down:
  *
@@ -44,7 +44,7 @@
  * - {b $status is a string}: "" for success, the exit code, or the
  *   signal; a pipe's is its stages' joined by |.
  *
- * What is dropped, each a few lines of TinyRc, and none needed by the
+ * What is dropped, each a few lines of mini-rc, and none needed by the
  * recipes of xix's mkfiles (this shell's test, below): switch and if
  * not, here documents, a list joined into one word and subscripts,
  * `sep{} and <{}, `{} inside a word, eval and ., the builtins but cd
@@ -53,11 +53,11 @@
  * Exercises, roughly in that order.
  *
  * The tests: test.sh runs scripts of this subset through it and
- * through 9base's rc, which must print the same; and TinyMk builds
+ * through 9base's rc, which must print the same; and mini-mk builds
  * all of xix with it as its shell (MKSHELL, through a link named rc,
- * so that TinyMk exports lists the way rc wants them, joined by \001).
+ * so that mini-mk exports lists the way rc wants them, joined by \001).
  *
- * Usage: tinyshell [-e] [-c cmd | file] [arg ...]   (-e: a command that
+ * Usage: tiny-shell [-e] [-c cmd | file] [arg ...]   (-e: a command that
  * fails, not in a condition, ends the shell; -I and -i are accepted)
  *
  * References: Tom Duff, "Rc -- The Plan 9 Shell" (1990), for the
@@ -403,7 +403,7 @@ let describe = function
 
 let wait caps pid = describe (Procs.waitpid caps pid)
 
-let die m = prerr_endline ("tinyshell: " ^ m); "error"
+let die m = prerr_endline ("tiny-shell: " ^ m); "error"
 
 (* f in a child, which exits with the status it leaves *)
 let fork (caps : < Cap.fork; .. >) (f : unit -> unit) : int =
@@ -613,4 +613,4 @@ let main (caps : Cap.all_caps) : int =
   flush_all ();
   code st
 
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"tinyshell"; CapStdlib.exit caps (main caps))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"tiny-shell"; CapStdlib.exit caps (main caps))

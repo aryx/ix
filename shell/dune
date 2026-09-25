@@ -5,7 +5,7 @@
 
 (executable
  (name Main)
- (public_name tinyrc)
+ (public_name mini-rc)
  (package ix)
  (modules Main)
  (libraries ix_rc caps))

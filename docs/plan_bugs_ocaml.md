@@ -2,7 +2,7 @@
 
 What ix's tests found in the OCaml compiler and runtime, for the
 author to decide whether to report upstream. Found on 2026-09-24,
-while fuzzing TinyDb (`database/tests/fuzz.py 2 40`, session 39).
+while fuzzing mini-chidb (`database/tests/fuzz.py 2 40`, session 39).
 
 ## arm64: a derived pointer reused across an allocation
 
@@ -54,7 +54,7 @@ with the first, presumably by common subexpression elimination, which
 must not keep a derived pointer live across a point where the GC can
 run.
 
-**How it showed**: TinyDb's `Record.types` read a record's header this
+**How it showed**: mini-chidb's `Record.types` read a record's header this
 way; a scan returned 29 rows where chidb and SQLite return 43, the
 record of the 30th row read as `Invalid_type 244`, though its bytes
 were right, and the same program in bytecode, or run with a debug

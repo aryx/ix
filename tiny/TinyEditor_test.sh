@@ -9,7 +9,7 @@
 # 2 of the License, or (at your option) any later version.
 #
 # The tests of TinyEditor.ml: each script of sam's command language
-# runs on the same file through tinyeditor and through 9base's sam -d,
+# runs on the same file through tiny-editor and through 9base's sam -d,
 # in a fresh directory; what they print (stdout and stderr, the exit
 # status, and the file after) must be the same. 9base's sam prints its
 # numbers with a stray "d" (#4d for #4: plan9port's %lud), taken out.
@@ -35,11 +35,11 @@ run() {
   rm -rf "$dir"
 }
 
-# same NAME SCRIPT: tinyeditor prints what sam -d prints
+# same NAME SCRIPT: tiny-editor prints what sam -d prints
 same() {
   expected=$(run "$SAM" "$2") actual=$(run "$TE" "$2")
   if [ "$expected" = "$actual" ]; then echo "ok   $1"
-  else echo "FAIL $1"; echo "--- sam"; echo "$expected"; echo "--- tinyeditor"; echo "$actual"
+  else echo "FAIL $1"; echo "--- sam"; echo "$expected"; echo "--- tiny-editor"; echo "$actual"
        failures=$((failures + 1)); fi
 }
 

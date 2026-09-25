@@ -1,4 +1,4 @@
-# Plan: TinyCompiler, a C compiler from scratch, for arm and arm64 (`compiler/`)
+# Plan: mini-cc, a C compiler from scratch, for arm and arm64 (`compiler/`)
 
 Companions:
 [`notes_cc.md`](../tutorials/notes_cc.md), the tutorial: from a `.c`
@@ -13,12 +13,12 @@ compilers (Small-C, c4, tcc, chibicc), the intermediate languages
 (occ, in OCaml, unfinished).
 
 The fifth ix program, and the second half of the toolchain: it writes
-the objects that TinyLd links, as 5c writes 5l's. Planned as the
+the objects that mini-ld links, as 5c writes 5l's. Planned as the
 others were; the principles are in [`../README.md`](../README.md).
 The question that opened it (the author): "I wonder if [we] want to
 use an intermediate target like in ~/c--/ instead of getting 5c
 directly target 5a and 7c 7a? Is there a way to factorize the code
-between tinycc targets?" This plan's answer, decision 1: Plan 9's
+between mini-cc targets?" This plan's answer, decision 1: Plan 9's
 assembly is already the intermediate target, and the factoring is one
 code generator with a record per machine.
 
@@ -37,8 +37,8 @@ simple instructions and never knows an address.
 
 Why this program now:
 
-- **Its half of the toolchain is done.** TinyAsm's instruction type is
-  what the compiler will write, and TinyLd links it byte for byte like
+- **Its half of the toolchain is done.** mini-asm's instruction type is
+  what the compiler will write, and mini-ld links it byte for byte like
   5l and 7l (plan_asm.md). The compiler adds no format and no new
   machinery: the same objects, the same linker.
 - **A reference runs today**: goken's 5c and 7c, on this machine, with
@@ -48,7 +48,7 @@ Why this program now:
   peephole (`reg.c` and `peep.c`, 2,700 lines per machine; goken's
   `notes_frontend_optlevels.txt`).
 - **The corpus is there**: goken's libc (all of it, 149 files that
-  TinyAsm and TinyLd already build from `5c -S` and `7c -S`), libbio,
+  mini-asm and mini-ld already build from `5c -S` and `7c -S`), libbio,
   libregexp, libstring, the utilities, and the 17 `hello_libc`
   programs with their expected outputs.
 
@@ -57,8 +57,8 @@ Why this program now:
 Those of [`../README.md`](../README.md), and four of its own:
 
 - **The object is the contract, byte for byte where goken is
-  deterministic.** At `-O0`, the executables that TinyCompiler and
-  TinyLd make from goken's libc and programs must be goken's (`5c -O0`
+  deterministic.** At `-O0`, the executables that mini-cc and
+  mini-ld make from goken's libc and programs must be goken's (`5c -O0`
   and `5l`, `7c -O0` and `7l`); the listings (`-S`) must be the same
   instruction for instruction. What goken does at `-O2` (registers,
   peephole) is a later phase, or an exercise.
@@ -85,7 +85,7 @@ Three ways to have two targets:
                                             (BURG), dataflow, register allocation,
                                             calling conventions as machine descriptions
 
-   this plan:        front end --> one code generator --> TinyAsm's instructions --> TinyLd
+   this plan:        front end --> one code generator --> mini-asm's instructions --> mini-ld
                                       |  record: Arm64 or Arm (widths, opcodes,
                                       |  conversions, calls, 64-bit on arm)
 ```
@@ -98,7 +98,7 @@ optimizations. Its cost is its generality: for one target,
 (`middle/` 6,755, `backend/` 3,868, `rtl/` 2,060); its arm target is
 listed as not compiling (`arch/status.txt`). That is three times this
 whole compiler's budget, for what ix doesn't need (many machines,
-optimizations), and the IR would need a backend that TinyLd already
+optimizations), and the IR would need a backend that mini-ld already
 is.
 
 **Plan 9's assembly is already an intermediate language.** One syntax
@@ -164,7 +164,7 @@ exact.
 | function pointers | 68 | yes |
 | varargs (`...`), with Plan 9's `va_arg` macros | 57 | yes |
 | `vlong` `uvlong` (Plan 9's 64-bit, `long long` in `u.h`) | 752, 115 | yes: native on arm64, calls to libc's `_addv`... on arm (5c's `com64`) |
-| `double` `float`, float literals | 213, 14, 338 | yes (FPA on arm: encoded, not run, as TinyLd) |
+| `double` `float`, float literals | 213, 14, 338 | yes (FPA on arm: encoded, not run, as mini-ld) |
 | `static` `extern` `register` `volatile` `const` | 595, 237, 2, 1, 43 | yes (`register`, `volatile`, `const` read and ignored, as 5c at `-O0`) |
 | bitfields | 0 | no |
 | designated initializers, compound literals | 0 | no |
@@ -175,7 +175,7 @@ exact.
 | `#line` (in generated files) | 333 | yes |
 
 So: C89 with Plan 9's types, a preprocessor without `#if`, no
-bitfields. What 5c's front end has beyond it and TinyCompiler leaves
+bitfields. What 5c's front end has beyond it and mini-cc leaves
 out: acid and pickle output (`-a`, the debugger's type info), format
 checking (`dpchk.c`), kencc's struct operators (`funct.c`), profiling.
 
@@ -196,7 +196,7 @@ The compiler's modules (target lines in "How to be smaller"):
              conditions, structures, statements, switches          pgen.c, swt.c)
    Arm64     the record: widths, registers, opcodes, conversions,  (txt.c, gc.h)
    Arm       calls, what is native and what a call
-   Obj       the objects, TinyAsm's; -S the same as text          (swt.c's outcode)
+   Obj       the objects, mini-asm's; -S the same as text          (swt.c's outcode)
 ```
 
 `Gen` asks the record for everything the machine decides, and nothing
@@ -209,12 +209,12 @@ differ. The risk: where 5c's and 7c's code generators differ by choice
 rather than by machine, the record grows functions; the first phase
 measures that before the second machine.
 
-### 2. The objects are TinyAsm's; `-S` prints what TinyAsm reads
+### 2. The objects are mini-asm's; `-S` prints what mini-asm reads
 
-The compiler writes `Asm.obj`, the instructions TinyAsm would have
-written, so TinyLd links them unchanged, and `-S` prints them in Plan 9's
-syntax. The law: `tinycc -S f.c | tinyasm` makes the same object as
-`tinycc f.c`, byte for byte. This is Plan 9's design (5c writes 5l's
+The compiler writes `Asm.obj`, the instructions mini-asm would have
+written, so mini-ld links them unchanged, and `-S` prints them in Plan 9's
+syntax. The law: `mini-cc -S f.c | mini-asm` makes the same object as
+`mini-cc f.c`, byte for byte. This is Plan 9's design (5c writes 5l's
 objects, and prints 5a's language only when asked), and it is what
 makes the toolchain's first half the compiler's backend.
 
@@ -226,7 +226,7 @@ the part of 5c and 7c that is the design (trees to instructions), and
 drops the part that is tuning (2,700 lines of dataflow and patterns per
 machine). The comparison is on the listings, normalized
 (`compiler/tests/`: the operand spellings of 5c's and 5ck's listings,
-the digits of a float), and on the executables, with TinyLd.
+the digits of a float), and on the executables, with mini-ld.
 
 ### 4. The dialect: Plan 9's C, as 5c at `-O0` reads it
 
@@ -257,15 +257,15 @@ points of the input, which is what makes the typedef names and the
 line numbers come out as cck's. The grammar and its actions: 517
 lines. The lexer stays by hand: C's is one with the preprocessor's
 input stack (a macro's expansion is pushed as input), which ocamllex's
-one buffer does not fit. By hand stays right for TinyAsm (lines of
-operands); for TinyRc's `syn.y`, yacc would have been as short.
+one buffer does not fit. By hand stays right for mini-asm (lines of
+operands); for mini-rc's `syn.y`, yacc would have been as short.
 
 ### 7. Where the code goes, and the names
 
 `compiler/`, xix's name (principia's is `compilers/`). The command is
-`tinycc`, the target a flag (`-m 5` or `-m 7`), with `-S`, `-I`, `-D`,
-`-o`. (`tinycc` is also the common name of Bellard's TCC: the related
-work says so, and the README's "TinyCompiler" stays the program's
+`mini-cc`, the target a flag (`-m 5` or `-m 7`), with `-S`, `-I`, `-D`,
+`-o`. (`mini-cc` is also the common name of Bellard's TCC: the related
+work says so, and the README's "mini-cc" stays the program's
 name.)
 
 ## How to be smaller than goken
@@ -274,9 +274,9 @@ goken's C for the same (normalized: no comments, no blank lines, no
 generated files): the front end about 7,900 lines and its preprocessor
 670; the two back ends without their optimizers 3,639 and 3,921; the
 statements and switches about 600. About **16,700** lines, or 22,100
-with `reg.c` and `peep.c`. Where TinyCompiler saves:
+with `reg.c` and `peep.c`. Where mini-cc saves:
 
-| goken | lines | TinyCompiler | why |
+| goken | lines | mini-cc | why |
 |---|---:|---|---|
 | two back ends, copies of each other | 7,560 | one `Gen`, two records | decision 1 |
 | `reg.c`, `peep.c` per machine | 5,488 | none | `-O0` (decision 3) |
@@ -373,13 +373,13 @@ after the compiler, by what it taught.
 
 ## Tests (what the program is for)
 
-- **The listings**: every function of the corpus, through `tinycc -S`
+- **The listings**: every function of the corpus, through `mini-cc -S`
   and `5c -O0 -S` (or `7c`), normalized; the same instructions.
-- **The objects' law**: `tinycc -S | tinyasm` against `tinycc`.
+- **The objects' law**: `mini-cc -S | mini-asm` against `mini-cc`.
 - **Milestone 1: goken's `tests/c`** (mini, variants, regressions) for
   both machines, the listings the same, and the programs run.
 - **Milestone 2: libc and the programs, through ix only.** goken's libc
-  compiled by TinyCompiler, linked by TinyLd, and the 17 `hello_libc`
+  compiled by mini-cc, linked by mini-ld, and the 17 `hello_libc`
   programs: the executables the same as goken's `-O0` chain, byte for
   byte (but for goken's section table, `elfcmp.py`), and running, on
   both machines.
@@ -399,7 +399,7 @@ after the compiler, by what it taught.
 1. **Front end**: Pre, Lexer, Parser, Tree, Declare, Check, for the whole
    corpus: every file parsed and typechecked (a `-dump` against a
    sample by hand; 5c's errors are not compared).
-   *Done (2026-09-23)*: `compiler/tests/front.sh` compares `tinycc
+   *Done (2026-09-23)*: `compiler/tests/front.sh` compares `mini-cc
    -x` with cck's `-x` (5ck, 7c) over the corpus's 235 files that cck
    compiles here: the same trees on both machines. The front end is
    3,023 lines (non-blank), where 1,800 were planned: the
@@ -412,15 +412,15 @@ after the compiler, by what it taught.
 2. **Gen and arm**: the listings of the corpus against `5c -O0`,
    function by function; milestone 1 for 5; the fuzzer.
    *Done for arm (2026-09-24)*: `compiler/tests/listing.sh 5` compares
-   `tinycc -S` with `5c -O0 -S` over the 235 files of the corpus 5c
-   compiles: all the same, line for line. And `TINYCC=1
+   `mini-cc -S` with `5c -O0 -S` over the 235 files of the corpus 5c
+   compiles: all the same, line for line. And `MINICC=1
    linker/tests/libc.sh 5` builds libc and the 17 hello_libc programs
-   with tinycc and TinyLd: the executables are goken's, byte for byte
+   with mini-cc and mini-ld: the executables are goken's, byte for byte
    (but goken's section-table bug, which also breaks goken's `pipe`),
    and run the same. What it took beyond the port: 5c is linked with
    glibc's qsort (a merge sort), whose ties on addresses reverse equal
    terms in acom; with Plan 9's fmt, whose `%.17e` prints the fewest
-   digits that read back; `#pragma profile`; and TinyLd dropping the
+   digits that read back; `#pragma profile`; and mini-ld dropping the
    NOPs that `-O0` leaves, as 5l's noops. 5c -O0 and 5ck -O0 generate
    the same code (all of libc; only their listings' formats differ).
    The compiler is 5,223 lines with arm (Emit 407, Gen 1,192,
@@ -430,7 +430,7 @@ after the compiler, by what it taught.
    decision 1 (how large the records are, what moved into Gen);
    milestone 1 for 7.
    *Done (2026-09-24)*: `listing.sh 7`, the 235 files the same as
-   `7c -O0`; `TINYCC=1 libc.sh 7`, the 17 programs goken's executables
+   `7c -O0`; `MINICC=1 libc.sh 7`, the 17 programs goken's executables
    byte for byte (but the section table). Decision 1's test: Arm64 is
    318 lines, Arm 302, against Emit 414 and Gen 1,295 shared. What
    moved into Gen was not only instructions: 7c's generator differs
@@ -462,7 +462,7 @@ after the compiler, by what it taught.
    knows no register and no instruction, the back end no C (its 120
    lines are the whole machine), and each is read and tested alone; the
    cost is the code's quality (no Sethi-Ullman order, no addressing
-   modes, a load or a store per variable). TinyCompiler, with no IR and
+   modes, a load or a store per variable). mini-cc, with no IR and
    5c's decisions, is 5,621 lines for two machines and byte-identical
    code; TinyC, 678 lines of code for one machine and correct code.
    Floats are the first to revisit (the author: "float are pretty

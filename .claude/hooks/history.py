@@ -58,8 +58,9 @@ SEPARATOR = "\n" + "-" * 72 + "\n"
 
 SUMMARY_PROMPT = """Below is one exchange from a conversation between \
 Yoann (the user) and Claude (an AI coding assistant) about "ix", a planned \
-series of tiny but real OCaml programs (ARM emulator, kernel, compiler, \
-...) that are tiny twins of Yoann's xix project.
+series of small but real OCaml programs (ARM emulator, kernel, compiler, \
+...): "mini" twins faithful to the Plan 9 originals (mini-mk, mini-rc, ...) \
+and "tiny" free one-file variants (tiny-build, tiny-shell, ...).
 
 Summarize CLAUDE'S ANSWER in AT MOST 5 short lines (roughly 12-18 words \
 each, so five plain sentences, one per line, no line wrapping into a \

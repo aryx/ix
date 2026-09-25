@@ -5,21 +5,21 @@
 
 (executable
  (name Main)
- (public_name tinygit)
+ (public_name mini-git)
  (package ix)
  (modules Main)
  (libraries ix_vcs ix_core caps))
 
 (executable
  (name Diffmain)
- (public_name tinydiff)
+ (public_name mini-diff)
  (package ix)
  (modules Diffmain)
  (libraries ix_vcs caps))
 
 (executable
  (name Merge3main)
- (public_name tinymerge3)
+ (public_name mini-merge3)
  (package ix)
  (modules Merge3main)
  (libraries ix_vcs caps))

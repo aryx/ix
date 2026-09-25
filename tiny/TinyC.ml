@@ -8,12 +8,12 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny C compiler for arm64, in one file, through an intermediate
- * language of its own. TinyCompiler (compiler/) is 5c's and 7c's twin,
+ * language of its own. mini-cc (compiler/) is 5c's and 7c's twin,
  * byte for byte: their front end, their trees, their code generator,
  * and a record per machine. This is what is left when the code need
  * only be correct:
  *
- *     tinyc -o prog.s prog.c && tinyassembler -o prog prog.s libc/*.s
+ *     tiny-c -o prog.s prog.c && tiny-assembler -o prog prog.s libc/*.s
  *
  * one C file in, its arm64 assembly out, in Plan 9's syntax, for
  * TinyAssembler, with 7c's calling convention, so that the program
@@ -871,7 +871,7 @@ let main () =
     | [] -> ()
   in
   args (List.tl (Array.to_list Sys.argv));
-  if !file = "" then (prerr_endline "usage: tinyc [-ir] [-o out.s] file.c"; exit 2);
+  if !file = "" then (prerr_endline "usage: tiny-c [-ir] [-o out.s] file.c"; exit 2);
   let read f = In_channel.with_open_bin f In_channel.input_all in
   try
     toks := Array.of_list (tokens (Hashtbl.create 16) read !file);

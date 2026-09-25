@@ -8,12 +8,12 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# fuzz.py [SEED] [COUNT]: random sessions run by chidb and by tinydb,
+# fuzz.py [SEED] [COUNT]: random sessions run by chidb and by mini-chidb,
 # their stdout, stderr and database files compared. A session: two
 # tables of random integer and text columns, rows enough to split pages
 # and roots, indexes made before or after the rows, and queries of every
 # shape chidb compiles (scans, seeks, ranges, joins, EXPLAIN), with
-# some it refuses. A failing session is kept under /tmp/tinydb-fuzz-SEED-N.
+# some it refuses. A failing session is kept under /tmp/mini-chidb-fuzz-SEED-N.
 import os, random, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -127,7 +127,7 @@ def main():
             shutil.rmtree(w)
         else:
             stats["diff"] += 1
-            keep = f"/tmp/tinydb-fuzz-{seed}-{i}"
+            keep = f"/tmp/mini-chidb-fuzz-{seed}-{i}"
             shutil.rmtree(keep, ignore_errors=True)
             shutil.move(w, keep)
             what = [n for n, a, b in zip(["stdout", "stderr", "file"], c, t) if a != b]

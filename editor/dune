@@ -5,7 +5,7 @@
 
 (executable
  (name Main)
- (public_name tinyed)
+ (public_name mini-ed)
  (package ix)
  (modules Main)
  (libraries ix_ed caps))

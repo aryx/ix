@@ -81,7 +81,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
   args (List.tl (Array.to_list argv));
   let files = List.rev !files in
   match files with
-  | [] -> eprint caps "usage: tinyld -m 5|7 [-H2|-H6|-H7] [-E entry] [-o out] files... | -a lib.a objects...\n"; 1
+  | [] -> eprint caps "usage: mini-ld -m 5|7 [-H2|-H6|-H7] [-E entry] [-o out] files... | -a lib.a objects...\n"; 1
   | _ -> (
       try
         let path s = match Files.path s with Ok p -> p | Error m -> failwith m in
@@ -91,4 +91,4 @@ let main (caps : < caps; .. >) (argv : string array) : int =
           | Asm.Arm -> link arm caps ~verbose:!verbose !arch !format !entry out files
           | Asm.Arm64 -> link arm64 caps ~verbose:!verbose !arch !format !entry out files);
         0
-      with Link.Error m | Sys_error m | Failure m -> eprint caps ("tinyld: " ^ m ^ "\n"); 1)
+      with Link.Error m | Sys_error m | Failure m -> eprint caps ("mini-ld: " ^ m ^ "\n"); 1)

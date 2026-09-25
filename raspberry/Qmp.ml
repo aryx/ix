@@ -44,14 +44,14 @@ let create spec =
       Unix.listen s 4;
       Unix.set_nonblock s;
       { server = s; clients = [] }
-  | _ -> failwith ("tinypi: -qmp " ^ spec ^ ": only unix:PATH,server,nowait")
+  | _ -> failwith ("mini-qemu: -qmp " ^ spec ^ ": only unix:PATH,server,nowait")
 
 let send fd json =
   let s = Yojson.Safe.to_string json ^ "\r\n" in
   ignore (try Unix.write_substring fd s 0 (String.length s) with Unix.Unix_error _ -> 0)
 
 let greeting =
-  `Assoc [ "QMP", `Assoc [ "version", `Assoc [ "qemu", `Assoc [ "micro", `Int 0; "minor", `Int 2; "major", `Int 8 ]; "package", `String "tinypi" ];
+  `Assoc [ "QMP", `Assoc [ "version", `Assoc [ "qemu", `Assoc [ "micro", `Int 0; "minor", `Int 2; "major", `Int 8 ]; "package", `String "mini-qemu" ];
                            "capabilities", `List [] ] ]
 
 let ok = `Assoc [ "return", `Assoc [] ]

@@ -1,4 +1,4 @@
-# the split backquote, as in backquote.rc: principia_splitbackquote.tiny.out
+# the split backquote, as in backquote.rc: principia_splitbackquote.mini.out
 x=`{echo a,b,c}
 echo $x
 echo $#x

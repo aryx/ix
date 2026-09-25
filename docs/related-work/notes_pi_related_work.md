@@ -1,6 +1,6 @@
 # Related work: full-system emulation, and operating systems on the Pi
 
-Where TinyRaspberryPi ([`plan_pi.md`](../plans/plan_pi.md),
+Where mini-qemu ([`plan_pi.md`](../plans/plan_pi.md),
 [`notes_pi.md`](../tutorials/notes_pi.md)) sits. The user-mode side
 is in [`notes_arm_related_work.md`](notes_arm_related_work.md). Names
 and dates not read here are **from memory**, marked, to check before
@@ -42,7 +42,7 @@ they are quoted in a `.mli`.
   checked): Zhiyi Huang's for the Pi1 and Pi2 (arm-pi1, arm-pi2),
   inaciose's (arm, arm-pi1-bis), patha454's four-core AArch32 port for
   the Pi3 (arm-pi3), and k-mrm's AArch64 port for the Pi4 (arm64-pi4)
-  -- all booting under QEMU with `usertests` passing, TinyRaspberryPi's
+  -- all booting under QEMU with `usertests` passing, mini-qemu's
   acceptance tests.
 - **Linux** (Raspberry Pi OS): the Pi's usual system, and a device-tree
   kernel -- heavier to emulate than 9pi, which needs no device tree.
@@ -66,10 +66,10 @@ they are quoted in a `.mli`.
 - The Pi firmware's **mailbox property interface** (the Raspberry Pi
   firmware wiki; from memory): the tags 9pi sends.
 
-## Where TinyRaspberryPi sits
+## Where mini-qemu sits
 
 Between QEMU's raspi machines, which it is tested against, and
 TinyEMU, whose size it aims at: a Pi as 9pi uses it, in OCaml, the
-CPU cores TinyArm's, the devices small state machines behind a bus,
+CPU cores mini-5i's, the devices small state machines behind a bus,
 deterministic time. Its free variant, TinyPi.ml, is the smallest
 machine a kernel can boot on.

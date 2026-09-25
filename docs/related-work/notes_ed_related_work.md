@@ -1,10 +1,10 @@
-# TinyEd vs. the rest of the editors
+# mini-ed vs. the rest of the editors
 
 Where a tiny ed sits among the editors people use: the line editors
 from QED to ed and its descendants sed and grep, the screen editors
 that grew out of them (ex and vi) and beside them (TECO and Emacs),
 Pike's sam and acme, which rethought ed's language, the regular
-expression engines, and the teaching editors. What they do that TinyEd
+expression engines, and the teaching editors. What they do that mini-ed
 won't, and which of their ideas fit in a program small enough to read.
 Companions: [`notes_ed.md`](../tutorials/notes_ed.md) (how it works)
 and [`plan_ed.md`](../plans/plan_ed.md) (what gets built). Principia
@@ -22,7 +22,7 @@ them for teaching.
 | TECO (1962), Emacs (1976, 1984) | An editor as a programmable machine | macros, then Lisp |
 | sam (1987), acme (1992) | Structure, not lines; the mouse for the rest | `,x/re/c/new/`, and clicks |
 | vis (2014), kakoune (2011) | sam's structural regexps with vi's keys; selections first | `x/re/`, multiple selections |
-| `editor/` (TinyEd) | Seeing what an editor does, as ed, checked against Plan 9's | ed, run by 1,264 lines of OCaml |
+| `editor/` (mini-ed) | Seeing what an editor does, as ed, checked against Plan 9's | ed, run by 1,264 lines of OCaml |
 | `tiny/TinyEditor.ml` | What an editor is, in sam's terms | sam's language, in one file of 666 lines |
 
 ## Part 1: the line editors
@@ -74,7 +74,7 @@ engine is the first thing an ix of text tools needs.
   TECO macros, 1976; GNU Emacs, 1984-85, in Lisp) made the editor a
   programmable machine. xix's twin program for editing on a screen is
   efuns, an Emacs in OCaml.
-- These are the ceiling of TinyEd's world: nothing here draws a
+- These are the ceiling of mini-ed's world: nothing here draws a
   screen.
 
 ## Part 4: sam and acme
@@ -115,12 +115,12 @@ without the screen, as `sam -d` has it.
   that many implementations got wrong (Glenn Fowler's testregex found
   that).
 - **Memoized backtracking** (TinyEditor.ml's matcher; the plan wanted
-  it for TinyEd too, its decision 2): backtracking over the tree with
+  it for mini-ed too, its decision 2): backtracking over the tree with
   a table of (node, position) pairs visited. With the table,
   backtracking in priority order finds what a priority-ordered Pike
   VM finds (RE2's), in the same bound. The idea is old --
   "backtracking with memoization is the NFA", in Cox's articles and in
-  parsing's packrat parsers (Bryan Ford, 2002). What TinyEd's fuzzer
+  parsing's packrat parsers (Bryan Ford, 2002). What mini-ed's fuzzer
   showed is that it is *not* libregexp's answers: libregexp's thread
   list is not in priority order (an OR queues its right side at the
   end of the list, and the skip of `*` is the side followed first),
@@ -146,9 +146,9 @@ without the screen, as `sam -d` has it.
   been taught; this project's tutorial is about its implementation
   instead.
 
-## What TinyEd takes, and leaves
+## What mini-ed takes, and leaves
 
-As for TinyMk and TinyRc, two levels:
+As for mini-mk and mini-rc, two levels:
 
 - **The language, at the real end**: ed as Plan 9 has it, checked
   against 9base's ed, on principia's `mkenam` scripts, and on the
@@ -163,14 +163,14 @@ and sam's), no undo but `u`'s, no POSIX notation.
 
 ## Postscript: the numbers
 
-- **Lines.** TinyEd has 1,264 lines of `.ml`, 1,007 of them code,
+- **Lines.** mini-ed has 1,264 lines of `.ml`, 1,007 of them code,
   against the 1,000 planned. That is 37% of ed.c's 2,121 with the
   1,316 lines of libregexp it uses, and 70% of oed's 1,794, which is
   partial. TinyEditor.ml, sam's language with its own matcher, has 666
   lines, 531 of them code; sam's command language in plan9port is
   about 2,000 lines of C (`address.c`, `xec.c`, `cmd.c`, `regexp.c`).
 - **The corpus.** 44 cases, 41 the same as 9base's ed, and 3
-  documented differences, each with a `.tiny.out`: lines over 4,096
+  documented differences, each with a `.mini.out`: lines over 4,096
   characters, `v/x/d` on an empty buffer, and bytes that are not UTF-8.
 - **The fuzzer.** 10,000 random scripts, the same as 9base's ed but
   for one, where 9base's ed segfaults.

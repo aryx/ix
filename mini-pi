@@ -8,13 +8,13 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# pi: boot a Raspberry Pi kernel under TinyRaspberryPi (raspberry/,
-# tinypi) without its long command line: the kernel, its image, the
+# mini-pi: boot a Raspberry Pi kernel under mini-qemu (raspberry/,
+# mini-qemu) without its long command line: the kernel, its image, the
 # options its own Makefile gives QEMU.
 #
-#   ./pi xv6            xv6 arm-pi1-bis, the console in this terminal
-#   ./pi xv6-pi1        xv6 arm-pi1
-#   ./pi 9pi            principia's 9pi, its SD card image, the console
+#   ./mini-pi xv6            xv6 arm-pi1-bis, the console in this terminal
+#   ./mini-pi xv6-pi1        xv6 arm-pi1
+#   ./mini-pi 9pi            principia's 9pi, its SD card image, the console
 #                       in this terminal (the mini UART)
 #
 # Options:
@@ -23,8 +23,8 @@
 #   -w   9pi: write to the SD card image (by default its writes are kept
 #        in memory and lost at exit, QEMU's snapshot=on)
 #   -q   run QEMU instead, with the same arguments (to compare)
-#   -d   tinypi's log of unassigned I/O and undefined instructions
-#   -n   no build (use tinypi as last built)
+#   -d   mini-qemu's log of unassigned I/O and undefined instructions
+#   -n   no build (use mini-qemu as last built)
 #
 # Quit with Ctrl-A then x (or close the window).
 #
@@ -37,7 +37,7 @@ XV6=${XV6:-$HOME/xv6}
 PRINCIPIA=${PRINCIPIA:-$HOME/principia}
 graphics=0; write=0; qemu=0; debug=0; build=1
 
-usage() { sed -n '/^# pi:/,/^# built), /p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '/^# mini-pi:/,/^# built), /p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 while getopts gwqdnh o; do
   case $o in
@@ -59,20 +59,20 @@ case $1 in
     dir=$PRINCIPIA
     image=kernel/COMPILE/9/bcm/9pi
     snapshot=",snapshot=on"; [ $write = 1 ] && snapshot=""
-    [ -f $dir/qemu-sd.img ] || { echo "pi: no $dir/qemu-sd.img (principia: mk disk)"; exit 1; }
+    [ -f $dir/qemu-sd.img ] || { echo "mini-pi: no $dir/qemu-sd.img (principia: mk disk)"; exit 1; }
     args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on
           -drive file=qemu-sd.img,if=sd,format=raw$snapshot -serial null -serial mon:stdio)
     [ $graphics = 1 ] || args+=(-display none)
     ;;
   *) usage;;
 esac
-[ -f $dir/$image ] || { echo "pi: no $dir/$image (build the kernel first)"; exit 1; }
+[ -f $dir/$image ] || { echo "mini-pi: no $dir/$image (build the kernel first)"; exit 1; }
 
 # what is used, on standard error (the console's output stays clean)
 emulator=$ROOT/_build/default/raspberry/Main.exe
 [ $qemu = 1 ] && emulator=$(command -v qemu-system-arm)
-say() { echo "pi: $*" >&2; }
-say "emulator: $emulator$( [ $qemu = 0 ] && echo " (tinypi)")"
+say() { echo "mini-pi: $*" >&2; }
+say "emulator: $emulator$( [ $qemu = 0 ] && echo " (mini-qemu)")"
 say "kernel:   $dir/$image ($(stat -c %s $dir/$image) bytes, built $(date -r $dir/$image '+%Y-%m-%d %H:%M'))"
 if [ $1 = 9pi ]; then
   if [ $write = 1 ]; then mode="written in place"; else mode="read-only: writes kept in memory, lost at exit (-w to keep them)"; fi

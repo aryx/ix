@@ -1,6 +1,6 @@
 # 9base exits 0: a missing program as a subshell's last command is
-# exec'd without a fork, and the child then exits 0; TinyRc keeps the
-# status 1 of a missing program (principia_loop.tiny.out)
+# exec'd without a fork, and the child then exits 0; mini-rc keeps the
+# status 1 of a missing program (principia_loop.mini.out)
 
 VAR=(1 2 3 4)
 

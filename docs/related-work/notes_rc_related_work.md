@@ -1,10 +1,10 @@
-# TinyRc vs. the rest of the shells
+# mini-rc vs. the rest of the shells
 
 Where a tiny rc sits among the shells people use: the Unix lineage
 from Thompson's to bash and zsh, rc and its descendants, the
 structured shells that replace text with values, the research that
 gave the shell a formal semantics, and the teaching shells. What they
-do that TinyRc won't, and which of their ideas fit in a program small
+do that mini-rc won't, and which of their ideas fit in a program small
 enough to read. Companions:
 [`notes_rc.md`](../tutorials/notes_rc.md) (how it works) and
 [`plan_rc.md`](../plans/plan_rc.md) (what gets built). The author's
@@ -23,7 +23,7 @@ note follows its families.
 | fish (2005) | Friendliness at the terminal | A new, sh-like syntax; suggestions as you type |
 | PowerShell (2006), nushell (2019), elvish (2016) | Structured data in pipes | Objects or tables through `\|`, not bytes |
 | Oils (2017) | Running bash scripts, then replacing them | bash (osh), and a new language (ysh) |
-| `shell/` (TinyRc) | Seeing what a shell does, on real rc scripts | rc, run by 1,634 lines of OCaml |
+| `shell/` (mini-rc) | Seeing what a shell does, on real rc scripts | rc, run by 1,634 lines of OCaml |
 | `tiny/TinyShell.ml` | What a shell is, at its smallest | rc's core, in one file of 598 lines |
 
 ## Part 1: where it came from
@@ -60,11 +60,11 @@ note follows its families.
   command list in parentheses, so the grammar is 116 lines of yacc;
   functions and variables share the environment. It compiles commands
   to code for a small machine, run on a queue of threads (the design
-  TinyRc does not follow; its plan, decision 1).
+  mini-rc does not follow; its plan, decision 1).
 - **Rakitzis's rc** (Byron Rakitzis, 1991): an independent rc for
   Unix, 6,837 lines in its 1.2 (the lineage file) -- interesting
   because it is a second implementation of the same language, as
-  TinyRc will be a third.
+  mini-rc will be a third.
 - **es** (Paul Haahr and Byron Rakitzis, USENIX 1993): rc with
   closures and higher-order functions, where even the shell's own
   operations (`|`, `>`) are functions you can redefine. The road not
@@ -72,7 +72,7 @@ note follows its families.
 - **Inferno's sh** (1996): rc's syntax, with modules loaded into the
   shell, in Limbo.
 - **plan9port's rc**, the one packaged as 9base and installed here,
-  is Duff's rc on Unix, and TinyRc's reference.
+  is Duff's rc on Unix, and mini-rc's reference.
 
 ## Part 3: the structured shells and the new ones
 
@@ -121,36 +121,36 @@ note follows its families.
   Perspective*** (2003), whose "shell lab" has students write a shell
   with job control (tsh); and Stephen Brennan's "Write a Shell in C"
   (2015), a short, much-read tutorial. (From memory, to check.)
-- **In OCaml**: xix's **orc** (TinyRc's twin, partial: the plan's
+- **In OCaml**: xix's **orc** (mini-rc's twin, partial: the plan's
   Context); **Shcaml** (Alec Heller and Jesse Tov, 2008), a library
   for shell-style programming in OCaml; Morbig (above).
 
 ## Where `shell/` actually sits
 
-As for TinyMk, two levels:
+As for mini-mk, two levels:
 
 - **The language, at the real end**: rc as it is, checked against
   9base's rc on a corpus, on principia's scripts, and by running the
-  recipes of xix's mkfiles for TinyMk.
+  recipes of xix's mkfiles for mini-mk.
 - **The implementation, at the legible end**: a lexer and a
   recursive-descent parser, and an evaluator that walks the tree -- no bytecode, no
   thread queue -- with `fork`, `exec`, `dup2` and `pipe` in plain
   view.
 
 **The ceiling, stated now**: no line editing, history or completion
-(rc's choice, not only TinyRc's); no job control; no sh or POSIX
+(rc's choice, not only mini-rc's); no job control; no sh or POSIX
 mode; Plan 9's namespaces (`rfork n`, `bind`, `mount`) only on
 TinyKernel, later; signals as far as the plan's phase 5 decides.
 
 ## Postscript: the numbers
 
-- **Lines.** TinyRc has 1,634 lines of `.ml`, 1,271 of them code,
+- **Lines.** mini-rc has 1,634 lines of `.ml`, 1,271 of them code,
   against the 1,500 planned: 6% over in total, with the parser at
   double its target and `Word` at half of its. That is 29% of the C
   rc's 5,678 and 57% of orc's 2,876, and orc is partial. TinyShell.ml
-  has 598 lines, 423 of them code: a third of TinyRc.
+  has 598 lines, 423 of them code: a third of mini-rc.
 - **The corpus.** 43 scripts. 39 print what 9base's rc prints, and 4
-  are documented differences, each with a `.tiny.out`: the split
+  are documented differences, each with a `.mini.out`: the split
   backquote twice, a missing program at the end of a subshell, and
   an `exec` that fails, after which 9base's rc spins forever. orc
   passes 4 of the first 36.
@@ -159,10 +159,10 @@ TinyKernel, later; signals as far as the plan's phase 5 decides.
   use `` `sep{} ``, 1 is the subshell case, 3 print what changes
   from run to run, and 1 is a 9base quirk: a missing program in a
   pipe stage exits with the `$status` it inherited.
-- **The xix build**: 33 s with TinyRc as TinyMk's shell, and 32.7 s
+- **The xix build**: 33 s with mini-rc as mini-mk's shell, and 32.7 s
   with TinyShell. Both produce the same 435 files as omk with 9base's
   rc.
-- **Startup**, 100 runs of `-c true`: 9base's rc 3.0 ms, TinyRc 4.9,
+- **Startup**, 100 runs of `-c true`: 9base's rc 3.0 ms, mini-rc 4.9,
   TinyShell 5.0. The cost is OCaml's runtime and not rcmain, which
   TinyShell doesn't have. A build pays it once per recipe, about half
   a second over xix's.

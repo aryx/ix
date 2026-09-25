@@ -8,19 +8,19 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# Phase 8: TinyArm's Plan 9 personality. Each Plan 9 a.out of the
+# Phase 8: mini-5i's Plan 9 personality. Each Plan 9 a.out of the
 # corpus (goken's hello_libc tests linked with GOOS=plan9 -H2, by
 # linker/tests/libc.sh) is run three ways, in fresh directories, with
 # the same arguments and standard input:
 #
-#   - under TinyArm;
+#   - under mini-5i;
 #   - under goken's 5i, the twin (its own lines -- "5i", "exits(...)",
 #     "stopped at ..." -- removed);
 #   - the same C program's Linux build, on the CPU: the tests print the
 #     same lines on every system, so it is the oracle where 5i lacks a
 #     system call (10 of the 17).
 #
-# TinyArm must print what the Linux build prints and exit as it does
+# mini-5i must print what the Linux build prints and exit as it does
 # (0, or nonzero for an exits string), but where Plan 9 means otherwise
 # (DESIGN below); 5i's agreement is reported, not required.
 #
@@ -36,11 +36,11 @@ ARGS = ["one", "two"]
 NATIVE = ["setarch", "-R"] if shutil.which("setarch") else []
 
 # where the Linux build is no oracle for another reason: goken's own
-# bugs, found here (the reason, and what TinyArm must then do)
+# bugs, found here (the reason, and what mini-5i must then do)
 GOKEN = {
     # goken's Plan 9 exits() is the raw system call, so atexit handlers
     # never run (real Plan 9's exits() runs them, then _exits); 5i and
-    # TinyArm agree
+    # mini-5i agree
     "atexit": ("goken's Plan 9 exits() is the system call: no atexit handlers", "5i"),
     # the Linux build fails natively, arm32 and arm64 alike, creating
     # directories with garbage names (mkdir("\7"), unlink("dirread_tmp_\1"):
@@ -97,18 +97,18 @@ for f in progs:
         if good: print("ok %s: %s; %s (%s)" % (name, why, "as 5i" if oracle == "5i" else "its own checks pass", tag))
         else:
             failures += 1
-            print("FAIL %s: %s, and TinyArm: %s" % (name, why, tiny[1].strip()))
+            print("FAIL %s: %s, and mini-5i: %s" % (name, why, tiny[1].strip()))
     elif name in DESIGN:
         why, want, status = DESIGN[name]
         if re.fullmatch(want, tiny[1]) and tiny[0] == status:
             print("ok %s: as Plan 9, not Linux: %s (%s)" % (name, why, tag))
         else:
             failures += 1
-            print("FAIL %s: %s expected; TinyArm: status %s, %r" % (name, why, tiny[0], tiny[1]))
+            print("FAIL %s: %s expected; mini-5i: status %s, %r" % (name, why, tiny[0], tiny[1]))
     else:
         failures += 1
-        print("FAIL %s: status tinyarm %s, linux %s (%s)" % (name, tiny[0], linux[0], tag))
-        print("    tinyarm: " + tiny[1].strip().replace("\n", "\n             "))
+        print("FAIL %s: status mini-5i %s, linux %s (%s)" % (name, tiny[0], linux[0], tag))
+        print("    mini-5i: " + tiny[1].strip().replace("\n", "\n             "))
         print("    linux:   " + linux[1].strip().replace("\n", "\n             "))
-print("plan9: %d programs, %d failures; 5i agrees with TinyArm on %d" % (len(progs), failures, agree5i))
+print("plan9: %d programs, %d failures; 5i agrees with mini-5i on %d" % (len(progs), failures, agree5i))
 sys.exit(1 if failures else 0)

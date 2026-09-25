@@ -1,22 +1,24 @@
 # tiny/
 
-The free variants of ix's programs, one file each: what is left of a
+The tiny programs of ix (t-ix): the free variants of its mini
+programs (m-ix), one file each, installed as tiny-build, tiny-shell,
+... (the second column): what is left of a
 program when compatibility is dropped and only its idea is kept,
 written after its faithful twin and from what that one taught. The
 files, children and pipes they share with the twins come from
 `lib_core/` (`Files`, `Procs`), not copied into each.
 
-| file | its twin | the idea kept |
-|---|---|---|
-| `TinyBuildSystem.ml` | `builder/` (TinyMk, mk) | rules, `%`, stamps as digests, one pass with `-j` |
-| `TinyShell.ml` | `shell/` (TinyRc, rc) | lists as the only value, words joined by adjacency, redirections around the command |
-| `TinyEditor.ml` | `editor/` (TinyEd, ed) | sam's command language: dot a range, loops over matches, changes in parallel |
-| `TinyAssembler.ml` | `assembler/`, `linker/` (TinyAsm, TinyLd; 5a/5l, 7a/7l) | no separate compilation: all of a program's assembly into an arm64 executable, sizes known before addresses, a word per closure |
-| `TinyC.ml` | `compiler/` (TinyCompiler; 5c, 7c) | a C subset through a stack machine of its own, the stack in registers, 7c's calling convention so it links with goken's libc |
-| `TinyDatabase.ml` | `database/` (TinyDb; chidb) | the relational algebra as the query language, a pipeline (`t \| where ... \| group ... \| sort ...`); a copy-on-write B-tree, so every statement is atomic by one header write |
-| `TinyArm.ml` | `machine/` (TinyArm; 5i) | a computer in one file: an arm32 subset assembled (GNU as's syntax and bytes), run word by word by an interpreter, written as an ELF the CPU runs too; one instruction variant read by the parser, the encoder, the decoder, the printer and the executor |
-| `TinyMachine.ml` | `machine/` (TinyArm; 5i), with Knuth's MIX and MMIX | a machine of our own design, for teaching: 16 registers, r0 zero, no flags, one instruction format, every case defined; an assembler, an interpreter (the definition) and a translator to arm32 (the guest's registers in memory, a table for indirect jumps), the two agreeing |
-| `TinyVCS.ml` | `version_control/` (TinyGit; git9) | git's objects, trees and DAG; the repository as one hash (an operation log, so every command is atomic and undoable); no staging area; merges that always succeed, conflicts committed as data |
+| file | executable | its twin | the idea kept |
+|---|---|---|---|
+| `TinyBuildSystem.ml` | tiny-build | `builder/` (mini-mk, mk) | rules, `%`, stamps as digests, one pass with `-j` |
+| `TinyShell.ml` | tiny-shell | `shell/` (mini-rc, rc) | lists as the only value, words joined by adjacency, redirections around the command |
+| `TinyEditor.ml` | tiny-editor | `editor/` (mini-ed, ed) | sam's command language: dot a range, loops over matches, changes in parallel |
+| `TinyAssembler.ml` | tiny-assembler | `assembler/`, `linker/` (mini-asm, mini-ld; 5a/5l, 7a/7l) | no separate compilation: all of a program's assembly into an arm64 executable, sizes known before addresses, a word per closure |
+| `TinyC.ml` | tiny-c | `compiler/` (mini-cc; 5c, 7c) | a C subset through a stack machine of its own, the stack in registers, 7c's calling convention so it links with goken's libc |
+| `TinyDatabase.ml` | tiny-db | `database/` (mini-chidb; chidb) | the relational algebra as the query language, a pipeline (`t \| where ... \| group ... \| sort ...`); a copy-on-write B-tree, so every statement is atomic by one header write |
+| `TinyArm.ml` | tiny-arm | `machine/` (mini-5i; 5i) | a computer in one file: an arm32 subset assembled (GNU as's syntax and bytes), run word by word by an interpreter, written as an ELF the CPU runs too; one instruction variant read by the parser, the encoder, the decoder, the printer and the executor |
+| `TinyMachine.ml` | tiny-machine | `machine/` (mini-5i; 5i), with Knuth's MIX and MMIX | a machine of our own design, for teaching: 16 registers, r0 zero, no flags, one instruction format, every case defined; an assembler, an interpreter (the definition) and a translator to arm32 (the guest's registers in memory, a table for indirect jumps), the two agreeing |
+| `TinyVCS.ml` | tiny-vcs | `version_control/` (mini-git; git9) | git's objects, trees and DAG; the repository as one hash (an operation log, so every command is atomic and undoable); no staging area; merges that always succeed, conflicts committed as data |
 
 Each has its tests beside it, `TinyXxx_test.sh`, run by `make test`
 (TinyAssembler's and TinyC's, which need goken, by `make test-goken`;

@@ -1,10 +1,10 @@
 # A C compiler, from scratch: a tutorial for `compiler/`
 
-How a C file becomes the instructions that TinyLd links, on arm and
+How a C file becomes the instructions that mini-ld links, on arm and
 arm64, the Plan 9 way: a front end that reads C into a typed tree, and
 one code generator that walks the tree and writes Plan 9's
 instructions, asking a record of the machine only what the machine
-decides. It is written for **a reader of TinyCompiler's code, not a
+decides. It is written for **a reader of mini-cc's code, not a
 user of a C compiler**, and explains the ideas in the order the code
 needs them.
 
@@ -32,7 +32,7 @@ goken's 5c and 7c, and xix's `compiler/`.
 | `compiler/Gen` | code from the tree | §4, §5, §6, §7 |
 | `compiler/Multiply` | a multiplication by a constant | §5 |
 | `compiler/Arm`, `Arm64` | what each machine decides | §8 |
-| `compiler/Emit`, `CLI` | the instructions, `-S`, the objects, `tinycc` | §9 |
+| `compiler/Emit`, `CLI` | the instructions, `-S`, the objects, `mini-cc` | §9 |
 
 Each module's `.mli` says what it does and where it departs from 5c
 and 7c, with the papers it follows; read Tree's first, then in the
@@ -75,9 +75,9 @@ A function, and what 5c makes of it at `-O0` (checked):
 and the trip:
 
 ```
-   tinycc     preprocesses, parses, types the tree, makes it explicit,
-              generates the instructions above, writes sum.5 (TinyAsm's object)
-   tinyld     lays out and encodes (the frame's prologue, RET's epilogue,
+   mini-cc     preprocesses, parses, types the tree, makes it explicit,
+              generates the instructions above, writes sum.5 (mini-asm's object)
+   mini-ld     lays out and encodes (the frame's prologue, RET's epilogue,
               the branches), writes the executable
 ```
 
@@ -100,7 +100,7 @@ The corpus is C89 with Plan 9's habits (the plan counts them):
   then `libc.h`.
 - **No `#if`**: `#ifdef`, `#ifndef`, `#else`, `#endif` only; macros
   with arguments (152 of them), `#pragma varargck` for `print`'s
-  formats (which TinyCompiler reads and ignores).
+  formats (which mini-cc reads and ignores).
 - **No bitfields, no designated initializers**; Plan 9's unnamed
   structure members, at most once.
 
@@ -254,21 +254,21 @@ the second machine checks (plan_cc.md, decision 1).
 
 ## 9. The objects
 
-The compiler writes TinyAsm's objects (`Asm.obj`): the instructions,
+The compiler writes mini-asm's objects (`Asm.obj`): the instructions,
 the `TEXT`s, and the data as `DATA` and `GLOBL` (a string literal is a
 static `.string<>` symbol, 8 bytes per `DATA`, as §1's listings show).
-`-S` prints the same instructions in Plan 9's syntax, which TinyAsm
-reads back into the same object. So TinyLd links a compiled file and
+`-S` prints the same instructions in Plan 9's syntax, which mini-asm
+reads back into the same object. So mini-ld links a compiled file and
 an assembled one alike, and a `.s` written by hand (libc's `rt0.s`)
 sits beside the compiled ones.
 
 ## 10. Compared with goken and xix
 
-| | goken (C) | xix (OCaml) | TinyCompiler |
+| | goken (C) | xix (OCaml) | mini-cc |
 |---|---|---|---|
 | front end | yacc, 7,900 lines | ocamlyacc, typechecker complete | ocamlyacc; the preprocessor and lexer by hand |
 | back ends | one per machine, 3,600 to 3,900 lines each, plus 2,700 of optimizer | one, arm, mostly unwritten | one, with a record per machine |
-| objects | Plan 9's | xix's | TinyAsm's |
+| objects | Plan 9's | xix's | mini-asm's |
 | optimizer | registers, peephole | none | none (`-O0`) |
 | lines | about 22,000 (16,700 without the optimizers) | 5,553 | 5,253 (the target was 3,500) |
 
@@ -288,14 +288,14 @@ sits beside the compiled ones.
 - **Registers**: 5c's `reg.c`, variables into registers by a dataflow
   analysis, at last `-O2`; and its peephole.
 - **Bitfields**, and `#if`.
-- **A third machine** (riscv64): a third record, and TinyLd's third
+- **A third machine** (riscv64): a third record, and mini-ld's third
   module.
 - **An intermediate language**, the other answer to the plan's
   question: the one-file variant's.
 
 ## 13. In ix
 
-TinyCompiler finishes ix's toolchain: C to objects, objects to
+mini-cc finishes ix's toolchain: C to objects, objects to
 executables, all in OCaml, byte for byte with goken's. The kernel and
 the emulator come next; the compiler builds their C parts.
 

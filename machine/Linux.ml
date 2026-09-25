@@ -292,7 +292,7 @@ let syscall32 p (st : Arm32.state) =
         let d = if r.(1) land 1 <> 0 then t -. h.now () else t in
         if d > 0. then h.sleep d;
         0
-    | n -> prerr_endline (Printf.sprintf "tinyarm: unimplemented system call %d" n); - enosys in
+    | n -> prerr_endline (Printf.sprintf "mini-5i: unimplemented system call %d" n); - enosys in
   if r.(7) <> 119 && r.(7) <> 173 then r.(0) <- Bits.mask32 result;
   if !log_calls then
     let nr, a, b, c = args in
@@ -420,7 +420,7 @@ let syscall64 p (st : Arm64.state) =
         let d = if int 1 land 1 <> 0 then t -. h.now () else t in
         if d > 0. then h.sleep d;
         0
-    | n -> prerr_endline (Printf.sprintf "tinyarm: unimplemented system call %d" n); - enosys in
+    | n -> prerr_endline (Printf.sprintf "mini-5i: unimplemented system call %d" n); - enosys in
   if nr <> 139 then Arm64.set st Arm64.X 0 (Int64.of_int result);
   if !log_calls then
     let a, b, c = args in

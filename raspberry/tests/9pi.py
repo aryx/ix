@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# TinyRaspberryPi against QEMU on principia's 9pi (plan_pi.md, phase C):
+# mini-qemu against QEMU on principia's 9pi (plan_pi.md, phase C):
 # the kernel loaded as principia's mkfile-target-pi runs it (-device
 # loader at 0x8000, the SD card image, the mini UART the console), the
 # card's writes kept in memory (snapshot=on); boot to rc's prompt, then
@@ -30,7 +30,7 @@ TP = os.path.join(ROOT, "_build/default/raspberry/Main.exe")
 P = os.environ.get("PRINCIPIA", os.path.expanduser("~/principia"))
 ARGS = ["-M", "raspi1ap", "-device", "loader,file=kernel/COMPILE/9/bcm/9pi,addr=0x8000,cpu-num=0,force-raw=on",
         "-drive", "file=qemu-sd.img,if=sd,format=raw,snapshot=on", "-serial", "null", "-serial", "mon:stdio", "-display", "none"]
-SESSION = ["ls /", "echo hello from tinypi", "ls -l /dev/sdM0", "cat /dev/sdM0/ctl",
+SESSION = ["ls /", "echo hello from mini-qemu", "ls -l /dev/sdM0", "cat /dev/sdM0/ctl",
            "echo written by the emulator > /x.txt", "cat /x.txt", "ls /arch/arm/bin | wc", "cat /CONFIG.TXT | wc",
            "echo 1.5*2 | hoc"]
 
@@ -66,5 +66,5 @@ if want == got:
     sys.exit(0)
 a, b = want.decode(errors="replace").splitlines(), got.decode(errors="replace").splitlines()
 i = next((k for k in range(min(len(a), len(b))) if a[k] != b[k]), min(len(a), len(b)))
-print("FAIL 9pi: differs from QEMU at line %d:\n  qemu:   %r\n  tinypi: %r" % (i + 1, a[i] if i < len(a) else None, b[i] if i < len(b) else None))
+print("FAIL 9pi: differs from QEMU at line %d:\n  qemu:   %r\n  mini-qemu: %r" % (i + 1, a[i] if i < len(a) else None, b[i] if i < len(b) else None))
 sys.exit(1)

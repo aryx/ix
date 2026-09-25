@@ -1,4 +1,4 @@
-# Plan: TinyRaspberryPi, a Raspberry Pi emulator for 9pi and xv6's Pi kernels (`raspberry/`)
+# Plan: mini-qemu, a Raspberry Pi emulator for 9pi and xv6's Pi kernels (`raspberry/`)
 
 Companions: [`notes_pi.md`](../tutorials/notes_pi.md), the tutorial
 (the SoC and its buses; ARM's privileged state: modes, banked
@@ -10,17 +10,17 @@ AArch64-to-AArch32 hand-off), and
 (full-system emulation from SimOS and Bochs to QEMU's raspi machines
 and TinyEMU; Plan 9 and xv6 on the Pi).
 
-It builds on [`plan_arm.md`](plan_arm.md): TinyArm's CPU cores
+It builds on [`plan_arm.md`](plan_arm.md): mini-5i's CPU cores
 (`machine/`: `Arm32`, `Arm64`, `Memory`'s bus), extended with the
 privileged state, and devices behind the bus. It is written now, with
 plan_arm.md, so that the cores are designed for it; it starts once
-TinyArm's phases 1-5 are done.
+mini-5i's phases 1-5 are done.
 
 The author asked for it ("another tiny but for the Raspberry Pi that
 rely on the ARM emulator but extended for the qemu-system-part with
 MMU, framebuffer, storage"; "emulate after the Pi1 and Pi4"; "study
 ~/xv6/ and ideally we also want to run the different xv6 Pi kernels
-with TinyRaspberryPi"; "adjust the plan to support 9pi, 9pi2, but
+with mini-qemu"; "adjust the plan to support 9pi, 9pi2, but
 also possibly the Pi1 and Pi4 (and maybe more) under ~/xv6/"; "ultimately
 I want to boot on a real pi1, pi2, and pi4 (that I own). in xv6 there
 also some graphics-run target that requires usb and framebuffer and so
@@ -50,8 +50,8 @@ virtio.
 
 Each xv6 port has its own acceptance test, run by its
 `test-xv6.py`: boot, a shell prompt, `ls`, then `usertests` to "ALL
-TESTS PASSED" (21 s to 245 s under QEMU). **TinyRaspberryPi passes a
-port when that test passes on it**, unchanged: TinyRaspberryPi takes
+TESTS PASSED" (21 s to 245 s under QEMU). **mini-qemu passes a
+port when that test passes on it**, unchanged: mini-qemu takes
 the part of QEMU's command line these ports use (`-M raspi1ap|raspi2b|
 raspi3b|raspi4b`, `-kernel` raw or ELF, `-device loader,file=,addr=,
 force-raw=on`, `-m`, `-smp`, `-nographic`, `-serial mon:stdio`), so the
@@ -74,7 +74,7 @@ answers a framebuffer's *physical* address where the firmware answers a
 bus address; its mini UART has no backend; its SP804 timer is a stub.
 The real-hardware paths are the ones never run.
 
-So TinyRaspberryPi has **two personalities, both first-class**: QEMU
+So mini-qemu has **two personalities, both first-class**: QEMU
 is the convenient machine -- fast to run, scripted, the one every
 port's tests already use, the everyday path and `make test`'s -- and the
 boards are the ones that matter in the end; neither replaces the
@@ -101,7 +101,7 @@ ARM Peripherals, the BCM2711 datasheet, the firmware's boot and
 mailbox documentation; from memory, to check) and the kernels' own
 real-hardware code; and, finally, **the boards themselves**: each
 board's serial console, captured (a USB-to-serial cable on GPIO 14/15),
-is compared with TinyRaspberryPi's `-hw` console for the same card
+is compared with mini-qemu's `-hw` console for the same card
 image -- the last differential, and the one xv6-multiarch's plan asks
 for ("flash, boot, capture the serial log").
 
@@ -129,7 +129,7 @@ it in; everything else is the guest's.
   QEMU 8.2 (`/usr/bin`) for raspi1ap, raspi2b, raspi3b; a local QEMU
   11.1 build (`/home/pad/work/TOOLCHAINS/qemu/build`) for raspi4b.
   Console output compared; QEMU's instruction trace (`-d in_asm,cpu`)
-  against TinyRaspberryPi's for the first divergence.
+  against mini-qemu's for the first divergence.
 - **The kernels decide the instruction set, measured**
   (`machine/tests/xv6_census.sh`, `census_xv6.txt`): the xv6 ports'
   kernels and user programs, disassembled with their mapping symbols,
@@ -148,12 +148,12 @@ Those of [`../README.md`](../README.md), and:
 
 - **The kernels' tests are the tests.** xv6's `usertests` exercises
   fork, exec, pipes, the file system, memory allocation, page faults,
-  preemption, on every port; passing it unchanged on TinyRaspberryPi
+  preemption, on every port; passing it unchanged on mini-qemu
   is the acceptance criterion, as QEMU's passing it is the ports'.
 - **QEMU for the machine, the ARM manuals for the CPU.** Where QEMU
   departs from hardware, the kernels already work around it (QEMU's
   loader addresses, its stubbed SP804, its mini UART without a
-  backend, its DWC2 quirks): TinyRaspberryPi behaves as QEMU, noted.
+  backend, its DWC2 quirks): mini-qemu behaves as QEMU, noted.
 - **Devices are small state machines behind the bus**: an address
   range, a load and a store, an optional tick, interrupt lines. No
   device knows the CPU.
@@ -173,7 +173,7 @@ machine/ (extended)
   Mmu32.ml(i)              short descriptors, ARMv6 legacy (XP=0) and
                            ARMv7 (XP=1, TTBR0/TTBR1 split by TTBCR.N)
   Mmu64.ml(i)              4 KB granule, 39- and 48-bit VAs, ASIDs
-raspberry/                 library ix_raspberry; the tinypi executable
+raspberry/                 library ix_raspberry; the mini-qemu executable
   Board.ml(i)              the boards: RAM, the bus's map, the cores,
                            QEMU's loader conventions
   Smp.ml(i)                cores interleaved, the exclusive monitor
@@ -301,7 +301,7 @@ under `-hw` must take its hardware branch.
 ### 9. The framebuffer through a display record, SDL first; the keyboard back through USB
 
 The screen and the input devices are **a record of functions at the
-edge**, as the host is for TinyArm's system calls (`Linux.host`):
+edge**, as the host is for mini-5i's system calls (`Linux.host`):
 
 ```ocaml
 type display = {
@@ -318,7 +318,7 @@ Two backends first:
 - **SDL, through tsdl** (the opam package, 1.3.0 installed here): a
   window, a streaming texture updated from the raw pixels, the
   keyboard and mouse events. `Sdl_display` is the one module that
-  links it; the rest of TinyRaspberryPi builds without it.
+  links it; the rest of mini-qemu builds without it.
 - **PPM, headless** (the tests): the framebuffer written on request,
   the graphical tests comparing pictures (the console's text drawn in
   pixels).
@@ -350,7 +350,7 @@ emulated and slow there) is in `Bits` alone (plan_arm.md, decision 3).
   `usertests`. Then VFP (arm-pi1's hard-float).
 - **B. The Pi1's graphics and USB.** The framebuffer (channel 1) in a
   window, DWC2 and a keyboard: `run-arm-pi1-qemu-graphics`'s session
-  under TinyRaspberryPi, and `test-all-graphics`'s checks.
+  under mini-qemu, and `test-all-graphics`'s checks.
 - **C. 9pi.** The mini UART, the mailbox's other tags, EMMC and DMA
   with 9pi's SD image, high-vector and VFP details; 9pi's boot console
   against QEMU's, then its shell.
@@ -393,7 +393,7 @@ output, the interrupts' count per simulated second.
 
 ## Verification
 
-`make test-pi`: each xv6 port's `test-xv6.py` with TinyRaspberryPi as
+`make test-pi`: each xv6 port's `test-xv6.py` with mini-qemu as
 its QEMU, boot then `usertests`; 9pi's boot console against QEMU's;
 the graphical targets' pictures; under `-hw`, each kernel's hardware
 branches taken, and the boards' captured serial logs (kept in the
@@ -407,11 +407,11 @@ compare, not to test.
 ports and 9pi2 the same day, from the survey and the census
 (`machine/tests/xv6_census.sh`); revised again for the author's real
 Pi1, Pi2 and Pi4 (the boards' personality, graphics and USB
-required). Starts after TinyArm's phases 1-5.
+required). Starts after mini-5i's phases 1-5.
 
 **Phase A, first port done** (2026-09-25): **xv6 arm-pi1-bis passes its
-own acceptance test under TinyRaspberryPi**: `test-xv6.py`, unchanged,
-run with `QEMU=tinypi`, boots, runs `usertests`, "ALL TESTS PASSED",
+own acceptance test under mini-qemu**: `test-xv6.py`, unchanged,
+run with `QEMU=mini-qemu`, boots, runs `usertests`, "ALL TESTS PASSED",
 in 2 min 9 s (QEMU 8.2: 22 s; the harness allows 300). The boot's
 console, to the shell's prompt, is byte for byte QEMU's
 (`raspberry/tests/xv6.sh`); the aborts usertests provokes print the
@@ -436,11 +436,11 @@ hanging, read against QEMU 11.1's sources):
   microsecond every 30 instructions), `Intc`, `Systimer`, `Pl011`,
   `Devices` (AUX, GPIO, the mailbox's property tags and framebuffer
   channel as QEMU answers them, the DWC2 with QEMU's reset values and
-  id, so that CSUD enumerates its root hub as under QEMU); `tinypi`
+  id, so that CSUD enumerates its root hub as under QEMU); `mini-qemu`
   taking QEMU's command line.
 
 **Phase A done** (2026-09-25): **xv6 arm-pi1 passes too**, its
-`test-xv6.py` unchanged with `QEMU=tinypi` (its `kernel-qemu.img`):
+`test-xv6.py` unchanged with `QEMU=mini-qemu` (its `kernel-qemu.img`):
 "ALL TESTS PASSED" in 2 min 42 s, its boot byte for byte QEMU's; it
 needed nothing arm-pi1-bis had not. Its hard-float build has no VFP
 instruction in the kernel or the programs (the census said so,
@@ -451,7 +451,7 @@ both usertests).
 **Phase B done** (2026-09-25): the Pi1's graphics and USB keyboard.
 xv6's own graphical test (`scripts/test_qemu_graphics.py`: a
 screen with pixels, more after typing "ls" by QMP, the command on the
-serial console), unchanged with `MAKEFLAGS=QEMU_ARM=tinypi`, **passes
+serial console), unchanged with `MAKEFLAGS=QEMU_ARM=mini-qemu`, **passes
 for arm-pi1-bis and arm-pi1**; and headless
 (`raspberry/tests/graphics.py`) both ports' serial output (the USB
 devices enumerated, the typed command, its listing) and QMP
@@ -475,7 +475,7 @@ screendumps before and after typing are **byte for byte QEMU's**.
   send-key held 100ms of the board's time, quit).
 
 **Phase C done** (2026-09-25): **principia's 9pi boots under
-TinyRaspberryPi as under QEMU**: run as principia's `mkfile-target-pi`
+mini-qemu as under QEMU**: run as principia's `mkfile-target-pi`
 runs it (`-device loader` at 0x8000, the SD card image, `-serial null
 -serial mon:stdio`: the mini UART the console), it reaches rc's prompt
 and a session of commands (`raspberry/tests/9pi.py`: ls, cat, wc, a

@@ -5,7 +5,7 @@
 
 (executable
  (name Main)
- (public_name tinyasm)
+ (public_name mini-asm)
  (package ix)
  (modules Main)
  (libraries ix_asm caps))

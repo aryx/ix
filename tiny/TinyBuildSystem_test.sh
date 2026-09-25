@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The tests of TinyBuildSystem.ml: each scenario runs tinybuild in a
+# The tests of TinyBuildSystem.ml: each scenario runs tiny-build in a
 # fresh directory and compares what it printed with what it should.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -48,9 +48,9 @@ echo cc world; cp world.c world.o
 cc world
 echo link; cat hello.o world.o > hello
 link" "$TB"
-check "idempotent" "tinybuild: hello is up to date" "$TB"
+check "idempotent" "tiny-build: hello is up to date" "$TB"
 touch hello.c world.c
-check "new times, same contents" "tinybuild: hello is up to date" "$TB"
+check "new times, same contents" "tiny-build: hello is up to date" "$TB"
 echo 'world!' > world.c
 check "minimal: one source edited" "echo cc world; cp world.c world.o
 cc world
@@ -101,28 +101,28 @@ check "-j 2 runs both at once" "yes" sh -c "[ \$((\$(date +%s) - $start)) -lt 2 
 # the checks
 fresh
 printf 'a: b\n\ttouch a\nb: c\n\ttouch b\nc: a\n\ttouch c\n' > Buildfile
-check "cycle" "tinybuild: cycle: a -> b -> c -> a
+check "cycle" "tiny-build: cycle: a -> b -> c -> a
 [exit 1]" "$TB"
 fresh
 printf '%%.o: %%.c\n\techo cc\n%%.o: %%.s\n\techo as\n' > Buildfile; touch x.c x.s y.c
-check "ambiguous" "tinybuild: ambiguous: several patterns make x.o
+check "ambiguous" "tiny-build: ambiguous: several patterns make x.o
 [exit 1]" "$TB" x.o
 check "a pattern whose prerequisite can't be made is not a candidate" "echo cc
 cc" "$TB" y.o
 fresh
 printf 'a: nothere\n\ttouch a\n' > Buildfile
-check "don't know how" "tinybuild: don't know how to make nothere
+check "don't know how" "tiny-build: don't know how to make nothere
 [exit 1]" "$TB"
 fresh
 printf '%%: %%.gz\n\tgunzip -k $stem.gz\n' > Buildfile; touch foo.gz.gz
-check "a pattern once per path: no foo.gz.gz.gz..." "tinybuild: don't know how to make foo
+check "a pattern once per path: no foo.gz.gz.gz..." "tiny-build: don't know how to make foo
 [exit 1]" "$TB" foo
 
 # a failing recipe: what depends on it does not run
 fresh
 printf 'all: bad good\n\techo all\nbad:\n\tfalse\ngood:\n\techo good\n' > Buildfile
 check "failure" "false
-tinybuild: bad failed
+tiny-build: bad failed
 [exit 1]" "$TB"
 
 echo "$failures failure(s)"

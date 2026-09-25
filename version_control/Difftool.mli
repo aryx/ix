@@ -2,8 +2,8 @@
  * files or directories, "-" for standard input, a file that is not a
  * regular one (/dev/null) read whole.
  *
- *   tinydiff [-abcefmnruw] file1 ... file2     exit 0 same, 1 some, 2 error
- *   tinymerge3 ours base theirs                exit 1 on a conflict
+ *   mini-diff [-abcefmnruw] file1 ... file2     exit 0 same, 1 some, 2 error
+ *   mini-merge3 ours base theirs                exit 1 on a conflict
  *
  * Directories: the entries of both, sorted; "Only in d: x" for one
  * side's (default and -n formats only); a subdirectory with -r, or

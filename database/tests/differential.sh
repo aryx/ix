@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# TinyDb against chidb: each corpus/*.sql session run by both, in a
+# mini-chidb against chidb: each corpus/*.sql session run by both, in a
 # fresh directory, on a new database; their standard output, standard
 # error and database files compared, byte for byte; and SQLite (Python's
 # sqlite3) reading every table of the file. Needs ~/github/chidb built.

@@ -1,4 +1,4 @@
-# Plan: TinyEd, a text editor from scratch, for teaching (`editor/`)
+# Plan: mini-ed, a text editor from scratch, for teaching (`editor/`)
 
 Companions:
 [`notes_ed.md`](../tutorials/notes_ed.md), the tutorial: a buffer of
@@ -12,10 +12,10 @@ regular expression engines. The twins are the Principia book
 OCaml, `.ml`, `.mli` and `.mll`, with its regular expressions from
 the `re` library).
 
-The third ix program, after TinyMk ([`plan_mk.md`](plan_mk.md)) and
-TinyRc ([`plan_rc.md`](plan_rc.md)), planned the same way; the
+The third ix program, after mini-mk ([`plan_mk.md`](plan_mk.md)) and
+mini-rc ([`plan_rc.md`](plan_rc.md)), planned the same way; the
 principles are in [`../README.md`](../README.md). This time the author
-asked for the whole of it at once, the documents, TinyEd and the free
+asked for the whole of it at once, the documents, mini-ed and the free
 variant, to review at the end ("go for ed, but don't wait for my
 review, do also the implementation the TinyEditor.ml final step
 too").
@@ -37,7 +37,7 @@ Why ed third:
 - **A reference runs today**: 9base's ed, `/usr/lib/plan9/bin/ed`,
   and its behaviour is principia's `ed.c` (checked: `l` prints
   `\x00e9`, as principia's code does and plan9port's current code does
-  not). So the corpus method of TinyMk and TinyRc carries over.
+  not). So the corpus method of mini-mk and mini-rc carries over.
 - **It teaches what the first two did not.** mk was a graph and rc was
   processes. ed is a data structure (lines, with an identity marks can
   hold) and an algorithm: regular expression matching, which is where
@@ -45,7 +45,7 @@ Why ed third:
 - **xix's twin is partial.** oed has no `s///g`, no `\1` or `&`, no
   marks, no `g` (the TODOs in `Commands.ml`, `Address.ml`), and its
   regular expressions are the `re` library's, not Plan 9's. So, as
-  with rc, TinyEd can be both smaller than the C and more complete
+  with rc, mini-ed can be both smaller than the C and more complete
   than oed.
 
 ## Principles
@@ -54,7 +54,7 @@ Those of [`../README.md`](../README.md), and three of its own:
 
 - **The program is ed.c and the binary is 9base's.** The man page says
   a NUL is discarded; the code cuts the line there (a C string ends at
-  its first 0), and TinyEd follows the code, with a case. Where the
+  its first 0), and mini-ed follows the code, with a case. Where the
   code and the binary disagree, the binary wins, since it is what the
   corpus is recorded from.
 - **Scripts are the inputs, and they are few.** Unlike rc, ed has no
@@ -72,7 +72,7 @@ Those of [`../README.md`](../README.md), and three of its own:
 
 `ed [-] [-o] [file]`; every command of ed.c:
 
-| command | what | TinyEd |
+| command | what | mini-ed |
 |---|---|---|
 | `a` `i` `c` | append, insert, change: text until a line `.` | kept |
 | `d` | delete | kept |
@@ -91,13 +91,13 @@ Those of [`../README.md`](../README.md), and three of its own:
 | the temp file and its limits: 4,096-rune lines, 128-byte names, 256-byte `g` lists and patterns | | dropped: the buffer is in memory, with no limits (a deliberate difference, with a case) |
 
 Nothing else is dropped: every command is a few lines once the
-addresses and the buffer exist. The names: `tinyed`, and the directory
+addresses and the buffer exist. The names: `mini-ed`, and the directory
 `editor/`, xix's (principia's is `editors/`).
 
 ## Target layout
 
 ```
-editor/                  library ix_ed + the tinyed executable
+editor/                  library ix_ed + the mini-ed executable
   Regex.ml(i)            Plan 9's notation to a tree; leftmost-longest
                          matching with submatches (decision 2)
   Text.ml(i)             the buffer: lines with an identity, dot, dol,
@@ -115,11 +115,11 @@ editor/tests/corpus/     scripts, each with its output and files
 tiny/             TinyEditor.ml (see "Outside ed")
 ```
 
-**The size target**, set by module as TinyRc's was: Regex 220, Text
+**The size target**, set by module as mini-rc's was: Regex 220, Text
 100, Input 60, Out 60, Address 120, Command 380, CLI 60, Main 10:
 about **1,000 lines of `.ml`**, a third of the C ed with the parts of
 libregexp it uses, and a little over half of oed, while doing what oed
-doesn't. TinyRc came out 6% over its per-module target; the Status
+doesn't. mini-rc came out 6% over its per-module target; the Status
 will compare.
 
 ## Groundwork decisions
@@ -132,7 +132,7 @@ of each offset: `g` marks the lines it will visit with it, and `k`
 names a line by its offset, so a mark follows its line through a
 move. The temporary file was 1971's answer to a small memory.
 
-TinyEd keeps a growable array of lines, each a record with its text
+mini-ed keeps a growable array of lines, each a record with its text
 and a mutable `global` flag. A line's **identity is the record**:
 `k` stores the record, `'x` finds it by physical equality (`==`), and
 a line that is deleted takes its marks with it, as in ed.c. `s`
@@ -146,7 +146,7 @@ offset arithmetic, and the `TMP` error: some 250 lines of the C.
 **Changed in phase 1** (see the Status): the claim below, that the
 memoized backtracker gives libregexp's answers, is true of a Pike VM
 that keeps its threads in priority order, and false of libregexp,
-whose thread order is not a priority. The fuzzer found it; TinyEd now
+whose thread order is not a priority. The fuzzer found it; mini-ed now
 runs libregexp's own algorithm, and the backtracker is TinyEditor.ml's.
 The text is kept as it was planned.
 
@@ -161,7 +161,7 @@ gives `\1` = `o`, `\2` = `ne`).
 
 libregexp compiles to instructions and runs them as a Thompson NFA with
 submatches, a thread list per character (the "Pike VM", from Rob Pike's
-sam; the name is Russ Cox's). TinyEd does something that looks
+sam; the name is Russ Cox's). mini-ed does something that looks
 different and is the same: it **matches by backtracking over the
 tree**, trying the alternatives in priority order (left before right,
 greedy before lazy), keeping the longest end found and the captures of
@@ -189,7 +189,7 @@ a newline (there are none in a line, so it can't show).
 ed.c has no parser: `commands()` reads an address, a character, and
 each command reads the rest of its line itself -- a file name, a
 pattern, the text of `a` until `.`, an `s` whose replacement goes on
-past a `\` newline. TinyEd keeps that shape, because the alternative
+past a `\` newline. mini-ed keeps that shape, because the alternative
 (parse a command, then run it) fails three ways: addresses do things
 while they are read (`;` sets dot before the next address, `/re/`
 becomes the remembered pattern), the text of `a` comes from the same
@@ -216,7 +216,7 @@ error once, and quits the second time. With `-`, it never is.
 Everything goes to standard output, even the `?`s, and to standard
 error with `-o` (so that `w` can write the buffer to standard
 output). ed.c buffers a line of 70 bytes and writes it at each
-newline; TinyEd writes each line whole. `l` folds at column 64,
+newline; mini-ed writes each line whole. `l` folds at column 64,
 continuing with `\`, a newline and a tab, and prints a character
 outside the printable ASCII as `\x` and four hex digits; a line that
 ends with a blank gets a `\n` after it.
@@ -225,7 +225,7 @@ ends with a blank gets a `\n` after it.
 
 The buffer lives in memory; there is no `/tmp/eXXXXXX`, no line longer
 than 4,096 runes is refused, and no file name longer than 128 bytes.
-A deliberate difference, with one case and a `.tiny.out`: a line of
+A deliberate difference, with one case and a `.mini.out`: a line of
 5,000 characters.
 
 ## Outside ed: TinyEditor.ml
@@ -246,7 +246,7 @@ lines are just one structure among others (`,x/.*\n/` is "each line").
 It is one file, with its own smaller matcher (leftmost-longest is
 kept, since sam has it too), and it has a runnable reference: 9base
 ships `sam`, whose `-d` mode reads commands without a terminal
-(checked: `,x/o/c/0/` then `,p` works). So its test is TinyEd's
+(checked: `,x/o/c/0/` then `,p` works). So its test is mini-ed's
 method, against `sam -d`. The question it answers: is an editor's
 core ed's lines, or sam's ranges? The target: about 450 lines.
 
@@ -288,7 +288,7 @@ written):
   `8c/mkenam` on their headers: the same `enam.c` as 9base's ed.
 - **Milestone 2: xix's history, replayed.** For every `.ml` file
   changed in the last 300 commits of xix, `diff -e old new` run by
-  TinyEd on `old`: the result is `new`, and TinyEd's output (the
+  mini-ed on `old`: the result is `new`, and mini-ed's output (the
   counts) is 9base's.
 - **Milestone 3: a session**, through a pipe, as a person would type
   it: `a`, text, `.`, `p`, a mistake, `s`, `w`, `q`.
@@ -334,12 +334,12 @@ written):
   - `k` marks follow their line through `m`.
   - `sam -d` runs without a terminal, for TinyEditor.ml's tests.
 
-- **2026-09-23, phases 0-3 DONE: TinyEd.** `editor/`: Regex, Text,
+- **2026-09-23, phases 0-3 DONE: mini-ed.** `editor/`: Regex, Text,
   Input, Out, Address, Command, CLI; a corpus harness
   (`tests/differential.sh`, cases as `case.ed` with an optional
   `case.txt`, `case.args` and `case.pipe`). The first 38 cases, one
   per command and per check above, passed on the first run -- all of
-  them, which made me check the harness (it did run tinyed). The
+  them, which made me check the harness (it did run mini-ed). The
   numbers and the lessons:
   - **A fuzzer against 9base's ed** (random files, random scripts of
     every command, random patterns of the whole notation; a script in
@@ -358,7 +358,7 @@ written):
       same instruction again and again, until the list of 10 overflows,
       and then the one of 50; `rregexec` then returns -1, which ed
       takes for a match: the best found so far, here the empty one.
-      TinyEd now compiles to regcomp's program and runs regexec's lists,
+      mini-ed now compiles to regcomp's program and runs regexec's lists,
       sizes and all (Regex.ml: 307 lines, against 220 planned).
     - **regcomp's postfix operators don't apply left to right.** They
       go through its operator stack, with `*` < `+` < `?`, and an
@@ -375,9 +375,9 @@ written):
     commits of xix: **5,716 of 5,720 `diff -e` scripts** give the new
     file under both eds, with the same counts printed. The 4 others
     are files with Latin-1 bytes, which 9base's ed reads as runes,
-    each invalid byte a U+FFFD written back as such, where TinyEd keeps
+    each invalid byte a U+FFFD written back as such, where mini-ed keeps
     the bytes -- a documented difference, `latin1`.
-  - **Two more documented differences**, each with a `.tiny.out`: a
+  - **Two more documented differences**, each with a `.mini.out`: a
     line over 4,096 characters, which 9base refuses; and `v/x/d` on an
     empty buffer, after which 9base's `$` is -1 (its g marks line 0
     and gdelete deletes it).

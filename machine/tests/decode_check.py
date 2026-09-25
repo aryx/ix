@@ -9,7 +9,7 @@
 # 2 of the License, or (at your option) any later version.
 #
 # Phase 1's test: every word of the corpus (words_arm.txt, from
-# census.py) decoded and printed by TinyArm's Arm32 and by binutils'
+# census.py) decoded and printed by mini-5i's Arm32 and by binutils'
 # objdump, the texts equal (objdump's "@ ..." comments dropped).
 #
 # With --random N [seed]: N random words instead, cond not 1111, from
