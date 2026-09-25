@@ -80,6 +80,14 @@ in xix", on the Pi1 ("Pi1 is simpler than Pi4 arguably").
 Each step is kept in its own directory, `kernel/step1/`, `step2/`...,
 as tiny-os keeps v0 to v6 (the author: "maybe we can save the code for
 this derisk somewhere under kernel/ [...] I think it's good teaching").
+The steps are the ladder, each a small snapshot showing one mechanism
+(OCaml bare-metal, a trap, processes and the collector, the MMU, the
+timer); mini-xv6 itself, a program that grows in modules, is
+`kernel/xv6/`, and a later Plan 9 kernel's twin `kernel/9pi/` (the
+author asked between `step6`/`step9`, `xv6`/`9pi` and `ov6`/`o9pi`;
+`o` is xix's prefix, ix names its directories by what they hold).
+Step 4 of the list above became steps 4 (the MMU) and 5 (the timer),
+then `kernel/xv6/`.
 
 ## Status
 
@@ -202,3 +210,46 @@ QEMU the same. **No change to ocaml-light's runtime was needed**: its
 
 The risk the plan put first -- a collected language's kernel with a
 kernel stack per process -- is retired. Step 4 is xv6 itself.
+
+**Step 4 done** (2026-09-25): `kernel/step4/`, the MMU, under mini-qemu
+and QEMU the same. xv6 arm-pi1's layout: user programs from 0 below
+1GB, the kernel at KERNBASE (0x80000000), the devices at 0xFE000000,
+the vectors at 0xFFFF0000.
+
+- `start.s`: the kernel linked at KERNBASE + 0x8000, loaded at 0x8000;
+  the boot, at the physical addresses, fills the kernel's table (1MB
+  sections, ARMv6's format: the RAM, the devices, the first MB as
+  itself for the jump), maps the vectors' page at 0xFFFF0000 through a
+  coarse table, turns the MMU on (M, XP, V) and jumps high; then TTBCR
+  N = 2 (TTBR0 for below 1GB, a process's 4KB table; TTBR1 the
+  kernel's). Aborts from user mode go to the kernel, which kills the
+  process; from the kernel they stop the machine.
+- `machine.c`: physical memory by physical address (KERNBASE added in
+  C: OCaml never holds a kernel address), the trap frame by word,
+  TTBR0 switched, the program's image, a user's fault handed to OCaml
+  with its address (an Int32: it may be the kernel's) and status.
+- `Main.ml`: page table entries as records (`L1_fault | Coarse of int`,
+  `L2_fault | Page of page`, `perm`), encoded and decoded in one place;
+  a page allocator (a list of physical addresses); walk, map, a
+  checked copyin, a space freed; a process's space made from the
+  image (its pages at 0, a guard page, a stack page); the scheduler
+  switching TTBR0; a fault killing the process.
+- `user.s`, linked at 0: process 1 reads the kernel's memory (killed,
+  a section permission fault), process 2 gives write() an unmapped
+  pointer (refused, -1) and reads it itself (killed, a translation
+  fault), process 3 runs and exits; all 49,152 pages back at the end.
+
+Found on the way:
+
+- **1GB is not an OCaml int on the Pi1**: `0x40000000`, written as the
+  user's bound, wrapped to min_int, and every user address looked out
+  of range. The rule is "every address *below* 1GB": the bound itself
+  is out; the check is `va >= 0`.
+- **TTBCR before TTBR0**: the boot first pointed TTBR0 at the empty
+  user table, then set N = 2; in between, the kernel's own addresses
+  went through the empty table. QEMU let it pass (its TLB still held
+  them), mini-qemu faulted (it empties its TLB on every TTBR write) --
+  the stricter emulator found the kernel's bug.
+- OCaml 1.07 has no inline records, field punning, `; _` in record
+  patterns, labeled arguments, `_` as a `for` variable, `_` in number
+  literals, `String.iter`: the kernel is written in 1.07's OCaml.

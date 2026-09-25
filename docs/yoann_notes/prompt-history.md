@@ -4675,3 +4675,23 @@ Claude completed VFP instructions and step 2 with trap handler, running identica
 **Yoann:**
 
 > yes, but before let's add a tutorial and related work for the kernel, like we have for the other programs
+
+**Claude (summary):**
+
+Claude created tutorial and related-work files for the kernel documenting the OCaml runtime and garbage collection hooks. Step 3 confirmed that processes on separate stacks work without runtime changes, relying on roots.c's collector hook for sleeping processes. Claude proposed breaking step 4 (xv6 in OCaml) into sub-phases, beginning with timer interrupts and the MMU. Implementing timer interrupt handling will enable preemptive scheduling of multiple processes on the kernel. The MMU implementation will enforce memory protection between processes as a foundation for the file system.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 15:29
+
+**Yoann:**
+
+> yes!
+
+------------------------------------------------------------------------
+
+## 2026-09-25 15:30
+
+**Yoann:**
+
+> let's maybe have kernel/step6 for xv6? and later on step9 ? or kernel/xv6 and kernel/9pi/ ? or kernel/ov6/ and kernel/o9pi/  ?

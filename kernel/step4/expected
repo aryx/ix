@@ -1,0 +1,13 @@
+mini-xv6: step 4, the MMU on; 49152 pages free
+process 1: hello, from my own pages at 0
+process 1: now reading the kernel's memory
+mini-xv6: process 1 killed: data abort at 0x80008000, pc 0x58, status 0xd
+process 2: hello, from my own pages at 0
+process 2: write() refused a bad pointer; now reading it myself
+mini-xv6: process 2 killed: data abort at 0x00300000, pc 0x84, status 0x5
+process 3: hello, from my own pages at 0
+process 3, round 1
+process 3, round 2
+process 3, round 3
+mini-xv6: process 3 exited, status 30
+mini-xv6: no process left to run; 49152 pages free
