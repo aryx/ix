@@ -1,4 +1,4 @@
-; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
+; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPU.ml)
 ; write(1, msg, 13); exit(0)
 	li	r1, 1
 	la	r2, msg

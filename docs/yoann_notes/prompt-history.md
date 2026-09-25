@@ -3701,3 +3701,51 @@ Claude suggested updating the README instead if readers need to know it replaces
 **Yoann:**
 
 > ok make sense
+
+**Claude (summary):**
+
+Claude decided to keep TinyAssembler.ml unchanged without making any modifications to it.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:28
+
+**Yoann:**
+
+> regarding TinyMachine.ml, why it contains also an assembler and translator and so on? Why doing all those things? The other TinyXxx usually just do one thing (well TinyAssembler also kinda link).
+
+**Claude (summary):**
+
+Claude recommended removing the translator, which comprised 185 lines added beyond the original plan. The translator was added to compare interpreter output with ARM binary execution, catching test bugs. Removing the translator leaves TinyMachine as a machine with assembler and interpreter, about 400 lines. The assembler must stay because TinyMachine uses a custom instruction set needing assembly tools. The change affects TinyMachine.ml, TinyMachine_test.sh, the -o flag implementation, documentation in plan_arm.md, and README.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:30
+
+**Yoann:**
+
+> yes let's remove it, and explain why it must also contain a mini assembler
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:30
+
+**Yoann:**
+
+> also there is a bit of redundancy between TinyArm.ml and TinyMachine.ml no? Why do we need TinyArm.ml ?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:31
+
+**Yoann:**
+
+> Or we need a TinyCPU.ml that is free-form (mostly what is currently TinyMachine), and then a TinyMachine that also have devices in it no?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:31
+
+**Yoann:**
+
+> what do you think?

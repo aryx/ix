@@ -1,4 +1,4 @@
-; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
+; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPU.ml)
 ; an insertion sort of 16 words, signed, then printed (their absolute
 ; values: print is unsigned)
 	la	r9, array

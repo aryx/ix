@@ -1,4 +1,4 @@
-; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
+; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPU.ml)
 ; the primes below 1000, a sieve of bytes; exit status: how many (168)
 	la	r9, sieve
 	li	r10, 2			; the candidate

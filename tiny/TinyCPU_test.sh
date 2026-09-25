@@ -8,21 +8,18 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The tests of TinyMachine.ml, its laws:
+# The tests of TinyCPU.ml, its laws:
 #
-# 1. each program of TinyMachine_tests/, interpreted, prints its
+# 1. each program of TinyCPU_tests/, interpreted, prints its
 #    .expected (computed otherwise: Python's factorials, primes, sort);
-# 2. its translation to arm32 prints and exits the same, run on the CPU
-#    (when this machine runs arm32) and under machine/'s mini-5i;
-# 3. random programs (N, default 200), each a straight line of every
-#    kind of instruction with branches and jal over one, dumping its
-#    registers at the end: the same bytes interpreted and translated.
+# 2. random programs (N, default 200), each a straight line of every
+#    kind of instruction with branches and jal over one: the listing,
+#    reassembled, lists the same words.
 #
-# Usage: TinyMachine_test.sh [N]
+# Usage: TinyCPU_test.sh [N]
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-T=$ROOT/_build/default/tiny/TinyMachine.exe
-M=$ROOT/_build/default/machine/Main.exe
+T=$ROOT/_build/default/tiny/TinyCPU.exe
 N=${1:-200}
 W=$(mktemp -d)
 trap 'rm -rf $W' EXIT
@@ -30,22 +27,18 @@ failures=0
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
 INPUT="hello tiny machine"
 
-# the three runs of a program, the same input: "same" or what differs
-three() { # source
-  $T -o $W/x "$1" || { echo "not translated"; return; }
-  echo "$INPUT" | $T "$1" > $W/o1 2>/dev/null; s1=$?
-  echo "$INPUT" | $M $W/x > $W/o3 2>/dev/null; s3=$?
-  if echo "$INPUT" | $W/x > $W/o2 2>/dev/null; s2=$?; [ $s2 -eq 126 ]; then cp $W/o1 $W/o2; s2=$s1; fi
-  if cmp -s $W/o1 $W/o2 && cmp -s $W/o1 $W/o3 && [ $s1 = $s2 ] && [ $s1 = $s3 ]; then echo same
-  else echo "interpreted: status $s1, $(wc -c < $W/o1) bytes; on the CPU: $s2, $(wc -c < $W/o2); under mini-5i: $s3, $(wc -c < $W/o3)"; fi
+# a program's listing, reassembled and listed again: "same" or the diff
+relist() { # source
+  $T -l "$1" > $W/l1 || { echo "not assembled"; return; }
+  cut -f3- $W/l1 | sed 's/^/\t/' > $W/r.tm
+  $T -l $W/r.tm > $W/l2 2>&1
+  if cmp -s $W/l1 $W/l2; then echo same; else diff $W/l1 $W/l2 | head -3; fi
 }
 
-for s in $ROOT/tiny/TinyMachine_tests/*.tm; do
+for s in $ROOT/tiny/TinyCPU_tests/*.tm; do
   p=$(basename $s .tm)
   echo "$INPUT" | $T $s > $W/$p.out 2>&1
   if cmp -s $W/$p.out ${s%.tm}.expected; then echo "ok $p: its expected output"; else fail "$p: $(diff $W/$p.out ${s%.tm}.expected | head -3)"; fi
-  r=$(three $s)
-  if [ "$r" = same ]; then echo "ok $p: its translation runs the same, on the CPU and under mini-5i"; else fail "$p: $r"; fi
 done
 
 # random programs
@@ -72,8 +65,6 @@ for k in range(n):
             lines.append("\t%s\t%s, %s, %d" % (op, reg(), reg(), v))
         elif c == 6: lines.append("\tlui\t%s, %d" % (reg(), r.randrange(0x10000)))
         elif c == 7:
-            # loads from anywhere; stores to the scratch area only (the
-            # translation cannot follow code the program rewrites)
             if r.randrange(2): lines.append("\t%s\t%s, %d(%s)" % (r.choice(["ldw", "ldb"]), reg(), r.randrange(-0x8000, 0x8000), reg()))
             else: lines.append("\t%s\t%s, %d(r0)" % (r.choice(["stw", "stb"]), reg(), r.randrange(0x4000, 0x7ff0)))
         else:
@@ -82,17 +73,15 @@ for k in range(n):
             else: lines.append("\tjal\t%s, l%d" % (reg(), label))
             lines.append("\t%s\t%s, %s, %s" % (r.choice(alu), reg(), reg(), reg()))
             lines.append("l%d:" % label)
-    # the registers, then the scratch area's first words, written out
-    for i in range(1, 16): lines.append("\tstw\tr%d, %d(r0)" % (i, 0x3000 + 4 * i))
-    lines += ["\tli\tr1, 1", "\tli\tr2, 0x3000", "\tli\tr3, 0x1000", "\tsys\t1", "\tli\tr1, 0", "\tsys\t0"]
+    lines += ["\tli\tr1, 0", "\tsys\t0"]
     open("%s/f%d.tm" % (w, k), "w").write("\n".join(lines) + "\n")
 EOF
 bad=0
 for k in $(seq 0 $((N - 1))); do
-  r=$(three $W/f$k.tm)
-  if [ "$r" != same ]; then bad=$((bad + 1)); [ $bad -le 3 ] && echo "  random program $k: $r"; cp $W/f$k.tm /tmp/tiny-machine_fail_$k.tm 2>/dev/null; fi
+  r=$(relist $W/f$k.tm)
+  if [ "$r" != same ]; then bad=$((bad + 1)); [ $bad -le 3 ] && echo "  random program $k: $r"; cp $W/f$k.tm /tmp/tiny-cpu_fail_$k.tm 2>/dev/null; fi
 done
-if [ $bad = 0 ]; then echo "ok random: $N programs, interpreted and translated the same"; else fail "random: $bad of $N differ (kept as /tmp/tiny-machine_fail_*.tm)"; fi
+if [ $bad = 0 ]; then echo "ok random: $N programs, their listings reassembled to the same words"; else fail "random: $bad of $N differ (kept as /tmp/tiny-cpu_fail_*.tm)"; fi
 
-echo "TinyMachine_test: $failures failures"
+echo "TinyCPU_test: $failures failures"
 exit $((failures > 0))

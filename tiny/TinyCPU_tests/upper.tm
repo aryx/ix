@@ -1,4 +1,4 @@
-; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
+; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPU.ml)
 ; standard input's first 256 bytes, the lowercase letters made
 ; uppercase; exit status: how many bytes
 	li	r1, 0

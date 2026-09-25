@@ -1,4 +1,4 @@
-; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
+; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPU.ml)
 ; calls through a table of addresses (jalr): each of three functions
 ; applied to 1..5, printed
 	li	r9, 0			; the function's index

@@ -1,18 +1,34 @@
-; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
-; the first 40 Fibonacci numbers, in decimal (div and rem by 10)
-	li	r9, 0			; a
-	li	r10, 1			; b
-	li	r11, 40			; how many
-loop:
+; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyCPU.ml)
+; n! for n = 0 to 12, recursively: a frame per call on the stack
+	li	r9, 0
+next:
 	mov	r1, r9
+	call	fact
 	call	print
-	add	r12, r9, r10
-	mov	r9, r10
-	mov	r10, r12
-	addi	r11, r11, -1
-	bne	r11, zero, loop
+	addi	r9, r9, 1
+	slti	r2, r9, 13
+	bne	r2, zero, next
 	li	r1, 0
 	sys	0
+
+; fact: r1 = r1!, recursively
+fact:
+	addi	sp, sp, -8
+	stw	lr, 0(sp)
+	stw	r1, 4(sp)
+	li	r2, 1
+	blt	r2, r1, recurse		; 1 < n
+	li	r1, 1
+	j	return
+recurse:
+	addi	r1, r1, -1
+	call	fact
+	ldw	r2, 4(sp)
+	mul	r1, r1, r2
+return:
+	ldw	lr, 0(sp)
+	addi	sp, sp, 8
+	ret
 
 ; print: r1 in decimal and a newline (clobbers r1-r8)
 print:
