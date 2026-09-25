@@ -648,6 +648,7 @@ type state = {
   mutable write_sysreg : int -> int64 -> unit;
   mutable system : state -> t -> unit;
   mutable monitor : int;
+  mutable watch : (int -> unit) option;
 }
 
 exception Unimplemented of int * int
@@ -659,7 +660,7 @@ let create mem =
     el = 0; spsel = false; sp_el = Array.make 4 0L; daif = 0;
     elr = Array.make 4 0L; spsr = Array.make 4 0L; esr = Array.make 4 0L; far = Array.make 4 0L; vbar = Array.make 4 0L;
     mmu = false; translate = (fun _ _ -> 0); read_sysreg = undefined; write_sysreg = (fun _ _ -> undefined ());
-    system = (fun _ _ -> undefined ()); monitor = -1 }
+    system = (fun _ _ -> undefined ()); monitor = -1; watch = None }
 
 let m32 = 0xffffffffL
 let mask sf v = match sf with X -> v | W -> Int64.logand v m32
@@ -794,6 +795,7 @@ let load st size signed a =
 
 let store st size a v =
   let m = st.mem in
+  (match st.watch with Some f -> f a | None -> ());
   match size with
   | Byte -> Memory.store8 m a (Int64.to_int (Int64.logand v 0xffL))
   | Half -> Memory.store16 m a (Int64.to_int (Int64.logand v 0xffffL))

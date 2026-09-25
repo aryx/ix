@@ -15,8 +15,9 @@
  * stub (its Linux boot: the Pi4's firmware's behaviour), released by
  * the kernel's write to the spin table; QEMU starts them at an ELF's
  * entry instead, a race xv6 wins by timing under QEMU and would lose
- * here. xv6's idle cores spin (its scheduler never waits), so with 4
- * cores the kernel runs about 4 times slower than with one.
+ * here. xv6's idle cores spin (its scheduler never waits): a core
+ * whose turn left the memory as it found it skips turns (an
+ * optimization, [idle_skip]).
  *
  * Time: the counter advances 62.5 ticks per [ips] instructions (a
  * simulated microsecond, plan_pi.md decision 6); with every core
@@ -34,6 +35,7 @@ type config = {
   serial : char -> unit;               (* the PL011 *)
   trace : int;                         (* the first N instructions to the log, or every -N-th; 0 none *)
   cores : int;                         (* 1 to 4 *)
+  idle_skip : bool;                    (* idle cores skip turns (with several) *)
 }
 
 type t

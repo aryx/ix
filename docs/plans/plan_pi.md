@@ -704,3 +704,19 @@ quantum of time. xv6 arm64-pi4 boots its four harts and passes
   against 75s). `-smp 1` stays mini-qemu's default; `make test-pi`
   runs three tests on four cores (67s). "hopefully most cores would be
   idle" (the author): not with this kernel.
+
+**Idle cores, an optimization** (2026-09-25; the author: "let's do the
+idle-core opti", "if it does not add too many LOC"). A section of
+`Pi4` that `-no-idle-skip` turns off (12 lines of code, and a store
+hook in Arm64): a core whose turn stored nothing (memory, device,
+system register) skips its next turns, 1, 2, 4 ... 16 rounds, and runs
+at once on a pending interrupt or event. xv6's four-core boot on the
+real kernel: 92s, now 26s (one core: 21s), the secondaries' spin on
+`started` while core 0 fills 128MB. Not caught: the scheduler's idle
+loop (the 16 tests on four cores: 318s, now 306s). Tried first and
+dropped: "the turn left the memory as it found it" (every word stored
+to back to its value): a turn ends in the middle of a pass over the
+process table, a lock held, a counter up, the loop variable spilled on
+the stack, so no turn qualified, and the log slowed the tests to 401s.
+Making it work would take guesses (the stack ignored, values that came
+back) that would slow real work too.

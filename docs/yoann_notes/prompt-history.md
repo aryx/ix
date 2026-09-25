@@ -4332,3 +4332,19 @@ Non-essential features would be cut to maintain the LOC budget and teaching clar
 **Yoann:**
 
 > let's do the extensions. a.out looks more "tiny-" spirit. But for the code of v6/ we should take xv6 as inspiration but still try to simplify! we can use less files, be more compact, simplify thigns so hopefully we are far less than 6000 LOC. It's ok to cut some features and focus on the essential here, to remain in a budget of 2000LOC max ideally (we can revisit if not realistic and if feature set become too small). For the filesystem we can for instance design our own, with our own simpler mkfs, to reduce the LOC.
+
+**Claude (summary):**
+
+Claude confirmed the a.out extension choice, 2000-line budget for v6, and custom filesystem design approach.
+Simplified tiny-c to require only enum and function pointers, dropping goto, macros, and preprocessor directives.
+Fixed a 7c dialect issue by renaming the USED constant to EMBRYO from earlier xv6.
+Implemented a fetch hook and settable memory size in TinyMachine for more flexible device behavior.
+Wrote paging and I/O device implementations, verified correctness through mutation testing and TinyMachine_test.sh.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:09
+
+**Yoann:**
+
+> yes
