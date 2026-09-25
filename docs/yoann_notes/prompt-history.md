@@ -4192,3 +4192,51 @@ Claude reviewed the Pi4 documentation in notes_pi.md and related-work sections, 
 **Yoann:**
 
 > let's do TinyPi.ml!
+
+**Claude (summary):**
+
+Claude reorganized tiny/tiny-os into v0/ and v1/ subdirectories, each with its own Makefile, and shared libc/ across versions.
+Claude wrote docs/projects.md documenting ix as a grid of machines, their toolchains, and five separate kernel projects including tiny-os.
+Projects.md distinguishes host and guest code, notes tiny-assembler without -tm makes Linux arm64 binaries, and lists external dependencies.
+Claude renamed v0 to "tiny-os v0," corrected plan_arm.md, and coordinated with another session to avoid collisions on TinyPi.ml.
+Tests and paths were updated throughout, everything verified working, and committed as db05120.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:17
+
+**Yoann:**
+
+> great projects.md! L like the new design
+
+**Claude (summary):**
+
+Claude offered to write a plan for tiny-os v1 before coding, noting it needed design decisions.
+Claude identified a C code issue: kernel needs csrr/csrw/eret calls, could be .tm helpers or tiny-c built-ins.
+Claude specified that trap handling must keep register-saving in assembly with the rest in C.
+Claude outlined v1 scope toward xv6 including process table, fork/exec, user program loader, and file system.
+Claude advised keeping projects.md current by updating status rows as ix-f6 and v1 progress.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:18
+
+**Yoann:**
+
+> let's make a plan for this tiny-os (and how it related to the different mini-xv6 (in OCaml), mini-9pi (in OCaml), TinyKernel (in OCaml). What could be the different versions where we showcase interesting os/kernel teaching history
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:19
+
+**Yoann:**
+
+> a bit like what I had in ~/principia/docs/principia/ appendix about bootstrapping
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:21
+
+**Yoann:**
+
+> maybe let's rename TinyArm.ml to TinyCPUArm.ml and tinyPi.ml to TinyMachinePi.ml? just for better grouping associate of files in the directory?

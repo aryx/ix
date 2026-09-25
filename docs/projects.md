@@ -61,7 +61,8 @@ for arm64 Linux (and mini-5i), not for the tiny machines.
 
 ## The kernels
 
-Several different projects, not versions of one:
+Several different projects, not versions of one (tiny-os's versions,
+and how they relate to the others: [plans/plan_tiny_os.md](plans/plan_tiny_os.md)):
 
 | kernel | what | in | runs on |
 |---|---|---|---|
