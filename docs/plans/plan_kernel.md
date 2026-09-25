@@ -135,3 +135,28 @@ the VFP's classes) and by the CPU: `random_blocks.py -vfp`, blocks with
 the VFP mixed in, d0-d15 and FPSCR's flags compared (3,000 blocks, 0
 differ), and the plain blocks with rev and the multiplies. mini-5i
 turns the VFP on for a Linux program, as Linux does.
+
+**Step 2 done** (2026-09-25): `kernel/step2/`, a trap and a user program,
+under mini-qemu and QEMU the same (`kernel/test.sh`).
+
+- `start.s`: a stack per exception mode, the vectors copied to 0, the
+  system call's entry (the user's registers into a 17-word trap frame:
+  r0-r12, sp and lr with `stm ^`, the return address, the SPSR) and the
+  way back (`user_return`: the frame restored, `movs pc, lr`), which
+  also enters user mode the first time.
+- `machine.c`: the primitives OCaml declares `external` (words and
+  bytes of memory, the PL011, entering user mode, halting) and
+  `trap()`, which calls the OCaml function registered as "trap"
+  (`Callback.register`; ocaml-light's `callback`, which has no
+  exception-safe variant: the OCaml handler catches everything).
+- `user.s`: a program making its calls as xv6 arm-pi1's `usys.S` does
+  (the arguments pushed, the number in r0, `swi 0x40`): write, exit.
+- `Main.ml`: the trap frame as a typed view of memory, the arguments
+  read from the user's stack as xv6's `argint`, write and exit.
+
+The point it checks: the trap enters on the kernel's stack where the
+kernel left it when it entered user mode, below the OCaml frames that
+did; the handler runs there through the runtime's callback, and a full
+major collection at each trap finds its roots (the callback's link
+back to the runtime's saved stack state). One kernel stack is enough
+while there is one program; step 3 gives each process its own.
