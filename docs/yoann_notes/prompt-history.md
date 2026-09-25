@@ -3484,3 +3484,35 @@ Claude extended tinypi to boot 9pi identically to QEMU, achieving byte-for-byte 
 **Yoann:**
 
 > let's make a script at the toplevel that makes it easier for me to run the xv6 kernel and 9 kernel with their images without typing a long command
+
+**Claude (summary):**
+
+Claude added `./pi` script at top level to build tinypi and boot the named kernel. Yoann objected to the `-q` flag being called "runs QEMU" since it's confusing and inaccurate. The `-q` flag doesn't actually invoke QEMU, contrary to what Claude's documentation stated. Other options include `-g` for framebuffer, `-w` for persistence, `-d` for debugging, `-n` to skip build. Kernels load from `~/xv6` and `~/principia` directories, configurable via XV6 and PRINCIPIA variables.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 07:43
+
+**Yoann:**
+
+> but let's not say QEMU: Terminanted after C-A x, it's confusing; this is not qemu right?
+
+**Claude (summary):**
+
+Claude replaced the QEMU-style quit message with `tinypi: terminated` in commit `0354ff7`. The change addressed confusion by removing QEMU branding while preserving the Ctrl-A x key binding. The Ctrl-A x binding was kept because QEMU users already recognize this conventional shortcut. The code compiled successfully with the updated termination message. Claude had not yet manually tested the new Ctrl-A x quit sequence on a terminal.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 07:44
+
+**Yoann:**
+
+> be a bit more verbose about which files it is using, like the path to the xv6 kernel, the path to the sd image
+
+------------------------------------------------------------------------
+
+## 2026-09-25 07:44
+
+**Yoann:**
+
+> in the pi script

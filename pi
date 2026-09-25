@@ -68,6 +68,24 @@ case $1 in
 esac
 [ -f $dir/$image ] || { echo "pi: no $dir/$image (build the kernel first)"; exit 1; }
 
+# what is used, on standard error (the console's output stays clean)
+emulator=$ROOT/_build/default/raspberry/Main.exe
+[ $qemu = 1 ] && emulator=$(command -v qemu-system-arm)
+say() { echo "pi: $*" >&2; }
+say "emulator: $emulator$( [ $qemu = 0 ] && echo " (tinypi)")"
+say "kernel:   $dir/$image ($(stat -c %s $dir/$image) bytes, built $(date -r $dir/$image '+%Y-%m-%d %H:%M'))"
+if [ $1 = 9pi ]; then
+  if [ $write = 1 ]; then mode="written in place"; else mode="read-only: writes kept in memory, lost at exit (-w to keep them)"; fi
+  say "SD card:  $dir/qemu-sd.img ($(( $(stat -c %s $dir/qemu-sd.img) / 1024 / 1024 )) MB, $mode)"
+  say "console:  the mini UART (serial 1)"
+else
+  say "disk:     the file system is inside the kernel image (xv6's ramdisk)"
+  say "console:  the PL011 (serial 0)"
+fi
+[ $graphics = 1 ] && say "display:  a window$( [ $1 != 9pi ] && echo ', and a USB keyboard')"
+say "command:  (cd $dir && $emulator ${args[*]})"
+say "quit:     Ctrl-A then x$( [ $graphics = 1 ] && echo ', or close the window')"
+
 if [ $qemu = 1 ]; then
   cd $dir && exec qemu-system-arm "${args[@]}"
 fi
