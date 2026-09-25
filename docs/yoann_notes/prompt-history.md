@@ -4012,3 +4012,31 @@ Claude recommended TinyMachine.ml next because both libraries were ready and hoo
 **Yoann:**
 
 > we could also have a TinyKernel that would run on it ...
+
+**Claude (summary):**
+
+Claude extended TinyLibCPU's assembler with an extension point to enable new instructions. Claude implemented TinyMachine.ml as a tiny ARM kernel that runs user programs. Initial kernel tests took 30 seconds but Claude optimized them to run in 9 seconds. The tests validate the kernel's period-limit logic and successfully catch any mutations. Plans include integrating tests into make test and updating all TinyMachine documentation.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:33
+
+**Yoann:**
+
+> what is this kernel.tm? did you make a tiny kernel?
+
+**Claude (summary):**
+
+Claude identified kernel.tm as a TinyMachine test program implementing traps and process scheduling.
+Claude noted it lacks program loading, memory management, I/O, and Plan 9 syscalls.
+Claude proposed renaming it to TinyMachine_tests/scheduler.tm to avoid overstating its scope.
+Claude noted the current name could mislead people thinking it's a real kernel.
+Claude asked if he should perform the rename.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:35
+
+**Yoann:**
+
+> ok maybe let's save this in TinyKernelv0.s or something? or .stm ? and how to convert it to a binary that can be loaded by TinyMachine and run?

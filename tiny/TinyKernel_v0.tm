@@ -1,6 +1,8 @@
 ; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
 ;
-; A page of kernel for tiny-machine, and four user programs. The kernel
+; TinyKernel, version 0: a page of kernel for tiny-machine, and four
+; user programs, in one file (there is no loader: the programs are
+; where the kernel's table says, assembled with it). The kernel
 ; runs them in turn, a slice of `period` instructions each (the timer),
 ; each in its window of memory (base, bound): two print a letter at a
 ; time (sys 1, write), one executes csrw (illegal in user mode), one

@@ -13,8 +13,15 @@
  * host; here nothing answers them but a program the machine runs, a
  * kernel, in the same assembly:
  *
- *     tiny-machine kernel.tm         assembled and run, from address 0
- *     tiny-machine -l kernel.tm      the listing
+ *     tiny-machine TinyKernel_v0.tm              assembled and run
+ *     tiny-machine -o kernel.img TinyKernel_v0.tm   assembled to an image
+ *     tiny-machine kernel.img                    the image loaded and run
+ *     tiny-machine -l kernel.img                 the listing (or of a .tm)
+ *
+ * An image is the memory's first bytes, as they are at the start: no
+ * header, since the machine always starts at 0 in supervisor mode
+ * (the Pi's kernel.img, loaded at 0x8000 by its firmware, is the same
+ * idea). A file is assembly if its name ends in .tm, an image if not.
  *
  * The machine, what the CPU lacked to run a kernel:
  *
@@ -51,8 +58,8 @@
  * mode, or a trap. The loop around [step] adds the rest: the time, the
  * interrupt, the fetch's window.
  *
- * The tests: TinyMachine_test.sh runs TinyMachine_tests/kernel.tm, a
- * page of kernel with four user programs (two printing, one executing
+ * The tests: TinyMachine_test.sh runs TinyKernel_v0.tm, a page of
+ * kernel with four user programs (two printing, one executing
  * csrw, one storing into the kernel), on a long and a short timer
  * period: every letter printed, the two faults caught, the printing
  * interleaved by the short period and not by the long one.
@@ -172,14 +179,19 @@ let run caps image =
     0
   with Halt n -> n
 
-let main (caps : < Cap.stdout; Cap.stderr; Cap.argv; Cap.open_in; .. >) =
+let main (caps : < Cap.stdout; Cap.stderr; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
-  let read f = Files.read caps (Fpath.v f) |> String.split_on_char '\n' in
+  let image file =
+    let text = Files.read caps (Fpath.v file) in
+    if Filename.check_suffix file ".tm" then TinyLibCPU.assemble ~ext (String.split_on_char '\n' text)
+    else if String.length text > TinyLibCPU.memsize then TinyLibCPU.error "%s: larger than the memory" file
+    else text in
   try
     match args with
-    | [ "-l"; file ] -> Console.print caps (TinyLibCPU.listing ~ext (TinyLibCPU.assemble ~ext (read file))); 0
-    | [ file ] when file.[0] <> '-' -> run caps (TinyLibCPU.assemble ~ext (read file))
-    | _ -> Console.eprint caps "usage: tiny-machine [-l] kernel.tm\n"; 2
+    | [ "-l"; file ] -> Console.print caps (TinyLibCPU.listing ~ext (image file)); 0
+    | [ "-o"; out; file ] -> Files.write caps (Fpath.v out) (image file); 0
+    | [ file ] when file.[0] <> '-' -> run caps (image file)
+    | _ -> Console.eprint caps "usage: tiny-machine [-l | -o image] file.tm | image\n"; 2
   with TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-machine: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

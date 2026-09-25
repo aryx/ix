@@ -596,7 +596,7 @@ top of memory, reached by `-16(r0)` and `-12(r0)`. The fetch's window
 and the interrupt are the loop's; the rest the CPU's hooks, which
 needed no change.
 
-Checked by `tiny/TinyMachine_test.sh` on `TinyMachine_tests/kernel.tm`,
+Checked by `tiny/TinyMachine_test.sh` on `tiny/TinyKernel_v0.tm`,
 a page of kernel (236 lines with its four programs and comments):
 two programs printing 20 letters each, one executing `csrw`, one
 storing into the kernel. With no interrupt, the four one after the other, exactly;
@@ -612,3 +612,10 @@ have a TinyKernel that would run on it"); what it would be, and on
 which machine (this one, in its assembly, or the Pi, as the README's
 Kernel row plans tiny-kernel as mini-9pi's free variant), is left to
 decide.
+
+The kernel moved to `tiny/TinyKernel_v0.tm` (its version 0: no
+loader, no input, the four programs assembled with it), and
+`tiny-machine -o kernel.img` writes its image: the memory's first
+bytes, no header, as the machine starts at 0 (the Pi's `kernel.img`'s
+idea); `tiny-machine kernel.img` runs it. A file is assembly if its
+name ends in `.tm`, an image if not.

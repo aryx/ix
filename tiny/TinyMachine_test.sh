@@ -8,7 +8,7 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# The tests of TinyMachine.ml, its laws, on TinyMachine_tests/kernel.tm
+# The tests of TinyMachine.ml, its laws, on TinyKernel_v0.tm
 # (a page of kernel, four user programs: a and b print 20 letters
 # each, c executes csrw, d stores into the kernel):
 #
@@ -19,13 +19,15 @@
 #    every letter printed, c's and d's faults caught, the machine
 #    halted with status 0; and a and b interleaved, a b before a's
 #    last a;
-# 3. the same period, the same output: the time is the program's.
+# 3. the same period, the same output: the time is the program's;
+# 4. the kernel assembled to an image (-o), the image run: the same
+#    output as the source run, and its listing the same.
 #
 # Usage: TinyMachine_test.sh
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 T=$ROOT/_build/default/tiny/TinyMachine.exe
-K=$ROOT/tiny/TinyMachine_tests/kernel.tm
+K=$ROOT/tiny/TinyKernel_v0.tm
 W=$(mktemp -d)
 trap 'rm -rf $W' EXIT
 failures=0
@@ -57,6 +59,11 @@ for p in $(seq 30 13 400); do
   if [ -n "$why" ]; then bad=$((bad + 1)); [ $bad -le 3 ] && echo "  period $p: $why: $text"; fi
 done
 if [ $bad = 0 ]; then echo "ok 29 periods, 30-400: every letter, both faults caught, halted with 0, interleaved, the same twice"; else fail "periods: $bad of 29"; fi
+
+$T -o $W/kernel.img $K
+if [ "$($T $W/kernel.img; echo $?)" = "$($T $K; echo $?)" ] && [ "$($T -l $W/kernel.img)" = "$($T -l $K)" ]; then
+  echo "ok image: run and listed as the source"
+else fail "image: not as the source"; fi
 
 echo "TinyMachine_test: $failures failures"
 exit $((failures > 0))
