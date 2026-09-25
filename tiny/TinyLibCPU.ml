@@ -378,7 +378,8 @@ let parse_line ?ext line : item list =
  * their labels one namespace: the link is no more than that *)
 let assemble_files ?ext ?(origin = 0) (files : (string * string list) list) =
   let parse (name, lines) =
-    List.concat (List.mapi (fun n l -> try parse_line ?ext l with Error e -> error "%s:%d: %s" name (n + 1) e) lines) in
+    (* each file on a word's boundary: one may end with bytes, the next begin with code *)
+    Align 4 :: List.concat (List.mapi (fun n l -> try parse_line ?ext l with Error e -> error "%s:%d: %s" name (n + 1) e) lines) in
   let items = List.concat_map parse files in
   let labels = Hashtbl.create 64 in
   let pc = ref origin and placed = ref [] in

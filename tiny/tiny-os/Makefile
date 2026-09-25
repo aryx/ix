@@ -11,7 +11,7 @@
 # tools as any program is built by its toolchain. A kernel per version,
 # each in its directory with its Makefile (v0/: a page of assembly;
 # v6/, to come, xv6 on tiny-machine, in C), and what they share: the C
-# runtime (libc/: start.tm, libc.c, libc.h), whose system calls are
+# runtime (libc/: start.tm, udivmod.tm, libc.c, libc.h), whose system calls are
 # tiny-cpu's and the kernels'. Not TinyKernel.ml,
 # mini-xv6 or mini-9pi, other projects of ix (docs/projects.md).
 #
@@ -20,7 +20,8 @@
 #
 # The tools from the PATH (after `dune install`), or from ix's bin/. A
 # C program is compiled to .tm by tiny-c -tm, then linked by tiny-cpu
-# after the runtime: start.tm first (the machine starts at 0), libc.
+# after the runtime: start.tm first (the machine starts at 0), udivmod.tm,
+# libc.
 
 export PATH := $(abspath ../../bin):$(PATH)
 
@@ -37,7 +38,7 @@ all: libc/libc.tm hello
 hello.tm: hello.c libc/libc.h
 	$(TC) -tm -o $@ hello.c
 
-hello: libc/start.tm libc/libc.tm hello.tm
+hello: libc/start.tm libc/udivmod.tm libc/libc.tm hello.tm
 	$(CPU) -o $@ $^
 
 run:

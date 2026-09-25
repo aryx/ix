@@ -13,7 +13,7 @@
 # 7c, both assembled with all of goken's libc (7c -S) by TinyAssembler,
 # run, and their outputs and exit statuses compared. Then the other
 # machine: each compiled by tiny-c -tm, linked with the runtime
-# (tiny-os/libc/: start.tm, and libc.c compiled by tiny-c -tm) by
+# (tiny-os/libc/: start.tm, udivmod.tm, and libc.c compiled by tiny-c -tm) by
 # tiny-cpu, run by tiny-cpu, its output and status compared with 7c's
 # too; a program with long long is refused there (TinyCPU is 32 bits),
 # and said so.
@@ -68,7 +68,7 @@ for c in "${progs[@]}"; do
     if grep -q "long long" $W/$b.tm.err; then refused+=($b); else echo "FAIL $b -tm: $(cat $W/$b.tm.err)"; failures=$((failures + 1)); fi
     continue
   fi
-  mkdir -p $W/tm; $TCPU -o $W/tm/$b $RT/start.tm $W/libc.tm $W/$b.tm || { echo "FAIL $b -tm: linking"; failures=$((failures + 1)); continue; }
+  mkdir -p $W/tm; $TCPU -o $W/tm/$b $RT/start.tm $RT/udivmod.tm $W/libc.tm $W/$b.tm || { echo "FAIL $b -tm: linking"; failures=$((failures + 1)); continue; }
   got=$(cd $W/tm && timeout 10 $TCPU ./$b one two 2>&1; echo "exit $?")
   if [ "$want" = "$got" ]; then echo "ok $b -tm"; else echo "FAIL $b -tm"; /usr/bin/diff <(echo "$want") <(echo "$got") | /usr/bin/head -10; failures=$((failures + 1)); fi
 done
