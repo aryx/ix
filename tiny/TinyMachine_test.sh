@@ -22,7 +22,9 @@
 # 3. the same period, the same output: the time is the program's;
 # 4. the kernel and its programs linked to an image (-o), the image
 #    run: the same output as the sources run, and its listing the same;
-#    and the programs linked in another order, the same output.
+#    and the programs linked in another order, the same output;
+# 5. each program of TinyMachine_tests/ (the machine's features for
+#    tiny-os v6: amoswap, hartid, ip, the pages) prints its .expected.
 #
 # Usage: TinyMachine_test.sh
 
@@ -69,6 +71,12 @@ else fail "image: not as the sources"; fi
 if [ "$($T $K $(echo $P | tr ' ' '\n' | tac); echo $?)" = "$($T $K $P; echo $?)" ]; then
   echo "ok link: the programs in another order, the same run"
 else fail "link: the order of the programs matters"; fi
+
+for t in $ROOT/tiny/TinyMachine_tests/*.tm; do
+  b=$(basename $t .tm)
+  if timeout 10 $T $t 2>&1 | cmp -s - ${t%.tm}.expected; then echo "ok $b: its expected output"
+  else fail "$b: $(timeout 10 $T $t 2>&1 | diff ${t%.tm}.expected - | head -3)"; fi
+done
 
 echo "TinyMachine_test: $failures failures"
 exit $((failures > 0))
