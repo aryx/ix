@@ -9,3 +9,6 @@ tests/
 *tests.c
 
 bin/
+step[0-9]/
+
+prompt-history.md
