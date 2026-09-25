@@ -13,15 +13,19 @@
  * host; here nothing answers them but a program the machine runs, a
  * kernel, in the same assembly:
  *
- *     tiny-machine TinyKernel_v0.tm              assembled and run
- *     tiny-machine -o kernel.img TinyKernel_v0.tm   assembled to an image
- *     tiny-machine kernel.img                    the image loaded and run
- *     tiny-machine -l kernel.img                 the listing (or of a .tm)
+ *     tiny-machine kernel.tm prog.tm...           assembled, linked, run
+ *     tiny-machine -o kernel.img kernel.tm prog.tm...   the same, to an image
+ *     tiny-machine kernel.img                     the image loaded and run
+ *     tiny-machine -l kernel.img                  the listing (or of .tm's)
  *
- * An image is the memory's first bytes, as they are at the start: no
- * header, since the machine always starts at 0 in supervisor mode
- * (the Pi's kernel.img, loaded at 0x8000 by its firmware, is the same
- * idea). A file is assembly if its name ends in .tm, an image if not.
+ * The link is TinyLibCPU's: the files one after the other, their
+ * labels one namespace, so a kernel's table names its programs; the
+ * kernel first, at 0. An image is the memory's first bytes, as they are
+ * at the start: no header, since the machine always starts at 0 in
+ * supervisor mode (the Pi's kernel.img, loaded at 0x8000 by its
+ * firmware, is the same idea). Files named .tm are assembly, another
+ * an image. ./tiny-machine, at the top of ix, runs TinyKernel_v0.tm and
+ * its programs.
  *
  * The machine, what the CPU lacked to run a kernel:
  *
@@ -59,7 +63,7 @@
  * interrupt, the fetch's window.
  *
  * The tests: TinyMachine_test.sh runs TinyKernel_v0.tm, a page of
- * kernel with four user programs (two printing, one executing
+ * kernel, with its four user programs (two printing, one executing
  * csrw, one storing into the kernel), on a long and a short timer
  * period: every letter printed, the two faults caught, the printing
  * interleaved by the short period and not by the long one.
@@ -181,17 +185,24 @@ let run caps image =
 
 let main (caps : < Cap.stdout; Cap.stderr; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
-  let image file =
-    let text = Files.read caps (Fpath.v file) in
-    if Filename.check_suffix file ".tm" then TinyLibCPU.assemble ~ext (String.split_on_char '\n' text)
-    else if String.length text > TinyLibCPU.memsize then TinyLibCPU.error "%s: larger than the memory" file
-    else text in
+  let read file = Files.read caps (Fpath.v file) in
+  (* .tm files assembled and linked, or one image *)
+  let image files =
+    match files with
+    | _ :: _ when List.for_all (fun f -> Filename.check_suffix f ".tm") files ->
+        TinyLibCPU.assemble_files ~ext (List.map (fun f -> f, String.split_on_char '\n' (read f)) files)
+    | [ file ] when file.[0] <> '-' ->
+        let text = read file in
+        if String.length text > TinyLibCPU.memsize then TinyLibCPU.error "%s: larger than the memory" file;
+        text
+    | _ -> raise Exit in
   try
     match args with
-    | [ "-l"; file ] -> Console.print caps (TinyLibCPU.listing ~ext (image file)); 0
-    | [ "-o"; out; file ] -> Files.write caps (Fpath.v out) (image file); 0
-    | [ file ] when file.[0] <> '-' -> run caps (image file)
-    | _ -> Console.eprint caps "usage: tiny-machine [-l | -o image] file.tm | image\n"; 2
-  with TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-machine: " ^ e ^ "\n"); 1
+    | "-l" :: files -> Console.print caps (TinyLibCPU.listing ~ext (image files)); 0
+    | "-o" :: out :: files -> Files.write caps (Fpath.v out) (image files); 0
+    | files -> run caps (image files)
+  with
+  | Exit -> Console.eprint caps "usage: tiny-machine [-l | -o image] kernel.tm [program.tm...] | image\n"; 2
+  | TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-machine: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

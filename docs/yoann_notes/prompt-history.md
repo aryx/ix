@@ -4060,3 +4060,11 @@ Claude recommended `.tm` as the file extension to match existing TinyCPU assembl
 **Yoann:**
 
 > (assemble and link and run)
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:39
+
+**Yoann:**
+
+> ideally we can have tiny-c that can also output .tm ?

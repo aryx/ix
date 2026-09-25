@@ -54,8 +54,8 @@ let main (caps : < caps; Cap.argv; Cap.open_in; .. >) =
   let read f = Files.read caps (Fpath.v f) |> String.split_on_char '\n' in
   try
     match args with
-    | "-l" :: file :: _ -> Console.print caps (TinyLibCPU.listing (TinyLibCPU.assemble (read file))); 0
-    | file :: _ when file.[0] <> '-' -> interpret caps (TinyLibCPU.assemble (read file))
+    | "-l" :: file :: _ -> Console.print caps (TinyLibCPU.listing (TinyLibCPU.assemble ~name:file (read file))); 0
+    | file :: _ when file.[0] <> '-' -> interpret caps (TinyLibCPU.assemble ~name:file (read file))
     | _ -> Console.eprint caps "usage: tiny-cpu [-l] file.tm [args...]\n"; 2
   with TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-cpu: " ^ e ^ "\n"); 1
 

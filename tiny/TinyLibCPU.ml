@@ -368,9 +368,12 @@ let parse_line ?ext line : item list =
         List.rev acc @ [ (if name.[0] = '.' then directive name rest else instruction ?ext name rest) ] in
   go line []
 
-(* the image, from address 0, its labels, and its instructions' addresses *)
-let assemble ?ext lines =
-  let items = List.concat (List.mapi (fun n l -> try parse_line ?ext l with Error e -> error "line %d: %s" (n + 1) e) lines) in
+(* the image, from address 0, of files assembled one after the other,
+ * their labels one namespace: the link is no more than that *)
+let assemble_files ?ext (files : (string * string list) list) =
+  let parse (name, lines) =
+    List.concat (List.mapi (fun n l -> try parse_line ?ext l with Error e -> error "%s:%d: %s" name (n + 1) e) lines) in
+  let items = List.concat_map parse files in
   let labels = Hashtbl.create 64 in
   let pc = ref 0 and placed = ref [] in
   List.iter (fun it ->
@@ -388,6 +391,8 @@ let assemble ?ext lines =
     | Label _ | Align _ -> ()) (List.rev !placed);
   if Buffer.length b > memsize then error "the program does not fit in memory";
   Buffer.contents b
+
+let assemble ?ext ?(name = "-") lines = assemble_files ?ext [ name, lines ]
 
 (* the listing: address, word, instruction, as assembly again *)
 let listing ?(ext = no_extension) image =

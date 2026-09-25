@@ -49,7 +49,8 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
 - **mini-qemu**, a Raspberry Pi 1 that boots xv6 and Plan 9's 9pi as
   QEMU does ([`raspberry/`](raspberry/), run by `./mini-pi`); the Pi 4
   is next; tiny-machine, TinyCPU's CPU with a timer, traps and a
-  page of kernel, and tiny-pi, planned.
+  page of kernel (`./tiny-machine` assembles, links and runs it), and
+  tiny-pi, planned.
 
 Their plans, tutorials and related-work notes are
 indexed in [docs/README.md](docs/README.md).

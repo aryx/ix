@@ -619,3 +619,15 @@ loader, no input, the four programs assembled with it), and
 bytes, no header, as the machine starts at 0 (the Pi's `kernel.img`'s
 idea); `tiny-machine kernel.img` runs it. A file is assembly if its
 name ends in `.tm`, an image if not.
+
+The link, then (the author: "assemble and link and run"): tiny-machine
+takes several `.tm` files, assembled one after the other with their
+labels one namespace (TinyLibCPU's `assemble_files`, TinyAssembler's
+way), the kernel first. The four programs moved to
+`tiny/TinyKernel_v0_programs/`, each marking its window's end with a
+label, which the kernel's table names, so the order they are linked in
+does not matter (the test links them backwards too). `./tiny-machine`,
+at the top of ix next to `mini-pi`, builds the machine, links
+TinyKernel_v0 and its programs into `_build/default/tiny/kernel.img`,
+says so, and runs it; it is not installed, as `bin/tiny-machine` is the
+machine itself.

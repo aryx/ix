@@ -1,9 +1,13 @@
 ; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
 ;
-; TinyKernel, version 0: a page of kernel for tiny-machine, and four
-; user programs, in one file (there is no loader: the programs are
-; where the kernel's table says, assembled with it). The kernel
-; runs them in turn, a slice of `period` instructions each (the timer),
+; TinyKernel, version 0: a page of kernel for tiny-machine. There is
+; no loader: its four user programs (TinyKernel_v0_programs/) are
+; linked with it, one image, and its table names their windows by
+; their labels:
+;
+;     ./tiny-machine        (TinyKernel_v0.tm TinyKernel_v0_programs/*.tm)
+;
+; The kernel first, at 0, where the machine starts. It runs them in turn, a slice of `period` instructions each (the timer),
 ; each in its window of memory (base, bound): two print a letter at a
 ; time (sys 1, write), one executes csrw (illegal in user mode), one
 ; stores into the kernel (a fault). The kernel kills the last two,
@@ -162,77 +166,15 @@ cur:	.word	0
 alive:	.word	4
 period:	.word	200
 
-; four processes: registers zero but sp at the window's top
+; four processes, the programs linked with the kernel: registers zero
+; but sp at the window's top
 procs:
-	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x20000, 0
-	.word	a, 0x10000, 0x20000, 1
-	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x30000, 0
-	.word	b, 0x20000, 0x30000, 1
-	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x40000, 0
-	.word	c, 0x30000, 0x40000, 1
-	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x50000, 0
-	.word	d, 0x40000, 0x50000, 1
+	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, a_end, 0
+	.word	a, a, a_end, 1
+	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, b_end, 0
+	.word	b, b, b_end, 1
+	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, c_end, 0
+	.word	c, c, c_end, 1
+	.word	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, d_end, 0
+	.word	d, d, d_end, 1
 procs_end:
-
-; ---------------------------------------------------------------- the programs
-; a and b: 20 letters each, with a delay between two
-
-	.align	0x10000
-a:
-	li	r5, 20
-a_loop:
-	li	r1, 1
-	la	r2, a_letter
-	li	r3, 1
-	sys	1
-	li	r6, 30
-a_delay:
-	addi	r6, r6, -1
-	bne	r6, r0, a_delay
-	addi	r5, r5, -1
-	bne	r5, r0, a_loop
-	sys	0
-a_letter:
-	.ascii	"a"
-
-	.align	0x10000
-b:
-	li	r5, 20
-b_loop:
-	li	r1, 1
-	la	r2, b_letter
-	li	r3, 1
-	sys	1
-	li	r6, 30
-b_delay:
-	addi	r6, r6, -1
-	bne	r6, r0, b_delay
-	addi	r5, r5, -1
-	bne	r5, r0, b_loop
-	sys	0
-b_letter:
-	.ascii	"b"
-
-; c: a letter, then an instruction only the kernel may execute
-	.align	0x10000
-c:
-	li	r1, 1
-	la	r2, c_letter
-	li	r3, 1
-	sys	1
-	csrw	tvec, r0
-	sys	0
-c_letter:
-	.ascii	"c"
-
-; d: a letter, then a store into the kernel's memory
-	.align	0x10000
-d:
-	li	r1, 1
-	la	r2, d_letter
-	li	r3, 1
-	sys	1
-	stw	r0, tmp(r0)
-	sys	0
-d_letter:
-	.ascii	"d"
