@@ -53,9 +53,14 @@
  (modules TinyArm)
  (libraries ix_core fpath caps))
 
+(library
+ (name tiny_lib_cpu)
+ (wrapped false)
+ (modules TinyLibCPU))
+
 (executable
  (name TinyCPU)
  (public_name tiny-cpu)
  (package ix)
  (modules TinyCPU)
- (libraries ix_core fpath caps))
+ (libraries ix_core fpath caps tiny_lib_cpu))

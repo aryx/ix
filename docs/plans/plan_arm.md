@@ -563,12 +563,21 @@ the interleaving the timer's period predicts, a user program's fault
 caught.
 
 It relies on TinyCPU.ml, not a copy of it: TinyCPU's instructions,
-assembler and interpreter become a library, tiny/TinyLibCPU.ml (the
+assembler and interpreter are a library, tiny/TinyLibCPU.ml (the
 tiny/TinyLibXxx.ml convention for code tiny files share), TinyCPU.ml
 keeping its command line and its three system calls. The library
 lets a machine change the memory access (the console behind
-addresses), what sys does (a trap), and a check between two
-instructions (the timer's interrupt); TinyMachine.ml adds the new
-instructions (the return from a trap, the moves to and from the trap
-registers) and the rest. TinyPi.ml and tiny/TinyLibArm.ml the same way
-(plan_pi.md).
+addresses), what sys does (a trap), and what an unknown word does
+(the machine's own instructions: the return from a trap, the moves to
+and from the trap registers); the check between two instructions
+(the timer's interrupt) is in the machine's loop around `step`. What
+the assembler lacks for those instructions, an extension point, is
+TinyMachine's to add, when it knows what it needs. TinyPi.ml and
+tiny/TinyLibArm.ml the same way (plan_pi.md).
+
+**Split done** (2026-09-25): `tiny/TinyLibCPU.ml` (390 lines: the
+instructions, the interpreter's `step` over an `env` of four hooks,
+`boot`, the assembler, the listing) and `tiny/TinyCPU.ml` (60 lines:
+the three system calls and the command line), 450 lines against the
+one file's 400: the price of the interface, paid back when
+TinyMachine.ml reuses the 390.

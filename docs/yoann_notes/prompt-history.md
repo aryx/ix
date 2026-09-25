@@ -3868,3 +3868,19 @@ No code changes were made; this was confirmation of an existing architectural di
 **Yoann:**
 
 > what's next?
+
+**Claude (summary):**
+
+Claude recommended fixing the README's "Tiny, not Toy" section to clarify TinyCPU and TinyMachine are deliberate exceptions to the real-ARM rule.
+Claude then suggested TinyMachine.ml with TinyLibCPU split as the natural next step while the design understanding was still fresh.
+This work touched only tiny/ and avoided collision with in-progress Pi4, Gic.ml, Mmu64.ml in machine/ and raspberry/.
+Claude noted TinyPi would be ready after, depending on mini-qemu's Pi1 modes and exceptions that were already implemented.
+Other pending work included mini-vcs (nine patches), mini-cc (53% code overlap), and the kernel row (not yet started).
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:52
+
+**Yoann:**
+
+> yes, and then the TinyLibCPU
