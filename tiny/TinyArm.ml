@@ -18,6 +18,19 @@
  *     tiny-arm -o hello hello.s     the executable, for Linux on ARM
  *     tiny-arm -l hello.s           the listing, as objdump prints it
  *
+ * Why this and TinyCPU.ml, two small CPUs with an assembler each: they
+ * teach opposite things. TinyCPU is a machine designed, every choice
+ * ours and nothing to check it but its own laws. This one is a machine
+ * inherited, its choices made in 1985 and to be met word for word: the
+ * rotated immediate, the flags and a condition on every instruction,
+ * the literal pool a 32-bit constant needs. Its checks are outside it
+ * (GNU as's bytes, objdump's text, the real CPU), and its words are
+ * what the rest of ix runs (mini-5i's, the Pi1's). TinyCPU shows what
+ * an instruction set could be; this, what a real one asks of its
+ * assembler and its interpreter. Neither has devices: a system call is
+ * where both stop, and TinyMachine.ml (planned, plan_pi.md) is what is
+ * below it: a CPU with devices.
+ *
  * What makes it small, and still a real machine:
  *
  * - {b One variant, three readers.} An instruction is a value of [instr];

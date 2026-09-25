@@ -543,4 +543,5 @@ second topic, and a free variant teaches one. It had caught, by random
 programs interpreted and translated, a translated sar made logical and
 a division by zero made 0; git history has it.
 Renamed TinyMachine.ml to TinyCPU.ml then (`tiny-cpu`): a CPU and its
-memory, no devices; a machine with devices is TinyPi.ml's (plan_pi.md).
+memory, no devices. The name TinyMachine.ml goes to the planned CPU
+with devices (plan_pi.md).

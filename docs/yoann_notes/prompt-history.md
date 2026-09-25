@@ -3749,3 +3749,39 @@ Claude recommended removing the translator, which comprised 185 lines added beyo
 **Yoann:**
 
 > what do you think?
+
+**Claude (summary):**
+
+Claude edited the main function and header to handle the requested changes. Claude revised the README documentation to explain the updates clearly and thoroughly. Claude updated the plan entry to reflect the work. The changes involved removing code while explaining why a mini assembler was required. Yoann approved the approach with just a 'yes'.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:39
+
+**Yoann:**
+
+> yes
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:39
+
+**Yoann:**
+
+> and explain better in TinyArm.ml and TinyPi why they are not redundant with TinyCPU.ml
+
+**Claude (summary):**
+
+Claude decided to restore `tiny-machine` in `docs/history.md` since that file records originally chosen names.
+He also planned to update the header text to say CPU instead of the previous term.
+Yoann then built on this naming decision by proposing a TinyMachine.ml OCaml module file.
+The module would provide a concrete implementation name matching the restored project naming scheme.
+Together these changes would align the code structure with the documented project naming history.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:39
+
+**Yoann:**
+
+> (And maybe we would have a TinyMachine.ml ?)

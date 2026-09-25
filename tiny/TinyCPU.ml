@@ -9,7 +9,8 @@
  *)
 (* A tiny CPU of our own, in one file: its instruction set, an
  * assembler, and an interpreter; a CPU and its memory, no devices (a
- * system call is the only way out). Knuth's road with MIX and MMIX: when
+ * system call is the only way out; TinyMachine.ml, planned in
+ * plan_pi.md, is a CPU with devices). Knuth's road with MIX and MMIX: when
  * the machine is for teaching, design it; mini-5i (machine/) and
  * TinyArm.ml emulate the machine history left us, this one the machine
  * fifty years of hindsight would draw:
