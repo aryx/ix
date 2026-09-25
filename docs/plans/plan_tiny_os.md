@@ -296,3 +296,23 @@ expression) print what 7c's do, on arm64 and on tiny-cpu; arm64's
 output on the older tests is byte for byte what it was; a `jalr`
 through the wrong register fails `fnptr -tm`. `goto`, function-like
 macros and `#if` are not done: v6, our own code, does without them.
+
+**Phase 2, tiny-machine, done (2026-09-25)**: about 170 lines net
+(TinyMachine.ml 185 lines to 365 with its header; TinyLibCPU.ml +15),
+under the 270 estimated, in four commits, v0's test passing after
+each. TinyLibCPU: a fifth hook, the fetch, and `memsize` a reference
+the machine raises. TinyMachine: 16 MB, the devices still at the top
+(v0's `-16(r0)` unchanged); Sv32 pages behind `satp` (V R W X U, no
+large pages; the window when off); `amoswap`, in either mode;
+`hartid`; `ip` and `ie`, a bit per source (timer, console, disk), an
+interrupt's cause 4 and its sources in `tval`; the console's input at
+`-8(r0)` (read only when a kernel asks: a file or pipe read whole, for
+determinism; a terminal polled), its end interrupting once; a disk
+(`-d image`, 1 KB blocks moved at once, its interrupt, the image
+written back at the halt). Tested by `TinyMachine_tests/`: `amo.tm`,
+`paging.tm` (three faults, each with its address), `echo.tm` (the
+input by interrupts), `disk.tm` (a read, a write, the write-back),
+each against its hand-computed `.expected`; the U check, the W check
+and the write-back each broken on purpose fail them. The virtual
+addresses stay below 16 MB (the CPU keeps its pc modulo the memory),
+a limit v6's layout respects.

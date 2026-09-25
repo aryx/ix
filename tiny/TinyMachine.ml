@@ -68,6 +68,8 @@
  * - {b Interrupts by source}: ip (pending) and ie (enabled), a bit
  *   each; the timer's is the first, enabled at the start as v0 wants;
  *   an interrupt's cause is 4, its sources in tval.
+ * - {b The console's input} at -8(r0), and its interrupt; {b a disk}
+ *   (-d image), 1 KB blocks moved at once, and its interrupt.
  *
  * The CPU's hooks carry all of it (TinyLibCPU's [env]): the fetch, the
  * load and the store go through the pages or the window and find the
@@ -105,21 +107,82 @@ let supervisor_bit = 1 and ie = 2 and ps = 4 and pie = 8
 (* an interrupt's cause is 4, its sources in tval: the bits of ip and
  * ie, the timer's the first (v0's only one) *)
 let c_sys = 1 and c_illegal = 2 and c_fault = 3 and c_intr = 4
-let i_timer = 1
+let i_timer = 1 and i_console = 2 and i_disk = 4
 
 (* the devices, at the top of memory, reached from anywhere by a
  * negative offset from r0: the console's output -16(r0), the halt
  * -12(r0); v6's in the 32 bytes below the top *)
 let memsize = 1 lsl 24
 let console = memsize - 16 and halt = memsize - 12 and devices = memsize - 32
+let console_in = memsize - 8
+let disk_block = memsize - 32 and disk_addr = memsize - 28 and disk_cmd = memsize - 24 and disk_status = memsize - 20
 
 exception Trap of int * int                (* cause, tval *)
 exception Halt of int
 
-type machine = { cpu : TinyLibCPU.machine; csr : int array }
+(*****************************************************************************)
+(* The devices (v6's): the console's input, a disk *)
+(*****************************************************************************)
+
+(* The console's input: -8(r0) gives the next byte, 0xffffffff when none
+ * has come, 0xfffffffe at the input's end; its interrupt while bytes
+ * wait. Nothing is read before a kernel asks (enables the interrupt or
+ * reads the register): v0 never does. The input's end interrupts
+ * too, once, until it is read. Then a file or a pipe is read
+ * whole, so that a run is the same every time; a terminal is polled,
+ * as a person types when they type. *)
+type console = { mutable queue : string; mutable next : int; mutable eof : bool; mutable opened : bool; mutable eof_read : bool }
+
+let tty = lazy (Unix.isatty Unix.stdin)
+
+let console_open (caps : < Cap.stdin; .. >) k =
+  if not k.opened then begin
+    k.opened <- true;
+    if not (Lazy.force tty) then (let (_ : < Cap.stdin; .. >) = caps in k.queue <- In_channel.input_all stdin; k.eof <- true)
+  end
+
+(* a terminal's bytes, when some are there *)
+let console_poll k =
+  if k.opened && not k.eof && k.next >= String.length k.queue && Lazy.force tty then
+    match Unix.select [ Unix.stdin ] [] [] 0.0 with
+    | [], _, _ -> ()
+    | _ ->
+        let b = Bytes.create 256 in
+        let n = Unix.read Unix.stdin b 0 256 in
+        if n = 0 then k.eof <- true else (k.queue <- Bytes.sub_string b 0 n; k.next <- 0)
+
+let console_read k =
+  if k.next < String.length k.queue then (k.next <- k.next + 1; Char.code k.queue.[k.next - 1])
+  else if k.eof then (k.eof_read <- true; 0xfffffffe) else 0xffffffff
+
+let console_waiting k = k.next < String.length k.queue || (k.eof && not k.eof_read)
+
+(* The disk: an image file (-d), in blocks of 1 KB. The kernel writes a
+ * block's number at -32(r0), a physical address at -28(r0), then the
+ * command at -24(r0), 1 to read the block into memory, 2 to write it
+ * from memory; the transfer is done at once, and the disk's interrupt
+ * waits until the kernel writes -20(r0) (which reads 1 while it does).
+ * The image is written back when the machine halts. *)
+let bsize = 1024
+
+type disk = { image : Bytes.t; mutable block : int; mutable addr : int; mutable done_ : bool; mutable dirty : bool }
+
+let disk_command d (m : TinyLibCPU.machine) cmd =
+  let off = d.block * bsize in
+  if off + bsize > Bytes.length d.image || d.addr + bsize > memsize then TinyLibCPU.error "disk: block %d, address 0x%x: out of the image or the memory" d.block d.addr;
+  (match cmd with
+   | 1 -> Bytes.blit d.image off m.mem d.addr bsize
+   | 2 -> Bytes.blit m.mem d.addr d.image off bsize; d.dirty <- true
+   | _ -> TinyLibCPU.error "disk: command %d" cmd);
+  d.done_ <- true
+
+type machine = { cpu : TinyLibCPU.machine; csr : int array; cons : console; disk : disk }
 
 (* the sources wanting an interrupt *)
-let pending mc = if mc.csr.(time) >= mc.csr.(timecmp) then i_timer else 0
+let pending mc =
+  (if mc.csr.(time) >= mc.csr.(timecmp) then i_timer else 0)
+  lor (if console_waiting mc.cons then i_console else 0)
+  lor (if mc.disk.done_ then i_disk else 0)
 
 let supervisor mc = mc.csr.(status) land supervisor_bit <> 0
 
@@ -168,13 +231,23 @@ let translate mc (m : TinyLibCPU.machine) access va =
   end
 
 (* a load and a store: the pages or the window, then memory or a device *)
-let load mc m s a = let a = translate mc m Read a in if TinyLibCPU.word a >= devices then 0 else TinyLibCPU.load m s a
+let load caps mc m s a =
+  let a = translate mc m Read a in
+  match TinyLibCPU.word a with
+  | w when w = console_in -> console_open caps mc.cons; console_read mc.cons
+  | w when w = disk_status -> if mc.disk.done_ then 1 else 0
+  | w when w >= devices -> 0
+  | _ -> TinyLibCPU.load m s a
 
 let store caps mc m s a v =
   let a = translate mc m Write a in
   match TinyLibCPU.word a with
   | w when w = console -> Console.print caps (String.make 1 (Char.chr (v land 0xff))); flush stdout
   | w when w = halt -> raise (Halt (v land 0xff))
+  | w when w = disk_block -> mc.disk.block <- v
+  | w when w = disk_addr -> mc.disk.addr <- v
+  | w when w = disk_cmd -> disk_command mc.disk m v
+  | w when w = disk_status -> mc.disk.done_ <- false
   | w when w >= devices -> ()
   | _ -> TinyLibCPU.store m s a v
 
@@ -187,7 +260,7 @@ let extra caps mc (m : TinyLibCPU.machine) w =
   let c = mc.csr and next () = m.pc <- TinyLibCPU.addr (m.pc + 4) in
   if op = 0x3d then begin
     let at = m.r.(k land 15) in
-    let old = load mc m TinyLibCPU.W at in
+    let old = load caps mc m TinyLibCPU.W at in
     store caps mc m TinyLibCPU.W at m.r.(a);
     if d <> 0 then m.r.(d) <- old;
     next ()
@@ -196,16 +269,19 @@ let extra caps mc (m : TinyLibCPU.machine) w =
     if not (supervisor mc) || op < 0x3a || op > 0x3c || (op < 0x3c && k >= Array.length csr_names) then raise (Trap (c_illegal, w));
     match op with
     | 0x3a -> if d <> 0 then m.r.(d) <- (if k = ip then pending mc else c.(k)); next ()
-    | 0x3b -> if not (read_only k) then c.(k) <- m.r.(a); next ()
+    | 0x3b ->
+        if not (read_only k) then c.(k) <- m.r.(a);
+        if k = ie_csr && c.(k) land i_console <> 0 then console_open caps mc.cons;
+        next ()
     | _ ->
         let st = c.(status) in
         c.(status) <- (if st land ps <> 0 then supervisor_bit else 0) lor (if st land pie <> 0 then ie else 0);
         m.pc <- TinyLibCPU.addr c.(epc)
   end
 
-let env (caps : < Cap.stdout; .. >) mc : TinyLibCPU.env = {
+let env (caps : < Cap.stdin; Cap.stdout; .. >) mc : TinyLibCPU.env = {
   fetch = (fun m pc -> TinyLibCPU.load m TinyLibCPU.W (translate mc m Exec pc));
-  load = load mc;
+  load = load caps mc;
   store = store caps mc;
   sys = (fun _ n -> raise (Trap (c_sys, n)));
   illegal = extra caps mc;
@@ -242,19 +318,25 @@ let ext : TinyLibCPU.extension =
 (* The loop: the time, the interrupt, a step *)
 (*****************************************************************************)
 
-let run caps image =
+let run caps ?disk_file image =
   let m = TinyLibCPU.boot image in
   m.r.(TinyLibCPU.sp) <- devices;
   let c = Array.make (Array.length csr_names) 0 in
   c.(status) <- supervisor_bit;
   c.(timecmp) <- 0xffffffff;
   c.(ie_csr) <- i_timer;
-  let mc = { cpu = m; csr = c } in
+  let disk_image = match disk_file with Some f -> Bytes.of_string (Files.read caps (Fpath.v f)) | None -> Bytes.empty in
+  let mc = { cpu = m; csr = c; cons = { queue = ""; next = 0; eof = false; opened = false; eof_read = false };
+             disk = { image = disk_image; block = 0; addr = 0; done_ = false; dirty = false } } in
   let env = env caps mc in
+  let halted n =
+    (match disk_file with Some f when mc.disk.dirty -> Files.write caps (Fpath.v f) (Bytes.to_string mc.disk.image) | _ -> ());
+    n in
   try
     while true do
       let pc = m.pc in
       c.(time) <- TinyLibCPU.m32 (c.(time) + 1);
+      if c.(time) land 1023 = 0 then console_poll mc.cons;
       try
         let wanted = pending mc land c.(ie_csr) in
         if c.(status) land ie <> 0 && wanted <> 0 then trap mc c_intr wanted pc
@@ -262,9 +344,9 @@ let run caps image =
       with Trap (cause_v, tval_v) -> trap mc cause_v tval_v (if cause_v = c_sys then TinyLibCPU.addr (pc + 4) else pc)
     done;
     0
-  with Halt n -> n
+  with Halt n -> halted n
 
-let main (caps : < Cap.stdout; Cap.stderr; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
+let main (caps : < Cap.stdin; Cap.stdout; Cap.stderr; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
   TinyLibCPU.memsize := memsize;
   let image files =
@@ -274,9 +356,10 @@ let main (caps : < Cap.stdout; Cap.stderr; Cap.argv; Cap.open_in; Cap.open_out; 
     match args with
     | "-l" :: files -> Console.print caps (TinyLibCPU.listing ~ext (image files)); 0
     | "-o" :: out :: files -> Files.write caps (Fpath.v out) (image files); 0
+    | "-d" :: disk :: files -> run caps ~disk_file:disk (image files)
     | files -> run caps (image files)
   with
-  | Exit -> Console.eprint caps "usage: tiny-machine [-l | -o image] kernel.tm [program.tm...] | image\n"; 2
+  | Exit -> Console.eprint caps "usage: tiny-machine [-l | -o image | -d disk] kernel.tm [program.tm...] | image\n"; 2
   | TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-machine: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))
