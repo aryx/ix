@@ -49,8 +49,10 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
   tiny-arm, and tiny-cpu, a CPU of our own design (see below).
 - **mini-qemu**, a Raspberry Pi 1 that boots xv6 and Plan 9's 9pi as
   QEMU does, and a Pi 4 that boots xv6's 64-bit port on one to four
-  cores ([`raspberry/`](raspberry/), run by `./mini-pi`); tiny-machine, TinyCPU's CPU with a timer, traps and a
-  page of kernel (`./tiny-machine` assembles, links and runs it), and
+  cores ([`raspberry/`](raspberry/), run by `./mini-pi`); tiny-machine,
+  TinyCPU's CPU with pages, traps, a timer and a disk, which boots
+  tiny-os, v0 (a page of assembly) or v6 (xv6's kind of kernel in C, to
+  a shell), by `./tiny-machine v0` or `v6`; and
   tiny-pi, TinyCPUArm's CPU in a Pi1 with its modes, exceptions, timer
   and UART, whose page of kernel runs the same under QEMU.
 

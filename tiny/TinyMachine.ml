@@ -24,9 +24,10 @@
  * at the start: no header, since the machine always starts at 0 in
  * supervisor mode (the Pi's kernel.img, loaded at 0x8000 by its
  * firmware, is the same idea). Files named .tm are assembly, another
- * an image. tiny-os/ is an OS for it, by versions: v0/ a kernel and its
- * programs, and a Makefile that links and runs them (./tiny-machine,
- * at the top of ix, too).
+ * an image. tiny-os/ is an OS for it, by versions, each with a Makefile
+ * that builds and runs it: v0/ a page of assembly and its programs, v6/
+ * xv6's kind of kernel in C, its disk made by tiny-mkfs; ./tiny-machine
+ * v0 or v6, at the top of ix, builds and boots one.
  *
  * The machine, what the CPU lacked to run a kernel:
  *

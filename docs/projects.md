@@ -42,7 +42,7 @@ of our own, designed to teach, whose guest code ix writes itself:
 |----------------------|---------------------------------------|-------------------------------------|
 | real ARM, faithful   | mini-5i (`machine/`: arm32, arm64)    | mini-qemu (`raspberry/`: the Pi1, the Pi4; `./mini-pi`) |
 | real ARM, free       | tiny-arm (`TinyCPUArm.ml`, `TinyLibArm.ml`: arm32) | tiny-pi (`TinyMachinePi.ml`: the Pi1)   |
-| our own, free        | tiny-cpu (`TinyCPU.ml`, `TinyLibCPU.ml`) | tiny-machine (`TinyMachine.ml`; `./tiny-machine`) |
+| our own, free        | tiny-cpu (`TinyCPU.ml`, `TinyLibCPU.ml`) | tiny-machine (`TinyMachine.ml`; `./tiny-machine v0`, `v6`) |
 
 Each machine, with what makes its guest code and what runs on it:
 

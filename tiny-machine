@@ -8,51 +8,74 @@
 # (LGPL) as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 #
-# tiny-machine: a kernel and its programs, assembled, linked and run on
-# tiny-machine (tiny/TinyMachine.ml), as mini-pi boots the Pi's kernels
-# on mini-qemu; by default tiny-os v0, its kernel and four programs
-# (tiny/tiny-os/v0/, whose Makefile does the same with the installed
-# tools).
+# tiny-machine: a kernel of tiny-os booted on tiny-machine
+# (tiny/TinyMachine.ml), as mini-pi boots the Pi's kernels on mini-qemu;
+# built first, with the tools of ix's checkout.
 #
-#   ./tiny-machine                          tiny/tiny-os/v0/kernel.tm and
-#                                           tiny/tiny-os/v0/[abcd].tm
-#   ./tiny-machine kernel.tm prog.tm...     a kernel of yours (first) and
-#                                           its programs
+#   ./tiny-machine v6          tiny-os v6 (tiny/tiny-os/v6/): xv6's kind
+#                              of kernel in C, its disk, the shell on
+#                              the console (the default)
+#   ./tiny-machine v0          tiny-os v0 (tiny/tiny-os/v0/): a page of
+#                              assembly and its four programs
+#   ./tiny-machine kernel.tm prog.tm...
+#                              a kernel of yours (first) and its programs
 #
 # Options:
-#   -l   the listing of the image instead of running it
-#   -n   no build (use tiny-machine as last built)
+#   -l   the listing of the kernel's image instead of running it
+#   -w   v6: write to its disk, fs.img (by default a copy, its writes
+#        lost at exit, as mini-pi's snapshot)
+#   -n   no build (the tools and the kernel as last built)
 #
-# The image, the memory's first bytes as the machine starts, is kept in
-# _build/default/tiny/kernel.img; `bin/tiny-machine kernel.img` runs it
-# again. This script is not installed: bin/tiny-machine is the machine
-# itself, which does each step (-o to link, an image to run).
+# Quit v6 with Ctrl-D: the shell's input ends, then init, and the machine
+# halts. This script is not installed: bin/tiny-machine is the machine
+# itself, which does each step (-o to link, an image to run, -d a disk).
 
 set -e
 ROOT=$(dirname "$(readlink -f "$0")")
-listing=0; build=1
+listing=0; build=1; write=0
 
 usage() { sed -n '/^# tiny-machine:/,/^# itself, /p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
-while getopts lnh o; do
-  case $o in l) listing=1;; n) build=0;; *) usage;; esac
+while getopts lwnh o; do
+  case $o in l) listing=1;; w) write=1;; n) build=0;; *) usage;; esac
 done
 shift $((OPTIND - 1))
+[ $# = 0 ] && set -- v6
 
-if [ $# = 0 ]; then
-  set -- $ROOT/tiny/tiny-os/v0/kernel.tm $ROOT/tiny/tiny-os/v0/[abcd].tm
-fi
-for f in "$@"; do [ -f "$f" ] || { echo "tiny-machine: no $f" >&2; exit 1; }; done
-
-if [ $build = 1 ]; then
-  (cd $ROOT && dune build ./tiny/TinyMachine.exe 2>&1) || exit 1
-fi
-machine=$ROOT/_build/default/tiny/TinyMachine.exe
-image=$ROOT/_build/default/tiny/kernel.img
-
-# what is done, on standard error (the console's output stays clean)
+B=$ROOT/_build/default/tiny
+machine=$B/TinyMachine.exe
 say() { echo "tiny-machine: $*" >&2; }
 short() { local f; for f in "$@"; do f=$(readlink -f "$f"); echo -n "${f#$ROOT/} "; done; }
+
+if [ $build = 1 ]; then
+  (cd $ROOT && dune build ./tiny/TinyMachine.exe ./tiny/TinyC.exe ./tiny/TinyCPU.exe ./tiny/TinyMkfs.exe 2>&1) || exit 1
+fi
+
+case $1 in
+  v6)
+    dir=$ROOT/tiny/tiny-os/v6
+    if [ $build = 1 ]; then
+      make -s -C $dir TC=$B/TinyC.exe CPU=$B/TinyCPU.exe MACHINE=$machine MKFS=$B/TinyMkfs.exe kernel.img fs.img >&2 || exit 1
+    fi
+    image=$dir/kernel.img
+    disk=$dir/fs.img
+    if [ $write = 0 ]; then cp $disk $B/fs-run.img; disk=$B/fs-run.img; mode="a copy: its writes lost at exit (-w to keep them)"; else mode="written in place"; fi
+    say "kernel:  $(short $image)($(stat -c %s $image) bytes; built from $(short $dir))"
+    say "disk:    $(short $dir/fs.img)($(( $(stat -c %s $dir/fs.img) / 1024 )) KB, $mode)"
+    say "console: this terminal; Ctrl-D ends the shell, and the machine"
+    if [ $listing = 1 ]; then exec $machine -l $image; fi
+    say "command: $(short $machine)-d $(short $disk)$(short $image)"
+    exec $machine -d $disk $image
+    ;;
+  v0)
+    set -- $ROOT/tiny/tiny-os/v0/kernel.tm $ROOT/tiny/tiny-os/v0/[abcd].tm
+    ;;
+  -*|"") usage;;
+esac
+
+# .tm files: the kernel first, at 0, then its programs
+for f in "$@"; do [ -f "$f" ] || { echo "tiny-machine: no $f (a kernel's name: v0, v6)" >&2; exit 1; }; done
+image=$B/kernel.img
 say "assemble and link: $(short $1)(the kernel, at 0)$( [ $# -gt 1 ] && echo ", then $(short "${@:2}")")"
 $machine -o $image "$@"
 say "image: $(short $image)($(stat -c %s $image) bytes)"

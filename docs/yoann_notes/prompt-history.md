@@ -4392,3 +4392,19 @@ Claude offered to remove via normal edit and commit, preserving the prompt histo
 **Yoann:**
 
 > yes let's remove it and add a note.
+
+**Claude (summary):**
+
+Claude designed tiny-mkfs as a separate OCaml program for reuse by mini-xv6.
+Claude built mini-xv6's kernel in multiple stages: fixed stack reservation, wrote main.c boot and memory counter.
+Claude implemented proc.c for processes and scheduling, fs.c for disk driver and buffer cache, file.c for files.
+Claude debugged exec error handling and fsinit lock ordering, then got full compilation working.
+Claude booted the kernel, verified with tests passing, and updated documentation before committing.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 12:39
+
+**Yoann:**
+
+> great work! Let's commit this. Also can we change the toplevel tiny-machine to also offer a list of kernel to boot, here maybe v0 and v6?
