@@ -90,7 +90,9 @@ raspi1ap. What it took:
 - **ocaml-light's `-output-obj` calls the host's `ld -r`** even for a
   cross target (utils/config.ml's native_partial_linker): worked
   around with an `ld` pointing at arm-linux-gnueabihf-ld first in PATH.
-  To fix in ocaml-light's configure (for the author).
+  To fix in ocaml-light's configure (for the author:
+  [`plan_bugs_ocaml_light.md`](../plan_bugs_ocaml_light.md), with the
+  other limits met).
 - The runtime's C (asmrun/ and byterun/, less main.c) compiled
   freestanding for ARMv6KZ with the VFP, hard-float (the arm backend's
   convention); PIE, _FORTIFY_SOURCE and 64-bit offsets turned off.

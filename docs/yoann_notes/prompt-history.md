@@ -4560,3 +4560,23 @@ Claude recommended Pi1 for teaching despite requiring ocaml-light cross-compilat
 **Yoann:**
 
 > excellent
+
+**Claude (summary):**
+
+Claude implemented t6 kernel with main.c, spawning /init and running the scheduler. Fixed spawn's word-alignment for zeroing and built file.c with FAT filesystem support. Created Makefile and got t6 booting with shell on the first build attempt. Added t6tests with mutation tests and fixed a bug where loop counter reuse broke output. Improved performance from 16.6 to 6.8 seconds and wrote t6 plan with references.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:57
+
+**Yoann:**
+
+> yes
+
+------------------------------------------------------------------------
+
+## 2026-09-25 13:57
+
+**Yoann:**
+
+> also let's remember somewhere those ocaml-light bugs

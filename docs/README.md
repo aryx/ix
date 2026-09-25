@@ -122,7 +122,9 @@ sources, principia's C, 9base and plan9port) and
 its toolchain doesn't do yet that goken's output depends on). mini-chidb's found some in chidb
 ([`plan_bugs_chidb.md`](plan_bugs_chidb.md)), and its fuzzer one in
 OCaml's arm64 native code generator
-([`plan_bugs_ocaml.md`](plan_bugs_ocaml.md)).
+([`plan_bugs_ocaml.md`](plan_bugs_ocaml.md)); mini-xv6's first step
+some in ocaml-light's cross-compilation
+([`plan_bugs_ocaml_light.md`](plan_bugs_ocaml_light.md)).
 
 ## References in the code
 
