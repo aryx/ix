@@ -14,6 +14,22 @@ single CPU in tiny machine, because we could change that, and multi
 core has good teaching value ... We probably want a swp instruction
 also in the tinymachine then or something related".
 
+**Decided (2026-09-25)**, the author: "let's do the extensions. a.out
+looks more "tiny-" spirit. But for the code of v6/ we should take xv6
+as inspiration but still try to simplify! we can use less files, be
+more compact, simplify things so hopefully we are far less than 6000
+LOC. It's ok to cut some features and focus on the essential here, to
+remain in a budget of 2000LOC max ideally (we can revisit if not
+realistic and if feature set become too small). For the filesystem we
+can for instance design our own, with our own simpler mkfs, to reduce
+the LOC." So: v6 is **xv6-inspired, not xv6's port**: fewer files,
+the essential kept, **2,000 lines** as the budget (kernel, `.tm` and
+user side); its own simpler file system and `mkfs`; the a.out header.
+Where this plan says "xv6's structure and names" below, read "xv6's
+ideas and names where they help"; the tiny-c list shrinks to what our
+own code needs (enum, function pointers), as `goto`, function-like
+macros and `#if` were needed only to compile xv6 as it is.
+
 Companions: [`projects.md`](../projects.md), the map of ix's projects;
 [`plan_arm.md`](plan_arm.md), where TinyCPU and TinyMachine were
 designed; [`plan_cc.md`](plan_cc.md), for `tiny-c -tm`.
@@ -241,8 +257,7 @@ For the author to decide:
 - **Sv32** (xv6's `vm.c` as it is) or a smaller scheme of our own.
   Sv32 is recommended: it is the real one, 32-bit, and v6 then diffs
   cleanly against the riscv32 fork.
-- **The executable format**: a.out's header (recommended) or an ELF
-  subset.
+- **The executable format**: a.out's header (decided).
 - **`mkfs`**: in C on tiny-cpu, or in OCaml.
 - **The log** (`log.c`, crash recovery): in (xv6 has it, and crash
   tests could follow) or out of a first v6.
@@ -261,5 +276,6 @@ as xv6's ancestor, and the riscv32 xv6 fork as v6's model.
 - 2026-09-25: v0 done (plan_arm.md, "TinyMachine.ml done" and after).
 - 2026-09-25: a plan of seven versions written, then replaced by this
   one (v0, then v6, xv6 on tiny-machine; the history in the tutorial;
-  multicore-ready; the tools extended for it, encapsulated). For
-  review.
+  multicore-ready; the tools extended for it, encapsulated). Then
+  decided: a.out; v6 simplified, 2,000 lines, its own file system.
+  Phase 1 started, tiny-c's enum and function pointers.
