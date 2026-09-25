@@ -4580,3 +4580,19 @@ Claude implemented t6 kernel with main.c, spawning /init and running the schedul
 **Yoann:**
 
 > also let's remember somewhere those ocaml-light bugs
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:02
+
+**Yoann:**
+
+> where are stored those ideas? Usually for the TinyXxx.ml the top of the file contain the clever ideas and reference, but for t6 where is it? Could be at the top of main.c ?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:02
+
+**Yoann:**
+
+> where is it now?

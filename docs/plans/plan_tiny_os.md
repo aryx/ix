@@ -468,6 +468,9 @@ spawn idea, and possibly other original one, including for academic
 research in OS, with nice refs ... let's do tiny-os/t6/ and see how
 things go; we can always revert or refine".
 
+(The ideas and their references are in the code too, at the top of
+`t6/main.c`, as a TinyXxx.ml's are at its top.)
+
 v6 is xv6's kind of kernel; t6 keeps what a user and a developer get
 from it (processes, programs from a disk, a shell with pipes and
 redirections, files and directories, the console, protection between

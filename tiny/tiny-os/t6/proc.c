@@ -1,6 +1,7 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
-// t6: processes, the scheduler, the trap, the system calls on processes.
+// t6: processes, the scheduler, the trap, the system calls on processes
+// (the ideas, and their references: main.c).
 //
 // A process is its registers and its partition: no kernel stack of its
 // own. The kernel runs on one stack, from the trap to resume; a system

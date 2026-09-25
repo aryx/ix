@@ -1,6 +1,7 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
-// t6: the files, on a FAT (MS-DOS's idea; TinyMkfs.ml's -fat): the disk
+// t6: the files (the ideas, and their references: main.c), on a FAT
+// (MS-DOS's idea; TinyMkfs.ml's -fat): the disk
 // is blocks, a table in memory gives each block's next, a file is its
 // directory entry (a name, a type, its first block, its size), a
 // directory a file of entries. No inodes, no buffer cache (the disk is
