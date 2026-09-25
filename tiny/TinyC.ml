@@ -70,14 +70,16 @@
  *
  * The language: char short int long (4 bytes, as Plan 9's) and long
  * long, unsigned and signed; pointers, arrays, structs (members, . and
- * ->; not passed by value); void; globals with initializers (numbers,
- * strings, arrays of them); static, extern, typedef; functions and
- * prototypes, calls to variadic ones; every operator, with op=, ++,
- * --, ?:, casts, sizeof and the comma; if, while, do, for, switch,
+ * ->; not passed by value); enums; void; globals with initializers
+ * (numbers, strings, addresses, arrays of them); static, extern,
+ * typedef; functions and prototypes, calls to variadic ones; function
+ * pointers (C's declarators inside out, a call through any expression:
+ * tiny-os's system call table and devices); every operator, with op=,
+ * ++, --, ?:, casts, sizeof and the comma; if, while, do, for, switch,
  * break, continue, return, blocks; #include "file", #define of a name.
- * Left out, by what each would cost here: floats, unions, enums,
- * bitfields, function pointers, structures by value, goto, the
- * preprocessor's macros with arguments and its #if.
+ * Left out, by what each would cost here: floats, unions, bitfields,
+ * structures by value, goto, the preprocessor's macros with arguments
+ * and its #if.
  *
  * References: Niklaus Wirth, Compiler Construction (1996), for the
  * registers as a stack of the expression's values, and the one-pass
@@ -252,6 +254,7 @@ and desc =
   | Cond of expr * expr * expr        (* && || ! are made of it *)
   | Asg of expr * expr * bool         (* an lvalue, its new value, which uses Cur *)
   | Call of string * expr list
+  | CallPtr of expr * expr list       (* through a function's address *)
   | Conv of expr                      (* to t *)
   | Comma of expr * expr
 
@@ -259,7 +262,7 @@ let mk d t = { d; t }
 let num v t = mk (Const v) t
 
 (* an array is its address, a value of a small integer an int *)
-let rv (e : expr) = match e.t, e.d with Arr (t, _), Deref a -> { a with t = Ptr t } | _ -> e
+let rv (e : expr) = match e.t, e.d with Arr (t, _), Deref a -> { a with t = Ptr t } | Func _, Deref a -> { a with t = Ptr e.t } | _ -> e
 
 let conv (e : expr) t =
   match e.t, t, e.d with
@@ -344,7 +347,7 @@ type ir =
   | Unop of unop * ty
   | Ext of ty                         (* the value on top to a type *)
   | Dup | Drop
-  | Call of string * int * bool       (* the name, the arguments, a result *)
+  | Call of string option * int * bool  (* the name, or the address on top of the arguments; their number; a result *)
   | Label of int | Jmp of int | Jz of int | Jnz of int
   | Ret of bool
 
@@ -354,7 +357,7 @@ let show i =
   | Imm v -> Printf.sprintf "imm %Ld" v | Place (Global s) -> "addr " ^ s | Place (Local o) -> Printf.sprintf "frame -%d" o
   | Place (Param o) -> Printf.sprintf "param %d" o | Load t -> "load " ^ w t | Store t -> "store " ^ w t
   | Op (o, t) -> Printf.sprintf "op %s %s" (binop_name o) (w t) | Unop (o, _) -> if o = Neg then "neg" else "com" | Ext t -> "ext " ^ w t
-  | Dup -> "dup" | Drop -> "drop" | Call (f, n, r) -> Printf.sprintf "call %s %d%s" f n (if r then " ->" else "")
+  | Dup -> "dup" | Drop -> "drop" | Call (f, n, r) -> Printf.sprintf "call %s %d%s" (Option.value f ~default:"*") n (if r then " ->" else "")
   | Label l -> Printf.sprintf "L%d:" l | Jmp l -> Printf.sprintf "jmp L%d" l | Jz l -> Printf.sprintf "jz L%d" l
   | Jnz l -> Printf.sprintf "jnz L%d" l | Ret v -> if v then "ret value" else "ret"
 
@@ -386,7 +389,8 @@ let rec value (e : expr) : unit =
       if cur then emit Dup;
       value r;
       emit (Store l.t)
-  | Call (f, args) -> List.iter value args; emit (Call (f, List.length args, e.t <> Void))
+  | Call (f, args) -> List.iter value args; emit (Call (Some f, List.length args, e.t <> Void))
+  | CallPtr (f, args) -> List.iter value args; value f; emit (Call (None, List.length args, e.t <> Void))
   | Conv a -> value a; (match a.t, e.t with (Arr _ | Ptr _ | Void), _ | _, Void -> () | _ -> emit (Ext e.t))
   | Comma (a, b) -> value a; if a.t <> Void then emit Drop; value b
 
@@ -459,6 +463,7 @@ let ident () = match next () with Id x -> x | _ -> error "expected a name"
 
 let globals : (string, var) Hashtbl.t = Hashtbl.create 64
 let typedefs : (string, ty) Hashtbl.t = Hashtbl.create 16
+let enums : (string, int64) Hashtbl.t = Hashtbl.create 16  (* an enum's constants, ints *)
 let structs : (string, sdef) Hashtbl.t = Hashtbl.create 16
 let scopes : (string, var) Hashtbl.t list ref = ref []
 let frame = ref 0                         (* the current function's locals *)
@@ -530,7 +535,7 @@ let string_lit s =
 
 let is_type () =
   match peek () with
-  | Id ("void" | "char" | "short" | "int" | "long" | "unsigned" | "signed" | "struct" | "static" | "extern" | "const" | "typedef") -> true
+  | Id ("void" | "char" | "short" | "int" | "long" | "unsigned" | "signed" | "struct" | "enum" | "static" | "extern" | "const" | "typedef") -> true
   | Id x -> Hashtbl.mem typedefs x && not (List.exists (fun s -> Hashtbl.mem s x) !scopes)
   | _ -> false
 
@@ -543,6 +548,7 @@ let rec base_type () =
     | Id ("const" | "volatile") -> ignore (next ()); go ()
     | Id (("void" | "char" | "short" | "int" | "long" | "unsigned" | "signed") as w) -> ignore (next ()); words := w :: !words; go ()
     | Id "struct" -> ignore (next ()); t := Some (struct_type ()); go ()
+    | Id "enum" -> ignore (next ()); t := Some (enum_type ()); go ()
     | Id x when !words = [] && !t = None && Hashtbl.mem typedefs x -> ignore (next ()); t := Some (Hashtbl.find typedefs x); go ()
     | _ -> ()
   in
@@ -578,13 +584,40 @@ and struct_type () =
   end;
   Struct s
 
+(* enum tag { A, B = 5, C }: its constants numbered from 0, or from the
+ * last given; the type an int *)
+and enum_type () =
+  (match peek () with Id _ -> ignore (next ()) | _ -> ());
+  if accept "{" then begin
+    let rec go v = if not (accept "}") then (let x = ident () in let v = if accept "=" then const_expr () else v in Hashtbl.replace enums x v; ignore (accept ","); go (Int64.succ v)) in
+    go 0L
+  end;
+  int_t
+
 (* * name [n]... or name(params), with the parameters' names *)
 and declarator bt = let name, t, _ = declarator3 bt in name, t
 
 and declarator3 bt =
-  let t = ref bt in
-  while accept "*" do t := Ptr !t; ignore (accept "const") done;
-  let name = match peek () with Id x -> ignore (next ()); x | _ -> "" in
+  let name, wrap, pnames = declarator_rec () in
+  name, wrap bt, pnames
+
+(* C's declarators, inside out: stars, then a name or a parenthesized
+ * declarator, then ( params ) or [ n ]...; the type is built from the
+ * base outward, the parenthesized one applied last: int ( *f[3])(int)
+ * is an array of pointers to functions. The parameters' names are the
+ * innermost function's (a definition's) *)
+and declarator_rec () : string * (ty -> ty) * string list =
+  let stars = ref 0 in
+  while accept "*" do incr stars; ignore (accept "const") done;
+  let ptrs t = let t = ref t in for _ = 1 to !stars do t := Ptr !t done; !t in
+  let name, inner, inner_names =
+    if peek () = P "(" && (incr pos; let star = peek () = P "*" in decr pos; star) then begin
+      ignore (next ());
+      let r = declarator_rec () in
+      expect ")";
+      r
+    end
+    else ((match peek () with Id x -> ignore (next ()); x | _ -> ""), Fun.id, []) in
   if accept "(" then begin
     (* the parameters, named or not, an array's as a pointer; ... *)
     let rec params () =
@@ -600,11 +633,12 @@ and declarator3 bt =
       end
     in
     let ps, variadic = params () in
-    name, Func (!t, List.map snd ps, variadic), List.map fst ps
+    name, (fun t -> inner (Func (ptrs t, List.map snd ps, variadic))), (if inner_names <> [] then inner_names else List.map fst ps)
   end
   else begin
     let rec dims () = if accept "[" then (let n = if peek () = P "]" then 0 else Int64.to_int (const_expr ()) in expect "]"; n :: dims ()) else [] in
-    name, List.fold_right (fun n t -> Arr (t, n)) (dims ()) !t, []
+    let ds = dims () in
+    name, (fun t -> inner (List.fold_right (fun n t -> Arr (t, n)) ds (ptrs t))), inner_names
   end
 
 (* expressions, by precedence climbing *)
@@ -671,6 +705,14 @@ and type_name () = let _, bt = base_type () in snd (declarator bt)
 
 and postfix e =
   match peek () with
+  | P "(" ->
+      (* a call through a function's address: a pointer, or ( *f ) *)
+      ignore (next ());
+      let f = rv e in
+      let rt, ps = match f.t with Ptr (Func (r, p, _)) -> r, p | _ -> error "not a function" in
+      let rec go () = if accept ")" then [] else (let a = rv (assign_expr ()) in ignore (accept ","); a :: go ()) in
+      let args = List.mapi (fun i (a : expr) -> match List.nth_opt ps i with Some t -> conv a t | None -> conv a (promote a.t)) (go ()) in
+      postfix (mk (CallPtr (f, args)) rt)
   | P "[" -> ignore (next ()); let i = expr () in expect "]"; postfix (deref (binary (A Add) e i))
   | P "." -> ignore (next ()); postfix (member e (ident ()))
   | P "->" -> ignore (next ()); postfix (member (deref e) (ident ()))
@@ -694,7 +736,7 @@ and primary () =
   | Num (v, ll) -> num v (if ll || Int64.compare v 0x7fffffffL > 0 then long_t else int_t)
   | Str s -> string_lit s
   | P "(" -> let e = expr () in expect ")"; e
-  | Id f when peek () = P "(" ->
+  | Id f when peek () = P "(" && (match (try Some (lookup f) with Failure _ -> None) with Some { vty = Func _; _ } | None -> true | _ -> false) ->
       ignore (next ());
       let args = ref [] in
       if not (accept ")") then begin
@@ -706,6 +748,7 @@ and primary () =
       (* a declared parameter's type, else the promotions *)
       let args = List.mapi (fun i (a : expr) -> match List.nth_opt ps i with Some t -> conv a t | None -> conv a (promote a.t)) args in
       mk (Call (sym, args)) rt
+  | Id x when Hashtbl.mem enums x && not (List.exists (fun s -> Hashtbl.mem s x) !scopes || Hashtbl.mem globals x) -> num (Hashtbl.find enums x) int_t
   | Id x -> let v = lookup x in var v.where v.vty
   | _ -> error "expected an expression"
 
@@ -847,14 +890,15 @@ let machine name (params : (string * ty) list) locals (body : ir list) =
     | Dup -> let a = top () in ins "MOV\tR%d, R%d" a (push ())
     | Drop -> decr sp
     | Call (f, n, r) ->
-        (* what is live below the arguments, saved: the callee may use any register *)
-        let base = !sp - n in
+        (* what is live below the arguments, saved: the callee may use any
+         * register; through a pointer, the address above the arguments *)
+        let base = !sp - n - (if f = None then 1 else 0) in
         saves := max !saves base;
         for i = 1 to base do ins "MOV\tR%d, l-%d(SP)" i (slot i) done;
         for i = n - 1 downto 1 do ins "MOV\tR%d, %d(R31)" (base + 1 + i) (8 + (8 * i)) done;
         if n > 0 then ins "MOV\tR%d, R0" (base + 1);
         outgoing := max !outgoing (8 * n);
-        ins "BL\t%s(SB)" f;
+        (match f with Some f -> ins "BL\t%s(SB)" f | None -> ins "BL\t(R%d)" (base + n + 1));
         for i = 1 to base do ins "MOV\tl-%d(SP), R%d" (slot i) i done;
         sp := base;
         if r then ins "MOV\tR0, R%d" (push ())
@@ -969,12 +1013,12 @@ let machine_tm name locals (body : ir list) =
     | Dup -> let a = top () in ins "mov\tr%d, r%d" (push ()) a
     | Drop -> decr sp
     | Call (f, n, r) ->
-        let base = !sp - n in
+        let base = !sp - n - (if f = None then 1 else 0) in
         saves := max !saves base;
         for k = 1 to base do at (fun fr -> Printf.sprintf "\tstw\tr%d, %d(sp)\n" k (fr - slot k)) done;
         for k = 0 to n - 1 do ins "stw\tr%d, %d(sp)" (base + 1 + k) (4 * k) done;
         outgoing := max !outgoing (4 * n);
-        ins "call\t%s" (sym f);
+        (match f with Some f -> ins "call\t%s" (sym f) | None -> ins "jalr\tlr, 0(r%d)" (base + n + 1));
         for k = 1 to base do at (fun fr -> Printf.sprintf "\tldw\tr%d, %d(sp)\n" k (fr - slot k)) done;
         sp := base;
         if r then ins "mov\tr%d, r13" (push ())

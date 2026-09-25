@@ -4316,3 +4316,19 @@ Claude recommended xv6 clone v6 instead of many small versions, adding paging, d
 **Yoann:**
 
 > yes, let's rewrite the plan. Also it's good that we stress-test the other tiny-xxx and adding extensions there because v6 need them (like paging, function pointers, enum). Hopefully it will not add too much code and hopefully those additions can be encapsulated to not pollute too much the original (simpler) code. Also let's use fake spinlocks and make the code multicore ready, even if it complicates things, even if single CPU in tiny machine, because we could change that, and multi core has good teaching value (teach about the important topics of concurrency). We probably want a swp instruction also in the tinymachine then or something related
+
+**Claude (summary):**
+
+Claude proposed rewriting plan_tiny_os.md around v6 with multicore-ready code and atomic swap instructions.
+Yoann moved directly to implementing the extensions with a strict 2000 LOC budget for the kernel.
+He wanted a.out format and heavily simplified xv6 as inspiration, not a faithful port.
+He planned a custom, simpler filesystem design as a way to reduce code size significantly.
+Non-essential features would be cut to maintain the LOC budget and teaching clarity.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:54
+
+**Yoann:**
+
+> let's do the extensions. a.out looks more "tiny-" spirit. But for the code of v6/ we should take xv6 as inspiration but still try to simplify! we can use less files, be more compact, simplify thigns so hopefully we are far less than 6000 LOC. It's ok to cut some features and focus on the essential here, to remain in a budget of 2000LOC max ideally (we can revisit if not realistic and if feature set become too small). For the filesystem we can for instance design our own, with our own simpler mkfs, to reduce the LOC.

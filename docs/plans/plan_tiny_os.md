@@ -279,3 +279,20 @@ as xv6's ancestor, and the riscv32 xv6 fork as v6's model.
   multicore-ready; the tools extended for it, encapsulated). Then
   decided: a.out; v6 simplified, 2,000 lines, its own file system.
   Phase 1 started, tiny-c's enum and function pointers.
+
+**Phase 1, tiny-c, done (2026-09-25)**: `enum` and function pointers,
+42 lines of `TinyC.ml` for both, in both back ends. enum: its
+constants in a table, looked up for a name that is not a variable, the
+type an int. Function pointers: declarators made recursive, C's inside
+out (`int (*f)(int)`, `int (*ops[])(int, int)`, a function returning
+one); a function designator is its address; a call through any
+expression, `CallPtr` in the tree and `Call (None, ...)` in the stack
+machine, the address above the arguments: arm64's `BL (Rn)`,
+TinyCPU's `jalr lr, 0(rn)`. `TinyC_tests/enum.c` (xv6's procstate in a
+structure and a switch; its `USED` is `EMBRYO`, `USED` being a keyword
+of Plan 9's C) and `fnptr.c` (a table like `syscalls[]`, a structure
+like `devsw`, a callback, `(*f)(x)`, a call through a pointer inside an
+expression) print what 7c's do, on arm64 and on tiny-cpu; arm64's
+output on the older tests is byte for byte what it was; a `jalr`
+through the wrong register fails `fnptr -tm`. `goto`, function-like
+macros and `#if` are not done: v6, our own code, does without them.
