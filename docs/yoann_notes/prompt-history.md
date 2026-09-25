@@ -4608,3 +4608,19 @@ Claude found the kernel ideas scattered across docs/plans/plan_tiny_os.md, proc.
 **Yoann:**
 
 > yes, do the same for v6
+
+**Claude (summary):**
+
+Claude decided to write v6's header in main.c following the same existing pattern.
+For v6, the key point is documenting what code stays from xv6 versus deliberate departures.
+Claude emphasized capturing the historical lineage explanation for each code component.
+Claude identified that vm.c's opening comment line exceeded the comfortable length limit.
+Claude planned to rewrap it and commit these header improvements.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:07
+
+**Yoann:**
+
+> by the way, I really like the exercises section in TinyDatabase.ml and the fact that code for this is small because of the clever design and approach used (taken from advanced in research here with LMDB design. Could we apply this to the other TinyXxx.ml ? and improve their header too?

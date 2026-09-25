@@ -55,6 +55,28 @@
  * holds both; undo restores the branches; a clone has the same log)
  * and diff against GNU patch (applying the diff gives the new file).
  *
+ * Exercises, each cheap because the repository is objects that never
+ * change, named by their hash, and its state an operation among them
+ * (redo needs none: undo is an operation, so an undo undone is a redo):
+ * - time travel: log @3 or switch @3, the repository as it was three
+ *   operations ago; each operation still holds its branches, so it is
+ *   following prev three times;
+ * - collection: copy what the operations kept still reach into a new
+ *   file, and rename it over the old one (TinyDatabase's compaction);
+ *   the rename is atomic, so a crash leaves the old file whole;
+ * - two commands at once: head is replaced by a rename, the last one
+ *   wins and the other's operation is lost; re-read head before the
+ *   rename, and if it moved, record an operation with both as its
+ *   parents, their branches merged (jj's concurrent operations, merged
+ *   rather than locked out);
+ * - renames seen: a file gone and a file new with the same hash are one
+ *   file moved, content addressing says it for nothing;
+ * - patience diff beside Myers': the lines unique to both sides as
+ *   anchors, then Myers between them (Bram Cohen's, 2005), often a more
+ *   readable diff of code;
+ * - a lazy clone: copy the operations and commits, and fetch a blob
+ *   from the source only when read; a hash names it wherever it is.
+ *
  * Usage: tiny-vcs CMD [args], in a directory with .tvcs, or below it.
  *
  * References: E. W. Myers, "An O(ND) Difference Algorithm and Its
@@ -62,7 +84,10 @@
  * B. C. Pierce, "A Formal Investigation of Diff3" (FSTTCS, 2007; from
  * memory); M. von Zweigbergk, Jujutsu (jj, 2019-; from memory), the
  * working copy as a commit, the operation log and first-class
- * conflicts; L. Torvalds, git (2005), the object model. *)
+ * conflicts; L. Torvalds, git (2005), the object model; R. C. Merkle,
+ * "A Digital Signature Based on a Conventional Encryption Function"
+ * (CRYPTO, 1987; from memory), the tree of hashes; B. Cohen, patience
+ * diff (2005; from memory). *)
 
 exception Error of string
 

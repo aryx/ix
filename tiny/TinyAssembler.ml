@@ -73,6 +73,21 @@
  * compares what they print with goken's expected outputs (two of them,
  * dirread and mem, pass here and fail with goken's own 7l).
  *
+ * Exercises, each cheap because every size is known before any
+ * address, and every word a closure of its pc:
+ * - a map and a listing: each function's address and each word with
+ *   its pc and its source, a walk over what the layout already holds;
+ * - Szymanski's problem taken on, as an option: a branch in its short
+ *   form when its target is near, sizes and addresses iterated until
+ *   they agree; measure what it saves against what it costs;
+ * - arm32 (5l's): the same three passes, arm's encodings as closures,
+ *   and the literal pools back, placed after each function;
+ * - dead code after a RET dropped (7l's follow): a walk of the
+ *   branches from each function's entry, the words never reached left
+ *   out of the layout;
+ * - Mach-O (above): the rebase of the data's pointers, the list of the
+ *   closures that write an address.
+ *
  * Usage: tiny-assembler [-e entry] [-o out] file.s...
  *
  * References: M. V. Wilkes, D. J. Wheeler and S. Gill, The Preparation

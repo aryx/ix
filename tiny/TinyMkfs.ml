@@ -53,7 +53,23 @@
  * bytes, a type (0 free, 1 a directory, 2 a file, 3 a device), the
  * file's first block (0 when it has none) and its size. No inodes: a
  * file is its entry, so it has one name; no "." or "..": t6 resolves
- * ".." in a path by its text, as Plan 9's cleanname. *)
+ * ".." in a path by its text, as Plan 9's cleanname.
+ *
+ * Exercises, each cheap because a disk image is a string to walk:
+ * - a checker (-c): every block used once, the bitmap (or the FAT's
+ *   free blocks) agreeing, every entry's inode or chain whole: fsck's
+ *   first passes, and the law for a kernel's writes (an image checked
+ *   after make check);
+ * - extraction (-x name): a file read back from an image, the round
+ *   trip a law of its own;
+ * - v6's log region, or t6's second FAT, made here as the kernels learn
+ *   to use them.
+ *
+ * References: D. Ritchie and K. Thompson, "The UNIX Time-Sharing
+ * System" (CACM, 1974; from memory), the inodes; T. Kowalski, "FSCK --
+ * The UNIX File System Check Program" (1978; from memory); T.
+ * Paterson, 86-DOS (1980), the FAT; R. Cox, F. Kaashoek, R. Morris,
+ * xv6's mkfs.c (2006-), made on the host. *)
 
 let bsize = 1024
 let nblocks = 2048                        (* 2 MB *)

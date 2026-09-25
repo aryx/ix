@@ -81,10 +81,28 @@
  *   TinyCPU_test.sh checks the first on its programs, the second
  *   on random programs of every instruction.
  *
+ * Exercises, each cheap because the interpreter is the definition and
+ * a machine changes the CPU only through env:
+ * - a translator back (to arm32, as QEMU's): written once, 185 lines,
+ *   then removed as a second topic (git history has it); the law, the
+ *   same output interpreted and translated;
+ * - a decode cache (threaded code): each word decoded once, into a
+ *   closure kept by its address, and dropped when a store hits it;
+ *   measure the speed against step;
+ * - compressed instructions: 16-bit forms of the commonest (RISC-V's
+ *   RVC), the density measured on tiny-os's programs, the listing's
+ *   law checking them;
+ * - a debugger by env: breakpoints as a word decode does not know,
+ *   caught by illegal, the program's registers and memory then shown.
+ *
  * References: D. E. Knuth, The Art of Computer Programming, vol. 1
  * (MIX, 1968; MMIX, fascicle 1, 2005): a machine designed to teach;
  * D. A. Patterson and J. L. Hennessy, the MIPS and RISC-V books: the
- * load-store machine. *)
+ * load-store machine; J. R. Bell, "Threaded Code" (CACM, 1973; from
+ * memory); F. Bellard, "QEMU, a Fast and Portable Dynamic Translator"
+ * (USENIX, 2005; from memory); A. Waterman, "Design of the RISC-V
+ * Instruction Set Architecture" (PhD thesis, 2016; from memory), the
+ * compressed instructions. *)
 
 (*****************************************************************************)
 (* The instructions *)

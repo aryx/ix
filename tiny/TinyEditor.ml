@@ -47,6 +47,23 @@
  * longest like sam's, with a memo of (node, position) pairs; libregexp's
  * answers differ from it in corner cases (mini-ed's Regex.mli).
  *
+ * Exercises, each cheap because a command's changes are a list, made
+ * against the old text and applied together:
+ * - undo (sam's u): keep, for each change applied, the text it
+ *   replaced; the list of those, reversed, is the command's inverse,
+ *   applied the same way; u n undoes n commands;
+ * - several files: a buffer and a dot per file, the addresses naming a
+ *   file ("name"), X/re/cmd and Y running cmd in each file whose name
+ *   matches, or not (sam's);
+ * - | < > (sam's): dot sent to a command, or replaced by its output, or
+ *   both; a change like any other, so it composes with x;
+ * - the buffer as a piece table (Bravo's, then Word's), or a rope: a
+ *   change no longer copies the whole text, and undo keeps the old
+ *   pieces for nothing;
+ * - dots, not a dot: the matches of an x kept as a set of selections,
+ *   and the next command run on each (Kakoune's and vis's editing
+ *   model, grown from sam's x).
+ *
  * The test: test.sh runs scripts through it and through 9base's sam -d.
  *
  * Usage: tiny-editor [file] -- the commands on standard input
@@ -56,7 +73,10 @@
  * character ranges, and a command's changes applied together at its
  * end; Rob Pike, "Structural Regular Expressions" (EUUG, 1987), for x
  * and y, loops over the matches rather than over lines -- ed's g
- * turned into one loop among others. *)
+ * turned into one loop among others; C. Crowley, "Data Structures for
+ * Text Sequences" (1998; from memory), the piece table; H. Boehm, R.
+ * Atkinson, M. Plass, "Ropes: an Alternative to Strings" (Software --
+ * Practice and Experience, 1995; from memory). *)
 
 (*****************************************************************************)
 (* Regular expressions *)

@@ -82,12 +82,32 @@
  * structures by value, goto, the preprocessor's macros with arguments
  * and its #if.
  *
+ * Exercises, each cheap because the stack machine stands between the
+ * front end and the machines:
+ * - a third back end: arm32, for tiny-arm and tiny-pi (GNU as's
+ *   syntax), or x86-64; -tm's was 100 lines;
+ * - the stack machine run: an interpreter of its code, 60 lines, a
+ *   third semantics for the test to compare the two back ends with (and
+ *   the programs' outputs without goken);
+ * - peephole passes on the stack machine's code, each a match on a list
+ *   (McKeeman's): an operation on two constants folded, a jump to a
+ *   jump followed, a store then a load of the same place;
+ * - Sethi and Ullman's order: an operation's deeper operand evaluated
+ *   first, so the stack stays shallower (the 12 registers of -tm);
+ * - long long on -tm, a value in a pair of registers; floats, a second
+ *   register class on the same stack (started once, left).
+ *
  * References: Niklaus Wirth, Compiler Construction (1996), for the
  * registers as a stack of the expression's values, and the one-pass
  * recursive descent; Ken Thompson, "Plan 9 C Compilers" (1990), for
  * the calling convention this code shares with 7c's; Kernighan and
  * Ritchie, The C Programming Language (1988), appendix A, the grammar
- * followed. *)
+ * followed; R. Sethi and J. D. Ullman, "The Generation of Optimal Code
+ * for Arithmetic Expressions" (JACM, 1970; from memory); W. M.
+ * McKeeman, "Peephole Optimization" (CACM, 1965; from memory); C.
+ * Fraser and D. Hanson, A Retargetable C Compiler: Design and
+ * Implementation (1995; from memory), lcc, a C compiler whose machines
+ * are its back ends. *)
 
 let error fmt = Printf.ksprintf failwith fmt
 

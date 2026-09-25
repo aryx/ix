@@ -81,6 +81,16 @@
  * written) and under machine/'s mini-5i, the outputs and exit statuses
  * the same; and assembles random instructions of the subset both ways.
  *
+ * Exercises, each cheap because an instruction is one variant with
+ * three readers (the parser, decode, print) and one writer (encode):
+ * - Thumb: a second decode, of 16-bit words, into the same variant, and
+ *   the same execute; bx's low bit then switches;
+ * - Plan 9's syntax (5a's) as a second parser into the same variant,
+ *   its bytes compared with goken's 5a;
+ * - a decode cache, machine/'s: decode once per address;
+ * - .ltorg: the literal pool placed where asked, not only after
+ *   everything, so that a pool stays within ldr's 4 KB.
+ *
  * References: ARM Architecture Reference Manual, ARMv7-A (ARM DDI 0406;
  * from memory): the encodings; GNU as and objdump 2.42, run: the
  * syntax, the choices, the printed forms; principia's Machine book

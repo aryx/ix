@@ -86,7 +86,24 @@
  * kernel, with its four user programs (two printing, one executing
  * csrw, one storing into the kernel), on a long and a short timer
  * period: every letter printed, the two faults caught, the printing
- * interleaved by the short period and not by the long one.
+ * interleaved by the short period and not by the long one; and the
+ * programs of TinyMachine_tests/ (amoswap and csrrw, the pages, the
+ * console's input, the disk, the relocating window) against their
+ * .expected. tiny-os's v6 and t6 run on it too (their make check).
+ *
+ * Exercises, each cheap because the time is the instructions counted
+ * and everything else is a hook of the CPU:
+ * - several cores (plan_tiny_os.md, phase 5): N CPUs sharing the
+ *   memory, stepped in an order a seed draws; a race then comes back
+ *   from its seed, which real hardware never gives;
+ * - wfi: a core waiting for an interrupt, the time jumping to timecmp,
+ *   so an idle kernel costs nothing;
+ * - a slow disk: the transfer done N instructions after the command,
+ *   so a kernel must sleep for it (v6's diskrw becomes xv6's);
+ * - a TLB: the last translations kept, flushed by a write of satp; a
+ *   kernel that forgets a flush then shows its bug, as on real machines;
+ * - pages' A and D bits, set by the load and the store, for a clock
+ *   page replacement in a kernel.
  *
  * References: the RISC-V privileged specification (from memory): the
  * trap registers, their names, mret; Wirth and Gutknecht, Project
