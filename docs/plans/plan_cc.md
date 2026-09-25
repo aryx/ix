@@ -504,7 +504,9 @@ after the compiler, by what it taught.
    mutation not caught, that `__udivmod`'s carry case cannot happen
    (after k steps the remainder is below 2^k), removed. A `<=` made
    `<` in the back end fails 4 of 30 random programs; a division
-   step skipped fails `udiv.c`.
+   step skipped fails `udiv.c`. The runtime moved to `tiny/tiny-os/`
+   the same day, with a Makefile that compiles, links and runs a C
+   program (`hello.c`) with the installed tools.
 
 6. **Docs**: `notes_cc.md` checked against the code, the numbers.
    *Done (2026-09-24)*: the tutorial's module table and three

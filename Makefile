@@ -23,6 +23,7 @@ test: all
 	./tiny/TinyArm_test.sh
 	./tiny/TinyCPU_test.sh
 	./tiny/TinyMachine_test.sh
+	$(MAKE) -C tiny/tiny-os clean all
 	./machine/tests/decode_check.py
 	./machine/tests/decode_check.py --random 5000
 	./machine/tests/decode_check.py -64

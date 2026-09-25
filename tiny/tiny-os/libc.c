@@ -1,7 +1,7 @@
 // Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyC.ml)
 //
 // The libc of tiny-c -tm's programs, compiled by tiny-c -tm: the part
-// of Plan 9's that TinyC_tests/libc.h declares, in the C TinyC takes.
+// of Plan 9's that libc.h declares, in the C TinyC takes.
 // print's verbs: %d %u %x %s %c %%, with l (ignored: a long is an int
 // here); no widths, no long long (TinyCPU is 32 bits). %u is a verb,
 // as in goken's libc (built without PLAN9PORT, its fmt.c), the

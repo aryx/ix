@@ -23,11 +23,11 @@
  * same front end and stack machine, a second back end of 100 lines,
  *
  *     tiny-c -tm -o prog.tm prog.c
- *     tiny-cpu -o prog TinyC_runtime/start.tm libc.tm prog.tm && tiny-cpu prog
+ *     tiny-cpu -o prog tiny-os/start.tm libc.tm prog.tm && tiny-cpu prog
  *
- * with a runtime of its own (TinyC_runtime/: the start, the system
- * calls and the unsigned division in start.tm, the rest of libc in C,
- * compiled by tiny-c -tm). There pointers are 4 bytes and a long long
+ * with a runtime of its own, in tiny-os/ (whose Makefile does the
+ * above): the start, the system calls and the unsigned division in
+ * start.tm, the rest of libc in C, compiled by tiny-c -tm. There pointers are 4 bytes and a long long
  * is refused: the machine is 32 bits. That the two back ends print the
  * same, on TinyC_tests/ and on random programs without long long
  * (TinyC_fuzz.py --32), is what the stack machine was for.

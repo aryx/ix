@@ -4124,3 +4124,19 @@ Claude validated 500 random programs and integrated TinyCPU testing into the mak
 **Yoann:**
 
 > what about we add a tiny/tiny-os/ subfolder and move some .tm and .c there and add a regular Makefile assuming the tiny-xxx are in the path (after dune install) and compile and run the thing?
+
+**Claude (summary):**
+
+Claude added 4-core SMP support to mini-qemu with `-smp` flag (1 to 4 cores).
+Rewrote the GIC interrupt controller and Pi4 board for per-core registers and timers.
+Four cores run slower than one (318s vs 75s) because xv6 cores busy-wait instead of sleeping.
+Mini-qemu parks cores 1-3 like the Pi4 firmware does, unlike QEMU which starts all four immediately.
+Committed changes as 4662e19 to plan_pi.md step G5; all existing tests still pass.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 11:03
+
+**Yoann:**
+
+> ok what's next?

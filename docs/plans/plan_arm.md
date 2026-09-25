@@ -631,3 +631,10 @@ at the top of ix next to `mini-pi`, builds the machine, links
 TinyKernel_v0 and its programs into `_build/default/tiny/kernel.img`,
 says so, and runs it; it is not installed, as `bin/tiny-machine` is the
 machine itself.
+
+Moved (2026-09-25; the author: "a tiny/tiny-os/ subfolder ... and add
+a regular Makefile assuming the tiny-xxx are in the path"): the kernel
+is `tiny/tiny-os/kernel.tm`, its programs `tiny/tiny-os/a.tm` to
+`d.tm`, next to tiny-c -tm's runtime and a C program, `hello.c`; the
+Makefile there links and runs them with the installed tools (`make
+run`, `make run-hello`). `./tiny-machine` runs the same files.

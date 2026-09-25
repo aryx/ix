@@ -13,7 +13,7 @@
 # 7c, both assembled with all of goken's libc (7c -S) by TinyAssembler,
 # run, and their outputs and exit statuses compared. Then the other
 # machine: each compiled by tiny-c -tm, linked with the runtime
-# (TinyC_runtime/: start.tm, and libc.c compiled by tiny-c -tm) by
+# (tiny-os/: start.tm, and libc.c compiled by tiny-c -tm) by
 # tiny-cpu, run by tiny-cpu, its output and status compared with 7c's
 # too; a program with long long is refused there (TinyCPU is 32 bits),
 # and said so.
@@ -48,7 +48,7 @@ popd > /dev/null
 
 T=$ROOT/tiny/TinyC_tests
 [ ${#progs[@]} = 0 ] && progs=($T/*.c)
-RT=$ROOT/tiny/TinyC_runtime
+RT=$ROOT/tiny/tiny-os
 (cd $RT && $TC -tm -o $W/libc.tm libc.c) || { echo "FAIL the runtime: tiny-c -tm libc.c"; exit 1; }
 refused=()
 for c in "${progs[@]}"; do

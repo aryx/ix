@@ -1,17 +1,17 @@
 ; Claude Code, Copyright (C) 2026 Yoann Padioleau, LGPL (see TinyMachine.ml)
 ;
 ; TinyKernel, version 0: a page of kernel for tiny-machine. There is
-; no loader: its four user programs (TinyKernel_v0_programs/) are
-; linked with it, one image, and its table names their windows by
-; their labels:
+; no loader: its four user programs (a.tm to d.tm) are linked with it,
+; one image, and its table names their windows by their labels:
 ;
-;     ./tiny-machine        (TinyKernel_v0.tm TinyKernel_v0_programs/*.tm)
+;     make run        (tiny-machine -o kernel.img kernel.tm a.tm b.tm c.tm d.tm)
 ;
-; The kernel first, at 0, where the machine starts. It runs them in turn, a slice of `period` instructions each (the timer),
-; each in its window of memory (base, bound): two print a letter at a
-; time (sys 1, write), one executes csrw (illegal in user mode), one
-; stores into the kernel (a fault). The kernel kills the last two,
-; saying why, and halts when all four are gone.
+; The kernel first, at 0, where the machine starts. It runs them in
+; turn, a slice of `period` instructions each (the timer), each in its
+; window of memory (base, bound): two print a letter at a time (sys 1,
+; write), one executes csrw (illegal in user mode), one stores into
+; the kernel (a fault). The kernel kills the last two, saying why,
+; and halts when all four are gone.
 ;
 ; A process is 80 bytes: r1-r15 at 4-60 (rN at 4N), the pc at 64, the
 ; window at 68 and 72, 1 at 76 while it lives. The kernel's own data

@@ -3,9 +3,10 @@
 ; The runtime of tiny-c -tm's programs, what C cannot say: the start,
 ; the system calls, the unsigned division TinyCPU lacks. Linked first
 ; (the machine starts at 0), then libc (libc.c, compiled by tiny-c -tm),
-; then the program:
+; then the program (the Makefile):
 ;
-;     tiny-cpu -o prog start.tm libc.tm prog.tm && tiny-cpu prog one two
+;     tiny-c -tm -o prog.tm prog.c
+;     tiny-cpu -o prog start.tm libc.tm prog.tm && tiny-cpu ./prog one two
 ;
 ; The convention is tiny-c -tm's: the arguments at 0(sp), 4(sp)...,
 ; the result in r13, any register but sp free to the callee.

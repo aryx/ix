@@ -2,7 +2,7 @@
 ;
 ; d: a letter, then a store into the kernel's memory
 ;
-; A user program for TinyKernel_v0.tm, linked with it by tiny-machine:
+; A user program for kernel.tm, linked with it by tiny-machine (Makefile):
 ; its window is from its first label to its _end, 64KB aligned, and the
 ; kernel's table names both.
 

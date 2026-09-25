@@ -24,8 +24,8 @@
  * at the start: no header, since the machine always starts at 0 in
  * supervisor mode (the Pi's kernel.img, loaded at 0x8000 by its
  * firmware, is the same idea). Files named .tm are assembly, another
- * an image. ./tiny-machine, at the top of ix, runs TinyKernel_v0.tm and
- * its programs.
+ * an image. tiny-os/ has a kernel and its programs, and a Makefile that
+ * links and runs them (./tiny-machine, at the top of ix, too).
  *
  * The machine, what the CPU lacked to run a kernel:
  *
@@ -62,7 +62,7 @@
  * mode, or a trap. The loop around [step] adds the rest: the time, the
  * interrupt, the fetch's window.
  *
- * The tests: TinyMachine_test.sh runs TinyKernel_v0.tm, a page of
+ * The tests: TinyMachine_test.sh runs tiny-os/kernel.tm, a page of
  * kernel, with its four user programs (two printing, one executing
  * csrw, one storing into the kernel), on a long and a short timer
  * period: every letter printed, the two faults caught, the printing
