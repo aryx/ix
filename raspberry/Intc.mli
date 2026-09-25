@@ -19,5 +19,9 @@ val set : t -> int -> bool -> unit
 (* the CPU's IRQ input *)
 val irq : t -> bool
 
+(* its FIQ input: the source the FIQ control register names (0x20C: bit
+ * 7 enable, bits 6-0 the line), up *)
+val fiq : t -> bool
+
 (* its registers, from base + 0xB200 *)
 val device : t -> Memory.device

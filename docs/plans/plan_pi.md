@@ -473,3 +473,34 @@ screendumps before and after typing are **byte for byte QEMU's**.
   starved the CPU: the window's first boot missed the test's 60 s),
   `Qmp` (a Unix socket: qmp_capabilities, query-status, screendump,
   send-key held 100ms of the board's time, quit).
+
+**Phase C done** (2026-09-25): **principia's 9pi boots under
+TinyRaspberryPi as under QEMU**: run as principia's `mkfile-target-pi`
+runs it (`-device loader` at 0x8000, the SD card image, `-serial null
+-serial mon:stdio`: the mini UART the console), it reaches rc's prompt
+and a session of commands (`raspberry/tests/9pi.py`: ls, cat, wc, a
+pipe, the card's control file, a file written to the card and read
+back, a floating point program) prints **byte for byte QEMU's
+console**, the program's death included (5c's code is FPA, which 9pi
+does not emulate: "hoc 48: suicide: undefined instruction: pc 0x3ba4"
+on both). A survey first (2026-09-25; principia's own notes,
+`docs/claude_notes/qemu_raspi1ap.txt`, had the QEMU bring-up written).
+
+- machine/'s `Arm32`: `swp`, `ldrex`/`strex`/`clrex` (a monitor), the
+  barriers, and VFP's part the kernel uses (`vmrs`/`vmsr` of FPSID,
+  FPSCR, FPEXC; `vldr`/`vstr` of the double registers), granted by
+  CPACR, FPEXC.EN required but for the control registers (the lazy
+  switch's trap).
+- `raspberry/`: `Miniuart` (QEMU's AUX), `Sdhost` (the Arasan
+  controller and QEMU's SD card: its CID, a standard capacity CSD, OCR
+  80ffff00, RCA 4567, version word 0x2402), `Dma` (control blocks run
+  at once, IRQ 16 + channel), FIQ in `Intc` (USB's, line 9), the
+  DWC2's interrupt line, the mailbox's framebuffer configuration and
+  other tags (clocks by id, temperature, resolution and depth: QEMU's
+  640x480x16), CP15's feature registers, CCNT 0, CPACR as QEMU keeps
+  it (0xC0F00000), WFI: the time jumps to the next timer compare;
+  `Storage` (the card's image, in place or snapshot=on); the command
+  line's `-device loader`, `-bios`, `-drive`, and QEMU's serial order.
+
+The ARM timer (0xB400) stays unassigned as in QEMU's raspi1ap (reads 0,
+no interrupt), so 9pi's USB driver wakes on its 1s timeouts there too.

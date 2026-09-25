@@ -73,6 +73,18 @@ type t =
   | Extend of { cond : cond; signed : bool; half : bool; rd : reg; rn : reg; rm : reg; rot : int }
   (* 0 nop, 1 yield, 2 wfe, 3 wfi, 4 sev *)
   | Hint of { cond : cond; hint : int }
+  | Swp of { cond : cond; byte : bool; rd : reg; rm : reg; rn : reg }
+  (* ldrex, strex: the exclusive monitor is the state's *)
+  | Ldrex of { cond : cond; rd : reg; rn : reg }
+  | Strex of { cond : cond; rd : reg; rm : reg; rn : reg }
+  | Clrex
+  (* dsb (4), dmb (5), isb (6), the full system's: no effect here *)
+  | Barrier of { kind : int }
+  (* VFP's control registers (0 FPSID, 1 FPSCR, 8 FPEXC), and its double
+   * registers' loads and stores: what 9pi's kernel uses *)
+  | Vmrs of { cond : cond; reg : int; rd : reg }
+  | Vmsr of { cond : cond; reg : int; rd : reg }
+  | Vldst of { cond : cond; load : bool; d : int; rn : reg; offset : int }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 
@@ -120,6 +132,12 @@ type state = {
   mutable translate : int -> int -> int;
   mutable coproc : state -> t -> unit;
   mutable vectors : int;
+  mutable exclusive : int;          (* the monitor's physical address, -1 open *)
+  mutable vfp_ok : bool;            (* VFP granted (CPACR) *)
+  vfp : int array;                  (* d0-d31, two words each *)
+  mutable fpscr : int;
+  mutable fpexc : int;
+  mutable fpsid : int;
 }
 
 exception Unimplemented of int * int  (* the word, its address *)

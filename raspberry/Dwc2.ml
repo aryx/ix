@@ -13,6 +13,7 @@ type t = {
   regs : (int, int) Hashtbl.t;
   mem : Memory.t;
   root : Usb.device option;
+  line : bool -> unit;
 }
 
 (* QEMU's reset values (hw/usb/hcd-dwc2.c's reset, its 8 channels) *)
@@ -37,8 +38,8 @@ let connsts = 1 and conndet = 2 and ena = 4 and enachg = 8 and ovrcurrchg = 0x20
 let get t off = Option.value (Hashtbl.find_opt t.regs off) ~default:0
 let set t off v = Hashtbl.replace t.regs off (v land 0xffffffff)
 
-let create ~mem ~root =
-  let t = { regs = Hashtbl.create 64; mem; root } in
+let create ~mem ~root ~line =
+  let t = { regs = Hashtbl.create 64; mem; root; line } in
   List.iter (fun (o, v) -> set t o v) reset_values;
   (* the root port: powered; a device attached at full speed, connected *)
   set t 0x440 (pwr lor (match root with Some _ -> (1 lsl 17) lor conndet lor connsts | None -> 0));
@@ -96,8 +97,26 @@ let transfer t ch =
       set t base (hcchar land lnot (1 lsl 31));
       set t (base + 8) (get t (base + 8) lor intr)
 
+(* the channels interrupting (HAINT): HCINT and HCINTMSK sharing a bit *)
+let haint t =
+  let rec go ch acc = if ch = 8 then acc else
+      let b = 0x500 + (0x20 * ch) in
+      go (ch + 1) (if get t (b + 8) land get t (b + 0xc) <> 0 then acc lor (1 lsl ch) else acc) in
+  go 0 0
+
+(* GINTSTS: the host channels (bit 25), the port (bit 24) *)
+let gintsts t =
+  (get t 0x14 land lnot ((1 lsl 25) lor (1 lsl 24)))
+  lor (if haint t land get t 0x418 <> 0 then 1 lsl 25 else 0)
+  lor (if get t 0x440 land (conndet lor enachg lor ovrcurrchg) <> 0 then 1 lsl 24 else 0)
+
+(* the interrupt line (9): enabled globally (GAHBCFG) and in GINTMSK *)
+let update t = t.line (get t 0x08 land 1 <> 0 && gintsts t land get t 0x18 <> 0)
+
 let read t off _ =
   match off with
+  | 0x14 -> gintsts t
+  | 0x414 -> haint t
   | 0x10 -> 0x80000000 lor get t off                         (* GRSTCTL: AHB idle; resets done *)
   | 0x3c -> 0                                                (* GUID *)
   | 0x40 -> 0x4f54294a                                       (* GSNPSID: 2.94a, QEMU's *)
@@ -107,9 +126,10 @@ let read t off _ =
   | 0x50 -> 0
   | _ -> get t off
 
-let write t off _ v =
+let write_reg t off _ v =
   let v = v land 0xffffffff in
   match off with
+  | 0x14 -> set t off (get t off land lnot v)               (* GINTSTS: write 1 to clear *)
   | 0x10 -> set t off (v land lnot 0x3f)                     (* the reset and flush bits clear at once *)
   | 0x440 -> write_hprt t v
   | _ when off >= 0x500 && off < 0x600 ->
@@ -130,5 +150,9 @@ let write t off _ v =
        | 0x08 -> set t off (get t off land lnot v)             (* HCINT: write 1 to clear *)
        | _ -> set t off v)
   | _ -> set t off v
+
+let write t off sz v =
+  write_reg t off sz v;
+  update t
 
 let device t = { Memory.read = read t; write = write t }

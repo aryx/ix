@@ -9,7 +9,13 @@
  *)
 (* See Board.mli *)
 
-type config = { ram_size : int; ips : int; log : string -> unit; usb_keyboard : bool }
+type config = {
+  ram_size : int; ips : int; log : string -> unit; usb_keyboard : bool;
+  sd : Sdhost.storage option;
+  serial0 : char -> unit;            (* the PL011 *)
+  serial1 : char -> unit;            (* the mini UART *)
+  console : int;                     (* the serial the host's input goes to *)
+}
 
 (* the ARM1176's CP15 registers other than the MMU's *)
 type cp15 = {
@@ -32,6 +38,8 @@ type t = {
   intc : Intc.t;
   timer : Systimer.t;
   uart : Pl011.t;
+  mini : Miniuart.t;
+  mutable wfi : bool;               (* a WFI: time may jump to the next event *)
   cfg : config;
   (* the decode cache: by virtual address, bit 0 set when fetched in
    * user mode; emptied with the TLB and by I-cache invalidations *)
@@ -68,6 +76,10 @@ let mrc t ~crn ~crm ~opc2 =
   let c = t.cp and m = t.mmu in
   match crn, crm, opc2 with
   | 0, 0, 0 -> midr | 0, 0, 1 -> ctr
+  (* the feature registers, as QEMU's arm1176 (9pi reads ID_PFR1 and
+   * ID_MMFR3) *)
+  | 0, 1, k -> [| 0x111; 0x11; 0x33; 0; 0x01130003; 0x10030302; 0x01222100; 0 |].(k)
+  | 0, 2, k when k <= 5 -> [| 0x0140011; 0x12002111; 0x11231111; 0x01102131; 0x141; 0 |].(k)
   | 1, 0, 0 -> m.sctlr | 1, 0, 1 -> c.actlr | 1, 0, 2 -> c.cpacr
   | 2, 0, 0 -> m.ttbr0 | 2, 0, 1 -> m.ttbr1 | 2, 0, 2 -> m.ttbcr
   | 3, 0, 0 -> m.dacr
@@ -80,7 +92,13 @@ let mcr t ~crn ~crm ~opc2 v =
   let c = t.cp and m = t.mmu in
   match crn, crm, opc2 with
   | 1, 0, 0 -> set_sctlr t v
-  | 1, 0, 1 -> c.actlr <- v | 1, 0, 2 -> c.cpacr <- v
+  | 1, 0, 1 -> c.actlr <- v
+  | 1, 0, 2 ->
+      (* only cp10 and cp11's access is kept, the rest reading as QEMU
+       * gives it (0xC0F00000 after 9pi's 0x0FFFFFFF); VFP granted with
+       * both full *)
+      c.cpacr <- (v land 0x00f00000) lor 0xc0000000;
+      t.st.vfp_ok <- c.cpacr land 0x00f00000 = 0x00f00000
   | 2, 0, 0 -> m.ttbr0 <- v; flush t | 2, 0, 1 -> m.ttbr1 <- v; flush t | 2, 0, 2 -> m.ttbcr <- v; flush t
   | 3, 0, 0 -> m.dacr <- v; flush t
   | 5, 0, 0 -> c.dfsr <- v | 5, 0, 1 -> c.ifsr <- v
@@ -88,7 +106,7 @@ let mcr t ~crn ~crm ~opc2 v =
   (* the caches: only an instruction cache's invalidation matters, the
    * decode cache's; the TLB's *)
   | 7, (5 | 7), 0 -> Array.fill t.tags 0 (1 lsl cache_bits) (-1)
-  | 7, 0, 4 -> ()                                        (* wait for interrupt: the loop's next check *)
+  | 7, 0, 4 -> t.wfi <- true                              (* wait for interrupt *)
   | 8, _, _ -> flush t
   | 13, 0, 0 -> c.fcse <- v | 13, 0, 1 -> c.contextid <- v | 13, 0, k when k >= 2 && k <= 4 -> c.tpid.(k - 2) <- v
   | _ -> ()                                              (* cache and write-buffer operations, c15's *)
@@ -101,6 +119,7 @@ let coproc t (st : Arm32.state) (i : Arm32.t) =
       if rd = 15 then Arm32.write_cpsr st v 8 else st.r.(rd) <- v
   | Coproc { cp = 15; opc1 = 0; load = false; crn; crm; opc2; rd; _ } -> mcr t ~crn ~crm ~opc2 st.r.(rd)
   | Coproc2 { cp = 15; load = false; _ } -> ()            (* the ARM1176's cache range operations *)
+  | Hint { hint = 3; _ } -> t.wfi <- true
   | Hint _ -> ()
   | _ -> raise (Arm32.Unimplemented (0, st.r.(15) - 8))
 
@@ -112,14 +131,15 @@ let coproc t (st : Arm32.state) (i : Arm32.t) =
  * 64MB of 512 *)
 let vc_size = 64 * 1024 * 1024
 
-let create cfg ~output =
+let create cfg =
   let mem = Memory.create () in
   let st = Arm32.create mem in
   let mmu = Mmu32.create mem in
   let fb = Framebuffer.create mem in
   let intc = Intc.create () in
   let timer = Systimer.create ~line:(fun n on -> Intc.set intc n on) in
-  let uart = Pl011.create ~output ~line:(fun on -> Intc.set intc 57 on) in
+  let uart = Pl011.create ~output:cfg.serial0 ~line:(fun on -> Intc.set intc 57 on) in
+  let mini = Miniuart.create ~output:cfg.serial1 ~line:(fun on -> Intc.set intc 29 on) in
   Memory.map_bytes mem ~base:0 "ram" (Bytes.make cfg.ram_size '\000');
   (* the I/O space, where no device answers: zero, and a note *)
   let unassigned = Devices.unassigned ~log:(fun what off -> cfg.log (Printf.sprintf "unassigned %s at 0x%x" what (io + off))) in
@@ -131,13 +151,15 @@ let create cfg ~output =
   dev 0xb880 0x40 "mailbox" (Devices.mailbox ~mem ~ram_size:cfg.ram_size ~vc_base:(cfg.ram_size - vc_size) ~on_framebuffer:(Framebuffer.configure fb));
   dev 0x200000 0xb4 "gpio" (Devices.regs ());
   dev 0x201000 0x1000 "uart0" (Pl011.device uart);
-  dev 0x215000 0x100 "aux" (Devices.aux ());
+  dev 0x215000 0x100 "aux" (Miniuart.device mini);
+  dev 0x300000 0x100 "emmc" (Sdhost.device (Sdhost.create ~card:cfg.sd ~line:(fun on -> Intc.set intc 62 on)));
+  dev 0x7000 0x1000 "dma" (Dma.device (Dma.create ~mem ~line:(fun n on -> Intc.set intc n on)));
   (* a keyboard: behind the hub QEMU adds on the controller's one port *)
   let keyboard = if cfg.usb_keyboard then Some (Usb.keyboard ~path:"1.1" ()) else None in
   let root = Option.map (fun k -> Usb.hub ~path:"1" [ k ]) keyboard in
-  dev 0x980000 0x10000 "usb" (Dwc2.device (Dwc2.create ~mem ~root));
+  dev 0x980000 0x10000 "usb" (Dwc2.device (Dwc2.create ~mem ~root ~line:(fun on -> Intc.set intc 9 on)));
   let cp = { actlr = 0; cpacr = 0; dfsr = 0; ifsr = 0; dfar = 0; ifar = 0; fcse = 0; contextid = 0; tpid = Array.make 3 0 } in
-  let t = { st; mem; mmu; cp; intc; timer; uart; cfg;
+  let t = { st; mem; mmu; cp; intc; timer; uart; mini; wfi = false; cfg;
             tags = Array.make (1 lsl cache_bits) (-1); code = Array.make (1 lsl cache_bits) (Arm32.Undefined 0);
             instructions = 0; time_left = 0; undefined = []; inq = Queue.create (); fb; keyboard; key_events = [] } in
   st.coproc <- coproc t;
@@ -162,7 +184,19 @@ let load_kernel t image =
  * the kernels run it with its FIFO off) *)
 let input t c = Queue.add c t.inq
 
-let feed t = if Pl011.empty t.uart && not (Queue.is_empty t.inq) then Pl011.input t.uart (Queue.pop t.inq)
+(* the console's UART takes the host's characters as it has room *)
+let feed t =
+  if t.cfg.console = 1 then (while Miniuart.room t.mini && not (Queue.is_empty t.inq) do Miniuart.input t.mini (Queue.pop t.inq) done)
+  else if Pl011.empty t.uart && not (Queue.is_empty t.inq) then Pl011.input t.uart (Queue.pop t.inq)
+
+(* a raw image at an address, the CPU there in its reset state (QEMU's
+ * -device loader with cpu-num, -bios) *)
+let load_raw t ~addr image =
+  Memory.write_string t.mem addr image;
+  let st = t.st in
+  Arm32.set_mode st 0x13;
+  st.a_off <- true; st.i_off <- true; st.f_off <- true;
+  st.next <- addr
 
 let screen t = Framebuffer.rgb t.fb
 let frame t = Framebuffer.raw t.fb
@@ -191,7 +225,8 @@ let run t ~batch =
   let mask = (1 lsl cache_bits) - 1 in
   for _ = 1 to batch do
     let pc = st.next in
-    if (not st.i_off) && Intc.irq t.intc then Arm32.take st Arm32.Irq ~ret:(pc + 4)
+    if (not st.f_off) && Intc.fiq t.intc then Arm32.take st Arm32.Fiq ~ret:(pc + 4)
+    else if (not st.i_off) && Intc.irq t.intc then Arm32.take st Arm32.Irq ~ret:(pc + 4)
     else begin
       let key = pc lor (if st.mode = 0x10 then 1 else 0) in
       let slot = (pc lsr 2) land mask in
@@ -220,6 +255,12 @@ let run t ~batch =
                Arm32.take st Arm32.Undefined_instruction ~ret:(pc + 4))
     end
   done;
+  (* a WFI with nothing pending: the time to the next compare skipped
+   * (at most 10ms, the idle loop checking again) *)
+  if t.wfi then begin
+    t.wfi <- false;
+    if not (Intc.irq t.intc || Intc.fiq t.intc) then Systimer.advance t.timer (min 10000 (max 1 (Systimer.until_next t.timer)))
+  end;
   t.instructions <- t.instructions + batch;
   let ticks = t.time_left + batch in
   Systimer.advance t.timer (ticks / t.cfg.ips);

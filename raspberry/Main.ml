@@ -22,12 +22,16 @@
 
 open Ix_raspberry
 
-let usage = "usage: tinypi -M raspi1ap [-nographic] -kernel image [-ips N] [-d]"
+let usage = "usage: tinypi -M raspi1ap [-nographic] (-kernel image | -device loader,file=F,addr=A | -bios F) [-drive file=F,if=sd] [-serial S]... [-ips N] [-d]"
 
 let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
   let kernel = ref None and machine = ref "" and ips = ref 30 and debug = ref false and kbd = ref false in
   let qmp = ref None and graphics = ref true in
+  let serials = ref [] and drive = ref None and loader = ref None in
+  (* key=value options, after the first comma-separated word *)
+  let options s = List.filter_map (fun kv -> match String.index_opt kv '=' with
+    | Some i -> Some (String.sub kv 0 i, String.sub kv (i + 1) (String.length kv - i - 1)) | None -> None) (String.split_on_char ',' s) in
   let rec parse = function
     | [] -> ()
     | ("-M" | "-machine") :: m :: rest -> machine := List.hd (String.split_on_char ',' m); parse rest
@@ -35,23 +39,49 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
     | "-ips" :: n :: rest -> ips := int_of_string n; parse rest
     | "-d" :: rest -> debug := true; parse rest
     | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "usb-kbd" -> kbd := true; parse rest
+    | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "loader" ->
+        let o = options d in
+        (match List.assoc_opt "file" o, List.assoc_opt "addr" o with
+         | Some f, Some a -> loader := Some (f, int_of_string a)
+         | _ -> Console.eprint caps "tinypi: -device loader needs file= and addr=\n"; exit 2);
+        parse rest
+    | "-bios" :: f :: rest -> loader := Some (f, 0x8000); parse rest
+    | "-drive" :: d :: rest ->
+        let o = options ("drive," ^ d) in
+        drive := Some (List.assoc "file" o, List.assoc_opt "snapshot" o = Some "on"); parse rest
+    | "-serial" :: s :: rest -> serials := !serials @ [ s ]; parse rest
     | "-qmp" :: q :: rest -> qmp := Some q; parse rest
     | "-display" :: "none" :: rest -> graphics := false; parse rest
     | "-nographic" :: rest -> graphics := false; parse rest
-    | ("-m" | "-serial" | "-monitor" | "-smp" | "-device" | "-append" | "-D" | "-display") :: _ :: rest -> parse rest
+    | ("-m" | "-monitor" | "-smp" | "-device" | "-append" | "-D" | "-display") :: _ :: rest -> parse rest
     | ("-no-reboot" | "-S") :: rest -> parse rest
     | a :: _ -> Console.eprint caps (Printf.sprintf "tinypi: unknown option %s\n%s\n" a usage); exit 2 in
   parse args;
-  match !kernel with
-  | None -> Console.eprint caps (usage ^ "\n"); 2
-  | Some _ when !machine <> "raspi1ap" -> Console.eprint caps (Printf.sprintf "tinypi: machine %s not (yet) supported\n" !machine); 2
-  | Some k ->
+  match !kernel, !loader with
+  | None, None -> Console.eprint caps (usage ^ "\n"); 2
+  | _ when !machine <> "raspi1ap" -> Console.eprint caps (Printf.sprintf "tinypi: machine %s not (yet) supported\n" !machine); 2
+  | kernel, loader ->
       let log s = if !debug then Console.eprint caps ("tinypi: " ^ s ^ "\n") in
       let out = Buffer.create 256 in
-      let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_keyboard = !kbd } ~output:(Buffer.add_char out) in
-      (match Files.read caps (Fpath.v k) with
-       | image -> Board.load_kernel board image
-       | exception Sys_error m -> Console.eprint caps ("tinypi: " ^ m ^ "\n"); exit 1);
+      (* the serials, QEMU's order: the PL011, the mini UART; stdio (or
+       * mon:stdio) the console, null or absent nowhere; with none said,
+       * the PL011 on stdio *)
+      let serials = if !serials = [] then [ "stdio" ] else !serials in
+      let target i = match List.nth_opt serials i with
+        | Some ("stdio" | "mon:stdio") -> Buffer.add_char out
+        | Some "null" | None -> ignore
+        | Some s -> Console.eprint caps ("tinypi: -serial " ^ s ^ ": only stdio, mon:stdio, null\n"); exit 2 in
+      let console = match List.nth_opt serials 1 with Some ("stdio" | "mon:stdio") -> 1 | _ -> 0 in
+      let sd = Option.map (fun (f, snapshot) -> Storage.file f ~snapshot) !drive in
+      let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_keyboard = !kbd; sd;
+                                 serial0 = target 0; serial1 = target 1; console } in
+      let read f = match Files.read caps (Fpath.v f) with
+        | image -> image
+        | exception Sys_error m -> Console.eprint caps ("tinypi: " ^ m ^ "\n"); exit 1 in
+      (match kernel, loader with
+       | _, Some (f, addr) -> Board.load_raw board ~addr (read f)
+       | Some k, None -> Board.load_kernel board (read k)
+       | None, None -> ());
       (* standard input: raw on a terminal (Ctrl-A x to quit), polled *)
       let tty = Unix.isatty Unix.stdin in
       let saved = if tty then Some (Unix.tcgetattr Unix.stdin) else None in

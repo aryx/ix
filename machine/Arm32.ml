@@ -35,6 +35,14 @@ type t =
   | Coproc2 of { cond : cond; load : bool; cp : int; opc1 : int; crm : int; rd : reg; rd2 : reg }
   | Extend of { cond : cond; signed : bool; half : bool; rd : reg; rn : reg; rm : reg; rot : int }
   | Hint of { cond : cond; hint : int }
+  | Swp of { cond : cond; byte : bool; rd : reg; rm : reg; rn : reg }
+  | Ldrex of { cond : cond; rd : reg; rn : reg }
+  | Strex of { cond : cond; rd : reg; rm : reg; rn : reg }
+  | Clrex
+  | Barrier of { kind : int }
+  | Vmrs of { cond : cond; reg : int; rd : reg }
+  | Vmsr of { cond : cond; reg : int; rd : reg }
+  | Vldst of { cond : cond; load : bool; d : int; rn : reg; offset : int }
   | Svc of { cond : cond; imm : int }
   | Undefined of int
 
@@ -65,7 +73,11 @@ let offset_of = function Sreg (rm, s) -> Off_reg (rm, s) | Imm _ -> assert false
 
 let decode w =
   let cond_bits = field w 28 4 in
-  if cond_bits = 15 then Undefined w
+  if cond_bits = 15 then
+    (* the unconditional space: clrex and the barriers (full system) *)
+    if w = Bits.mask32 ((0xf57 lsl 20) lor 0xff01f) then Clrex
+    else if field w 8 24 = 0xf57ff0 && field w 0 4 = 15 && field w 4 4 >= 4 && field w 4 4 <= 6 then Barrier { kind = field w 4 4 }
+    else Undefined w
   else
     let cond = conds.(cond_bits) in
     let rn = field w 16 4 and rd = field w 12 4 in
@@ -74,6 +86,12 @@ let decode w =
         Mul { cond; s = bit w 20; rd = rn; rm = field w 0 4; rs = field w 8 4; acc = (if bit w 21 then Some rd else None) }
     | 0 when field w 4 4 = 0b1001 && field w 23 2 = 1 ->
         Mull { cond; s = bit w 20; signed = bit w 22; acc = bit w 21; rdhi = rn; rdlo = rd; rm = field w 0 4; rs = field w 8 4 }
+    (* swp, and ARMv6's exclusive word accesses *)
+    | 0 when field w 4 4 = 0b1001 && field w 23 2 = 2 && field w 20 2 = 0 && field w 8 4 = 0 ->
+        Swp { cond; byte = bit w 22; rd; rm = field w 0 4; rn }
+    | 0 when field w 4 4 = 0b1001 && field w 21 4 = 0b1100 && field w 8 4 = 15 ->
+        if bit w 20 then (if field w 0 4 = 15 then Ldrex { cond; rd; rn } else Undefined w)
+        else Strex { cond; rd; rm = field w 0 4; rn }
     | 0 when field w 4 4 = 0b1001 -> Undefined w
     | 0 when bit w 7 && bit w 4 ->
         (* halfwords, signed bytes, doublewords *)
@@ -126,8 +144,15 @@ let decode w =
         Block { cond; load = bit w 20; rn; writeback = bit w 21; mode; regs = field w 0 16; psr = bit w 22 }
     | 5 -> Branch { cond; link = bit w 24; offset = Bits.sign_extend 24 (field w 0 24) * 4 }
     | 7 when bit w 24 -> Svc { cond; imm = field w 0 24 }
+    (* VFP: vldr, vstr of a double register *)
+    | 6 when field w 24 1 = 1 && not (bit w 21) && field w 8 4 = 0xb ->
+        let off = field w 0 8 * 4 in
+        Vldst { cond; load = bit w 20; d = (field w 22 1 lsl 4) lor rd; rn; offset = (if bit w 23 then off else - off) }
     | 6 when field w 21 4 = 2 && field w 9 3 = 7 ->
         Coproc2 { cond; load = bit w 20; cp = field w 8 4; opc1 = field w 4 4; crm = field w 0 4; rd; rd2 = rn }
+    (* vmrs, vmsr: FPSID, FPSCR, FPEXC *)
+    | 7 when field w 21 3 = 7 && field w 0 12 = 0xa10 && (rn = 0 || rn = 1 || rn = 8) ->
+        if bit w 20 then Vmrs { cond; reg = rn; rd } else Vmsr { cond; reg = rn; rd }
     (* mcr, mrc to the system's coprocessors, 14 and 15 (10 and 11 are
      * VFP's; the others the Pi's cores lack) *)
     | 7 when bit w 4 && field w 9 3 = 7 ->
@@ -172,6 +197,8 @@ let operand_text = function
 
 let reglist regs =
   "{" ^ String.concat ", " (List.filter_map (fun r -> if regs land (1 lsl r) <> 0 then Some (reg_name r) else None) (List.init 16 Fun.id)) ^ "}"
+
+let vfp_reg_name = function 0 -> "fpsid" | 1 -> "fpscr" | _ -> "fpexc"
 
 let print ~addr (i : t) =
   let m name args = if args = "" then name else name ^ "\t" ^ args in
@@ -256,6 +283,17 @@ let print ~addr (i : t) =
       let args = [ reg_name rd ] @ (if rn = 15 then [] else [ reg_name rn ]) @ [ reg_name rm ] in
       m (name ^ cond_name cond) (String.concat ", " args ^ if rot = 0 then "" else Printf.sprintf ", ror #%d" (8 * rot))
   | Hint { cond; hint } -> (match hint with 0 -> m ("nop" ^ cond_name cond) "{0}" | h -> [| ""; "yield"; "wfe"; "wfi"; "sev" |].(h) ^ cond_name cond)
+  | Swp { cond; byte; rd; rm; rn } -> m ((if byte then "swpb" else "swp") ^ cond_name cond) (Printf.sprintf "%s, %s, [%s]" (reg_name rd) (reg_name rm) (reg_name rn))
+  | Ldrex { cond; rd; rn } -> m ("ldrex" ^ cond_name cond) (Printf.sprintf "%s, [%s]" (reg_name rd) (reg_name rn))
+  | Strex { cond; rd; rm; rn } -> m ("strex" ^ cond_name cond) (Printf.sprintf "%s, %s, [%s]" (reg_name rd) (reg_name rm) (reg_name rn))
+  | Clrex -> "clrex"
+  | Barrier { kind } -> m [| "dsb"; "dmb"; "isb" |].(kind - 4) "sy"
+  | Vmrs { cond; reg; rd } ->
+      m ("vmrs" ^ cond_name cond) ((if rd = 15 then "APSR_nzcv" else reg_name rd) ^ ", " ^ vfp_reg_name reg)
+  | Vmsr { cond; reg; rd } -> m ("vmsr" ^ cond_name cond) (vfp_reg_name reg ^ ", " ^ reg_name rd)
+  | Vldst { cond; load; d; rn; offset } ->
+      m ((if load then "vldr" else "vstr") ^ cond_name cond)
+        (Printf.sprintf "d%d, [%s%s]" d (reg_name rn) (if offset = 0 then "" else Printf.sprintf ", #%d" offset))
   | Msr { cond; spsr; fields; src } ->
       let names = String.concat "" (List.filter_map (fun (b, c) -> if fields land b <> 0 then Some c else None)
                                       [ 8, "f"; 4, "s"; 2, "x"; 1, "c" ]) in
@@ -287,6 +325,15 @@ type state = {
   mutable translate : int -> int -> int;
   mutable coproc : state -> t -> unit;
   mutable vectors : int;
+  (* the exclusive monitor (ldrex, strex): the address, -1 open *)
+  mutable exclusive : int;
+  (* VFP: usable when the system grants it (CPACR: [vfp_ok]); d0-d31
+   * as 64 words, FPSCR, FPEXC, FPSID *)
+  mutable vfp_ok : bool;
+  vfp : int array;
+  mutable fpscr : int;
+  mutable fpexc : int;
+  mutable fpsid : int;
 }
 
 exception Unimplemented of int * int
@@ -296,7 +343,8 @@ let create mem =
   { r = Array.make 16 0; n = false; z = false; c = false; v = false; next = 0; mem;
     mode = 0x10; a_off = false; i_off = false; f_off = false;
     banked = Array.make 12 0; fiq_banked = Array.make 10 0; spsr = Array.make 6 0;
-    mmu = false; translate = (fun a _ -> a); coproc = (fun st _ -> raise (Unimplemented (0, st.r.(15) - 8))); vectors = 0 }
+    mmu = false; translate = (fun a _ -> a); coproc = (fun st _ -> raise (Unimplemented (0, st.r.(15) - 8))); vectors = 0;
+    exclusive = -1; vfp_ok = false; vfp = Array.make 64 0; fpscr = 0; fpexc = 0; fpsid = 0x410120b5 }
 
 (*****************************************************************************)
 (* The privileged state: modes, banks, the CPSR, exceptions *)
@@ -366,6 +414,12 @@ let take st kind ~ret =
 (* an address through the MMU, when on: bit 0 of [w] a write, bit 1 as
  * user (ldrt) *)
 let[@inline] phys st a w = if st.mmu then st.translate a w else a
+
+(* a VFP instruction allowed: VFP granted; a control register (FPSID,
+ * FPEXC) privileged, the rest with FPEXC.EN set; else undefined *)
+let vfp_check st ~control addr =
+  let ok = st.vfp_ok && (if control then st.mode <> 0x10 else st.fpexc land (1 lsl 30) <> 0) in
+  if not ok then raise (Unimplemented (0, addr))
 
 (* the user mode's registers, from a privileged mode (ldm and stm with ^) *)
 let get_user st k =
@@ -594,6 +648,55 @@ let execute st ~addr ~svc i =
         let v = if half then v land 0xffff else v land 0xff in
         let v = if signed then Bits.mask32 (Bits.sign_extend (if half then 16 else 8) v) else v in
         set st rd (if rn = 15 then v else Bits.mask32 (st.r.(rn) + v))
+      end
+  | Swp { cond; byte; rd; rm; rn } ->
+      if cond_passed st cond then begin
+        let p = phys st st.r.(rn) 1 in
+        let old = if byte then Memory.load8 st.mem p else Memory.load32 st.mem p in
+        if byte then Memory.store8 st.mem p st.r.(rm) else Memory.store32 st.mem p st.r.(rm);
+        set st rd old
+      end
+  | Ldrex { cond; rd; rn } ->
+      if cond_passed st cond then begin
+        let p = phys st st.r.(rn) 0 in
+        let v = Memory.load32 st.mem p in
+        st.exclusive <- p; set st rd v
+      end
+  | Strex { cond; rd; rm; rn } ->
+      if cond_passed st cond then begin
+        let p = phys st st.r.(rn) 1 in
+        if st.exclusive = p then (Memory.store32 st.mem p st.r.(rm); st.r.(rd) <- 0) else st.r.(rd) <- 1;
+        st.exclusive <- -1
+      end
+  | Clrex -> st.exclusive <- -1
+  | Barrier _ -> ()
+  (* VFP: when the system grants it; FPSID and FPEXC privileged, the
+   * rest only with FPEXC.EN (the lazy switch's trap) *)
+  | Vmrs { cond; reg; rd } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:(reg <> 1) addr;
+        let v = match reg with 0 -> st.fpsid | 1 -> st.fpscr | _ -> st.fpexc in
+        if rd = 15 then write_cpsr st v 8 else set st rd v
+      end
+  | Vmsr { cond; reg; rd } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:(reg <> 1) addr;
+        let v = st.r.(rd) in
+        match reg with 0 -> () | 1 -> st.fpscr <- v | _ -> st.fpexc <- v
+      end
+  | Vldst { cond; load; d; rn; offset } ->
+      if cond_passed st cond then begin
+        vfp_check st ~control:false addr;
+        let base = if rn = 15 then (addr + 8) land lnot 3 else st.r.(rn) in
+        let a = Bits.mask32 (base + offset) in
+        if load then begin
+          st.vfp.(2 * d) <- Memory.load32 st.mem (phys st a 0);
+          st.vfp.((2 * d) + 1) <- Memory.load32 st.mem (phys st (Bits.mask32 (a + 4)) 0)
+        end
+        else begin
+          Memory.store32 st.mem (phys st a 1) st.vfp.(2 * d);
+          Memory.store32 st.mem (phys st (Bits.mask32 (a + 4)) 1) st.vfp.((2 * d) + 1)
+        end
       end
   (* nop and yield do nothing; wfe, wfi, sev are the system's *)
   | Hint { cond; hint } -> if cond_passed st cond && hint >= 2 then st.coproc st i

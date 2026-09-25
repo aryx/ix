@@ -15,9 +15,10 @@ type t = {
   mutable enable : int;
   mutable enable_hi : int;
   mutable basic_enable : int;
+  mutable fiq_control : int;
 }
 
-let create () = { level = 0; level_hi = 0; enable = 0; enable_hi = 0; basic_enable = 0 }
+let create () = { level = 0; level_hi = 0; enable = 0; enable_hi = 0; basic_enable = 0; fiq_control = 0 }
 
 let set t n on =
   if n < 32 then t.level <- (if on then t.level lor (1 lsl n) else t.level land lnot (1 lsl n))
@@ -38,11 +39,18 @@ let basic t =
 
 let irq t = pending1 t <> 0 || pending2 t <> 0
 
+(* FIQ: one source (0-63 the GPU's lines), when bit 7 of the control *)
+let fiq t =
+  t.fiq_control land 0x80 <> 0 &&
+  (let n = t.fiq_control land 0x7f in
+   if n < 32 then t.level land (1 lsl n) <> 0 else if n < 64 then t.level_hi land (1 lsl (n - 32)) <> 0 else false)
+
 let read t off _ =
   match off with
   | 0x0 -> basic t
   | 0x4 -> pending1 t
   | 0x8 -> pending2 t
+  | 0xc -> t.fiq_control
   | 0x10 -> t.enable
   | 0x14 -> t.enable_hi
   | 0x18 -> t.basic_enable
@@ -53,6 +61,7 @@ let read t off _ =
 
 let write t off _ v =
   match off with
+  | 0x0c -> t.fiq_control <- v land 0xff
   | 0x10 -> t.enable <- t.enable lor v
   | 0x14 -> t.enable_hi <- t.enable_hi lor v
   | 0x18 -> t.basic_enable <- t.basic_enable lor v

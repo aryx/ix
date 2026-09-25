@@ -3460,3 +3460,15 @@ Extra flags -d and -ips control debugging and instruction timing; only arm-pi1-b
 **Yoann:**
 
 > ok let's continue. This is great!
+
+**Claude (summary):**
+
+Claude debugged and completed Phase A with all tests passing in commit b883469. Claude implemented Phase B with SDL graphics display and working USB keyboard emulation, passing xv6's graphical test byte-for-byte. Claude fixed RGB565 color expansion to match QEMU's behavior and corrected USB control request timing so keyboard setup succeeds. Claude built in screenshot/keyboard remote control via QMP for testing and verified regressions didn't occur in headless mode. Claude outlined Phase C requiring mini UART console, SD card DMA, and VFP floating point support for Plan 9.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 06:53
+
+**Yoann:**
+
+> let's do it!

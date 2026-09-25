@@ -12,6 +12,6 @@ type t
 
 (* the controller, a device (QEMU's hub, and on it a keyboard) on its
  * root port or none *)
-val create : mem:Memory.t -> root:Usb.device option -> t
+val create : mem:Memory.t -> root:Usb.device option -> line:(bool -> unit) -> t
 
 val device : t -> Memory.device
