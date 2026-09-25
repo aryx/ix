@@ -240,6 +240,22 @@ may on hardware). Barriers (`dmb`, `dsb`, `isb`) are no-ops; `wfe` and
 start parked where QEMU parks them (raspi2b: its spin stub; raspi3b
 and raspi4b: polling the spin table at 0xe0, 0xe8, 0xf0).
 
+**Amended (2026-09-25): one core first, `-smp`.** The author: "I guess
+emulating the 4 cpus would be too slow, so maybe we can take a -cpu
+option and for now focus on one cpu handled". The option is QEMU's
+own, `-smp N` (QEMU's `-cpu` names the CPU model), default 1, and 1
+the only value until the interleaving above is written. QEMU refuses
+fewer than 4 cores on raspi4b, so a comparison with QEMU drops the
+secondary cores' lines ("hart 1 starting"). A correction too: for an
+ELF `-kernel` that is not Linux, QEMU starts **every core at the
+ELF's entry** (hw/arm/boot.c's `do_cpu_reset`), not in the spin stub,
+which it keeps for Linux; arm64-pi4's `entry.S` parks the others
+itself. Later, when speed asks for it: the cores in parallel with
+OCaml 5's domains ("in theory we could use ocaml domains to run in
+parallel"), a module dune builds only on OCaml 5 (`enabled_if` on
+`%{ocaml_version}`: ix builds with 4.14 and 5.1, js_of_ocaml has no
+domains), giving up this decision's determinism for that runner only.
+
 ### 4. Devices by the kernels' use
 
 | device | used by | registers that matter |
@@ -360,19 +376,32 @@ emulated and slow there) is in `Bits` alone (plan_arm.md, decision 3).
   the keyboard; arm-pi1, arm-pi1-bis and 9pi each taking their
   hardware paths; then flashed on the author's Pi1, the serial logs
   compared.
-- **E. Pi2.** xv6 arm (ARMv7 descriptors, TTBR split, the Thumb-2
-  subset), arm-pi2 (VBAR, CPACR/FPEXC, the NEON stores); 9pi2 (the
-  ARM-local block, the generic timer, four cores); then `-hw pi2`
-  (HYP-mode entry) and the author's Pi2.
-- **F. arm-pi3.** Four cores (decision 3), the AArch64 stub at EL2 and
-  the switch to AArch32 (decision 2), `ldrex/strex`, its graphics
-  target (uspi's USB).
-- **G. Pi4.** xv6 arm64-pi4: Arm64's exception levels and system
-  registers, Mmu64, the GIC-400, the generic timer, four cores; against
-  QEMU 11.1's raspi4b; then `-hw pi4` (EL2 entry, `kernel8.img`) and the
-  author's Pi4. The Pi4's framebuffer (property tags) and USB (xHCI on
-  PCIe) when a kernel drives them.
-- **H. Optional: virt.** xv6 arm64 on `virt`: GICv3, PSCI, virtio-blk.
+- **G. Pi4, next** (see "Refocus" below). xv6 arm64-pi4 against QEMU
+  11.1's raspi4b, one core:
+  - **G1. Arm64's privileged state.** Exception levels 0-3, SP_EL0 and
+    SP_ELx (SPSel), SPSR/ELR/ESR/FAR/VBAR per level, DAIF, `eret`,
+    exceptions taken to EL1 (synchronous: svc, aborts, undefined;
+    IRQ), the system registers the kernel reads and writes (SCR_EL3,
+    HCR_EL2, SCTLR, TCR, MAIR, TTBR0/1, CurrentEL, MPIDR, the timer's),
+    `tlbi`, `dc`, `ic`, barriers, `wfi`, `ldaxr`/`stxr` (spinlocks).
+    Addresses become 64-bit (the kernel runs at 0xffffff80_0000_0000):
+    the pc a native int (63 bits: canonical addresses fit), a
+    register's value translated to a physical address below 4 GB.
+  - **G2. Mmu64.** The 4 KB granule, TTBR0/TTBR1 split by TCR's T0SZ and
+    T1SZ, levels 0-3, blocks and pages, AP/UXN/PXN, faults' ESR codes;
+    a TLB as Mmu32's.
+  - **G3. The board.** BCM2711's map (RAM, the PL011 at 0xfe201000,
+    GPIO, the GIC-400 at 0xff841000), the generic timer (CNTV, CNTP,
+    62.5 MHz, QEMU's cortex-a72), QEMU's loader: the ELF by its
+    physical addresses, entered at its entry at EL3; `-M raspi4b`,
+    `-cpu cortex-a72`, `-m`, `-smp 1`.
+  - **G4. usertests**, then the boot console against QEMU's (less the
+    secondary cores' lines); `./mini-pi xv6-pi4`.
+  - **G5. `-smp 4`**, interleaved (decision 3); domains as an option.
+  The Pi4's framebuffer and USB (xHCI on PCIe) when a kernel drives
+  them; `-hw pi4` (EL2 entry, `kernel8.img`) and the author's Pi4
+  with phase D.
+- **E, F (Pi2, Pi3) and H (virt): dropped**, see "Refocus" below.
 - **H'. The web.** The machine compiled by js_of_ocaml with a web
   display (the playground's web backend, or a canvas): a Pi1 with xv6
   in a browser page, the card image fetched; its speed measured.
@@ -381,6 +410,20 @@ emulated and slow there) is in `Bits` alone (plan_arm.md, decision 3).
 Each phase checked by the kernels' own tests, by QEMU's trace for the
 first divergence when one fails, and, for the boards' personality, by
 the boards' serial logs.
+
+## Refocus: the Pi1 and the Pi4 (2026-09-25)
+
+The author: "let's jump to Pi4; we don't want to emulate every arch;
+this is a teaching context and a mini- and tiny- so let's focus on pi4
+now like for the other programs where we handle both arm32 and
+arm64". So mini-qemu has two boards, as the toolchain and mini-5i
+have two architectures: the **Pi1** (ARMv6, arm32: 9pi, xv6 arm-pi1
+and arm-pi1-bis; phases A-C) and the **Pi4** (AArch64: xv6
+arm64-pi4; phase G). The Pi2 and Pi3 (phases E, F: ARMv7's
+descriptors, Thumb-2, the AArch64-to-AArch32 hand-off, 9pi2) and
+QEMU's `virt` (phase H) are dropped: each is one more kernel for
+little new to teach once the Pi1 and Pi4 run. Decision 2's hand-off
+goes with them: a core runs one instruction set.
 
 ## Outside QEMU: TinyPi.ml
 

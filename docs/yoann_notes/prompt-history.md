@@ -3621,3 +3621,83 @@ Changes committed as 66c9484 with README updated to document bin directory acces
 **Yoann:**
 
 > excellent
+
+**Claude (summary):**
+
+Claude thanked Yoann for feedback and proposed phase D in plan_pi next.
+Claude described phase D as adding a `-hw pi1` option to mini-qemu.
+Claude explained this would enable mini-qemu to emulate real Raspberry Pi 1 hardware.
+Claude noted mini-qemu currently only supports QEMU's own emulated version of Pi 1.
+Claude suggested this improvement would increase fidelity to actual historical Pi 1 hardware.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:15
+
+**Yoann:**
+
+> let's skip that for now
+
+**Claude (summary):**
+
+Claude deferred phase D in a commit and outlined remaining phases E through I as options.
+Claude recommended phase E as the next step, covering Pi2 with ARMv7 support.
+Yoann instead chose phase G, jumping directly to Pi4 for teaching purposes.
+His priority was supporting both arm32 and arm64 like the other programs.
+The decision bypasses intermediate phases to reach 64-bit ARM implementation directly.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:18
+
+**Yoann:**
+
+> let's jump to Pi4; we don't want to emulate every arch; this is a teaching context and a mini- and tiny- so let's focus on pi4 now like for the other programs where we handle both arm32 and arm64
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:19
+
+**Yoann:**
+
+> should we rename TinyAssembler.ml TinyAssemblerLinker.ml as it does both jobs?
+
+**Claude (summary):**
+
+Claude recommended keeping `TinyAssembler.ml` because the linker is integrated, not a separate step.
+Claude noted the other tiny programs' names describe what they do, not their internal phases.
+Claude observed "Assembler" has historically covered integrated assembly and loading since EDSAC.
+Claude flagged renaming would require updates in dune, binary names, tests, README, comments, and docs.
+Claude suggested updating the README instead if readers need to know it replaces both mini-asm and mini-ld.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:19
+
+**Yoann:**
+
+> I guess emulating the 4 cpus would be too slow, so maybe we can take a -cpu option and for now focus on one cpu handled
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:19
+
+**Yoann:**
+
+> in theory we could use ocaml domains to run in parallel
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:20
+
+**Yoann:**
+
+> but that would require to switch to ocaml 5 for that part of the codebase
+
+------------------------------------------------------------------------
+
+## 2026-09-25 09:20
+
+**Yoann:**
+
+> ok make sense
