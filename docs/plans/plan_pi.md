@@ -629,3 +629,21 @@ Speed: 27 MIPS, the user-mode interpreter's. xv6's boot takes 21s
 usertests, 183s under QEMU's four threaded cores, is dominated by the
 same byte loop (`memset`, 58% of MAXVAplus's samples: three a page
 allocated and freed) and takes far longer than the harness's 300s.
+
+**G4's tests, fast** (2026-09-25). The author: "let's keep that simple
+design for now; simplicity is the most important thing as this is a
+teaching project; we can optimize if the optimization keep the simple
+code path clear [...] Then for sure we want a fast test infra, so I
+would reduce the tests for the pi ... maybe lowering some test
+constants". The constant is xv6's PHYSTOP: both the boot (kinit) and
+every usertests run (countfree, before and after its tests, even for
+one) touch each page of it with byte loops, 21s and 70s at 128MB. So
+`raspberry/tests/xv6_pi4.py` builds a copy of the kernel with 4MB (in
+a mirror of ~/xv6, which stays untouched) and runs its boot and 16 of
+usertests' tests one by one (`usertests NAME`, about 4s each) under
+QEMU and mini-qemu in parallel, each test's output byte for byte the
+same: 75s, in `make test-pi`. Measured per test on 4MB: 52 of the 62
+pass in under a minute here with QEMU's output (`-a` runs them); left
+out sbrkmuch (100MB) and eight that loop over forks or execs (2-18s
+under QEMU, minutes here). The pids are QEMU's when the sequence is
+the same, one core or four.

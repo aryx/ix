@@ -31,7 +31,9 @@ TP=$ROOT/_build/default/raspberry/Main.exe
 XV6=${XV6:-$HOME/xv6}
 full=0
 [ "$1" = -u ] && { full=1; shift; }
-ports=${@:-arm-pi1-bis arm-pi1 arm64-pi4}
+# arm64-pi4 by name only: its boot takes 21s (xv6_pi4.py boots and
+# tests a copy with less RAM, fast)
+ports=${@:-arm-pi1-bis arm-pi1}
 QEMU64=${QEMU64:-/media/pad/extradrive1/pad/work/TOOLCHAINS/qemu/build/qemu-system-aarch64}
 [ -x $QEMU64 ] || QEMU64=qemu-system-aarch64
 # the image each port's "make qemu" boots

@@ -4040,3 +4040,23 @@ Claude asked if he should perform the rename.
 **Yoann:**
 
 > ok maybe let's save this in TinyKernelv0.s or something? or .stm ? and how to convert it to a binary that can be loaded by TinyMachine and run?
+
+**Claude (summary):**
+
+Claude recommended `.tm` as the file extension to match existing TinyCPU assembly conventions used in tests. Claude proposed a bare binary format with no header, loaded at address 0 like the Pi firmware loads kernel.img. Claude designed the workflow using `tiny-machine -o kernel.img TinyKernel_v0.tm` to assemble and `tiny-machine kernel.img` to run. Claude made the tool detect file type by extension, treating `.tm` as assembly source and other files as loadable binaries. Claude explained that only tiny-machine can assemble because it uniquely implements the CPU's special instructions (csrr, csrw, eret).
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:36
+
+**Yoann:**
+
+> maybe let's add a toplevel tiny-machine (next to mini-pi) that can run .tm ?
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:36
+
+**Yoann:**
+
+> (assemble and link and run)

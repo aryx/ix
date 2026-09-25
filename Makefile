@@ -81,15 +81,17 @@ build-docker-ocaml5:
 
 .PHONY: all test test-differential test-goken test-chidb test-pi clean build-docker build-docker-ocaml5
 
-# mini-qemu against QEMU (plan_pi.md): 9pi's session, the xv6 Pi
-# ports' boots (the Pi1's and the Pi4's), the Pi1's graphics; needs
+# mini-qemu against QEMU (plan_pi.md): 9pi's session, the Pi1 xv6
+# ports' boots and graphics, the Pi4's boot and 16 of usertests' tests
+# (on a copy of xv6 with 4MB of RAM, fast: xv6_pi4.py); needs
 # ~/principia, ~/xv6 and the QEMUs (see raspberry/tests/). With
-# XV6_USERTESTS=-u, each xv6 port's usertests too (the Pi4's: hours).
+# XV6_USERTESTS=-u, the Pi1 ports' full usertests too.
 test-pi: all
 	dune build --profile release ./raspberry/Main.exe
 	./raspberry/tests/9pi.py
 	./raspberry/tests/xv6.sh $(XV6_USERTESTS)
 	./raspberry/tests/graphics.py
+	./raspberry/tests/xv6_pi4.py
 
 # mini-git over the Internet: ix cloned from GitHub by mini-git (https,
 # through curl), checked by git fsck and walk.
