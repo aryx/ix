@@ -49,6 +49,7 @@ test-goken: all
 	./linker/tests/libc.sh 7 $(GOKEN_W)/libc7 $(HOME)/goken/tests/c/hello_libc/*.c
 	./tiny/TinyAssembler_test.sh
 	./tiny/TinyC_test.sh
+	mkdir -p $(GOKEN_W)/tinyc32 && ./tiny/TinyC_fuzz.py --32 $(GOKEN_W)/tinyc32 100 && ./tiny/TinyC_test.sh $(GOKEN_W)/tinyc32/*.c
 	./compiler/tests/listing.sh 5 $(GOKEN_W)/listing5 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
 	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
 	./compiler/tests/fuzz.sh $(GOKEN_W)/fuzz 150

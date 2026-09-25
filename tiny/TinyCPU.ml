@@ -19,14 +19,24 @@
  * are TinyLibCPU.ml's; TinyMachine.ml runs the same CPU with devices
  * and a kernel, where a system call is a trap.
  *
- *     tiny-cpu prog.tm            assembled and interpreted
- *     tiny-cpu -l prog.tm         the listing
+ *     tiny-cpu prog.tm [args...]           assembled and interpreted
+ *     tiny-cpu -o prog a.tm b.tm...        assembled and linked, an image
+ *     tiny-cpu prog [args...]              the image loaded and run
+ *     tiny-cpu -l prog                     the listing (or of .tm's)
  *
- * Usage: tiny-cpu [-l] file.tm [args...] *)
+ * The link is TinyLibCPU's: the .tm files one after the other, their
+ * labels one namespace, the first at 0 where the CPU starts. The
+ * arguments are where a C program's main finds them (tiny-c -tm's
+ * convention, TinyC_runtime/start.tm): their strings at the top of
+ * memory, and sp on argc, then argv; argv[0] is the image's name, or
+ * the last .tm's without its .tm.
+ *
+ * Usage: tiny-cpu [-l | -o image] file.tm... | image [args...] *)
 
 type caps = < Cap.stdin; Cap.stdout; Cap.stderr >
 
 exception Exit of int
+exception Usage
 
 let syscall (caps : < caps; .. >) (m : TinyLibCPU.machine) n =
   let r = m.r and addr = TinyLibCPU.addr in
@@ -44,19 +54,41 @@ let syscall (caps : < caps; .. >) (m : TinyLibCPU.machine) n =
       r.(1) <- k
   | n -> TinyLibCPU.error "unknown system call %d" n
 
-let interpret caps image =
+let interpret caps image args =
   let env = TinyLibCPU.plain ~sys:(syscall caps) in
   let m = TinyLibCPU.boot image in
+  (* the strings from the top down, then argv's array and nil, argv,
+   * and argc at sp *)
+  let top, addrs = List.fold_left (fun (top, addrs) a ->
+    let top = top - String.length a - 1 in
+    Bytes.blit_string (a ^ "\000") 0 m.mem top (String.length a + 1); top, top :: addrs) (TinyLibCPU.memsize, []) args in
+  let n = List.length args in
+  let sp = (top - (4 * (n + 3))) land lnot 7 in
+  let put a v = TinyLibCPU.store m TinyLibCPU.W a v in
+  put sp n;
+  put (sp + 4) (sp + 8);
+  List.iteri (fun k s -> put (sp + 8 + (4 * k)) s) (List.rev addrs);
+  put (sp + 8 + (4 * n)) 0;
+  m.r.(TinyLibCPU.sp) <- sp;
   try while true do TinyLibCPU.step env m done; 0 with Exit n -> n
 
-let main (caps : < caps; Cap.argv; Cap.open_in; .. >) =
+let main (caps : < caps; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
-  let read f = Files.read caps (Fpath.v f) |> String.split_on_char '\n' in
+  (* the .tm files, or the image, then the program's arguments *)
+  let split l =
+    let rec tms acc = function f :: r when Filename.check_suffix f ".tm" -> tms (f :: acc) r | r -> List.rev acc, r in
+    match tms [] l with
+    | [], f :: r when f.[0] <> '-' -> [ f ], f, r
+    | [], _ -> raise Usage
+    | fs, r -> fs, Filename.chop_suffix (List.nth fs (List.length fs - 1)) ".tm", r in
+  let image files = TinyLibCPU.image (List.map (fun f -> f, Files.read caps (Fpath.v f)) files) in
   try
     match args with
-    | "-l" :: file :: _ -> Console.print caps (TinyLibCPU.listing (TinyLibCPU.assemble ~name:file (read file))); 0
-    | file :: _ when file.[0] <> '-' -> interpret caps (TinyLibCPU.assemble ~name:file (read file))
-    | _ -> Console.eprint caps "usage: tiny-cpu [-l] file.tm [args...]\n"; 2
-  with TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-cpu: " ^ e ^ "\n"); 1
+    | "-l" :: l -> let files, _, _ = split l in Console.print caps (TinyLibCPU.listing (image files)); 0
+    | "-o" :: out :: l -> let files, _, _ = split l in Files.write caps (Fpath.v out) (image files); 0
+    | l -> let files, name, rest = split l in interpret caps (image files) (name :: rest)
+  with
+  | Usage -> Console.eprint caps "usage: tiny-cpu [-l | -o image] file.tm... | image [args...]\n"; 2
+  | TinyLibCPU.Error e | Sys_error e -> Console.eprint caps ("tiny-cpu: " ^ e ^ "\n"); 1
 
 let () = Cap.main (fun caps -> CapStdlib.exit caps (main caps))

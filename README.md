@@ -39,7 +39,8 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
   one.
 - **mini-cc**, the C compiler for arm and arm64
   ([`compiler/`](compiler/)), whose listings are goken's `5c -O0` and
-  `7c -O0`'s instruction for instruction; tiny-c.
+  `7c -O0`'s instruction for instruction; tiny-c, for arm64 and, with
+  `-tm`, for tiny-cpu.
 - **mini-chidb**, the database ([`database/`](database/)); tiny-db.
 - **mini-git, mini-diff and mini-merge3**, version control
   ([`version_control/`](version_control/)); tiny-vcs.

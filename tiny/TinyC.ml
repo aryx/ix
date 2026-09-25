@@ -19,6 +19,19 @@
  * TinyAssembler, with 7c's calling convention, so that the program
  * calls goken's libc (7c's code) and libc calls it back (main).
  *
+ * Or, with -tm, for the other machine, TinyCPU (TinyLibCPU.ml): the
+ * same front end and stack machine, a second back end of 100 lines,
+ *
+ *     tiny-c -tm -o prog.tm prog.c
+ *     tiny-cpu -o prog TinyC_runtime/start.tm libc.tm prog.tm && tiny-cpu prog
+ *
+ * with a runtime of its own (TinyC_runtime/: the start, the system
+ * calls and the unsigned division in start.tm, the rest of libc in C,
+ * compiled by tiny-c -tm). There pointers are 4 bytes and a long long
+ * is refused: the machine is 32 bits. That the two back ends print the
+ * same, on TinyC_tests/ and on random programs without long long
+ * (TinyC_fuzz.py --32), is what the stack machine was for.
+ *
  * What makes it small, and still a C compiler:
  *
  * - {b A stack machine in between} (IR, below): expressions become
@@ -27,7 +40,8 @@
  *   an intermediate language buys against writing the machine's
  *   instructions directly, has this answer here: the front end knows
  *   no register and no instruction, the back end no C (its 120 lines
- *   are the whole machine), and each can be read, and tested, alone.
+ *   are the whole machine), and each can be read, and tested, alone;
+ *   and a second machine is a second back end (-tm).
  *   What it costs is the code's quality: no Sethi-Ullman order, no
  *   addressing modes, a load or a store per variable reference.
  * - {b The stack is in registers.} The back end keeps the machine's
@@ -73,6 +87,11 @@
 
 let error fmt = Printf.ksprintf failwith fmt
 
+(* the machine: arm64, 7c's (the default), or TinyCPU (-tm), whose
+ * words are 4 bytes: pointers too, and no long long *)
+let tm = ref false
+let unit_name = ref ""                    (* -tm: the file's name, its local names' prefix *)
+
 (*****************************************************************************)
 (* Types *)
 (*****************************************************************************)
@@ -88,12 +107,22 @@ type ty =
 and sdef = { mutable fields : (string * ty * int) list; mutable ssize : int; mutable salign : int }
 
 let int_t = Int (4, true) and long_t = Int (8, true) and char_t = Int (1, true)
-let rec size = function Void -> 1 | Int (n, _) -> n | Ptr _ | Func _ -> 8 | Arr (t, n) -> n * size t | Struct s -> s.ssize
-let rec align = function Int (n, _) -> n | Arr (t, _) -> align t | Struct s -> s.salign | _ -> 8
+let ptr_size () = if !tm then 4 else 8
+let rec size = function Void -> 1 | Int (n, _) -> n | Ptr _ | Func _ -> ptr_size () | Arr (t, n) -> n * size t | Struct s -> s.ssize
+let rec align = function Int (n, _) -> n | Arr (t, _) -> align t | Struct s -> s.salign | _ -> ptr_size ()
 let round n a = (n + a - 1) / a * a
 let is_int = function Int _ -> true | _ -> false
 let is_ptr = function Ptr _ -> true | _ -> false
 let unsigned = function Int (_, s) -> not s | Ptr _ -> true | _ -> false
+
+(* -tm: a declared long long refused (its values live in 32-bit
+ * registers); the compiler's own long temporaries are 32 bits there *)
+let rec no_vlong t =
+  match t with
+  | Int (8, _) when !tm -> error "long long: not on -tm (TinyCPU is a 32-bit machine)"
+  | Arr (t, _) | Ptr t -> no_vlong t
+  | Func (r, ps, _) -> no_vlong r; List.iter no_vlong ps
+  | _ -> ()
 
 (* a structure is itself: struct node { struct node *next; } *)
 let rec same a b =
@@ -434,6 +463,48 @@ let scopes : (string, var) Hashtbl.t list ref = ref []
 let frame = ref 0                         (* the current function's locals *)
 let result = ref Void
 let data = Buffer.create 4096             (* the DATA and GLOBL *)
+
+(* a global's name in the assembly: Plan 9's name<> for a static; for
+ * -tm, whose link is one namespace, the file's name and the name *)
+let sym s =
+  if !tm && Filename.check_suffix s "<>" then !unit_name ^ "." ^ Filename.chop_suffix s "<>" else s
+
+type datum = Bytes of string | Value of int * int64 | Address of string
+
+(* -tm: each global's data, at their offsets, until its label is
+ * written (a string in an initializer is written before its array) *)
+let pending : (string, (int * datum) list) Hashtbl.t = Hashtbl.create 16
+
+let datum name off d =
+  if !tm then Hashtbl.replace pending name ((off, d) :: Option.value (Hashtbl.find_opt pending name) ~default:[])
+  else
+    let esc c = match c with 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | ' ' -> String.make 1 c | c -> Printf.sprintf "\\%03o" (Char.code c) in
+    Buffer.add_string data
+      (match d with
+       | Bytes b -> Printf.sprintf "\tDATA\t%s+%d(SB)/%d, $\"%s\"\n" name off (String.length b) (String.concat "" (List.map esc (List.of_seq (String.to_seq b))))
+       | Value (n, v) -> Printf.sprintf "\tDATA\t%s+%d(SB)/%d, $%Ld\n" name off n v
+       | Address s -> Printf.sprintf "\tDATA\t%s+%d(SB)/8, $%s(SB)\n" name off s)
+
+(* a global of n bytes: arm64's GLOBL; -tm's label and its data, the
+ * gaps zeros *)
+let globl name n =
+  if not !tm then Buffer.add_string data (Printf.sprintf "\tGLOBL\t%s(SB), $%d\n" name n)
+  else begin
+    let line fmt = Printf.ksprintf (fun s -> Buffer.add_string data ("\t" ^ s ^ "\n")) fmt in
+    Buffer.add_string data (Printf.sprintf "\t.align\t4\n%s:\n" (sym name));
+    let bytes l = line ".byte\t%s" (String.concat ", " (List.map string_of_int l)) in
+    let at = List.fold_left (fun at (off, d) ->
+      if off > at then line ".space\t%d" (off - at);
+      match d with
+      | Bytes b -> bytes (List.map Char.code (List.of_seq (String.to_seq b))); off + String.length b
+      | Value (1, v) -> bytes [ Int64.to_int v land 0xff ]; off + 1
+      | Value (2, v) -> bytes [ Int64.to_int v land 0xff; (Int64.to_int v lsr 8) land 0xff ]; off + 2
+      | Value (k, v) -> line ".word\t%ld" (Int64.to_int32 v); if k = 8 then line ".word\t%ld" (Int64.to_int32 (Int64.shift_right v 32)); off + k
+      | Address s -> line ".word\t%s" (sym s); off + 4)
+      0 (List.sort (fun (a, _) (b, _) -> compare a b) (List.rev (Option.value (Hashtbl.find_opt pending name) ~default:[]))) in
+    if n > at then line ".space\t%d" (n - at);
+    Hashtbl.remove pending name
+  end
 let strings = ref 0
 let tags = ref 0                          (* the anonymous structures' *)
 
@@ -450,12 +521,10 @@ let string_lit s =
   incr strings;
   let name = Printf.sprintf "s%d<>" !strings in
   let s = s ^ "\000" in
-  let esc c = match c with 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | ' ' -> String.make 1 c | c -> Printf.sprintf "\\%03o" (Char.code c) in
   for i = 0 to (String.length s - 1) / 8 do
-    let chunk = String.sub s (8 * i) (min 8 (String.length s - (8 * i))) in
-    Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/%d, $\"%s\"\n" name (8 * i) (String.length chunk) (String.concat "" (List.map esc (List.of_seq (String.to_seq chunk)))))
+    datum name (8 * i) (Bytes (String.sub s (8 * i) (min 8 (String.length s - (8 * i)))))
   done;
-  Buffer.add_string data (Printf.sprintf "\tGLOBL\t%s(SB), $%d\n" name (String.length s));
+  globl name (String.length s);
   var (Global name) (Arr (char_t, String.length s))
 
 let is_type () =
@@ -494,6 +563,7 @@ and struct_type () =
       let _, bt = base_type () in
       let rec members () =
         let name, t = declarator bt in
+        no_vlong t;
         off := round !off (align t);
         s.fields <- s.fields @ [ name, t, !off ];
         off := !off + size t;
@@ -693,6 +763,7 @@ and locals () =
     let init =
       if storage = Typedef then (Hashtbl.replace typedefs name t; [])
       else begin
+        no_vlong t;
         let p = local t in
         Hashtbl.replace (List.hd !scopes) name { vty = t; where = p };
         if accept "=" then [ Expr (assign (var p t) (assign_expr ())) ] else []
@@ -801,6 +872,122 @@ let machine name (params : (string * ty) list) locals (body : ir list) =
   Buffer.add_string out code
 
 (*****************************************************************************)
+(* -tm, the other machine: TinyCPU, the stack in r1..r12 *)
+(*****************************************************************************)
+
+(* TinyCPU (TinyLibCPU.ml) has 32-bit registers, r0 zero, no flags, and
+ * no unsigned division; its calling convention is ours, simpler than
+ * 7c's: every argument in memory, 4 bytes each, the result in r13. The
+ * frame, sp at its bottom: the outgoing arguments from 0(sp), the saved
+ * lr, the saves of what is live across a call, the locals at its top;
+ * above it, the parameters (the caller's outgoing arguments). A
+ * variadic function (print) walks its arguments from its last named
+ * one's address. *)
+
+let machine_tm name locals (body : ir list) =
+  let sp = ref 0 and saves = ref 0 and outgoing = ref 0 and dead = ref false in
+  let depth_at = Hashtbl.create 16 in
+  let top () = !sp in
+  let push () = incr sp; if !sp > 12 then error "%s: an expression too deep" name; !sp in
+  let jump l = Hashtbl.replace depth_at l !sp in
+  let lab l = Printf.sprintf "%s.L%d" !unit_name l in
+  (* the code, each line a function of the frame's size (known at the
+   * end); slot k the k-th save, below the locals; lr above the
+   * outgoing arguments *)
+  let lines = ref [] in
+  let at f = lines := f :: !lines in
+  let ins fmt = Printf.ksprintf (fun s -> at (fun _ -> "\t" ^ s ^ "\n")) fmt in
+  let slot k = locals + (4 * k) in
+  (* a value extended from its type: the registers are 32 bits, so only
+   * a char's and a short's need it *)
+  let extend t r =
+    match t with
+    | Int (n, s) when n < 4 ->
+        if s then (ins "shli\tr%d, r%d, %d" r r (32 - (8 * n)); ins "sari\tr%d, r%d, %d" r r (32 - (8 * n)))
+        else ins "andi\tr%d, r%d, %d" r r ((1 lsl (8 * n)) - 1)
+    | _ -> () in
+  let lr_at () = !outgoing in
+  let epilogue () = at (fun f -> Printf.sprintf "\tldw\tlr, %d(sp)\n\taddi\tsp, sp, %d\n\tret\n" (lr_at ()) f) in
+  List.iter (fun i ->
+    match i with
+    | Label l ->
+        (match Hashtbl.find_opt depth_at l with Some d when !dead -> sp := d | _ -> ());
+        dead := false;
+        at (fun _ -> lab l ^ ":\n")
+    | _ when !dead -> ()
+    | Imm v -> ins "li\tr%d, %ld" (push ()) (Int64.to_int32 v)
+    | Place (Global s) -> ins "la\tr%d, %s" (push ()) (sym s)
+    | Place (Local o) -> let r = push () in at (fun f -> Printf.sprintf "\taddi\tr%d, sp, %d\n" r (f - o))
+    | Place (Param o) -> let r = push () in at (fun f -> Printf.sprintf "\taddi\tr%d, sp, %d\n" r (f + (4 * (o / 8))))
+    | Load t ->
+        let a = top () in
+        (match t with
+         | Int (1, _) -> ins "ldb\tr%d, 0(r%d)" a a
+         | Int (2, _) -> ins "ldb\tr13, 0(r%d)" a; ins "ldb\tr%d, 1(r%d)" a a; ins "shli\tr%d, r%d, 8" a a; ins "or\tr%d, r%d, r13" a a
+         | _ -> ins "ldw\tr%d, 0(r%d)" a a);
+        extend t a
+    | Store t ->
+        let v = top () in
+        decr sp;
+        let a = top () in
+        (match size t with
+         | 1 -> ins "stb\tr%d, 0(r%d)" v a
+         | 2 -> ins "stb\tr%d, 0(r%d)" v a; ins "shri\tr13, r%d, 8" v; ins "stb\tr13, 1(r%d)" a
+         | _ -> ins "stw\tr%d, 0(r%d)" v a);
+        ins "mov\tr%d, r%d" a v
+    | Op (o, t) -> (
+        let b = top () in
+        decr sp;
+        let a = top () and u = unsigned t in
+        let slt = if u then "sltu" else "slt" in
+        match o with
+        | R Lt -> ins "%s\tr%d, r%d, r%d" slt a a b
+        | R Gt -> ins "%s\tr%d, r%d, r%d" slt a b a
+        | R Le -> ins "%s\tr%d, r%d, r%d" slt a b a; ins "xori\tr%d, r%d, 1" a a
+        | R Ge -> ins "%s\tr%d, r%d, r%d" slt a a b; ins "xori\tr%d, r%d, 1" a a
+        | R Eq -> ins "sub\tr%d, r%d, r%d" a a b; ins "sltiu\tr%d, r%d, 1" a a
+        | R Ne -> ins "sub\tr%d, r%d, r%d" a a b; ins "sltu\tr%d, zero, r%d" a a
+        | A ((Div | Mod) as o) when u ->
+            (* TinyCPU divides signed only: the runtime's __udivmod, its
+             * operands and the remainder below sp, the quotient in r13 *)
+            ins "stw\tr%d, -4(sp)" a; ins "stw\tr%d, -8(sp)" b; ins "call\t__udivmod";
+            if o = Div then ins "mov\tr%d, r13" a else ins "ldw\tr%d, -4(sp)" a;
+            extend t a
+        | A o ->
+            ins "%s\tr%d, r%d, r%d"
+              (match o with
+               | Add -> "add" | Sub -> "sub" | Mul -> "mul" | Div -> "div" | Mod -> "rem"
+               | And -> "and" | Or -> "or" | Xor -> "xor" | Shl -> "shl" | Shr -> if u then "shr" else "sar")
+              a a b;
+            extend t a)
+    | Unop (o, t) ->
+        let a = top () in
+        if o = Neg then ins "sub\tr%d, zero, r%d" a a else (ins "addi\tr13, zero, -1"; ins "xor\tr%d, r%d, r13" a a);
+        extend t a
+    | Ext t -> extend t (top ())
+    | Dup -> let a = top () in ins "mov\tr%d, r%d" (push ()) a
+    | Drop -> decr sp
+    | Call (f, n, r) ->
+        let base = !sp - n in
+        saves := max !saves base;
+        for k = 1 to base do at (fun fr -> Printf.sprintf "\tstw\tr%d, %d(sp)\n" k (fr - slot k)) done;
+        for k = 0 to n - 1 do ins "stw\tr%d, %d(sp)" (base + 1 + k) (4 * k) done;
+        outgoing := max !outgoing (4 * n);
+        ins "call\t%s" (sym f);
+        for k = 1 to base do at (fun fr -> Printf.sprintf "\tldw\tr%d, %d(sp)\n" k (fr - slot k)) done;
+        sp := base;
+        if r then ins "mov\tr%d, r13" (push ())
+    | Jmp l -> jump l; ins "j\t%s" (lab l); dead := true
+    | Jz l -> let a = top () in decr sp; jump l; ins "beq\tr%d, zero, %s" a (lab l)
+    | Jnz l -> let a = top () in decr sp; jump l; ins "bne\tr%d, zero, %s" a (lab l)
+    | Ret v -> if v then (ins "mov\tr13, r%d" (top ()); decr sp); epilogue (); dead := true)
+    body;
+  if not !dead then epilogue ();
+  let frame = round (!outgoing + 4 + (4 * !saves) + locals) 8 in
+  Buffer.add_string out (Printf.sprintf "%s:\n\taddi\tsp, sp, %d\n\tstw\tlr, %d(sp)\n" (sym name) (- frame) (lr_at ()));
+  List.iter (fun f -> Buffer.add_string out (f frame)) (List.rev !lines)
+
+(*****************************************************************************)
 (* The file: globals and functions *)
 (*****************************************************************************)
 
@@ -819,13 +1006,13 @@ let rec init_data name t off =
       elems 0
   | Arr (Int (1, _), n), Str s ->
       ignore (next ());
-      String.iteri (fun i c -> Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/1, $%d\n" name (off + i) (Char.code c))) s;
+      String.iteri (fun i c -> datum name (off + i) (Value (1, Int64.of_int (Char.code c)))) s;
       max n (String.length s + 1)
   | _ ->
       let e = rv (assign_expr ()) in
       (match e.d, e.t with
-       | Const v, _ -> Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/%d, $%Ld\n" name off (size t) v)
-       | Addr (Global s), _ -> Buffer.add_string data (Printf.sprintf "\tDATA\t%s+%d(SB)/8, $%s(SB)\n" name off s)
+       | Const v, _ -> datum name off (Value (size t, v))
+       | Addr (Global s), _ -> datum name off (Address s)
        | _ -> error "%s: not a constant init_data" name);
       1
 
@@ -833,6 +1020,7 @@ let external_decl () =
   let storage, bt = base_type () in
   let rec go () =
     let name, t, pnames = declarator3 bt in
+    if storage <> Typedef then no_vlong t;
     match t with
     | Func (rt, ps, _) when storage <> Typedef && peek () = P "{" ->
         (* a definition *)
@@ -847,6 +1035,7 @@ let external_decl () =
         code := [];
         lower { brk = None; cont = None; cases = ref [] } body;
         if !ir_only then (Buffer.add_string out (name ^ ":\n"); List.iter (fun i -> Buffer.add_string out ("\t" ^ show i ^ "\n")) (List.rev !code))
+        else if !tm then machine_tm (asm_name storage name) (round !frame 8) (List.rev !code)
         else machine (asm_name storage name) params (round !frame 8) (List.rev !code);
         scopes := []
     | _ ->
@@ -857,7 +1046,7 @@ let external_decl () =
          | _ ->
              let t = if accept "=" then (match t with Arr (e, 0) -> let n = init_data sym t 0 in Arr (e, n) | _ -> ignore (init_data sym t 0); t) else t in
              Hashtbl.replace globals name { vty = t; where = Global sym };
-             if storage <> Extern then Buffer.add_string data (Printf.sprintf "\tGLOBL\t%s(SB), $%d\n" sym (size t)));
+             if storage <> Extern then globl sym (size t));
         if accept "," then go () else expect ";"
   in
   if not (accept ";") then go ()
@@ -866,12 +1055,14 @@ let main () =
   let output = ref "" and file = ref "" in
   let rec args = function
     | "-ir" :: r -> ir_only := true; args r
+    | "-tm" :: r -> tm := true; args r
     | "-o" :: o :: r -> output := o; args r
     | f :: r -> file := f; args r
     | [] -> ()
   in
   args (List.tl (Array.to_list Sys.argv));
-  if !file = "" then (prerr_endline "usage: tiny-c [-ir] [-o out.s] file.c"; exit 2);
+  if !file = "" then (prerr_endline "usage: tiny-c [-ir | -tm] [-o out.s | out.tm] file.c"; exit 2);
+  unit_name := Filename.remove_extension (Filename.basename !file);
   let read f = In_channel.with_open_bin f In_channel.input_all in
   try
     toks := Array.of_list (tokens (Hashtbl.create 16) read !file);

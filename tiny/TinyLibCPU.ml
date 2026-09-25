@@ -394,6 +394,15 @@ let assemble_files ?ext (files : (string * string list) list) =
 
 let assemble ?ext ?(name = "-") lines = assemble_files ?ext [ name, lines ]
 
+(* files, named and read: .tm files assembled and linked, or one image
+ * (the memory's first bytes, no header: the CPU starts at 0) *)
+let image ?ext (files : (string * string) list) =
+  match files with
+  | _ :: _ when List.for_all (fun (f, _) -> Filename.check_suffix f ".tm") files ->
+      assemble_files ?ext (List.map (fun (f, text) -> f, String.split_on_char '\n' text) files)
+  | [ (f, text) ] -> if String.length text > memsize then error "%s: larger than the memory" f; text
+  | _ -> error "either .tm files or one image"
+
 (* the listing: address, word, instruction, as assembly again *)
 let listing ?(ext = no_extension) image =
   List.init (String.length image / 4) (fun k ->

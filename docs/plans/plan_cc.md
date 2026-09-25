@@ -471,6 +471,41 @@ after the compiler, by what it taught.
    argument in its slot, the result in F0), the conversions and
    compares TinyAssembler already has; started, then left for later.
 
+   *A second machine (2026-09-25)*, the author: "ideally we can have
+   tiny-c that can also output .tm". `tiny-c -tm` compiles for
+   TinyCPU (`tiny/TinyLibCPU.ml`, the teaching machine of plan_arm.md)
+   with the same front end and stack machine and a second back end,
+   100 lines: the stack in r1..r12, r13 the result, every argument in
+   memory, 4 bytes each (so a variadic function walks them from its
+   last named one's address), relations by `slt`/`sltu`, a short by two
+   byte accesses, unsigned division by the runtime's `__udivmod`
+   (TinyCPU divides signed only). The front end changed where the
+   machine shows: a pointer's size (4), a declared `long long`
+   refused (the registers are 32 bits), and the data, arm64's `DATA`
+   and `GLOBL` or `.byte`/`.word`/`.space` under a label, each global's
+   kept until its label (a string in an initializer is written before
+   its array). TinyC grew from 883 to 1,074 lines; arm64's output is
+   byte for byte what it was, on all of `TinyC_tests/`. The runtime,
+   `tiny/TinyC_runtime/`: `start.tm` (`_start`, `write`, `exits`,
+   `__udivmod`, 75 lines) and `libc.c` (print, sprint, the strings,
+   atoi, a bump malloc; 163 lines of C, compiled by `tiny-c -tm`).
+   tiny-cpu learned to link several `.tm` into an image and to pass
+   argc and argv, as Linux does.
+
+   `TinyC_test.sh` now also compiles each program with `-tm`, links it,
+   runs it on tiny-cpu, and compares with 7c's: control, globals,
+   hello, ptr, sort, and a new `udiv.c` (unsigned division at its
+   edges) the same; arith, calls and struct refused (their long long).
+   `TinyC_fuzz.py --32` writes random programs without long long, for
+   both: 500 the same (and 100 in `make test-goken`). What it found:
+   goken's `print` takes `%u` as a verb, not Plan 9's flag (its libc is
+   built without PLAN9PORT: `%ud` is the number then a `d`), which the
+   runtime's print follows, the reference being goken's; and, by a
+   mutation not caught, that `__udivmod`'s carry case cannot happen
+   (after k steps the remainder is below 2^k), removed. A `<=` made
+   `<` in the back end fails 4 of 30 random programs; a division
+   step skipped fails `udiv.c`.
+
 6. **Docs**: `notes_cc.md` checked against the code, the numbers.
    *Done (2026-09-24)*: the tutorial's module table and three
    statements corrected (the lexer's typedefs, where com64 runs, the

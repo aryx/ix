@@ -12,11 +12,16 @@
 # their operators, conversions, conditions, loops, arrays, pointers and
 # calls, each value printed. No undefined behaviour the two compilers
 # could take differently: a divisor is never 0, a shift is by less than
-# the width, and the arithmetic wraps as the machine does.
-# usage: TinyC_fuzz.py dir count [seed]
-import random, sys
+# the width, and the arithmetic wraps as the machine does. With --32,
+# no long long: programs for tiny-c -tm too (TinyCPU is 32 bits), whose
+# output must be arm64's.
+# usage: TinyC_fuzz.py [--32] dir count [seed]
+import os, random, sys
 
-TYPES = ["char", "uchar", "short", "unsigned short", "int", "unsigned", "long", "ulong", "vlong", "uvlong"]
+W32 = "--32" in sys.argv
+if W32: sys.argv.remove("--32")
+TYPES = ["char", "uchar", "short", "unsigned short", "int", "unsigned", "long", "ulong"] + ([] if W32 else ["vlong", "uvlong"])
+BIG = "int" if W32 else "vlong"
 BIN = ["+", "-", "*", "&", "|", "^", "<", ">", "<=", ">=", "==", "!="]
 
 def expr(r, vs, d):
@@ -48,9 +53,10 @@ def expr(r, vs, d):
 def program(r):
     vs = ["x%d" % i for i in range(6)]
     tys = [r.choice(TYPES) for _ in vs]
-    out = ['#include "../libc.h"', "",
+    libc = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TinyC_tests", "libc.h")
+    out = ['#include "%s"' % libc, "",
            "typedef unsigned short ushort;", "",
-           "vlong a[8];", "",
+           "%s a[8];" % BIG, "",
            "long", "f(long p, int q)", "{", "\treturn p * 3 - q;", "}", "",
            "void", "main(int argc, char *argv[])", "{", "\tint i;"]
     for v, t in zip(vs, tys):
@@ -69,10 +75,10 @@ def program(r):
             out.append("\tif(%s) %s++; else %s--;" % (expr(r, vs, 2), v, r.choice(vs)))
         else:
             out.append("\ta[%s & 7] = %s;" % (r.choice(vs), expr(r, vs, 2)))
+    big = "%d" if W32 else "%lld"
     for v, t in zip(vs, tys):
-        fmt = {"vlong": "%lld", "uvlong": "%llud"}.get(t, "%lld")
-        out.append('\tprint("%s\\n", (vlong)%s);' % (fmt.replace("%llud", "%lld"), v))
-    out.append('\tprint("%lld\\n", a[3] + a[5]);')
+        out.append('\tprint("%s\\n", (%s)%s);' % (big, BIG, v))
+    out.append('\tprint("%s\\n", a[3] + a[5]);' % big)
     out.append("\texits(0);")
     out.append("}")
     return "\n".join(out) + "\n"

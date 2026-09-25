@@ -185,17 +185,9 @@ let run caps image =
 
 let main (caps : < Cap.stdout; Cap.stderr; Cap.argv; Cap.open_in; Cap.open_out; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
-  let read file = Files.read caps (Fpath.v file) in
-  (* .tm files assembled and linked, or one image *)
   let image files =
-    match files with
-    | _ :: _ when List.for_all (fun f -> Filename.check_suffix f ".tm") files ->
-        TinyLibCPU.assemble_files ~ext (List.map (fun f -> f, String.split_on_char '\n' (read f)) files)
-    | [ file ] when file.[0] <> '-' ->
-        let text = read file in
-        if String.length text > TinyLibCPU.memsize then TinyLibCPU.error "%s: larger than the memory" file;
-        text
-    | _ -> raise Exit in
+    if files = [] || (List.hd files).[0] = '-' then raise Exit;
+    TinyLibCPU.image ~ext (List.map (fun f -> f, Files.read caps (Fpath.v f)) files) in
   try
     match args with
     | "-l" :: files -> Console.print caps (TinyLibCPU.listing ~ext (image files)); 0

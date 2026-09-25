@@ -4080,3 +4080,31 @@ Claude created tiny-machine, a new toplevel tool that runs assembled and linked 
 **Yoann:**
 
 > yes! exciting!
+
+**Claude (summary):**
+
+Claude built a 4 MB test suite running 16 tests in 75 seconds covering page faults, exec, files, pipes, fork. Commits ff79468 and 14accfe passed the full 62-test suite in 50 minutes; optimizations marked with (old:) comments for clarity. Claude kept the interpreter simple as requested, with optimizations in separable sections. Claude looked for optimization notes but Yoann corrected that they're in ~/playground/docs/claude_note/devs, not the xv6 docs. Next work is implementing -smp 4 for four-core deterministic scheduling.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:45
+
+**Yoann:**
+
+> maybe the optimization note was in ~/playground/docs/claude_note/devs probably.
+
+**Claude (summary):**
+
+Claude found the optimization note at ~/playground/docs/claude_notes/dev/notes_opti_ocaml.md and saved its rules to memory.
+Claude extracted four optimizations from ix: dev builds blocking inlining with -opaque, allocation in memory paths, boxed int64 registers, and Pi4 tests fast by lowering PHYSTOP.
+Each optimization followed the note's format of symptom, OCaml cause, fix, and performance gain.
+Claude asked whether to add these findings to the note immediately or defer until the first mini-qemu optimization.
+The findings came from plan_arm.md's phase 6 and recent testing work.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:46
+
+**Yoann:**
+
+> ok let's -smp 4; hopefully most cores would be idle when running the xv6 kernel so it will still be fast
