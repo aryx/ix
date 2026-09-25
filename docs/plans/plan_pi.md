@@ -454,15 +454,27 @@ interrupt controller), so that a bare-metal program for the Pi1 (the
 "Baking Pi" kind) runs on it and on the real board.
 
 Each machine relies on its CPU, not a copy of it: TinyArm.ml's
-instructions, assembler and interpreter become a library,
+instructions, assembler and interpreter are a library,
 tiny/TinyLibArm.ml (the tiny/TinyLibXxx.ml convention for code tiny
-files share), TinyArm.ml keeping its command line and its three
-system calls; TinyPi.ml is the modes, the exceptions and the devices
-around it. What the library must let a machine change: the memory
-access (devices behind addresses), what svc does (a system call
-answered, or an exception taken), and a check between two
-instructions (an interrupt pending). TinyMachine.ml and
-tiny/TinyLibCPU.ml the same way (plan_arm.md).
+files share), TinyArm.ml keeping its command line, its three system
+calls and the ELF writer; TinyPi.ml is the modes, the exceptions and
+the devices around it. The library's `step` takes an `env` of four
+hooks, what a machine changes: the load and the store (devices behind
+addresses), what svc does (a system call answered, or an exception
+taken: the hook sees r15 as the return address and may change it),
+and what a word `decode` does not know does (the privileged
+instructions: mrs, msr, cps, the coprocessor's, which the subset
+leaves out); the check between two instructions (an interrupt
+pending) is in the machine's loop around `step`. The state the CPU
+record lacks (the mode, the banked registers, the saved status) is
+TinyPi's, beside it. TinyMachine.ml and tiny/TinyLibCPU.ml the same
+way (plan_arm.md).
+
+**Split done** (2026-09-25): `tiny/TinyLibArm.ml` (720 lines) and
+`tiny/TinyArm.ml` (100 lines: Linux's three calls, the process's
+stack, the ELF, the command line); TinyArm_test.sh unchanged and
+passing (GNU as's bytes, objdump's listing, the runs on the CPU and
+under mini-5i, 3,000 random instructions).
 
 ## Verification
 

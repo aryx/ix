@@ -3900,3 +3900,47 @@ Two long header lines in the code still need to be rewrapped.
 **Yoann:**
 
 > nice README. I like it.
+
+**Claude (summary):**
+
+Claude rewrote the README to update facts and add the TinyCPU/TinyArm comparison.
+Claude identified the "Written so far" section (line 45) was incomplete.
+TinyLibCPU and planned tiny-pi/tiny-machine programs appeared only in the series table.
+Claude offered to review and update that section to match the series table.
+Yoann accepted the offer.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:01
+
+**Yoann:**
+
+> yes, review the Written so far section too
+
+**Claude (summary):**
+
+Claude committed ba6bce3 fixing the "Written so far" section in README and docs/README.
+Mini-5i now lists tiny-arm and tiny-cpu variants supporting arm32 and arm64 with Linux or Plan 9.
+Mini-qemu changed to "Pi1 with 9pi and xv6; Pi4 next", with tiny-machine planned for Pi4.
+Tiny/README noted TinyCPU and TinyLibCPU.ml as the only one-file exceptions to the rule.
+Claude added mini-merge3 and listed tiny files in the mini-5i code column.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:03
+
+**Yoann:**
+
+> we probably also want TinyLibArm.ml that can be used soon by a new TinyMachine.ml ?
+
+**Claude (summary):**
+
+Claude recorded the decision to focus on Pi4 only and updated plan_pi.md accordingly. Claude implemented the Arm64 CPU with privileged state, exception levels, and system registers. Claude implemented Mmu64 with 4KB pages and the kernel/user address split, plus Pi4 board setup. Claude got xv6 Pi4 booting to shell and running, matching QEMU's output exactly. Claude found xv6 runs at 27 MIPS, but usertests take hours; asked about interpreter redesign next.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 10:04
+
+**Yoann:**
+
+> sorry yes TinyLibArm.ml used by TinyPi.ml
