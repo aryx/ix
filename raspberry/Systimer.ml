@@ -54,3 +54,5 @@ let write t off _ v =
   | _ -> ()
 
 let device t = { Memory.read = read t; write = write t }
+
+let now t = t.now

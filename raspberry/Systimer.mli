@@ -19,3 +19,6 @@ val advance : t -> int -> unit
 val until_next : t -> int
 
 val device : t -> Memory.device
+
+(* the counter, microseconds *)
+val now : t -> int

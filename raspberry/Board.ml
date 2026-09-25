@@ -9,7 +9,7 @@
  *)
 (* See Board.mli *)
 
-type config = { ram_size : int; ips : int; log : string -> unit }
+type config = { ram_size : int; ips : int; log : string -> unit; usb_keyboard : bool }
 
 (* the ARM1176's CP15 registers other than the MMU's *)
 type cp15 = {
@@ -41,6 +41,9 @@ type t = {
   mutable time_left : int;          (* instructions not yet a microsecond *)
   mutable undefined : int list;     (* the words already reported *)
   inq : char Queue.t;               (* the host's characters, for the UART *)
+  fb : Framebuffer.t;
+  keyboard : Usb.device option;
+  mutable key_events : (int * int * bool) list;   (* at a microsecond: a usage, down *)
 }
 
 let cache_bits = 16
@@ -113,6 +116,7 @@ let create cfg ~output =
   let mem = Memory.create () in
   let st = Arm32.create mem in
   let mmu = Mmu32.create mem in
+  let fb = Framebuffer.create mem in
   let intc = Intc.create () in
   let timer = Systimer.create ~line:(fun n on -> Intc.set intc n on) in
   let uart = Pl011.create ~output ~line:(fun on -> Intc.set intc 57 on) in
@@ -124,15 +128,18 @@ let create cfg ~output =
   let dev base size name d = Memory.map_device mem ~base:(io + base) ~size name d in
   dev 0x3000 0x1c "systimer" (Systimer.device timer);
   dev 0xb200 0x28 "intc" (Intc.device intc);
-  dev 0xb880 0x40 "mailbox" (Devices.mailbox ~mem ~ram_size:cfg.ram_size ~vc_base:(cfg.ram_size - vc_size));
+  dev 0xb880 0x40 "mailbox" (Devices.mailbox ~mem ~ram_size:cfg.ram_size ~vc_base:(cfg.ram_size - vc_size) ~on_framebuffer:(Framebuffer.configure fb));
   dev 0x200000 0xb4 "gpio" (Devices.regs ());
   dev 0x201000 0x1000 "uart0" (Pl011.device uart);
   dev 0x215000 0x100 "aux" (Devices.aux ());
-  dev 0x980000 0x10000 "usb" (Devices.dwc2 ());
+  (* a keyboard: behind the hub QEMU adds on the controller's one port *)
+  let keyboard = if cfg.usb_keyboard then Some (Usb.keyboard ~path:"1.1" ()) else None in
+  let root = Option.map (fun k -> Usb.hub ~path:"1" [ k ]) keyboard in
+  dev 0x980000 0x10000 "usb" (Dwc2.device (Dwc2.create ~mem ~root));
   let cp = { actlr = 0; cpacr = 0; dfsr = 0; ifsr = 0; dfar = 0; ifar = 0; fcse = 0; contextid = 0; tpid = Array.make 3 0 } in
   let t = { st; mem; mmu; cp; intc; timer; uart; cfg;
             tags = Array.make (1 lsl cache_bits) (-1); code = Array.make (1 lsl cache_bits) (Arm32.Undefined 0);
-            instructions = 0; time_left = 0; undefined = []; inq = Queue.create () } in
+            instructions = 0; time_left = 0; undefined = []; inq = Queue.create (); fb; keyboard; key_events = [] } in
   st.coproc <- coproc t;
   st.translate <- (fun va access -> Mmu32.translate mmu ~user:(st.mode = 0x10) va access);
   set_sctlr t 0x00050078;
@@ -156,6 +163,25 @@ let load_kernel t image =
 let input t c = Queue.add c t.inq
 
 let feed t = if Pl011.empty t.uart && not (Queue.is_empty t.inq) then Pl011.input t.uart (Queue.pop t.inq)
+
+let screen t = Framebuffer.rgb t.fb
+let frame t = Framebuffer.raw t.fb
+
+let now t = Systimer.now t.timer
+
+(* a key now (the window's) *)
+let key t usage down = Option.iter (fun k -> Usb.key k usage down) t.keyboard
+
+(* keys pressed now and released after [hold] microseconds of the
+ * board's time, as QEMU's send-key (its hold-time: 100ms) *)
+let send_keys t usages ~hold =
+  List.iter (fun u -> key t u true) usages;
+  t.key_events <- t.key_events @ List.map (fun u -> now t + hold, u, false) usages
+
+let timed_keys t =
+  let due, later = List.partition (fun (at, _, _) -> at <= now t) t.key_events in
+  t.key_events <- later;
+  List.iter (fun (_, u, down) -> key t u down) due
 
 (* the instructions of a batch, then time: the system timer advances a
  * microsecond per [ips] instructions (plan_pi.md, decision 6) *)
@@ -198,4 +224,5 @@ let run t ~batch =
   let ticks = t.time_left + batch in
   Systimer.advance t.timer (ticks / t.cfg.ips);
   t.time_left <- ticks mod t.cfg.ips;
+  if t.key_events <> [] then timed_keys t;
   feed t

@@ -447,3 +447,29 @@ instruction in the kernel or the programs (the census said so,
 `census_xv6.txt`): VFP moves to phase C, for 9pi's programs.
 `raspberry/tests/xv6.sh` checks both boots against QEMU (`-u`: and
 both usertests).
+
+**Phase B done** (2026-09-25): the Pi1's graphics and USB keyboard.
+xv6's own graphical test (`scripts/test_qemu_graphics.py`: a
+screen with pixels, more after typing "ls" by QMP, the command on the
+serial console), unchanged with `MAKEFLAGS=QEMU_ARM=tinypi`, **passes
+for arm-pi1-bis and arm-pi1**; and headless
+(`raspberry/tests/graphics.py`) both ports' serial output (the USB
+devices enumerated, the typed command, its listing) and QMP
+screendumps before and after typing are **byte for byte QEMU's**.
+
+- `Usb`: QEMU's usb-kbd and the hub QEMU puts on a one-port controller
+  when a device is attached (its descriptors, strings, serial numbers
+  with their port paths, the hub's port status and features), with
+  QEMU's control-transfer state machine: an OUT request runs at its
+  status stage, so SET_ADDRESS completes at the address it had (running
+  it at SETUP, as first written, left the status stage without a
+  device: CSUD's "Request to USB 1.1 Hub has timed out").
+- `Dwc2`: QEMU's host channels (a transfer whole at enable, HCTSIZ and
+  HCINT as QEMU leaves them, no ACK) and root port (a reset enables it).
+- `Framebuffer` (channel 1's geometry, RGB565 shifted up as QEMU's
+  display: white is f8 fc f8), `Display` (the record), `Sdl_display`
+  (tsdl: the framebuffer as an RGB565 texture, drawn when it changed --
+  converting 786,432 pixels to RGB in OCaml each frame took 16 ms and
+  starved the CPU: the window's first boot missed the test's 60 s),
+  `Qmp` (a Unix socket: qmp_capabilities, query-status, screendump,
+  send-key held 100ms of the board's time, quit).

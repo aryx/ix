@@ -31,6 +31,7 @@ let unassigned ~log =
 
 type mailbox = {
   answers : int Queue.t;
+  on_framebuffer : Framebuffer.geometry -> unit;
   mem : Memory.t;
   ram_size : int;
   vc_base : int;
@@ -70,10 +71,11 @@ let framebuffer m buf =
   let pitch = w * ((depth + 7) / 8) in
   put 16 pitch;
   put 32 (m.vc_base + 0x100000);
-  put 36 (pitch * h)
+  put 36 (pitch * h);
+  m.on_framebuffer { width = w; height = h; depth; pitch; base = m.vc_base + 0x100000 }
 
-let mailbox ~mem ~ram_size ~vc_base =
-  let m = { answers = Queue.create (); mem; ram_size; vc_base } in
+let mailbox ~mem ~ram_size ~vc_base ~on_framebuffer =
+  let m = { answers = Queue.create (); on_framebuffer; mem; ram_size; vc_base } in
   let read off _ =
     match off with
     | 0x00 -> if Queue.is_empty m.answers then 0 else Queue.pop m.answers
@@ -89,44 +91,3 @@ let mailbox ~mem ~ram_size ~vc_base =
     end in
   { Memory.read; write }
 
-(*****************************************************************************)
-(* USB: the DWC2 host controller, as QEMU's (an empty root port) *)
-(*****************************************************************************)
-
-(* QEMU's reset values (hw/usb/hcd-dwc2.c's reset, its 8 channels) *)
-let dwc2_reset = [
-  0x00, 0xd0000;          (* GOTGCTL: B and A sessions valid, connector B *)
-  0x0c, 5 lsl 10;         (* GUSBCFG: turnaround time 5 *)
-  0x14, 0x14000021;       (* GINTSTS: host mode, FIFOs empty *)
-  0x24, 1024;             (* GRXFSIZ *)
-  0x28, 1024 lsl 16;      (* GNPTXFSIZ *)
-  0x2c, (4 lsl 16) lor 1024;
-  0x30, 0x11000000;       (* GI2CCTL *)
-  0x58, 0x10;             (* GPWRDN *)
-  0x100, 500 lsl 16;      (* HPTXFSIZ *)
-  0x400, 2 lsl 8;         (* HCFG *)
-  0x404, 60000;           (* HFIR *)
-  0x408, 0x3fff;          (* HFNUM *)
-  0x410, (16 lsl 16) lor 32768 ]
-
-let dwc2 () =
-  let t = Hashtbl.create 32 in
-  List.iter (fun (o, v) -> Hashtbl.replace t o v) dwc2_reset;
-  let get off = Option.value (Hashtbl.find_opt t off) ~default:0 in
-  let read off _ =
-    match off with
-    | 0x10 -> 0x80000000 lor get off                         (* GRSTCTL: AHB idle; resets done *)
-    | 0x3c -> 0                                              (* GUID *)
-    | 0x40 -> 0x4f54294a                                     (* GSNPSID: 2.94a, QEMU's *)
-    | 0x44 -> 0                                              (* GHWCFG1-4 *)
-    | 0x48 -> 0x250dc016                                     (* internal DMA, 8 channels, host only *)
-    | 0x4c -> 0x10000044
-    | 0x50 -> 0
-    | 0x440 -> get off land lnot 3                           (* HPRT: nothing connected *)
-    | _ when off >= 0x500 && off < 0x600 && off land 0x1f = 0 -> get off land lnot (1 lsl 31)  (* HCCHARn: halted *)
-    | _ -> get off in
-  let write off _ v =
-    match off with
-    | 0x10 -> Hashtbl.replace t off (v land lnot 0x3f)       (* the reset and flush bits clear at once *)
-    | _ -> Hashtbl.replace t off v in
-  { Memory.read; write }

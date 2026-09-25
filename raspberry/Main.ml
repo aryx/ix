@@ -26,15 +26,20 @@ let usage = "usage: tinypi -M raspi1ap [-nographic] -kernel image [-ips N] [-d]"
 
 let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. >) =
   let args = List.tl (Array.to_list (CapSys.argv caps)) in
-  let kernel = ref None and machine = ref "" and ips = ref 30 and debug = ref false in
+  let kernel = ref None and machine = ref "" and ips = ref 30 and debug = ref false and kbd = ref false in
+  let qmp = ref None and graphics = ref true in
   let rec parse = function
     | [] -> ()
     | ("-M" | "-machine") :: m :: rest -> machine := List.hd (String.split_on_char ',' m); parse rest
     | "-kernel" :: k :: rest -> kernel := Some k; parse rest
     | "-ips" :: n :: rest -> ips := int_of_string n; parse rest
     | "-d" :: rest -> debug := true; parse rest
-    | ("-m" | "-serial" | "-monitor" | "-smp" | "-device" | "-append" | "-D" | "-qmp") :: _ :: rest -> parse rest
-    | ("-nographic" | "-no-reboot" | "-S") :: rest -> parse rest
+    | "-device" :: d :: rest when List.hd (String.split_on_char ',' d) = "usb-kbd" -> kbd := true; parse rest
+    | "-qmp" :: q :: rest -> qmp := Some q; parse rest
+    | "-display" :: "none" :: rest -> graphics := false; parse rest
+    | "-nographic" :: rest -> graphics := false; parse rest
+    | ("-m" | "-serial" | "-monitor" | "-smp" | "-device" | "-append" | "-D" | "-display") :: _ :: rest -> parse rest
+    | ("-no-reboot" | "-S") :: rest -> parse rest
     | a :: _ -> Console.eprint caps (Printf.sprintf "tinypi: unknown option %s\n%s\n" a usage); exit 2 in
   parse args;
   match !kernel with
@@ -43,7 +48,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
   | Some k ->
       let log s = if !debug then Console.eprint caps ("tinypi: " ^ s ^ "\n") in
       let out = Buffer.create 256 in
-      let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log } ~output:(Buffer.add_char out) in
+      let board = Board.create { ram_size = 512 * 1024 * 1024; ips = !ips; log; usb_keyboard = !kbd } ~output:(Buffer.add_char out) in
       (match Files.read caps (Fpath.v k) with
        | image -> Board.load_kernel board image
        | exception Sys_error m -> Console.eprint caps ("tinypi: " ^ m ^ "\n"); exit 1);
@@ -68,13 +73,29 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
                 if not !ctrl_a then Board.input board c
               done
           | _ -> () in
+      (* the window, unless -nographic or no display; QMP's socket *)
+      let display =
+        if !graphics && Sys.getenv_opt "DISPLAY" <> None then Sdl_display.create ~title:"tinypi" else Display.none in
+      let qmp = Option.map Qmp.create !qmp in
+      let quit () = restore (); exit 0 in
+      let last_frame = ref 0. in
       let n = ref 0 in
       (try
          while true do
            Board.run board ~batch:4096;
            if Buffer.length out > 0 then (Console.print caps (Buffer.contents out); flush stdout; Buffer.clear out);
            incr n;
-           if !n land 15 = 0 then poll ()
+           if !n land 15 = 0 then begin
+             poll ();
+             Option.iter (fun q -> Qmp.poll q board ~quit) qmp;
+             (* the screen, 30 times a second of the host's *)
+             let now = Unix.gettimeofday () in
+             if now -. !last_frame > 1. /. 30. then begin
+               last_frame := now;
+               Option.iter (fun (g, data) -> display.present g data) (Board.frame board);
+               List.iter (function Display.Key (u, down) -> Board.key board u down | Display.Quit -> quit ()) (display.poll ())
+             end
+           end
          done
        with e -> restore (); raise e);
       0

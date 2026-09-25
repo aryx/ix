@@ -16,6 +16,7 @@ type config = {
   ram_size : int;
   ips : int;                      (* instructions per microsecond *)
   log : string -> unit;           (* what a user may want to know: unassigned I/O, undefined instructions *)
+  usb_keyboard : bool;            (* -device usb-kbd *)
 }
 
 type t
@@ -31,3 +32,20 @@ val input : t -> char -> unit
 
 (* [batch] instructions, then time and the UART's input *)
 val run : t -> batch:int -> unit
+
+(* the screen: width, height, RGB bytes; none before the kernel asked for
+ * a framebuffer *)
+val screen : t -> (int * int * string) option
+
+(* the framebuffer as the kernel wrote it, for a display *)
+val frame : t -> (Framebuffer.geometry * string) option
+
+(* the board's time, microseconds *)
+val now : t -> int
+
+(* a key down or up on the USB keyboard (-device usb-kbd), by HID usage *)
+val key : t -> int -> bool -> unit
+
+(* keys pressed now and released after [hold] microseconds of the
+ * board's time (QMP's send-key) *)
+val send_keys : t -> int list -> hold:int -> unit

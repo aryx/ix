@@ -21,9 +21,5 @@ val unassigned : log:(string -> int -> unit) -> Memory.device
  * (the ARM's and VideoCore's memory, revisions, clocks, power),
  * channel 1's framebuffer (at vc_base + 1MB, as QEMU's) -- channel 0
  * never, as QEMU. Buffers by bus address (the top two bits dropped). *)
-val mailbox : mem:Memory.t -> ram_size:int -> vc_base:int -> Memory.device
+val mailbox : mem:Memory.t -> ram_size:int -> vc_base:int -> on_framebuffer:(Framebuffer.geometry -> unit) -> Memory.device
 
-(* the DWC2 USB controller (base + 0x980000), QEMU's: its id 2.94a
- * (the kernels' "emulating" test), resets that finish at once, halted
- * channels, no device on the root port *)
-val dwc2 : unit -> Memory.device
