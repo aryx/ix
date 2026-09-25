@@ -126,6 +126,7 @@ let privileged mc (m : TinyLibCPU.machine) w =
       m.pc <- TinyLibCPU.addr c.(epc)
 
 let env (caps : < Cap.stdout; .. >) mc : TinyLibCPU.env = {
+  fetch = (fun m pc -> TinyLibCPU.load m TinyLibCPU.W (check mc pc));
   load = (fun m s a -> let a = check mc a in if TinyLibCPU.word a >= console then 0 else TinyLibCPU.load m s a);
   store = (fun m s a v ->
     let a = check mc a in
@@ -161,7 +162,7 @@ let ext : TinyLibCPU.extension =
   }
 
 (*****************************************************************************)
-(* The loop: the time, the interrupt, the fetch's window, a step *)
+(* The loop: the time, the interrupt, a step *)
 (*****************************************************************************)
 
 let run caps image =
@@ -178,7 +179,7 @@ let run caps image =
       c.(time) <- TinyLibCPU.m32 (c.(time) + 1);
       try
         if c.(status) land ie <> 0 && c.(time) >= c.(timecmp) then trap mc c_timer 0 pc
-        else (ignore (check mc pc); TinyLibCPU.step env m)
+        else TinyLibCPU.step env m
       with Trap (cause_v, tval_v) -> trap mc cause_v tval_v (if cause_v = c_sys then TinyLibCPU.addr (pc + 4) else pc)
     done;
     0

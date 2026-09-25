@@ -61,7 +61,7 @@ let interpret caps image args =
    * and argc at sp *)
   let top, addrs = List.fold_left (fun (top, addrs) a ->
     let top = top - String.length a - 1 in
-    Bytes.blit_string (a ^ "\000") 0 m.mem top (String.length a + 1); top, top :: addrs) (TinyLibCPU.memsize, []) args in
+    Bytes.blit_string (a ^ "\000") 0 m.mem top (String.length a + 1); top, top :: addrs) (!TinyLibCPU.memsize, []) args in
   let n = List.length args in
   let sp = (top - (4 * (n + 3))) land lnot 7 in
   let put a v = TinyLibCPU.store m TinyLibCPU.W a v in

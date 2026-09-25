@@ -65,10 +65,11 @@
  * - {b The interpreter is the definition.} [step] is the machine's
  *   semantics, a match on the decoded word; memory holds the program,
  *   so a program may compute its code.
- * - {b A machine changes four things}, the fields of [env]: a load, a
- *   store, a system call, and a word [decode] does not know. TinyCPU
- *   gives memory, the host's calls, and an error; a machine gives its
- *   devices behind addresses, a trap, and its own instructions (which
+ * - {b A machine changes five things}, the fields of [env]: the fetch,
+ *   a load, a store, a system call, and a word [decode] does not know.
+ *   TinyCPU gives memory, the host's calls, and an error; a machine
+ *   gives its pages, its devices behind addresses, a trap, and its own
+ *   instructions (which
  *   the assembler and the listing learn by an [extension]). What
  *   happens between two instructions (an interrupt) is the loop's
  *   that calls [step], not [step]'s.
@@ -178,20 +179,23 @@ let print ~pc i =
 (* The machine: the interpreter *)
 (*****************************************************************************)
 
-let memsize = 1 lsl 20
+(* 2^20 bytes, TinyCPU's; a machine around the CPU may have more
+ * (TinyMachine's 16 MB), set before its boot *)
+let memsize = ref (1 lsl 20)
 let sp = 14 and lr = 15
 
 type machine = { r : int array; mutable pc : int; mem : Bytes.t }
 
 (* what the program that runs the CPU decides *)
 type env = {
+  fetch : machine -> int -> int;           (* the instruction's word at pc *)
   load : machine -> size -> int -> int;
   store : machine -> size -> int -> int -> unit;
   sys : machine -> int -> unit;            (* the call's number, pc past the sys *)
   illegal : machine -> int -> unit;        (* the word, pc still on it *)
 }
 
-let addr a = a land (memsize - 1)
+let addr a = a land (!memsize - 1)
 let word a = addr a land lnot 3
 let load m = function W -> fun a -> Int32.to_int (Bytes.get_int32_le m.mem (word a)) land 0xffffffff | B -> fun a -> Char.code (Bytes.get m.mem (addr a))
 let store m s a v = match s with
@@ -214,14 +218,16 @@ let compare c a b =
 
 (* memory alone, and an unknown word an error *)
 let plain ~sys = {
+  fetch = (fun m pc -> load m W pc);
   load; store; sys;
   illegal = (fun m w -> error "illegal instruction %08x at 0x%x" w m.pc);
 }
 
-(* the fetch is from memory, whatever env's load: code is never a device's *)
+(* one step: the word at pc fetched (from memory, or through the
+ * machine's pages), decoded and run *)
 let step env m =
   let pc = m.pc in
-  let w = load m W pc in
+  let w = env.fetch m pc in
   match decode w with
   | None -> env.illegal m w
   | Some i ->
@@ -241,9 +247,9 @@ let step env m =
 
 (* the machine at its start: the image at 0, sp at the top of memory *)
 let boot image =
-  let m = { r = Array.make 16 0; pc = 0; mem = Bytes.make memsize '\000' } in
+  let m = { r = Array.make 16 0; pc = 0; mem = Bytes.make !memsize '\000' } in
   Bytes.blit_string image 0 m.mem 0 (String.length image);
-  m.r.(sp) <- memsize;
+  m.r.(sp) <- !memsize;
   m
 
 (*****************************************************************************)
@@ -389,7 +395,7 @@ let assemble_files ?ext (files : (string * string list) list) =
     | Words (_, f) -> List.iter (fun w -> Buffer.add_int32_le b (Int32.of_int w)) (f a resolve)
     | Bytes_ s -> Buffer.add_string b s
     | Label _ | Align _ -> ()) (List.rev !placed);
-  if Buffer.length b > memsize then error "the program does not fit in memory";
+  if Buffer.length b > !memsize then error "the program does not fit in memory";
   Buffer.contents b
 
 let assemble ?ext ?(name = "-") lines = assemble_files ?ext [ name, lines ]
@@ -400,7 +406,7 @@ let image ?ext (files : (string * string) list) =
   match files with
   | _ :: _ when List.for_all (fun (f, _) -> Filename.check_suffix f ".tm") files ->
       assemble_files ?ext (List.map (fun (f, text) -> f, String.split_on_char '\n' text) files)
-  | [ (f, text) ] -> if String.length text > memsize then error "%s: larger than the memory" f; text
+  | [ (f, text) ] -> if String.length text > !memsize then error "%s: larger than the memory" f; text
   | _ -> error "either .tm files or one image"
 
 (* the listing: address, word, instruction, as assembly again *)
