@@ -3472,3 +3472,15 @@ Claude debugged and completed Phase A with all tests passing in commit b883469. 
 **Yoann:**
 
 > let's do it!
+
+**Claude (summary):**
+
+Claude extended tinypi to boot 9pi identically to QEMU, achieving byte-for-byte session matching and usertests passing, committed as c7e133c. He provided a long command with -device loader at 0x8000, -drive for the SD image, -serial flags, and display options. Yoann is now requesting a toplevel script to wrap this command and similar verbose invocations for easier kernel execution. The script should let users run xv6 and 9 kernels with their disk images without memorizing or typing long command-line arguments. This reduces the friction of testing different kernel configurations during development work.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 07:41
+
+**Yoann:**
+
+> let's make a script at the toplevel that makes it easier for me to run the xv6 kernel and 9 kernel with their images without typing a long command

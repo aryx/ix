@@ -1,0 +1,78 @@
+#!/bin/bash
+# Claude Code
+#
+# Copyright (C) 2026 Yoann Padioleau
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public License
+# (LGPL) as published by the Free Software Foundation; either version
+# 2 of the License, or (at your option) any later version.
+#
+# pi: boot a Raspberry Pi kernel under TinyRaspberryPi (raspberry/,
+# tinypi) without its long command line: the kernel, its image, the
+# options its own Makefile gives QEMU.
+#
+#   ./pi xv6            xv6 arm-pi1-bis, the console in this terminal
+#   ./pi xv6-pi1        xv6 arm-pi1
+#   ./pi 9pi            principia's 9pi, its SD card image, the console
+#                       in this terminal (the mini UART)
+#
+# Options:
+#   -g   a window: the framebuffer (and for xv6, a USB keyboard: type in
+#        the window or in the terminal)
+#   -w   9pi: write to the SD card image (by default its writes are kept
+#        in memory and lost at exit, QEMU's snapshot=on)
+#   -q   run QEMU instead, with the same arguments (to compare)
+#   -d   tinypi's log of unassigned I/O and undefined instructions
+#   -n   no build (use tinypi as last built)
+#
+# Quit with Ctrl-A then x (or close the window).
+#
+# Where the kernels are: $XV6 (default ~/xv6: xv6-multiarch, its ports
+# built), $PRINCIPIA (default ~/principia: 9pi built, qemu-sd.img).
+
+set -e
+ROOT=$(cd "$(dirname "$0")" && pwd)
+XV6=${XV6:-$HOME/xv6}
+PRINCIPIA=${PRINCIPIA:-$HOME/principia}
+graphics=0; write=0; qemu=0; debug=0; build=1
+
+usage() { sed -n '/^# pi:/,/^# built), /p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+
+while getopts gwqdnh o; do
+  case $o in
+    g) graphics=1;; w) write=1;; q) qemu=1;; d) debug=1;; n) build=0;; *) usage;;
+  esac
+done
+shift $((OPTIND - 1))
+[ $# = 1 ] || usage
+
+case $1 in
+  xv6|xv6-pi1)
+    port=arm-pi1-bis; image=kernel.img
+    [ $1 = xv6-pi1 ] && { port=arm-pi1; image=kernel-qemu.img; }
+    dir=$XV6/forks/$port
+    args=(-M raspi1ap -kernel $image)
+    if [ $graphics = 1 ]; then args+=(-serial mon:stdio -device usb-kbd); else args+=(-nographic); fi
+    ;;
+  9pi)
+    dir=$PRINCIPIA
+    image=kernel/COMPILE/9/bcm/9pi
+    snapshot=",snapshot=on"; [ $write = 1 ] && snapshot=""
+    [ -f $dir/qemu-sd.img ] || { echo "pi: no $dir/qemu-sd.img (principia: mk disk)"; exit 1; }
+    args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on
+          -drive file=qemu-sd.img,if=sd,format=raw$snapshot -serial null -serial mon:stdio)
+    [ $graphics = 1 ] || args+=(-display none)
+    ;;
+  *) usage;;
+esac
+[ -f $dir/$image ] || { echo "pi: no $dir/$image (build the kernel first)"; exit 1; }
+
+if [ $qemu = 1 ]; then
+  cd $dir && exec qemu-system-arm "${args[@]}"
+fi
+if [ $build = 1 ]; then
+  (cd $ROOT && dune build --profile release ./raspberry/Main.exe 2>&1) || exit 1
+fi
+[ $debug = 1 ] && args+=(-d)
+cd $dir && exec $ROOT/_build/default/raspberry/Main.exe "${args[@]}"
