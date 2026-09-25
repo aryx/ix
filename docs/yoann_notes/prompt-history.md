@@ -4663,3 +4663,15 @@ Claude offered edits to the working tree if changes were needed but Yoann approv
 **Yoann:**
 
 > it's fine, the headers are good, we can stop there and resume what we were doing before
+
+**Claude (summary):**
+
+Claude completed VFP instructions and step 2 with trap handler, running identically in mini-qemu and QEMU. Claude proposed step 3: each process gets a kernel stack with OCaml runtime globals saved at switches. A GC hook in ocaml-light's roots.c scans all process stacks to make garbage collection aware of each. This solves the multi-process challenge where processes may sleep mid-syscall while the GC runs elsewhere. Yoann approved but requested a tutorial and related work for the kernel first before implementing step 3.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 14:29
+
+**Yoann:**
+
+> yes, but before let's add a tutorial and related work for the kernel, like we have for the other programs

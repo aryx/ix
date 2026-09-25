@@ -1,5 +1,12 @@
 # Plan: mini-xv6, an xv6 in OCaml on the Pi1 (`kernel/`)
 
+Companions: [`notes_kernel.md`](../tutorials/notes_kernel.md), the
+tutorial (the runtime and what it needs bare-metal, the steps, the
+stacks the collector must know, memory as typed views), and
+[`notes_kernel_related_work.md`](../related-work/notes_kernel_related_work.md)
+(kernels in collected languages, from the Lisp machines and Oberon to
+Biscuit; OCaml without an OS, MirageOS; xv6 and its descendants).
+
 The author (2026-09-25), after tiny-os v6 (tiny/tiny-os/v6/, an xv6 in
 2,600 lines of C on TinyMachine): "do you think a mini-xv6, in OCaml,
 following again xv6 would be clearer and shorter? [...] can we design
