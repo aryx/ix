@@ -512,6 +512,15 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 2: Scope.** `languages/ml/Scope.ml`: the names
+  resolved, modules flattened (nested, aliased, opened), another unit's
+  from its `.mli` read as source (its `.ml` without one), found in the
+  source's directory then the `-I`s; locals numbered, globals `M.x` (a
+  shadowed one `M.x/2`), externals their primitive and arity,
+  constructors their tag, labels their position and the record's size.
+  `mini-ml -dscope`. `corpus.sh`: 180 files resolved (every `.ml` of
+  mini-9pi, of the stdlib, of `test/`), and Lex's `main.ml` needs its
+  generated `Scanner`.
 - **2026-09-26, phase 2 started: the parser.** `languages/ml/`: `Ast.ml`
   (the tree, and `-dast`'s S-expressions), `Lexer.mll`, `Parser.mly`
   (ocaml-light's grammar for the subset: 40 shift/reduce conflicts,

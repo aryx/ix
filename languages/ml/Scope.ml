@@ -1,0 +1,464 @@
+(* Claude Code
+ *
+ * Copyright (C) 2026 Yoann Padioleau
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public License
+ * (LGPL) as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
+ *)
+(* See Scope.mli *)
+
+type var = { vname : string; vid : int }
+type global = { gpath : string list; gname : string; mutable gsym : string }
+type value = Local of var | Global of global | Prim of string * int
+type kind = Const of int | Block of int | Exn of global
+type cons = { cname : string; kind : kind; arity : int; nconst : int; nblock : int }
+type label = { lname : string; pos : int; mut : bool; size : int }
+
+type pattern =
+  | Pany
+  | Pvar of var
+  | Palias of pattern * var
+  | Pconst of Ast.constant
+  | Prange of char * char
+  | Ptuple of pattern list
+  | Pcons of cons * pattern list
+  | Precord of (label * pattern) list
+  | Por of pattern * pattern
+
+type expr = { e : exp; loc : int }
+
+and exp =
+  | Evar of value
+  | Econst of Ast.constant
+  | Elet of bool * (pattern * expr) list * expr
+  | Efunction of case list
+  | Eapply of expr * expr list
+  | Ematch of expr * case list
+  | Etry of expr * case list
+  | Etuple of expr list
+  | Econs of cons * expr list
+  | Erecord of int * (label * expr) list
+  | Ewith of expr * int * (label * expr) list
+  | Efield of expr * label
+  | Esetfield of expr * label * expr
+  | Earray of expr list
+  | Eif of expr * expr * expr option
+  | Eseq of expr * expr
+  | Ewhile of expr * expr
+  | Efor of var * expr * expr * Ast.dir * expr
+  | Eassert of expr
+
+and case = pattern * expr option * expr
+
+type item =
+  | Ieval of expr
+  | Ivalue of bool * (pattern * expr) list * (var * global) list
+  | Iexception of global * string
+
+exception Error of int * string
+
+type loader = string -> [ `Sig of Ast.signature | `Str of Ast.structure ] option
+
+let error loc fmt = Printf.ksprintf (fun m -> raise (Error (loc, m))) fmt
+
+(*****************************************************************************)
+(* Environments *)
+(*****************************************************************************)
+
+(* each list the innermost name first; a module's env its exports,
+ * computed when first named *)
+type env = {
+  values : (string * value) list;
+  conses : (string * cons) list;
+  labels : (string * label) list;
+  modules : (string * modl) list;
+}
+
+and modl = { mpath : string list; menv : env Lazy.t }
+
+let empty = { values = []; conses = []; labels = []; modules = [] }
+
+(* inner's names in front of outer's: an open *)
+let add inner outer =
+  { values = inner.values @ outer.values; conses = inner.conses @ outer.conses; labels = inner.labels @ outer.labels;
+    modules = inner.modules @ outer.modules }
+
+let add_value x v env = { env with values = (x, v) :: env.values }
+let add_module m md env = { env with modules = (m, md) :: env.modules }
+let symbol path x = String.concat "." (path @ [ x ])
+let global path x = { gpath = path; gname = x; gsym = symbol path x }
+let rec arity = function Ast.Tarrow (_, r) -> 1 + arity r | _ -> 0
+
+(* a type's constructors, numbered, and its labels *)
+let decl (d : Ast.type_decl) env =
+  match d.tkind with
+  | Abstract -> env
+  | Variant cs ->
+      let nconst = List.length (List.filter (fun (_, a) -> a = []) cs) in
+      let nblock = List.length cs - nconst in
+      let _, _, conses =
+        List.fold_left (fun (ic, ib, acc) (c, args) ->
+          let kind, ic, ib = if args = [] then Const ic, ic + 1, ib else Block ib, ic, ib + 1 in
+          ic, ib, (c, { cname = c; kind; arity = List.length args; nconst; nblock }) :: acc) (0, 0, []) cs
+      in
+      { env with conses = conses @ env.conses }
+  | Record ls ->
+      let size = List.length ls in
+      { env with labels = List.rev (List.mapi (fun pos (l, mut, _) -> l, { lname = l; pos; mut; size }) ls) @ env.labels }
+
+let exn_cons c g n = c, { cname = c; kind = Exn g; arity = n; nconst = 0; nblock = 0 }
+
+(* the predefined: bool, unit, list, and the runtime's exceptions *)
+let predef =
+  let bools = [ "false", Const 0; "true", Const 1 ] in
+  { empty with
+    conses =
+      List.map (fun (c, k) -> c, { cname = c; kind = k; arity = 0; nconst = 2; nblock = 0 }) bools
+      @ [ "()", { cname = "()"; kind = Const 0; arity = 0; nconst = 1; nblock = 0 };
+          "[]", { cname = "[]"; kind = Const 0; arity = 0; nconst = 1; nblock = 1 };
+          "::", { cname = "::"; kind = Block 0; arity = 2; nconst = 1; nblock = 1 } ]
+      @ List.map (fun (c, n) -> exn_cons c { gpath = []; gname = c; gsym = "caml_exn_" ^ c } n)
+          [ "Match_failure", 1; "Assert_failure", 1; "Out_of_memory", 0; "Stack_overflow", 0; "Invalid_argument", 1;
+            "Failure", 1; "Not_found", 0; "Sys_error", 1; "End_of_file", 0; "Division_by_zero", 0 ] }
+
+(*****************************************************************************)
+(* Units: another file's names, from its source *)
+(*****************************************************************************)
+
+let units : (string, modl option) Hashtbl.t = Hashtbl.create 16
+let loader : loader ref = ref (fun _ -> None)
+
+let rec unit_modl name =
+  match Hashtbl.find_opt units name with
+  | Some m -> m
+  | None ->
+      let m =
+        Option.map (fun src ->
+          { mpath = [ name ]; menv = lazy (match src with `Sig s -> sig_env [ name ] s | `Str s -> str_env [ name ] s) })
+          (!loader name)
+      in
+      Hashtbl.replace units name m;
+      m
+
+(* what an interface exports *)
+and sig_env path (items : Ast.signature) =
+  List.fold_left (fun env (it : Ast.sig_item) ->
+    match it.s with
+    | Sval (x, _) -> add_value x (Global (global path x)) env
+    | Sexternal (x, t, p :: _) -> add_value x (Prim (p, arity t)) env
+    | Sexternal (x, _, []) -> error it.sloc "%s: an external without a primitive" x
+    | Stype ds -> List.fold_left (fun env d -> decl d env) env ds
+    | Sexception (c, ts) -> { env with conses = exn_cons c (global path c) (List.length ts) :: env.conses }
+    | Smodule (m, MTsig s) -> add_module m { mpath = path @ [ m ]; menv = lazy (sig_env (path @ [ m ]) s) } env
+    | Smodule (m, MTident _) -> error it.sloc "module %s: a module type's name (none in the subset)" m
+    | Sopen _ -> env) empty items
+
+(* what an implementation without an interface exports: its toplevel *)
+and str_env path (items : Ast.structure) =
+  let rec pvars (p : Ast.pattern) =
+    match p.p with
+    | Pvar x -> [ x ]
+    | Palias (p, x) -> x :: pvars p
+    | Ptuple ps -> List.concat_map pvars ps
+    | Pconstruct (_, Some p) | Pconstraint (p, _) -> pvars p
+    | Precord fs -> List.concat_map (fun (_, p) -> pvars p) fs
+    | Por (p, _) -> pvars p
+    | Pany | Pconst _ | Prange _ | Pconstruct (_, None) -> []
+  in
+  List.fold_left (fun env (it : Ast.item) ->
+    match it.i with
+    | Ieval _ | Iopen _ -> env
+    | Ivalue (_, bs) -> List.fold_left (fun env x -> add_value x (Global (global path x)) env) env (List.concat_map (fun (p, _) -> pvars p) bs)
+    | Iexternal (x, t, p :: _) -> add_value x (Prim (p, arity t)) env
+    | Iexternal (x, _, []) -> error it.iloc "%s: an external without a primitive" x
+    | Itype ds -> List.fold_left (fun env d -> decl d env) env ds
+    | Iexception (c, ts) -> { env with conses = exn_cons c (global path c) (List.length ts) :: env.conses }
+    | Imodule (m, me) ->
+        let rec md = function
+          | Ast.Mstruct s -> { mpath = path @ [ m ]; menv = lazy (str_env (path @ [ m ]) s) }
+          | Mident id -> find_module predef it.iloc id
+          | Mconstraint (me, _) -> md me
+        in
+        add_module m (md me) env) empty items
+
+and find_module env loc (id : Ast.longid) =
+  match id with
+  | [] -> assert false
+  | m :: rest ->
+      let md =
+        match List.assoc_opt m env.modules with
+        | Some md -> md
+        | None -> (match unit_modl m with Some md -> md | None -> error loc "unbound module %s" m)
+      in
+      List.fold_left (fun md m ->
+        match List.assoc_opt m (Lazy.force md.menv).modules with
+        | Some md -> md
+        | None -> error loc "unbound module %s" (symbol md.mpath m)) md rest
+
+(* M.N.x: x in the module M.N, or in env *)
+let lookup env loc (id : Ast.longid) field what =
+  match List.rev id with
+  | [] -> assert false
+  | x :: rmods ->
+      let env = if rmods = [] then env else Lazy.force (find_module env loc (List.rev rmods)).menv in
+      match List.assoc_opt x (field env) with
+      | Some v -> v
+      | None -> error loc "unbound %s %s" what (Ast.name id)
+
+let value env loc id = lookup env loc id (fun e -> e.values) "value"
+let cons env loc id = lookup env loc id (fun e -> e.conses) "constructor"
+
+(* a label; unqualified and not in scope, in the module of the record's
+ * other labels ({ Dev.dname = n; dqid = q }) *)
+let label env loc (ls : Ast.longid list) id =
+  try lookup env loc id (fun e -> e.labels) "label"
+  with Error _ as e -> (
+    match id, List.find_opt (fun l -> List.length l > 1) ls with
+    | [ x ], Some q -> lookup env loc (List.rev (x :: List.tl (List.rev q))) (fun e -> e.labels) "label"
+    | _ -> raise e)
+
+(*****************************************************************************)
+(* Patterns and expressions *)
+(*****************************************************************************)
+
+let fresh = ref 0
+let new_var x = incr fresh; { vname = x; vid = !fresh }
+
+(* C (a, b) of a constructor of 2 arguments; C _ of any *)
+let split loc (c : cons) arg untuple any =
+  match arg with
+  | None when c.arity = 0 -> []
+  | Some a when c.arity = 1 -> [ a ]
+  | Some a when c.arity > 1 -> (
+      match untuple a with
+      | Some l when List.length l = c.arity -> l
+      | _ -> if any a then List.init c.arity (fun _ -> a) else error loc "%s expects %d arguments" c.cname c.arity)
+  | _ -> error loc "%s expects %d argument(s)" c.cname c.arity
+
+(* a pattern, and the variables it binds *)
+let rec pattern env (p : Ast.pattern) : pattern * (string * var) list =
+  let many ps = let l = List.map (pattern env) ps in List.map fst l, List.concat_map snd l in
+  match p.p with
+  | Pany -> Pany, []
+  | Pvar x -> let v = new_var x in Pvar v, [ x, v ]
+  | Palias (p, x) -> let p, bs = pattern env p in let v = new_var x in Palias (p, v), (x, v) :: bs
+  | Pconst c -> Pconst c, []
+  | Prange (a, b) -> Prange (a, b), []
+  | Ptuple ps -> let ps, bs = many ps in Ptuple ps, bs
+  | Pconstruct (id, arg) ->
+      let c = cons env p.ploc id in
+      let args = split p.ploc c arg (function { Ast.p = Ptuple l; _ } -> Some l | _ -> None) (fun a -> a.Ast.p = Pany) in
+      let ps, bs = many args in
+      Pcons (c, ps), bs
+  | Precord fs ->
+      let ls = List.map fst fs in
+      let fs = List.map (fun (l, q) -> let q, bs = pattern env q in (label env p.ploc ls l, q), bs) fs in
+      Precord (List.map fst fs), List.concat_map snd fs
+  | Por (a, b) ->
+      let a, ba = pattern env a and b, bb = pattern env b in
+      if List.sort compare (List.map fst ba) <> List.sort compare (List.map fst bb) then error p.ploc "the two sides of | bind different variables";
+      (* the right side's variables are the left's *)
+      Por (a, rename (List.map (fun (x, v) -> v, List.assoc x ba) bb) b), ba
+  | Pconstraint (p, _) -> pattern env p
+
+and rename m = function
+  | Pvar v -> Pvar (List.assq v m)
+  | Palias (p, v) -> Palias (rename m p, List.assq v m)
+  | Ptuple ps -> Ptuple (List.map (rename m) ps)
+  | Pcons (c, ps) -> Pcons (c, List.map (rename m) ps)
+  | Precord fs -> Precord (List.map (fun (l, p) -> l, rename m p) fs)
+  | Por (a, b) -> Por (rename m a, rename m b)
+  | (Pany | Pconst _ | Prange _) as p -> p
+
+let bind env bs = List.fold_left (fun env (x, v) -> add_value x (Local v) env) env bs
+
+let rec expr env (x : Ast.expr) : expr =
+  let mk e = { e; loc = x.eloc } in
+  let ex = expr env in
+  let fields fs = let ls = List.map fst fs in List.map (fun (l, e) -> label env x.eloc ls l, ex e) fs in
+  let size = function (l, _) :: _ -> l.size | [] -> error x.eloc "a record without fields" in
+  match x.e with
+  | Eident id -> mk (Evar (value env x.eloc id))
+  | Econst c -> mk (Econst c)
+  | Elet (Nonrec, bs, body) ->
+      let bs = List.map (fun (p, e) -> let e = ex e in let p, vs = pattern env p in (p, e), vs) bs in
+      mk (Elet (false, List.map fst bs, expr (bind env (List.concat_map snd bs)) body))
+  | Elet (Rec, bs, body) ->
+      let bs, _, env = recursive env bs in
+      mk (Elet (true, bs, expr env body))
+  | Efunction cs -> mk (Efunction (cases env cs))
+  | Eapply (f, args) -> mk (Eapply (ex f, List.map ex args))
+  | Ematch (e, cs) -> mk (Ematch (ex e, cases env cs))
+  | Etry (e, cs) -> mk (Etry (ex e, cases env cs))
+  | Etuple es -> mk (Etuple (List.map ex es))
+  | Econstruct (id, arg) ->
+      let c = cons env x.eloc id in
+      let args = split x.eloc c arg (function { Ast.e = Etuple l; _ } -> Some l | _ -> None) (fun _ -> false) in
+      mk (Econs (c, List.map ex args))
+  | Erecord fs -> let fs = fields fs in mk (Erecord (size fs, fs))
+  | Ewith (e, fs) -> let fs = fields fs in mk (Ewith (ex e, size fs, fs))
+  | Efield (e, l) -> mk (Efield (ex e, label env x.eloc [ l ] l))
+  | Esetfield (e, l, v) ->
+      let l = label env x.eloc [ l ] l in
+      if not l.mut then error x.eloc "the field %s is not mutable" l.lname;
+      mk (Esetfield (ex e, l, ex v))
+  | Earray es -> mk (Earray (List.map ex es))
+  | Eif (c, a, b) -> mk (Eif (ex c, ex a, Option.map ex b))
+  | Eseq (a, b) -> mk (Eseq (ex a, ex b))
+  | Ewhile (c, b) -> mk (Ewhile (ex c, ex b))
+  | Efor (i, a, b, d, body) -> let v = new_var i in mk (Efor (v, ex a, ex b, d, expr (bind env [ i, v ]) body))
+  | Econstraint (e, _) -> ex e
+  | Eassert e -> mk (Eassert (ex e))
+
+and cases env cs =
+  List.map (fun (p, g, e) ->
+    let p, vs = pattern env p in
+    let env = bind env vs in
+    p, Option.map (expr env) g, expr env e) cs
+
+(* let rec: the names first, each a variable *)
+and recursive env bs =
+  let vs = List.map (fun ((p : Ast.pattern), _) -> match p.p with Pvar x -> x, new_var x | _ -> error p.ploc "let rec: a name expected") bs in
+  let env = bind env vs in
+  List.map2 (fun (_, v) (_, e) -> Pvar v, expr env e) vs bs, vs, env
+
+(*****************************************************************************)
+(* A unit *)
+(*****************************************************************************)
+
+(* the current unit's globals by symbol, the last defined; an earlier
+ * one renamed M.x/2 *)
+let defined : (string, global) Hashtbl.t = Hashtbl.create 64
+let shadowed = ref 0
+
+let define path x =
+  let sym = symbol path x in
+  (match Hashtbl.find_opt defined sym with
+   | Some g -> incr shadowed; g.gsym <- Printf.sprintf "%s/%d" sym !shadowed
+   | None -> ());
+  let g = global path x in
+  Hashtbl.replace defined sym g;
+  g
+
+(* a structure at path, in env: its items, and the names it exports *)
+let rec structure path env (items : Ast.structure) : item list * env * env =
+  let out = ref [] in
+  let emit i = out := i :: !out in
+  let env, exports =
+    List.fold_left (fun (env, exports) (it : Ast.item) ->
+      let both f = f env, f exports in
+      match it.i with
+      | Ieval e -> emit (Ieval (expr env e)); env, exports
+      | Ivalue (r, bs) ->
+          let bs, vs =
+            if r = Rec then (let bs, vs, _ = recursive env bs in bs, vs)
+            else (let l = List.map (fun (p, e) -> let e = expr env e in let p, vs = pattern env p in (p, e), vs) bs in List.map fst l, List.concat_map snd l)
+          in
+          let gs = List.map (fun (x, v) -> x, v, define path x) vs in
+          emit (Ivalue (r = Rec, bs, List.map (fun (_, v, g) -> v, g) gs));
+          List.fold_left (fun (env, exports) (x, _, g) -> add_value x (Global g) env, add_value x (Global g) exports) (env, exports) (List.rev gs)
+      | Iexternal (x, t, p :: _) -> both (add_value x (Prim (p, arity t)))
+      | Iexternal (x, _, []) -> error it.iloc "%s: an external without a primitive" x
+      | Itype ds -> both (fun env -> List.fold_left (fun env d -> decl d env) env ds)
+      | Iexception (c, ts) ->
+          let g = define path c in
+          emit (Iexception (g, c));
+          both (fun env -> { env with conses = exn_cons c g (List.length ts) :: env.conses })
+      | Imodule (m, me) ->
+          let rec md = function
+            | Ast.Mstruct s ->
+                let items, _, sub = structure (path @ [ m ]) env s in
+                List.iter emit items;
+                { mpath = path @ [ m ]; menv = Lazy.from_val sub }
+            | Mident id -> find_module env it.iloc id
+            | Mconstraint (me, _) -> md me
+          in
+          let md = md me in
+          both (add_module m md)
+      | Iopen id -> add (Lazy.force (find_module env it.iloc id).menv) env, exports) (env, empty) items
+  in
+  List.rev !out, env, exports
+
+let implementation load name items =
+  loader := load;
+  Hashtbl.reset units;
+  Hashtbl.reset defined;
+  let env =
+    if name = "Pervasives" then predef
+    else match unit_modl "Pervasives" with Some md -> add (Lazy.force md.menv) predef | None -> error 0 "no Pervasives (-I the stdlib)"
+  in
+  let items, _, _ = structure [ name ] env items in
+  items
+
+(*****************************************************************************)
+(* -dscope *)
+(*****************************************************************************)
+
+let list f l = String.concat " " (List.map f l)
+let var v = Printf.sprintf "%s/%d" v.vname v.vid
+
+let show_value = function
+  | Local v -> var v
+  | Global g -> g.gsym
+  | Prim (p, n) -> Printf.sprintf "%%%s/%d" p n
+
+let show_cons c =
+  match c.kind with
+  | Const n -> Printf.sprintf "%s#%d" c.cname n
+  | Block t -> Printf.sprintf "%s[%d]" c.cname t
+  | Exn g -> Printf.sprintf "%s!%s" c.cname g.gsym
+
+let show_label l = Printf.sprintf "%s.%d" l.lname l.pos
+
+let rec show_pat = function
+  | Pany -> "_"
+  | Pvar v -> var v
+  | Palias (p, v) -> Printf.sprintf "(as %s %s)" (show_pat p) (var v)
+  | Pconst c -> Ast.const c
+  | Prange (a, b) -> Printf.sprintf "(.. %C %C)" a b
+  | Ptuple ps -> Printf.sprintf "(, %s)" (list show_pat ps)
+  | Pcons (c, []) -> show_cons c
+  | Pcons (c, ps) -> Printf.sprintf "(%s %s)" (show_cons c) (list show_pat ps)
+  | Precord fs -> Printf.sprintf "{%s}" (list (fun (l, p) -> Printf.sprintf "(%s %s)" (show_label l) (show_pat p)) fs)
+  | Por (a, b) -> Printf.sprintf "(| %s %s)" (show_pat a) (show_pat b)
+
+let rec show e =
+  let fields fs = list (fun (l, e) -> Printf.sprintf "(%s %s)" (show_label l) (show e)) fs in
+  match e.e with
+  | Evar v -> show_value v
+  | Econst c -> Ast.const c
+  | Elet (r, bs, b) -> Printf.sprintf "(let%s (%s) %s)" (if r then "rec" else "") (bindings bs) (show b)
+  | Efunction cs -> Printf.sprintf "(function %s)" (cases cs)
+  | Eapply (f, args) -> Printf.sprintf "(%s %s)" (show f) (list show args)
+  | Ematch (e, cs) -> Printf.sprintf "(match %s %s)" (show e) (cases cs)
+  | Etry (e, cs) -> Printf.sprintf "(try %s %s)" (show e) (cases cs)
+  | Etuple es -> Printf.sprintf "(, %s)" (list show es)
+  | Econs (c, []) -> show_cons c
+  | Econs (c, es) -> Printf.sprintf "(%s %s)" (show_cons c) (list show es)
+  | Erecord (n, fs) -> Printf.sprintf "{%d %s}" n (fields fs)
+  | Ewith (e, n, fs) -> Printf.sprintf "{%d %s with %s}" n (show e) (fields fs)
+  | Efield (e, l) -> Printf.sprintf "(. %s %s)" (show e) (show_label l)
+  | Esetfield (e, l, v) -> Printf.sprintf "(<- %s %s %s)" (show e) (show_label l) (show v)
+  | Earray es -> Printf.sprintf "[|%s|]" (list show es)
+  | Eif (c, a, None) -> Printf.sprintf "(if %s %s)" (show c) (show a)
+  | Eif (c, a, Some b) -> Printf.sprintf "(if %s %s %s)" (show c) (show a) (show b)
+  | Eseq (a, b) -> Printf.sprintf "(seq %s %s)" (show a) (show b)
+  | Ewhile (c, b) -> Printf.sprintf "(while %s %s)" (show c) (show b)
+  | Efor (v, a, b, d, body) -> Printf.sprintf "(for %s %s %s %s %s)" (var v) (show a) (if d = Upto then "to" else "downto") (show b) (show body)
+  | Eassert e -> Printf.sprintf "(assert %s)" (show e)
+
+and bindings bs = list (fun (p, e) -> Printf.sprintf "(%s %s)" (show_pat p) (show e)) bs
+
+and cases cs =
+  list (fun (p, g, e) ->
+    match g with
+    | None -> Printf.sprintf "(%s %s)" (show_pat p) (show e)
+    | Some g -> Printf.sprintf "(%s when %s %s)" (show_pat p) (show g) (show e)) cs
+
+let show_item = function
+  | Ieval e -> show e
+  | Ivalue (r, bs, gs) ->
+      Printf.sprintf "(let%s %s) -> %s" (if r then "rec" else "") (bindings bs) (list (fun (v, g) -> var v ^ ":" ^ g.gsym) gs)
+  | Iexception (g, c) -> Printf.sprintf "(exception %s %s)" c g.gsym

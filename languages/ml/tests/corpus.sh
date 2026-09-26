@@ -12,7 +12,8 @@
 # and .mli of mini-9pi (kernel/9pi, kernel/lib), of ocaml-light's
 # stdlib (the one the kernels are built with: $OCL/src/stdlib, from
 # kernel/ocaml-light.sh) and of its test/ ($OCAML_LIGHT/test), through
-# mini-ml $FLAGS (default: the parser only); each failure printed, then
+# mini-ml (parsed, and a .ml's names resolved), with the kernel's and
+# the stdlib's directories as -I; each failure printed, then
 # the counts. The files outside the subset are expected to fail:
 # EXPECTED lists them.
 # usage: corpus.sh [file...]
@@ -28,11 +29,12 @@ if [ ${#files[@]} = 0 ]; then
   [ -d $OCAML_LIGHT/test ] && files+=($(find $OCAML_LIGHT/test -name '*.ml' -o -name '*.mli' | sort))
 fi
 # outside the subset: let-operators (letstar), a functor (sets: Set.Make),
-# Caml Light's #open (testmain)
-EXPECTED=" letstar.ml sets.ml testmain.ml "
+# Caml Light's #open (testmain); and Lex's main, whose Scanner and Grammar
+# are generated (ocamllex, ocamlyacc)
+EXPECTED=" letstar.ml sets.ml testmain.ml main.ml "
 ok=0; expected=0; failures=0
 for f in "${files[@]}"; do
-  if out=$($ML $FLAGS $f 2>&1 >/dev/null); then ok=$((ok + 1))
+  if out=$($ML -I $ROOT/kernel/lib -I $OCL/src/stdlib $f 2>&1 >/dev/null); then ok=$((ok + 1))
   elif [[ "$EXPECTED" == *" $(basename $f) "* ]]; then expected=$((expected + 1))
   else echo "FAIL $out"; failures=$((failures + 1)); fi
 done
