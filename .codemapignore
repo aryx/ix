@@ -12,3 +12,5 @@ bin/
 step[0-9]/
 
 prompt-history.md
+
+compat/
