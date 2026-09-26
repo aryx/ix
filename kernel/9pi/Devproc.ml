@@ -55,7 +55,8 @@ let num v = let s = string_of_int v in String.make (max 0 (numsize - 1 - String.
 let status p =
   let st = if p.psstate <> "" then p.psstate
     else match p.state with Running -> "Running" | Runnable -> "Ready" | Sleeping _ -> "Wakeme" | Zombie -> "Moribund" in
-  let mem = List.fold_left (fun n s -> if s.kind = Text then n else n + (s.top - s.base)) 0 p.segs in
+  (* the segments but the stack ("mostly non-existent") *)
+  let mem = List.fold_left (fun n s -> if s.kind = Stack then n else n + (s.top - s.base)) 0 p.segs in
   field knamelen p.text ^ field knamelen !Dev.eve ^ field 12 st
   ^ num 0 ^ num 0 ^ num ((!Proc.ticks - p.start) * 10) ^ num 0 ^ num 0 ^ num (mem / 1024) ^ num 10 ^ num 10
   ^ String.make (statsize - (2 * knamelen) - 12 - (8 * numsize)) ' '
@@ -114,12 +115,11 @@ let init () =
       let p = find (c.qid.path / 32) in
       (match name_of c.qid.path with
        | "ctl" ->
-           if s = "kill" || s = "kill\n" then begin
-             p.killed <- true;
-             match p.state with Sleeping _ -> Proc.ready p | _ -> ()
-           end
+           if s = "kill" || s = "kill\n" then ignore (Proc.postnote p "sys: killed" Nexit)
            else raise (Error ebadctl)
-       | "note" -> if s = "kill" then p.killed <- true
+       | "note" -> ignore (Proc.postnote p s Nuser)
+       | "notepg" ->
+           List.iter (fun q -> if q.noteid = p.noteid then ignore (Proc.postnote q s Nuser)) (procs ())
        | _ -> raise (Error eperm));
       String.length s);
   }

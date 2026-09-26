@@ -45,7 +45,7 @@ let shargs s =
  * path, then the caller's arguments but argv[0]) *)
 let rec resolve p path args indir =
   let c = Chan.namec p path in
-  Chan.open_ c (Chan.mode_of_int 3);
+  let c = Chan.named path (fun () -> Chan.open_ c (Chan.mode_of_int 3)) in
   let hdr = (Dev.find c.dev).Dev.read c hdr_size 0 in
   if String.length hdr < 2 then raise (Error ebadexec)
   else if String.length hdr = hdr_size && be32 hdr 0 = aout_magic then c, hdr, args
@@ -94,8 +94,6 @@ let set_tos_pid p = ignore (Mmu.write p.pgdir (ustktop - tos_size + 52) (Machine
 (* Exec *)
 (*****************************************************************************)
 
-let alloc pgdir lo hi = if hi > lo then match Mmu.alloc pgdir lo hi with Some _ -> () | None -> raise (Error enovmem)
-
 let exec p path args =
   let c, hdr, args = resolve p path args false in
   let text = be32 hdr 4 and data = be32 hdr 8 and bss = be32 hdr 12 and entry = be32 hdr 20 in
@@ -109,21 +107,29 @@ let exec p path args =
   (* the new space: only the stack's pages the arguments are on; the
    * rest at their first touch (Fault) *)
   let pgdir = match Mmu.create () with Some d -> d | None -> Chan.close c; raise (Error enovmem) in
-  (try
-    alloc pgdir (ustktop - round (String.length stack) pgsize) ustktop;
-    ignore (Mmu.write pgdir (ustktop - String.length stack) stack)
-  with e -> Mmu.free pgdir; Chan.close c; raise e);
-  (* committed: the old memory freed, the close-on-exec files closed;
-   * text and data read from the file (c, held by both) *)
-  let old = p.pgdir in
-  Fault.release p.segs;
   Chan.incref c;
+  let segs = [ Fault.create Text utzero t (Some c) 0 (hdr_size + text);
+               Fault.create Data t d (Some c) (hdr_size + text) data;
+               Fault.create Bss d b None 0 0;
+               Fault.create Stack (ustktop - ustksize) ustktop None 0 0 ] in
+  let stk = List.nth segs 3 in
+  (try
+    let lo = ustktop - String.length stack in
+    let rec pages va = if va < ustktop then begin Fault.page pgdir stk va; pages (va + pgsize) end in
+    pages (lo land lnot (pgsize - 1));
+    ignore (Mmu.write pgdir lo stack)
+  with e -> Fault.release pgdir segs; raise e);
+  (* committed: the old memory released, the close-on-exec files closed;
+   * text and data read from the file (c, held by both) *)
+  let old = p.pgdir and oldsegs = p.segs in
   p.pgdir <- pgdir;
-  p.segs <- [ { kind = Text; base = utzero; top = t; image = Some c; fstart = 0; flen = hdr_size + text };
-              { kind = Data; base = t; top = d; image = Some c; fstart = hdr_size + text; flen = data };
-              { kind = Bss; base = d; top = b; image = None; fstart = 0; flen = 0 };
-              { kind = Stack; base = ustktop - ustksize; top = ustktop; image = None; fstart = 0; flen = 0 } ];
+  p.segs <- segs;
   p.text <- Chan.basename path;
+  (* no handler, no note pending (sysexec's) *)
+  p.notify <- 0;
+  p.notified <- false;
+  p.notes <- [];
+  p.ureg <- 0;
   (* the arguments' first 128 bytes, NUL-separated (/proc/n/args) *)
   let a = String.concat "" (List.map (fun a -> a ^ "\000") args) in
   p.args <- (if String.length a > 128 then String.sub a 0 128 else a);
@@ -131,7 +137,7 @@ let exec p path args =
     | Some c when (match c.opened with Some m -> m.cexec | None -> false) -> p.fgrp.fds.(fd) <- None; Chan.close c
     | _ -> ()) p.fgrp.fds;
   Machine.mmu_switch pgdir;
-  if old <> 0 then Mmu.free old;
+  Fault.release old oldsegs;
   Machine.tf_set Arch.tf_pc entry;
   Machine.tf_set Arch.tf_sp (ustktop - ssize - 4);
   ustktop - tos_size

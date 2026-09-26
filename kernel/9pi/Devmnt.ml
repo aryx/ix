@@ -30,9 +30,14 @@ let mnts = ref []
 let next_mid = ref 1
 let next_fid = ref 1
 
+(* each attach's and auth's channels numbered (mntchan's mntalloc.id: a
+ * refused auth's number spent too), the session of each *)
+let ids = ref []
+let next_id = ref 1
+
 let rpcerr = "mount rpc error"
 
-let find devno = try List.find (fun m -> m.mid = devno) !mnts with Not_found -> raise (Error rpcerr)
+let find devno = try List.assoc devno !ids with Not_found -> raise (Error rpcerr)
 
 let newfid () = let f = !next_fid in incr next_fid; f
 
@@ -117,23 +122,32 @@ let session c msize =
 
 let version c msize _ = (session c msize).msize
 
-let mchan m qid fid =
-  let c = Dev.attach 'M' m.mid qid in
+(* a number for an attach's or auth's channel (mntchan) *)
+let mchan_id m =
+  let id = !next_id in
+  incr next_id;
+  ids := (id, m) :: !ids;
+  id
+
+let mchan id qid fid =
+  let c = Dev.attach 'M' id qid in
   c.fid <- fid;
   c
 
 let attach c aname =
   let m = session c 0 in
+  let id = mchan_id m in
   let fid = newfid () in
   match rpc m (P9.Request.Attach (fid, None, !Dev.eve, aname)) with
-  | P9.Response.Attach q -> mchan m q fid
+  | P9.Response.Attach q -> mchan id q fid
   | _ -> bad ()
 
 let auth c aname =
   let m = session c 0 in
+  let id = mchan_id m in
   let fid = newfid () in
   match rpc m (P9.Request.Auth (fid, !Dev.eve, aname)) with
-  | P9.Response.Auth q -> let ac = mchan m q fid in ac.opened <- Some (Chan.mode_of_int 2); ac
+  | P9.Response.Auth q -> let ac = mchan id q fid in ac.opened <- Some (Chan.mode_of_int 2); ac
   | _ -> bad ()
 
 (*****************************************************************************)

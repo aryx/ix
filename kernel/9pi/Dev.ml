@@ -65,10 +65,11 @@ let attach dc devno qid =
 
 let eve = ref ""
 let kerndate = ref 0
+let seconds = ref (fun () -> 0)
 
 let mkdir (c : chan) name qid length perm =
-  { d_name = name; d_qid = qid; d_perm = perm; d_length = length; d_lenhi = 0; d_atime = !kerndate; d_mtime = !kerndate;
-    d_uid = !eve; d_gid = !eve; d_muid = ""; d_type = c.dev; d_dev = c.devno }
+  { d_name = name; d_qid = qid; d_perm = perm; d_length = length; d_lenhi = 0; d_atime = !seconds (); d_mtime = !kerndate;
+    d_uid = !eve; d_gid = !eve; d_muid = !eve; d_type = c.dev; d_dev = c.devno }
 
 (*****************************************************************************)
 (* A fixed tree *)

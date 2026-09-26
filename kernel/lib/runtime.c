@@ -268,3 +268,22 @@ value io_write_fifo(value off, value s)
     *r = p[i] | (p[i + 1] << 8) | (p[i + 2] << 16) | ((unsigned)p[i + 3] << 24);
   return Val_unit;
 }
+
+/* claude: the running process's trap frame as bytes (TF_WORDS words,
+ * little-endian), read or written whole: its registers' 32 bits (a
+ * negative register, the PSR's N flag) survive, which the Pi1's 31-bit
+ * ints do not (mini-9pi's notes save and restore them) */
+value tf_bytes(value unit)
+{
+  CAMLparam1(unit);
+  CAMLlocal1(s);
+  s = alloc_string(TF_WORDS * sizeof(unsigned long));
+  memmove(String_val(s), (void *)cur_tf, TF_WORDS * sizeof(unsigned long));
+  CAMLreturn(s);
+}
+
+value tf_set_bytes(value s)
+{
+  memmove((void *)cur_tf, String_val(s), TF_WORDS * sizeof(unsigned long));
+  return Val_unit;
+}

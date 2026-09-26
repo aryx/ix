@@ -1,0 +1,12 @@
+sleep 1; echo slept
+sleep 100 &
+kill sleep | rc
+mkdir /mnt/plumb
+user=pad plumber -p /dev/null
+ls -l /mnt/plumb
+ps | grep plumber
+echo hello > /mnt/plumb/new
+plumb -d new hello
+cat /mnt/plumb/rules
+kill plumber | rc
+ps | grep -c plumber

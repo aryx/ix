@@ -30,6 +30,10 @@ external tf_get : int -> int = "tf_get"
 external tf_set : int -> int -> unit = "tf_set"
 external tf_init : int -> unit = "tf_init"
 external tf_copy : int -> unit = "tf_copy"
+(* claude: the running process's trap frame as bytes, whole (a word a
+ * register, the board's layout; their 32 bits: mini-9pi's notes) *)
+external tf_bytes : unit -> string = "tf_bytes"
+external tf_set_bytes : string -> unit = "tf_set_bytes"
 
 (* the kernel stacks: a slot's made fresh, freed; the switch *)
 external proc_context : int -> unit = "proc_context"

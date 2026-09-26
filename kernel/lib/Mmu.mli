@@ -19,8 +19,18 @@ val nfree : unit -> int
 (* a new one, empty; or None *)
 val create : unit -> int option
 
-(* claude: whether a page is mapped at [va] (mini-9pi's page faults) *)
+(* claude: whether a page is mapped at [va] (mini-9pi's page faults);
+ * the page there *)
 val mapped : int -> int -> bool
+val lookup : int -> int -> Page.t option
+
+(* claude: mini-9pi's, whose pages belong to its segments (shared by
+ * processes): [map pgdir va pa] a page mapped there (the user's, to
+ * write; false: no page for a table), [unmap pgdir va] one unmapped but
+ * not freed, [free_tables pgdir] a space's tables freed, not its pages *)
+val map : int -> int -> int -> bool
+val unmap : int -> int -> unit
+val free_tables : int -> unit
 
 (* [alloc pgdir oldsz newsz]: [oldsz, newsz) given fresh zeroed pages
  * (uvmalloc): the new size, or None (past the user's addresses, or no

@@ -26,7 +26,12 @@ let devices () =
   if t then begin
     Machine.timer_arm tick_us;
     incr Proc.ticks;
-    Proc.wakeup Ticks
+    Proc.wakeup Ticks;
+    (* the alarms due (alarmkproc's) *)
+    Array.iter (fun o -> match o with
+      | Some p when p.alarm <> 0 && !Proc.ticks >= p.alarm && p.state <> Zombie ->
+          p.alarm <- 0; ignore (Proc.postnote p "alarm" Nuser)
+      | _ -> ()) Proc.procs
   end;
   let rec uart () = let c = Machine.uart_getc () in if c >= 0 then begin Devcons.intr c; uart () end in
   uart ();
@@ -39,20 +44,14 @@ let devices () =
 let guard where f =
   try f () with e -> ignore (Machine.panic ("an exception in " ^ where ^ ": " ^ Printexc.to_string e))
 
-(* a killed process (/proc/n/ctl) ends on its way back to user mode *)
-let check_killed p = if p.killed then Syscall.exits p "sys: killed"
-
-let trap () =
-  guard "a system call" (fun () ->
-    let p = Proc.myproc () in
-    Syscall.syscall p;
-    check_killed p)
+(* a system call (its notes delivered on its way back: Syscall) *)
+let trap () = guard "a system call" (fun () -> Syscall.syscall (Proc.myproc ()))
 
 let irq () =
   guard "an interrupt" (fun () ->
     let p = Proc.myproc () in
     if devices () && Proc.preempt_due () then Proc.preempt ();
-    check_killed p)
+    Syscall.notify p 0x12)
 
 (* a hex string's value (C's "0x%016lx"): its last 8 digits, the top
  * two bits dropped (the Pi1's ints; a user's address is below 1GB) *)
@@ -66,14 +65,16 @@ let hex s =
 let fault ec ((esr : string), (pc : string), (addr : string)) =
   guard "a fault" (fun () ->
     let p = Proc.myproc () in
-    (* an abort in a segment: its page given, the instruction restarted *)
-    if (ec = 0x24 || ec = 0x20) && Fault.fault p (hex addr) then ()
+    (* an abort in a segment: its page given, the instruction restarted
+     * (a note interrupting the page's read: restarted too, the note
+     * delivered first) *)
+    let typ = if ec = 0 then 0x1b else 0x17 in
+    let resolved = (ec = 0x24 || ec = 0x20) && (try Fault.fault p (hex addr) with Error e when e = Proc.eintr -> true) in
+    if resolved then Syscall.notify p typ
     else
-    let msg =
-      if ec = 0 then Printf.sprintf "undefined instruction: pc 0x%x\n" (hex pc)
-      else Printf.sprintf "sys: trap: fault %s va=0x%x"
-             (if ec = 0x24 && hex esr land 0x40 <> 0 then "write" else "read") (hex addr) in
-    Syscall.suicide p msg)
+      Syscall.trap p (if ec = 0 then Printf.sprintf "undefined instruction: pc 0x%x\n" (hex pc)
+                      else Printf.sprintf "sys: trap: fault %s va=0x%x"
+                             (if ec = 0x24 && hex esr land 0x40 <> 0 then "write" else "read") (hex addr)) typ)
 
 (* a new process's first run: the boot process's initcode, then user
  * mode *)
@@ -105,6 +106,7 @@ let () =
   Callback.register "fault" fault;
   Callback.register "process_start" process_start;
   Devcons.print "mini-9pi\n";
+  Dev.seconds := (fun () -> !Proc.ticks / 100);
   (* devtab's order (9pi's conf: its "reset" lines) *)
   Devroot.init ();
   Devcons.init ();
@@ -127,7 +129,9 @@ let () =
     Some { pid = 1; slot = 0; state = Runnable; parent = 0; nchild = 0; waitq = []; pgdir = 0; segs = [];
            fgrp = Chan.fgrp_new (); pgrp = { mnt = [] }; egrp = { vars = []; last_path = 0 };
            slash = slash; dot = Chan.clone slash; notify = 0; noteid = 1;
-           errstr = ""; text = "*init*"; start = 0; psstate = ""; args = ""; killed = false };
+           errstr = ""; text = "*init*"; start = 0; psstate = ""; args = "";
+           notes = []; notepending = false; notified = false; ureg = 0; lastnote = ("", Nuser); alarm = 0;
+           rgrp = { rend = [] }; rendtag = 0; rendval = 0 };
   Proc.nextpid := 2;
   Machine.proc_context 0;
   (match Proc.procs.(0) with Some p -> Proc.ready p | None -> ());

@@ -20,7 +20,9 @@ let root = { path = 0; vers = 0; typ = Qt_dir }
 
 let lookup path = try List.find (fun s -> s.spath = path) !srvs with Not_found -> raise (Error enonexist)
 
-let dir_of c s = Dev.mkdir c s.sname { path = s.spath; vers = 0; typ = Qt_file } 0 s.sperm
+(* its owner the process's user when made (the hostowner, maybe not
+ * named yet: ''), its group eve's *)
+let dir_of c s = { (Dev.mkdir c s.sname { path = s.spath; vers = 0; typ = Qt_file } 0 s.sperm) with d_uid = s.sowner }
 
 let remove (c : chan) =
   if c.qid.typ = Qt_dir then raise (Error eperm);

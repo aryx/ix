@@ -64,7 +64,11 @@ val attach : char -> int -> qid -> chan
 val eve : string ref
 val kerndate : int ref
 
-(* an entry of a device's file: [mkdir c name qid length perm] *)
+(* the time now (seconds(): 9pi's clock starts at 0, the boot) *)
+val seconds : (unit -> int) ref
+
+(* an entry of a device's file (devdir: made at kerndate, read now,
+ * eve's): [mkdir c name qid length perm] *)
 val mkdir : chan -> string -> qid -> int -> int -> dir
 
 (*****************************************************************************)

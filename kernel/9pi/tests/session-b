@@ -43,7 +43,7 @@ command substitution
 % {echo a; echo b} > /env/y; ls -l /env/y
 --rw-rw-rw- e 0 '' '' 4 Sep  9  2026 /env/y
 % nosuch
-nosuch: '/boot/nosuch' file does not exist
+nosuch: '/boot/nosuch' does not exist
 % fn f { echo in f $* }; f 1 2
 in f 1 2
 % /boot/echo $status

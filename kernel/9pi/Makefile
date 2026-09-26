@@ -22,7 +22,9 @@
 #                   at the boot's rc: tests/session-c.cmds) under
 #                   mini-qemu and QEMU, the console as tests/session-c:
 #                   the C 9pi's under QEMU but hoc's pid (40, 9pi's 48:
-#                   its usbd's processes, stage D); then stage B's
+#                   its usbd's processes, stage D); step D1's (the
+#                   processes: sleep, a kill by note, plumber's threads
+#                   and mount: tests/session-d); then stage B's
 #                   (tests/boot-b.rc as /boot/boot, no card: the
 #                   namespace, the environment, pipes, processes;
 #                   tests/session-b)
@@ -40,9 +42,10 @@ BOOTDIR = boot=$(BOOTRC) rcmain=$(PRINCIPIA)/ROOT/rc/lib/rcmain \
   $(foreach p,rc echo bind fdisk dossrv mount ls,$(p)=$(BIN)/$(p))
 FS = $(B)/bootdir
 
-# the devices' files' date: 9pi's (its conf's object, compiled with
-# -DKERNDATE=`date -n`), so that ls -l says what 9pi's says
-KERNDATE ?= $(shell stat -c %Y $(PRINCIPIA)/kernel/COMPILE/9/bcm/pi.5 2>/dev/null || date +%s)
+# the devices' files' date: 9pi's (its conf compiled with
+# -DKERNDATE=`date -n`: kerndate.py finds it in 9pi's image), so that
+# their entries are 9pi's
+KERNDATE ?= $(shell ./kerndate.py $(PRINCIPIA))
 
 include ../lib/kernel.mk
 
@@ -62,6 +65,10 @@ check: $(IMAGE) kernel-pi1-b.img
 	diff $(B)/mini-c.txt tests/session-c && echo "ok 9pi: stage C's session under mini-qemu"
 	$(SESSION_PY) --prompt "% " --timeout 120 --out $(B)/qemu-c.txt --lines tests/session-c.cmds -- $(QEMU) $(QEMU_BOOT) $(SD)
 	diff $(B)/qemu-c.txt tests/session-c && echo "ok 9pi: stage C's session under QEMU"
+	$(SESSION_PY) --prompt "% " --timeout 300 --out $(B)/mini-d.txt --lines tests/session-d.cmds -- $(MINIQEMU) $(BOOT) $(SD)
+	diff $(B)/mini-d.txt tests/session-d && echo "ok 9pi: step D1's session under mini-qemu"
+	$(SESSION_PY) --prompt "% " --timeout 120 --out $(B)/qemu-d.txt --lines tests/session-d.cmds -- $(QEMU) $(QEMU_BOOT) $(SD)
+	diff $(B)/qemu-d.txt tests/session-d && echo "ok 9pi: step D1's session under QEMU"
 	$(SESSION_PY) --prompt "% " --timeout 120 --out $(B)/mini-b.txt --lines tests/session-b.cmds -- $(MINIQEMU) $(BOOT_B)
 	diff $(B)/mini-b.txt tests/session-b && echo "ok 9pi: stage B's session under mini-qemu"
 	$(SESSION_PY) --prompt "% " --timeout 60 --out $(B)/qemu-b.txt --lines tests/session-b.cmds -- $(QEMU) $(BOOT_B)

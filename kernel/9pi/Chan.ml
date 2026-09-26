@@ -77,51 +77,82 @@ let domount (pg : pgrp) c =
 
 let join name e = if name = "/" then "/" ^ e else name ^ "/" ^ e
 
-(* one step: the union's members tried in order (the first's error) *)
+(* one step: the union's members tried in order (the last one's error,
+ * as walk's ewalks leave it) *)
 let step c e =
   let members = match c.umh with [] -> [ c ] | ms -> List.map (fun m -> m.mchan) ms in
-  let rec try_ ms first_err =
+  let rec try_ ms last_err =
     match ms with
-    | [] -> raise (Error (match first_err with Some e -> e | None -> enonexist))
+    | [] -> raise (Error (match last_err with Some e -> e | None -> enonexist))
     | m :: rest ->
         (try
           let nc = copy m in
           nc.qid <- (Dev.find m.dev).Dev.walk m nc e;
           nc.cname <- join c.cname e;
           nc
-        with Error err -> try_ rest (match first_err with None -> Some err | s -> s)) in
+        with Error err -> try_ rest (Some err)) in
   try_ members None
 
-let walk (p : proc) path nomount =
+(* walk's error when a name is missing past a batch's first *)
+let doesnotexist = "does not exist"
+
+(* the lexical parent of a name ("/" its own) *)
+let parent name =
+  match cleanname name with
+  | [] -> "/"
+  | es -> "/" ^ String.concat "/" (List.rev (List.tl (List.rev es)))
+
+(* A path's names walked as 9pi's walk does: in batches, from a mount
+ * point to the next (a server's walk takes a batch at once); a name
+ * missing at a batch's first tried in the union's other members (the
+ * last's error), further in "does not exist"; the error naming the path
+ * as given, up to that name. ".." is lexical (the channel's name's
+ * parent, walked again). A "#" path crosses no mount point. *)
+let rec walk (p : proc) path nomount =
   if path = "" then nameerror path enonexist;
   let pg = p.pgrp in
-  let base, elems, shown =
+  let sharp = path.[0] = '#' in
+  let base, start =
     match path.[0] with
-    | '/' ->
-        (* the cleaned path's elements, an error naming the path so far *)
-        let es = cleanname path in
-        let rec with_ends acc pre l = match l with
-          | [] -> List.rev acc
-          | e :: r -> let pre = pre ^ "/" ^ e in with_ends ((e, String.length pre) :: acc) pre r in
-        p.slash, with_ends [] "" es, "/" ^ String.concat "/" es
+    | '/' -> p.slash, 1
     | '#' ->
         if String.length path < 2 then raise (Error ebadsharp);
-        (* claude: index_from wants a start inside the string (1.07) *)
+        (* index_from wants a start inside the string (1.07) *)
         let j = if String.length path = 2 then 2 else try String.index_from path 2 '/' with Not_found -> String.length path in
-        (Dev.find path.[1]).Dev.attach (String.sub path 2 (j - 2)), elements path j, path
-    | _ -> p.dot, elements path 0, path in
+        (Dev.find path.[1]).Dev.attach (String.sub path 2 (j - 2)), j
+    | _ -> p.dot, 0 in
+  let elems = elements path start in
   let n = List.length elems in
-  (* each channel the walk goes through its own: dropped once past *)
-  let rec go c i l =
+  let mount c = if sharp then c else domount pg c in
+  (* batch: c the batch's start (its next name the first) *)
+  let rec go c i batch l =
     match l with
     | [] -> c
-    | (e, stop) :: rest ->
-        let nc = try step c e with Error err -> clunk c; nameerror (String.sub shown 0 (min stop (String.length shown))) err in
+    | ("..", _) :: rest ->
+        let nc = if String.length c.cname > 0 && c.cname.[0] = '/' then walk p (parent c.cname) false else step c ".." in
         clunk c;
-        go (if i = n - 1 && nomount then nc else domount pg nc) (i + 1) rest in
+        go nc (i + 1) true rest
+    | (e, stop) :: rest ->
+        let nc =
+          try step c e
+          with Error err ->
+            clunk c;
+            nameerror (String.sub path 0 stop) (if c.qid.typ <> Qt_dir then enotdir else if batch then err else doesnotexist) in
+        clunk c;
+        if i = n - 1 && nomount then nc
+        else begin
+          let mc = mount nc in
+          go mc (i + 1) (mc != nc) rest
+        end in
   let c = clone base in
   c.umh <- base.umh;
-  go (if n = 0 && nomount then c else domount pg c) 0 elems
+  go (if n = 0 && nomount then c else mount c) 0 true elems
+
+(* an error of namec's after the walk (the open, the create) named with
+ * the whole path, unless it has no names ("/", "#c") *)
+let named path f =
+  let start = if path <> "" && path.[0] = '#' then (try String.index path '/' with Not_found -> String.length path) else 0 in
+  try f () with Error e when elements path start <> [] -> nameerror path e
 
 let namec p path = walk p path false
 let namec_nomount p path = walk p path true
@@ -159,13 +190,14 @@ let split path =
     (if i = 0 then "/" else String.sub path 0 i), String.sub path (i + 1) (String.length path - i - 1)
   with Not_found -> ".", path
 
-let create (p : proc) path m perm =
+let rec create (p : proc) path m perm =
   let exists = try Some (namec p path) with Error _ -> None in
   match exists with
-  | Some c ->
-      if perm land 0x1000 <> 0 then raise (Error eexist);
-      open_ c { m with trunc = true }
-  | None ->
+  | Some c -> named path (fun () -> open_ c { m with trunc = true })
+  | None -> named path (fun () -> create_new p path m perm)
+
+and create_new p path m perm =
+      match () with () ->
       let dirname, name = split path in
       if name = "" || name = "." || name = ".." then raise (Error eexist);
       let d = namec p dirname in

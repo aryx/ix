@@ -129,6 +129,23 @@ let free pgdir =
     kfree t in
   table pgdir Arch.levels
 
+(* claude: mini-9pi's, whose pages belong to its segments (shared by
+ * processes: rfork's RFMEM): a page mapped at va (the user's, to write),
+ * one unmapped (not freed), the tables freed but not the pages *)
+let map pgdir va pa = set pgdir va (Some { pa = pa; perm = User_rw })
+let unmap pgdir va = ignore (set pgdir va None)
+
+let free_tables pgdir =
+  let rec table t levels =
+    (match levels with
+     | [] | [ _ ] -> ()
+     | (_, bits) :: rest ->
+         for i = 0 to (1 lsl bits) - 1 do
+           match Arch.decode_table (Arch.get_entry (t + (Arch.entry_bytes * i))) with Some next -> table next rest | None -> ()
+         done);
+    kfree t in
+  table pgdir Arch.levels
+
 (* a copy of [0, sz) in a new space (fork's uvmcopy), or None *)
 (* claude: [lo, hi)'s pages copied into [dst] (mini-9pi's fork copies
  * its segments: a Plan 9 stack is at 512MB, not after the rest) *)

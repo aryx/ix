@@ -342,3 +342,62 @@ Still missing: `#i` (draw), `#I` (IP) and `#u` (USB) are still
 Notes are not delivered to handlers. Fids are leaked by chans that are
 dropped without being opened (a stat by name clunks its own), and
 there's no MCACHE.
+
+2026-09-26, **stage D, step 1: what threaded programs need** (3,472
+lines). Stage D is now four steps: (1) the processes' machinery, (2)
+USB (`#u`, usbd, usb/kb), (3) the framebuffer and `#i` (draw), (4) rio.
+Step 1 is done. plumber, a libthread program from the card, runs as on
+the C 9pi: two processes sharing memory (Pread and Rendez in `ps`), its
+`/srv` post and its mount, its errors, and its end by a note (`kill
+plumber | rc`). `make check`'s new session (`tests/session-d`) covers
+sleep, a background process killed by its note, and plumber. It is
+the same under mini-qemu and QEMU, and the C 9pi's for the lines that
+don't depend on usbd (rc's pid, the mount number).
+
+- **Shared memory.** Pages belong to segments, as in Plan 9: a table
+  from address to page, and a share count. A process's page table only
+  caches them: a fault maps a page another sharer made, or makes it.
+  rfork shares text always, data and bss with RFMEM, and copies the
+  stack. Exec and exits release the segments, and the last sharer
+  frees the pages. brk refuses to shrink a shared segment (Einuse), as
+  ibrk does.
+- **Notes**, as arm's notify and noted:
+  - a note is posted (NNOTE 5; a kill's note alone when the process has
+    no handler for it), which interrupts a sleep ("interrupted") or
+    gives up a rendezvous;
+  - it is delivered on the way back to user mode, after a system call
+    (but rfork), an interrupt or a fault, on a 216-byte NFrame below
+    the user's sp;
+  - a `sys:` note gets ` pc=0x...`;
+  - without a handler, a trap's note prints `suicide:` on fd 2 and ends
+    the process;
+  - noted handles NCONT, NRSTR, NSAVE and NDFLT (the PSR's flags stay the
+    current ones, as arch__noted's mask keeps them);
+  - exec resets the handler.
+
+  The user's registers are moved as bytes (kernel/lib's `tf_bytes`),
+  because a negative register or the PSR's N flag doesn't fit a Pi1
+  int. `/proc/n/ctl`'s kill is the note `sys: killed` (NExit), and
+  `note` and `notepg` post notes.
+- **rendezvous** (a group per RFREND; the last waiter on a tag found
+  first), **the semaphores** (semacquire, tsemacquire, semrelease: with
+  one core and no preemption in the kernel, a decrement or a sleep on
+  the word's physical address), and **alarm** (the tick posts `alarm`).
+- **9pi's walk, errors included.** Paths are walked as given, not
+  cleaned (".." is lexical, from the chan's name), and `#` paths cross
+  no mount point. A name missing at the first name of a batch (from a
+  mount point to the next) gives the union's *last* member's error;
+  further into a batch, "does not exist" (9pi's partial walk). The name
+  printed is the path as typed, up to the missing name
+  (`'//lib/plumbing' does not exist`). An open's or create's error names
+  the whole path (namec's).
+- **Details as 9pi's:** devdir's atime (the uptime; 9pi's clock starts
+  at 0) and muid (the owner). KERNDATE is found in 9pi's image
+  (`kerndate.py`), `/srv` entries have their maker as the owner,
+  `/proc/n/status` sums the segments but the stack, and a mount
+  chan's number is per attach or auth (mntchan's).
+
+Not exercised by a program yet: tsemacquire, alarm, NSAVE. Stage C's
+and step 1's sessions differ from the C 9pi only by what usbd changes:
+its pids, mount numbers and `/srv/usb`. Step 2 (`#u`) should close
+that gap.

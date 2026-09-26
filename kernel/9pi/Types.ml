@@ -138,18 +138,37 @@ type fgrp = { fds : chan option array; mutable fref : int }
 (* Processes *)
 (*****************************************************************************)
 
-(* a segment of a process's memory, [base, top): its pages in the
- * process's table (Mmu), each given at its first touch (a fault): from
- * the program's file (text and data: its channel, the segment's bytes'
- * offset and length there) or zero (bss, stack) *)
+(* a segment of a process's memory, [base, top): its pages (by address:
+ * their physical address), each given at its first touch (a fault):
+ * from the program's file (text and data: its channel, the segment's
+ * bytes' offset and length there) or zero (bss, stack). A segment may be
+ * shared (text always, data and bss by rfork's RFMEM: how many
+ * processes have it); the processes' tables map its pages as they
+ * touch them. *)
 type seg_kind = Text | Data | Bss | Stack
 
-type segment = { kind : seg_kind; base : int; mutable top : int; image : chan option; fstart : int; flen : int }
+type segment = {
+  kind : seg_kind;
+  base : int;
+  mutable top : int;
+  image : chan option;
+  fstart : int;
+  flen : int;
+  pages : (int, int) Hashtbl.t;
+  mutable sref : int;
+}
 
 (* what a sleeping process waits for: a line typed, a child's exit (the
  * process's own pid), a pipe's data or room (its number), the clock, a
- * mount's 9P reply (its number) *)
-type wait_chan = Console_input | Child_exit of int | Pipe_data of int | Pipe_room of int | Ticks | Mnt_reply of int
+ * mount's 9P reply (its number), a rendezvous's partner (the process's
+ * pid), a semaphore (its physical address) *)
+type wait_chan =
+  | Console_input | Child_exit of int | Pipe_data of int | Pipe_room of int | Ticks | Mnt_reply of int
+  | Rendez of int | Semaphore of int
+
+(* a note's kind: sent by a process (NUser), one that ends the process
+ * (NExit: a kill), a trap's (NDebug) *)
+type note_flag = Nuser | Nexit | Ndebug
 
 type state = Runnable | Running | Sleeping of wait_chan | Zombie
 
@@ -185,8 +204,24 @@ type proc = {
   mutable text : string;
   mutable start : int;
   (* the system call it is in (/proc/n/status: "Pread"...), its
-   * arguments' first bytes (/proc/n/args), killed (/proc/n/ctl) *)
+   * arguments' first bytes (/proc/n/args) *)
   mutable psstate : string;
   mutable args : string;
-  mutable killed : bool;
+  (* the notes posted, not yet delivered (NNOTE at most); one pending
+   * (a sleep interrupted); in a handler (notified), the frame it runs
+   * on (the user's NFrame, 0: none), the last one delivered *)
+  mutable notes : (string * note_flag) list;
+  mutable notepending : bool;
+  mutable notified : bool;
+  mutable ureg : int;
+  mutable lastnote : string * note_flag;
+  (* the alarm (its tick, 0: none) *)
+  mutable alarm : int;
+  (* the rendezvous group, the tag waited on and the value exchanged *)
+  mutable rgrp : rgrp;
+  mutable rendtag : int;
+  mutable rendval : int;
 }
+
+(* a rendezvous group (Rgrp): its processes waiting, the last first *)
+and rgrp = { mutable rend : proc list }

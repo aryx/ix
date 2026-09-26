@@ -49,10 +49,17 @@ let ready p =
 
 let sched () = Machine.swtch scheduler_slot
 
+(* a pending note interrupts a sleep (Eintr), before or after *)
+let eintr = "interrupted"
+
+let interrupted p = if p.notepending then begin p.notepending <- false; raise (Error eintr) end
+
 let sleep ch =
   let p = myproc () in
+  interrupted p;
   p.state <- Sleeping ch;
-  sched ()
+  sched ();
+  interrupted p
 
 let wakeup ch =
   List.iter (fun p -> match p.state with Sleeping c when c = ch -> ready p | _ -> ()) (all ())
@@ -99,3 +106,27 @@ let scheduler () =
          end);
     loop () in
   loop ()
+
+(*****************************************************************************)
+(* Notes *)
+(*****************************************************************************)
+
+let nnote = 5
+
+let postnote p msg flag =
+  (* a note that ends a process with no handler for it: the only one *)
+  if flag <> Nuser && (p.notify = 0 || p.notified) then p.notes <- [];
+  let ok = List.length p.notes < nnote in
+  if ok then p.notes <- p.notes @ [ msg, flag ];
+  p.notepending <- true;
+  (match p.state with
+   | Sleeping (Rendez _) ->
+       p.rgrp.rend <- List.filter (fun q -> q != p) p.rgrp.rend;
+       p.rendval <- -1;
+       ready p
+   | Sleeping _ -> ready p
+   | _ -> ());
+  ok
+
+let find pid = try Some (List.find (fun p -> p.pid = pid && p.state <> Zombie) (all ())) with Not_found -> None
+

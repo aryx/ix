@@ -1,0 +1,28 @@
+mini-9pi
+booooooooting ARM ...
+partition...
+dossrv: serving #s/dos
+bind: #i: unknown device in # filename
+bind: #I: unknown device in # filename
+usbd: #u: unknown device in # filename
+% sleep 1; echo slept
+slept
+% sleep 100 &
+% kill sleep | rc
+% mkdir /mnt/plumb
+% user=pad plumber -p /dev/null
+% ls -l /mnt/plumb
+--rw------- M 4 pad pad 0 Jan  1  1970 /mnt/plumb/rules
+---w------- M 4 pad pad 0 Jan  1  1970 /mnt/plumb/send
+% ps | grep plumber
+pad              41    0:00   0:00      260K Pread    plumber
+pad              42    0:00   0:00      260K Rendez   plumber
+% echo hello > /mnt/plumb/new
+/mnt/plumb/new: rc (boot): can't open: '/mnt/plumb/new' mounted directory forbids creation
+% plumb -d new hello
+% cat /mnt/plumb/rules
+
+% kill plumber | rc
+% ps | grep -c plumber
+0
+% 

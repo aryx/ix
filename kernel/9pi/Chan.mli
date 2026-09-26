@@ -41,6 +41,10 @@ val same : chan -> chan -> bool
 val namec : proc -> string -> chan
 val namec_nomount : proc -> string -> chan
 
+(* [named path f]: f's error named with the whole path (namec's, after
+ * the walk: an open's, a create's), unless the path has no names *)
+val named : string -> (unit -> 'a) -> 'a
+
 (* [create p path mode perm]: the file created (in the directory's
  * union: its first MCREATE member) and opened; an existing one opened
  * and truncated (Error eexist with OEXCL) *)

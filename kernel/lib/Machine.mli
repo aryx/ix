@@ -29,6 +29,10 @@ external tf_init : int -> unit = "tf_init"
 (* the running process's copied to a slot's, the first register 0
  * (fork's child) *)
 external tf_copy : int -> unit = "tf_copy"
+(* claude: the running process's trap frame as bytes, whole (a word a
+ * register, the board's layout; their 32 bits: mini-9pi's notes) *)
+external tf_bytes : unit -> string = "tf_bytes"
+external tf_set_bytes : string -> unit = "tf_set_bytes"
 
 (* a slot's kernel stack made fresh: its first switch enters
  * "process_start"; a slot freed (the collector no longer scans it) *)

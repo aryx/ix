@@ -35,6 +35,10 @@ val ready : proc -> unit
  * sleepers readied); the CPU given up *)
 val sched : unit -> unit
 val sleep : wait_chan -> unit
+
+(* a sleep's error when a note is pending ("interrupted": Plan 9's
+ * Eintr, the note then delivered) *)
+val eintr : string
 val wakeup : wait_chan -> unit
 val yield : unit -> unit
 
@@ -52,3 +56,11 @@ val idle : (unit -> unit) ref
  * order: a new process runs before its parent goes on); a dead one's
  * slot freed (Zombie: once off its kernel stack) *)
 val scheduler : unit -> unit
+
+(* a live process by its pid *)
+val find : int -> proc option
+
+(* [postnote p msg flag] (postnote): the note queued (NNOTE at most:
+ * false when full; a kill's, without a handler for it, alone), p's
+ * sleep interrupted, a rendezvous's given up (its value -1) *)
+val postnote : proc -> string -> note_flag -> bool
