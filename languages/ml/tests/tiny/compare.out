@@ -1,0 +1,8 @@
+eq
+ne
+-111
+-110
+eq
+same
+ok
+exit 0

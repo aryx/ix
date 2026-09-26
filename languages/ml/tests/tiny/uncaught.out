@@ -1,0 +1,3 @@
+lost
+Fatal error: uncaught exception Error(42, "message")
+exit 2

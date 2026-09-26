@@ -1,0 +1,2 @@
+Fatal error: uncaught exception Failure("boom")
+exit 2

@@ -512,6 +512,51 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 0 finished, phase 1 done: tiny-ml.**
+  - The conventions (phase 0), on arm64: 7c allocates R0 to R15
+    (`REGMIN` 9 to `REGMAX` 15, and the arguments), its linker's
+    temporaries are R16 and R17 (TinyAssembler's R17), and it reserves
+    R26 and R27 (`REGEXT`, `REGEXT-1`: `compilers/7c/txt.c`), R28 (SB),
+    R29, R30 (the link); none of R18 to R26 is in libc's `.s`. So the
+    value stack's pointer is R26, and survives a call of C. A `TEXT
+    $-8` is left alone by TinyAssembler (no prologue, a bare `RET`), so
+    tiny-ml writes its prologues and epilogues, and a tail call is the
+    epilogue then a `B`. arm (5c) and mini-ld's `TEXT` wait for phase
+    3.
+  - tiny-ml: `tiny/TinyML.ml`, 1,408 lines, 1,089 of code with the
+    prelude's ML (the target was 1,500); `tiny/TinyML_runtime.c`, 501
+    lines (the collector 75 of them); `tiny/TinyML_test.sh` (in `make
+    test-goken`); 17 programs in `languages/ml/tests/tiny/`, their
+    outputs recorded from ocaml-light's arm64 `ocamlopt`
+    (`RECORD=1`). All pass, and again with `ML_HEAP=64` (the
+    collector's law: it then collects all the time).
+  - The two questions it was for. Decision 5 holds: the value stack
+    needs no assembly (the exceptions are generated code: a record on
+    the machine stack, a `BL` over the handler for its address) and
+    Cheney's collector is 75 lines of C; the roots are the value stack
+    and a table of the globals. The stack machine's cost: fib 30, tak
+    18 12 6 and 100 maps of 10,000 run in 0.18s against `ocamlopt`'s
+    0.08s (2.3 times; a spill of every register at every call, an
+    allocation a call of C), the executable 11KB against 958KB.
+  - The behavior followed, ocaml-light's arm64 quirks included: stdout
+    buffered by 4096 bytes and lost on an uncaught exception, printed as
+    `printexc.c` prints it, exit 2; `x / 0` is 0 and `x mod 0` is x
+    (SDIV's; no `Division_by_zero`); a string's index out of bounds is
+    a fatal error, not an exception; arguments and tuples evaluated
+    right to left.
+  - Found: **a bug of ocaml-light's `ocamlopt` on arm64**: `let f = ref
+    (fun x -> x) in let g = !f in f := (fun x -> g x * 2); !f 1` is 1
+    (bytecode: 2). `-dlambda` shows the ref made a mutable variable
+    (`assign h/37`) and `g` bound to it, `(let (h/37 (function x/38
+    x/38) g/39 h/37)`: an alias of a variable that is assigned after, so
+    `g x` calls the new `f`. `loops.ml` avoids it. And in goken:
+    `sbrk` fails under Linux's ASLR (`plan_bugs_goken.md` 23), and
+    `malloc` is a bump allocator of 64MB whose `free` does nothing, so
+    the runtime's halves are in the bss.
+  - Physical equality of two equal constants differs (`[1] == [1]` is
+    true with `ocamlopt`, which shares structured constants; tiny-ml
+    allocates each): unspecified, not tested.
+
 - **2026-09-26, decision 8 decided**: route A, with B as an isolated,
   removable fallback (`languages/ml/Gas.ml`, `-gas`), which phase 6 also uses as
   its first step.

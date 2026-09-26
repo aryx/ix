@@ -90,3 +90,9 @@
  (package ix)
  (modules TinyMkfs)
  (libraries ix_core fpath caps))
+
+(executable
+ (name TinyML)
+ (public_name tiny-ml)
+ (package ix)
+ (modules TinyML))

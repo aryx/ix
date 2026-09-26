@@ -17,6 +17,7 @@ files, children and pipes they share with the twins come from
 | `TinyEditor.ml` | tiny-editor | `editor/` (mini-ed, ed) | sam's command language: dot a range, loops over matches, changes in parallel |
 | `TinyAssembler.ml` | tiny-assembler | `assembler/`, `linker/` (mini-asm, mini-ld; 5a/5l, 7a/7l) | no separate compilation: all of a program's assembly into an arm64 executable, sizes known before addresses, a word per closure |
 | `TinyC.ml` | tiny-c | `languages/c/` (mini-cc; 5c, 7c) | a C subset through a stack machine of its own, the stack in registers, 7c's calling convention so it links with goken's libc; and with `-tm` a second back end, for TinyCPU, with its runtime (`tiny-os/libc/`: `start.tm`, and a libc in C), the two printing the same |
+| `TinyML.ml` | tiny-ml | `languages/ml/` (mini-ml, planned; ocaml-light's ocamlopt) | an ML (variants, lists, closures, exceptions, Hindley-Milner) through TinyC's stack machine to arm64; the roots on a stack of values of its own (R26), so its collector, Cheney's, in C (`TinyML_runtime.c`, by tiny-c), needs no frame table and no assembly; the prelude in ML; the output ocaml-light's, uncaught exceptions and stdout's buffer included |
 | `TinyDatabase.ml` | tiny-db | `database/` (mini-chidb; chidb) | the relational algebra as the query language, a pipeline (`t \| where ... \| group ... \| sort ...`); a copy-on-write B-tree, so every statement is atomic by one header write |
 | `TinyCPUArm.ml`, `TinyLibArm.ml` | tiny-arm | `machine/` (mini-5i; 5i) | a computer in one file: an arm32 subset assembled (GNU as's syntax and bytes), run word by word by an interpreter, written as an ELF the CPU runs too; one instruction variant read by the parser, the encoder, the decoder, the printer and the executor |
 | `TinyCPU.ml`, `TinyLibCPU.ml` | tiny-cpu | `machine/` (mini-5i; 5i), with Knuth's MIX and MMIX | a machine of our own design, for teaching: 16 registers, r0 zero, no flags, one instruction format, every case defined; an assembler (a new machine has no other: nothing else writes its words) and an interpreter (the definition); the listing reassembles to the same words; the CPU a library, TinyMachine.ml's |
@@ -38,8 +39,9 @@ tiny/tiny-os run-hello`. [`docs/projects.md`](../docs/projects.md)
 places it among ix's other projects.
 
 Each has its tests beside it, `TinyXxx_test.sh`, run by `make test`
-(TinyAssembler's and TinyC's, which need goken, by `make test-goken`;
-TinyC's programs are `TinyC_tests/`, and `TinyC_fuzz.py` writes random
-ones);
+(TinyAssembler's, TinyC's and TinyML's, which need goken, by `make
+test-goken`; TinyC's programs are `TinyC_tests/`, and `TinyC_fuzz.py`
+writes random ones; TinyML's are `languages/ml/tests/tiny/`, with
+ocaml-light's outputs);
 the plans' Status logs (`docs/plans/`) tell how each was chosen and
 checked.

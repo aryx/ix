@@ -235,6 +235,23 @@ pipe, a missing program's stage exits with the `$status` it inherited
 `compilers/5c/mkenam` names `include/obj/5.out.h` by a path that moved;
 `8c/mkenam` no longer fits its header, and both eds fail on it alike.
 
+## libc
+
+### 23. sbrk starts at `end`, which Linux's ASLR moves away from
+
+`port/sbrk.c` hands out memory from `end` (the bss's end) up, moving
+the break with `brk`; Linux, randomizing, puts the program's break
+elsewhere (`start_brk` past a random gap), and refuses a `brk` below
+it, so the first `sbrk` fails and a program using what it returns
+crashes. Found 2026-09-26 by tiny-ml's runtime, which segfaults on its
+first allocation when its semispaces came from `sbrk`, and runs under
+`setarch -R` (and gdb, which turns ASLR off). Fix: start `bloc` at
+`brk(0)`'s answer, the current break. ix: TinyML's runtime takes its
+heap from the bss (`TinyML_runtime.c`), since `malloc` is a bump
+allocator of 64MB whose `free` does nothing (`port/minimal_malloc.c`,
+by design a stand-in) and can't hold a copying collector's halves as
+they grow.
+
 ## How they were found
 
 The runners that compare ix with its reference, case by case or file
