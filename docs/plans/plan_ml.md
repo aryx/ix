@@ -512,6 +512,18 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 4: the type checker.** `languages/ml/Typing.ml`
+  (Hindley-Milner, Rémy's levels, the value restriction, abbreviations
+  expanded when heads differ, Printf's formats typed from their
+  conversions, the unit's `.mli` checked, `-i`; `-unsafe-types` skips
+  it), over Scope's tree, which keeps the type annotations now. Every
+  file of the corpus type-checks, mini-9pi's included.
+  `tests/types.sh`: `mini-ml -i` prints what `ocamlopt -i` prints (the
+  `val` lines, the variables renamed in order) on `tests/tiny/`,
+  ocaml-light's `test/` (floats included: nucleic, fft) and 150 of the
+  fuzzer's programs; the 16 ill-typed programs of `tests/typing/bad/`
+  (a swapped argument, a constructor's arity, a ref made polymorphic, a
+  format's argument...) rejected by both.
 - **2026-09-26, phase 3: calls through slots; types resolved.** A
   call's closure and arguments are computed into slots (a local already
   in one is its own), and the stack machine's call names them; an

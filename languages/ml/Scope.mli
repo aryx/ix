@@ -50,6 +50,7 @@ type pattern =
   | Pcons of cons * pattern list
   | Precord of (label * pattern) list
   | Por of pattern * pattern
+  | Pconstraint of pattern * ty
 
 type expr = { e : exp; loc : int }
 
@@ -73,6 +74,7 @@ and exp =
   | Ewhile of expr * expr
   | Efor of var * expr * expr * Ast.dir * expr
   | Eassert of expr
+  | Econstraint of expr * ty
 
 and case = pattern * expr option * expr
 
@@ -105,6 +107,12 @@ val exn_t : ty
 val array_d : tdecl
 val list_d : tdecl
 val format_d : tdecl
+
+(* a type the current unit declares, by its path *)
+val own_type : string -> tdecl option
+
+(* a global's symbol, M.x *)
+val symbol : string list -> string -> string
 
 (* the unit's own interface, if it has one: its values' types *)
 val interface : unit -> (string * ty) list option

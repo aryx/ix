@@ -29,6 +29,7 @@ type pattern =
   | Pcons of cons * pattern list
   | Precord of (label * pattern) list
   | Por of pattern * pattern
+  | Pconstraint of pattern * ty
 
 type expr = { e : exp; loc : int }
 
@@ -52,6 +53,7 @@ and exp =
   | Ewhile of expr * expr
   | Efor of var * expr * expr * Ast.dir * expr
   | Eassert of expr
+  | Econstraint of expr * ty
 
 and case = pattern * expr option * expr
 
@@ -129,6 +131,10 @@ let predef =
 (*****************************************************************************)
 
 let units : (string, modl option) Hashtbl.t = Hashtbl.create 16
+
+(* the current unit's type declarations (not its interface's) *)
+let own_types : (string, tdecl) Hashtbl.t = Hashtbl.create 16
+let declaring = ref false
 let loader : loader ref = ref (fun _ -> None)
 
 let rec unit_modl name =
@@ -243,6 +249,7 @@ and resolve env loc (t : Ast.ty) =
  * constructors (numbered) and labels; what the group adds *)
 and decls path env (ds : Ast.type_decl list) =
   let tds = List.map (fun (d : Ast.type_decl) -> d, tdecl path d.tname d.tparams) ds in
+  List.iter (fun (_, (td : tdecl)) -> if !declaring then Hashtbl.replace own_types td.tpath td) tds;
   let delta = { empty with types = List.rev_map (fun ((d : Ast.type_decl), td) -> d.tname, td) tds } in
   let env = add delta env in
   List.fold_left (fun delta ((d : Ast.type_decl), td) ->
@@ -319,7 +326,7 @@ let rec pattern env (p : Ast.pattern) : pattern * (string * var) list =
       if List.sort compare (List.map fst ba) <> List.sort compare (List.map fst bb) then error p.ploc "the two sides of | bind different variables";
       (* the right side's variables are the left's *)
       Por (a, rename (List.map (fun (x, v) -> v, List.assoc x ba) bb) b), ba
-  | Pconstraint (p, _) -> pattern env p
+  | Pconstraint (q, t) -> let q, bs = pattern env q in Pconstraint (q, resolve env p.ploc t), bs
 
 and rename m = function
   | Pvar v -> Pvar (List.assq v m)
@@ -328,6 +335,7 @@ and rename m = function
   | Pcons (c, ps) -> Pcons (c, List.map (rename m) ps)
   | Precord fs -> Precord (List.map (fun (l, p) -> l, rename m p) fs)
   | Por (a, b) -> Por (rename m a, rename m b)
+  | Pconstraint (p, t) -> Pconstraint (rename m p, t)
   | (Pany | Pconst _ | Prange _) as p -> p
 
 let bind env bs = List.fold_left (fun env (x, v) -> add_value x (Local v) env) env bs
@@ -367,7 +375,7 @@ let rec expr env (x : Ast.expr) : expr =
   | Eseq (a, b) -> mk (Eseq (ex a, ex b))
   | Ewhile (c, b) -> mk (Ewhile (ex c, ex b))
   | Efor (i, a, b, d, body) -> let v = new_var i in mk (Efor (v, ex a, ex b, d, expr (bind env [ i, v ]) body))
-  | Econstraint (e, _) -> ex e
+  | Econstraint (e, t) -> mk (Econstraint (ex e, resolve env x.eloc t))
   | Eassert e -> mk (Eassert (ex e))
 
 and cases env cs =
@@ -451,7 +459,11 @@ let implementation load name items =
   Hashtbl.reset units;
   Hashtbl.reset defined;
   own := None;
-  let items, _, _ = structure [ name ] (base name) items in
+  Hashtbl.reset own_types;
+  let scope = base name in
+  declaring := true;
+  let items, _, _ = structure [ name ] scope items in
+  declaring := false;
   (* the unit's interface: its values' types, which Typing checks *)
   (match load name with
    | Some (`Sig s) ->
@@ -461,6 +473,7 @@ let implementation load name items =
   items
 
 let interface () = !own
+let own_type p = Hashtbl.find_opt own_types p
 
 let units_named () = List.sort compare (Hashtbl.fold (fun n m acc -> if m <> None then n :: acc else acc) units [])
 
@@ -495,6 +508,7 @@ let rec show_pat = function
   | Pcons (c, ps) -> Printf.sprintf "(%s %s)" (show_cons c) (list show_pat ps)
   | Precord fs -> Printf.sprintf "{%s}" (list (fun (l, p) -> Printf.sprintf "(%s %s)" (show_label l) (show_pat p)) fs)
   | Por (a, b) -> Printf.sprintf "(| %s %s)" (show_pat a) (show_pat b)
+  | Pconstraint (p, _) -> show_pat p
 
 let rec show e =
   let fields fs = list (fun (l, e) -> Printf.sprintf "(%s %s)" (show_label l) (show e)) fs in
@@ -520,6 +534,7 @@ let rec show e =
   | Ewhile (c, b) -> Printf.sprintf "(while %s %s)" (show c) (show b)
   | Efor (v, a, b, d, body) -> Printf.sprintf "(for %s %s %s %s %s)" (var v) (show a) (if d = Upto then "to" else "downto") (show b) (show body)
   | Eassert e -> Printf.sprintf "(assert %s)" (show e)
+  | Econstraint (e, _) -> show e
 
 and bindings bs = list (fun (p, e) -> Printf.sprintf "(%s %s)" (show_pat p) (show e)) bs
 

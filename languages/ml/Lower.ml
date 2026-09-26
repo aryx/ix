@@ -121,7 +121,7 @@ let rec pvars (p : Scope.pattern) =
   | Palias (p, v) -> v :: pvars p
   | Ptuple ps | Pcons (_, ps) -> List.concat_map pvars ps
   | Precord fs -> List.concat_map (fun (_, p) -> pvars p) fs
-  | Por (a, _) -> pvars a
+  | Por (a, _) | Pconstraint (a, _) -> pvars a
   | Pany | Pconst _ | Prange _ -> []
 
 (* the local variables free in e, each once, in their order *)
@@ -150,6 +150,7 @@ let rec free bound (e : Scope.expr) acc =
   | Esetfield (a, _, b) | Eseq (a, b) | Ewhile (a, b) -> fr b (fr a acc)
   | Eif (a, b, c) -> all (a :: b :: Option.to_list c) acc
   | Efor (v, a, b, _, body) -> free (v.vid :: bound) body (fr b (fr a acc))
+  | Econstraint (e, _) -> fr e acc
 
 let lookup env (v : Scope.var) = match List.assoc_opt v.vid env with Some b -> b | None -> error "%s: unbound in its function" v.vname
 
@@ -178,7 +179,7 @@ let rec params (e : Scope.expr) =
 let rec refutable (p : Scope.pattern) =
   match p with
   | Pany | Pvar _ -> false
-  | Palias (p, _) -> refutable p
+  | Palias (p, _) | Pconstraint (p, _) -> refutable p
   | Ptuple ps -> List.exists refutable ps
   | Precord fs -> List.exists (fun (_, p) -> refutable p) fs
   | Pcons (c, ps) -> (match c.kind with Exn _ -> true | _ -> c.nconst + c.nblock > 1) || List.exists refutable ps
@@ -205,6 +206,7 @@ let rec test (acc : (int * binding) list) own s (p : Scope.pattern) fail =
   | Pany -> acc
   | Pvar v -> bind v acc
   | Palias (p, v) -> test (bind v acc) own s p fail
+  | Pconstraint (p, _) -> test acc own s p fail
   | Pconst (Int n) -> rel Eq n; acc
   | Pconst (Char c) -> rel Eq (Char.code c); acc
   | Pconst (String str) -> check [ Block (string_block str); Op (Poly Eq) ]; acc
@@ -350,6 +352,7 @@ let rec value env (e : Scope.expr) =
       emit (Jmp top);
       emit (Label out);
       emit (Int 0)
+  | Econstraint (e, _) -> value env e
   | Eassert c ->
       let ok = label () in
       value env c; emit (Jnz ok); raise_failure "Assert_failure" e.loc; emit (Label ok); emit (Int 0)
@@ -393,6 +396,7 @@ and tail env (e : Scope.expr) =
   match e.e with
   | Eapply (f, args) -> if not (app env f args true) then emit Ret
   | Elet _ | Ematch _ | Eif _ | Eseq _ -> control env e true
+  | Econstraint (e, _) -> tail env e
   | _ -> value env e; emit Ret
 
 and control env (e : Scope.expr) tl =
