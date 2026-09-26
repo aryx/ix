@@ -49,6 +49,7 @@ typedef uintptr uvalue;
 #define Tag(v) (Hd(v) & 255)
 #define Is_int(v) (((v) & 1) != 0)
 #define Bytes(v) ((uchar*)(v))
+#define Double_val(v) (*(double*)(v))
 #define Closure_tag 247
 #define String_tag 252
 #define Double_tag 253
@@ -179,6 +180,12 @@ gc(value need)
 	if(hp + need > limit)
 		fatal("Fatal error: out of memory\n");
 }
+
+/* Gc's: a collection, whichever was asked */
+value gc_full_major(value u) { gc(0); return u; }
+value gc_major(value u) { gc(0); return u; }
+value gc_minor(value u) { gc(0); return u; }
+value gc_compaction(value u) { gc(0); return u; }
 
 value
 ml_alloc(value n, value tag)
@@ -603,6 +610,11 @@ cmp(value a, value b)
 				return Bytes(a)[i] < Bytes(b)[i] ? -1 : 1;
 		return n < m ? -1 : n > m ? 1 : 0;
 	}
+	if(ta == Double_tag){
+		if(Double_val(a) < Double_val(b)) return -1;
+		if(Double_val(a) > Double_val(b)) return 1;
+		return 0;
+	}
 	if(ta == Closure_tag)
 		raise_with(caml_exn_Invalid_argument, "equal: functional value");
 	n = Wosize(a);
@@ -985,20 +997,119 @@ install_signal_handler(value sig, value action)
 }
 
 /*****************************************************************************/
-/* Not yet: floats (phase 7), marshalling, the others */
+/* Floats: boxed, a block of the double's bits (phase 7; on arm64: on
+ * arm, mini-ld encodes 5c's FPA, not the Pi's VFP) */
 /*****************************************************************************/
 
-value caml_negfloat(value a) { unsupported("floats"); return a; }
-value caml_absfloat(value a) { unsupported("floats"); return a; }
-value caml_floatofint(value a) { unsupported("floats"); return a; }
-value caml_intoffloat(value a) { unsupported("floats"); return a; }
-value caml_addfloat(value a, value b) { unsupported("floats"); return a; }
-value caml_subfloat(value a, value b) { unsupported("floats"); return a; }
-value caml_mulfloat(value a, value b) { unsupported("floats"); return a; }
-value caml_divfloat(value a, value b) { unsupported("floats"); return a; }
-value format_float(value f, value a) { unsupported("format_float"); return a; }
-value float_of_string(value s) { unsupported("float_of_string"); return s; }
-value power_float(value a, value b) { unsupported("floats"); return a; }
+/* what goken's libc lacks, from what it has (not glibc's to the last
+ * bit) */
+static double ml_tan(double x) { return sin(x) / cos(x); }
+static double ml_sinh(double x) { return (exp(x) - exp(-x)) / 2; }
+static double ml_cosh(double x) { return (exp(x) + exp(-x)) / 2; }
+static double ml_tanh(double x) { return ml_sinh(x) / ml_cosh(x); }
+static double ml_fmod(double a, double b) { double i; modf(a / b, &i); return a - i * b; }
+
+static value
+copy_double(double d)
+{
+	value b;
+
+	b = ml_alloc(sizeof(double) / W, Double_tag);
+	*(double*)b = d;
+	return b;
+}
+
+value caml_negfloat(value a) { return copy_double(-Double_val(a)); }
+value caml_absfloat(value a) { return copy_double(Double_val(a) < 0 ? -Double_val(a) : Double_val(a)); }
+value caml_floatofint(value n) { return copy_double((double)Int_val(n)); }
+value caml_intoffloat(value a) { return Val_int((value)Double_val(a)); }
+value caml_addfloat(value a, value b) { return copy_double(Double_val(a) + Double_val(b)); }
+value caml_subfloat(value a, value b) { return copy_double(Double_val(a) - Double_val(b)); }
+value caml_mulfloat(value a, value b) { return copy_double(Double_val(a) * Double_val(b)); }
+value caml_divfloat(value a, value b) { return copy_double(Double_val(a) / Double_val(b)); }
+value exp_float(value a) { return copy_double(exp(Double_val(a))); }
+value log_float(value a) { return copy_double(log(Double_val(a))); }
+value log10_float(value a) { return copy_double(log10(Double_val(a))); }
+value sqrt_float(value a) { return copy_double(sqrt(Double_val(a))); }
+value sin_float(value a) { return copy_double(sin(Double_val(a))); }
+value cos_float(value a) { return copy_double(cos(Double_val(a))); }
+value tan_float(value a) { return copy_double(ml_tan(Double_val(a))); }
+value asin_float(value a) { return copy_double(asin(Double_val(a))); }
+value acos_float(value a) { return copy_double(acos(Double_val(a))); }
+value atan_float(value a) { return copy_double(atan(Double_val(a))); }
+value sinh_float(value a) { return copy_double(ml_sinh(Double_val(a))); }
+value cosh_float(value a) { return copy_double(ml_cosh(Double_val(a))); }
+value tanh_float(value a) { return copy_double(ml_tanh(Double_val(a))); }
+value ceil_float(value a) { return copy_double(ceil(Double_val(a))); }
+value floor_float(value a) { return copy_double(floor(Double_val(a))); }
+value atan2_float(value a, value b) { return copy_double(atan2(Double_val(a), Double_val(b))); }
+value power_float(value a, value b) { return copy_double(pow(Double_val(a), Double_val(b))); }
+value fmod_float(value a, value b) { return copy_double(ml_fmod(Double_val(a), Double_val(b))); }
+value ldexp_float(value a, value n) { return copy_double(ldexp(Double_val(a), Int_val(n))); }
+
+/* a pair of the result's parts: frexp's and modf's */
+static value
+pair(value a, value b)
+{
+	value r;
+
+	push(a);
+	push(b);
+	r = ml_alloc(2, 0);
+	Field(r, 1) = pop();
+	Field(r, 0) = pop();
+	return r;
+}
+
+value
+frexp_float(value a)
+{
+	int e;
+	double m;
+
+	m = frexp(Double_val(a), &e);
+	return pair(copy_double(m), Val_int(e));
+}
+
+value
+modf_float(value a)
+{
+	double i, f;
+	value fv;
+
+	f = modf(Double_val(a), &i);
+	fv = copy_double(f);
+	push(fv);
+	fv = copy_double(i);
+	return pair(pop(), fv);
+}
+
+/* printf's floats, by libc's formatter: OCaml's format is C's */
+value
+format_float(value fmt, value a)
+{
+	char buf[128];
+
+	snprint(buf, sizeof buf, (char*)Bytes(fmt), Double_val(a));
+	return ml_string(buf);
+}
+
+value
+float_of_string(value s)
+{
+	char *end;
+	double d;
+
+	d = strtod((char*)Bytes(s), &end);
+	if(end != (char*)Bytes(s) + length(s) || length(s) == 0)
+		failwith("float_of_string");
+	return copy_double(d);
+}
+
+/*****************************************************************************/
+/* Not yet: marshalling, and the others below */
+/*****************************************************************************/
+
 value sys_time(value u) { unsupported("Sys.time"); return u; }
 value output_value(value c, value v) { unsupported("output_value"); return v; }
 value input_value(value c) { unsupported("input_value"); return c; }
@@ -1008,27 +1119,12 @@ value input_value(value c) { unsupported("input_value"); return c; }
  * stdlib's non-% primitives this file doesn't define (Int32, Int64, the
  * floats' functions, Gc, Weak, Digest, Lexing's and Parsing's engines,
  * marshalling, and some of Sys) */
-value acos_float(void) { unsupported("acos_float"); return 0; }
-value asin_float(void) { unsupported("asin_float"); return 0; }
-value atan2_float(void) { unsupported("atan2_float"); return 0; }
-value atan_float(void) { unsupported("atan_float"); return 0; }
 value caml_channel_size(void) { unsupported("caml_channel_size"); return 0; }
 value caml_get_exception_backtrace(void) { unsupported("caml_get_exception_backtrace"); return 0; }
 value caml_input_int(void) { unsupported("caml_input_int"); return 0; }
 value caml_seek_in(void) { unsupported("caml_seek_in"); return 0; }
 value caml_seek_out(void) { unsupported("caml_seek_out"); return 0; }
-value ceil_float(void) { unsupported("ceil_float"); return 0; }
-value cos_float(void) { unsupported("cos_float"); return 0; }
-value cosh_float(void) { unsupported("cosh_float"); return 0; }
-value exp_float(void) { unsupported("exp_float"); return 0; }
-value floor_float(void) { unsupported("floor_float"); return 0; }
-value fmod_float(void) { unsupported("fmod_float"); return 0; }
-value frexp_float(void) { unsupported("frexp_float"); return 0; }
-value gc_compaction(void) { unsupported("gc_compaction"); return 0; }
-value gc_full_major(void) { unsupported("gc_full_major"); return 0; }
 value gc_get(void) { unsupported("gc_get"); return 0; }
-value gc_major(void) { unsupported("gc_major"); return 0; }
-value gc_minor(void) { unsupported("gc_minor"); return 0; }
 value gc_set(void) { unsupported("gc_set"); return 0; }
 value gc_stat(void) { unsupported("gc_stat"); return 0; }
 value input_value_from_string(void) { unsupported("input_value_from_string"); return 0; }
@@ -1066,20 +1162,13 @@ value int64_sub(void) { unsupported("int64_sub"); return 0; }
 value int64_to_int(void) { unsupported("int64_to_int"); return 0; }
 value int64_to_int32(void) { unsupported("int64_to_int32"); return 0; }
 value int64_xor(void) { unsupported("int64_xor"); return 0; }
-value ldexp_float(void) { unsupported("ldexp_float"); return 0; }
 value lex_engine(void) { unsupported("lex_engine"); return 0; }
-value log10_float(void) { unsupported("log10_float"); return 0; }
-value log_float(void) { unsupported("log_float"); return 0; }
 value marshal_data_size(void) { unsupported("marshal_data_size"); return 0; }
 value md5_chan(void) { unsupported("md5_chan"); return 0; }
 value md5_string(void) { unsupported("md5_string"); return 0; }
-value modf_float(void) { unsupported("modf_float"); return 0; }
 value output_value_to_buffer(void) { unsupported("output_value_to_buffer"); return 0; }
 value output_value_to_string(void) { unsupported("output_value_to_string"); return 0; }
 value parse_engine(void) { unsupported("parse_engine"); return 0; }
-value sin_float(void) { unsupported("sin_float"); return 0; }
-value sinh_float(void) { unsupported("sinh_float"); return 0; }
-value sqrt_float(void) { unsupported("sqrt_float"); return 0; }
 value sys_chdir(void) { unsupported("sys_chdir"); return 0; }
 value sys_close(void) { unsupported("sys_close"); return 0; }
 value sys_file_exists(void) { unsupported("sys_file_exists"); return 0; }
@@ -1088,8 +1177,6 @@ value sys_is_directory(void) { unsupported("sys_is_directory"); return 0; }
 value sys_remove(void) { unsupported("sys_remove"); return 0; }
 value sys_rename(void) { unsupported("sys_rename"); return 0; }
 value sys_system_command(void) { unsupported("sys_system_command"); return 0; }
-value tan_float(void) { unsupported("tan_float"); return 0; }
-value tanh_float(void) { unsupported("tanh_float"); return 0; }
 value weak_create(void) { unsupported("weak_create"); return 0; }
 value weak_get(void) { unsupported("weak_get"); return 0; }
 value weak_set(void) { unsupported("weak_set"); return 0; }

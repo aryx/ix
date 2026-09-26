@@ -512,6 +512,17 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 7 started: floats, on arm64.** Boxed always
+  (decision 4): a literal a static block of its bits, an operation a call
+  of the runtime, whose C (by mini-cc) does the arithmetic, the
+  conversions, compare by value, libc's math, `format_float` by libc's
+  `snprint`, `float_of_string` by `strtod`; `Gc.full_major` and the
+  others a collection. ocaml-light's nucleic (3,000 lines of floats) and
+  Moretest's testrandom and arrays print what `ocamlopt` prints (arrays:
+  ocaml-light's executable segfaults, mini-ml's passes its asserts);
+  fft differs in its measured rounding errors only, as goken's libc's
+  `sin`, `cos` and `sqrt` lose their last bits (`plan_bugs_goken.md`
+  25). arm waits for mini-ld to encode VFP.
 - **2026-09-26, phase 4: the type checker.** `languages/ml/Typing.ml`
   (Hindley-Milner, Rémy's levels, the value restriction, abbreviations
   expanded when heads differ, Printf's formats typed from their

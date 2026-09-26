@@ -267,6 +267,19 @@ such a slot's address itself (`languages/ml/Gen.ml`, `slot_ref`). Fix:
 a MOVN (or a MOVZ/MOVK sequence) for a negative constant, as for a
 positive one.
 
+### 25. libc's floats: sqrt, sin and cos lose their last bits; %.17g prints 16 digits
+
+`sqrt(0.1)` is 0.31622776601683795 where the correctly rounded value
+(IEEE 754 requires it of a square root; glibc's) is
+0.31622776601683794; `sin(1.0)` 0.8414709848078964 against glibc's
+0.8414709848078965, `cos(2.5)` and others alike; and `%.17g` prints 16
+significant digits. `tan`, `sinh`, `cosh`, `tanh` and `fmod` are declared
+(`include/math/`) but not implemented. Found 2026-09-26 by mini-ml's
+runtime, whose floats are libc's: ocaml-light's `test/fft.ml`, whose
+output is its transform's rounding error, prints errors 16 times
+glibc's. ix: mini-ml's runtime defines the five missing from the others;
+fft's comparison is left failing, documented (plan_ml.md's Status).
+
 ## How they were found
 
 The runners that compare ix with its reference, case by case or file
