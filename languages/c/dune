@@ -3,7 +3,7 @@
 ; decision 8)
 (library
  (name ix_cc)
- (modules Tree Pre Lexer Parser Declare Check Machines)
+ (modules Tree Pre Lexer Parser Declare Check Machines Emit Com64)
  (libraries ix_core ix_asm fpath logs caps))
 
 (ocamlyacc Parser)
@@ -13,7 +13,7 @@
  (name ix_cc_cli)
  (modules CLI)
  (flags (:standard -open Ix_cc))
- (libraries ix_cc ix_cc_compat ix_core ix_asm fpath logs caps))
+ (libraries ix_cc ix_cc_compat ix_cc_simple ix_core ix_asm fpath logs caps))
 
 (executable
  (name Main)

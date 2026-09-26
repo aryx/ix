@@ -538,8 +538,8 @@ after the compiler, by what it taught.
     front end complete, its code generator mostly `raise Todo`.
 - **2026-09-26, amended**: two back ends, compat (byte for byte, the
   default) and `-simple` (behavior only), one front end; see
-  "Amendment (2026-09-26)" before the appendix. Step 1, the cut, done
-  the same day; simple/ not started.
+  "Amendment (2026-09-26)" before the appendix. All four steps done
+  the same day, simple/ on both machines; opti/ later.
 
 ## Verification
 
@@ -683,6 +683,45 @@ on the same C and the same front end.
 4. **The numbers**: lines per directory measured
    (`scripts/stats/loc.py`), this amendment's estimates corrected,
    `notes_cc.md` told of the two back ends.
+
+*Steps 2 to 4 done (2026-09-26)*, both machines at once:
+
+- **The cut's rest**: `Emit` split (item 3), the instructions,
+  operands, data, GLOBLs, listing and object shared
+  (`languages/c/Emit.ml`), the registers, nodes and 5c's
+  `backend` record compat's (`compat/Regs.ml`); com64 (item 4) shared,
+  `languages/c/Com64.ml`, compat's xcom calling it as before. The
+  listings still 241 the same on both machines, `fuzz.sh` 300.
+- **simple/**: `Lower.ml`, the typed tree to a stack machine (values
+  of 1 to 8 bytes, floats, a block's address), the frame's temporaries
+  and outgoing area, 7c's calling convention; `Gen.ml`, the stack on
+  R1-R15 and F1-F15 (arm64) or R1-R7 and F1-F6 (arm), the slot at depth
+  i Ri or Fi by its value's kind, a call spilling the live slots. On
+  arm, a vlong is a block and its operations libc's calls (the hook
+  runs `Com64` bottom up). `mini-cc -simple`.
+- **What the tests found** (`notes_fuzzing_techniques.md`, 10 to 12):
+  CBZ, which mini-ld's flow cannot invert (7c never emits it), so
+  `CMP $0` and `BEQ`; a label no jump reaches, whose stack depth came
+  from the dead code before it (`x || 255`); an address held across
+  `setjmp` in a spill slot a later call reused, so a call's value is
+  computed before the address it goes to; expressions too deep for
+  arm's 7 registers in 3 of 60 random programs, so a binary
+  operator's deeper operand goes first (Ershov's number), 0 since.
+- **Checked** (`languages/c/tests/simple.sh`, and `linker/tests/libc.sh`
+  with `MINICC=1 MINICC_FLAGS=-simple`): all of goken's libc compiled by
+  -simple on both machines; on arm64, 227 of 228 programs run as 7c's
+  (goken's 17 hello_libc, the 11 TinyC_tests, 200 of `TinyC_fuzz.py`),
+  the last, `mem`, crashing in `sbrk` as goken's own `7c -O0` build
+  does; on arm, the 200 of `TinyC_fuzz.py --32`, the 11 TinyC_tests
+  (vlong through libc's calls included) and 16 of the 17 hello_libc as
+  5c's, the 17th, `pipe`, printing right where goken's `5c -O0` build
+  prints garbage. On `args`, `stat`, `utfmisc` and `pipe`, -simple's
+  executables are right where goken's -O0 ones are not.
+- **The numbers** (`scripts/stats/loc.py -v`, code lines): the shared
+  front end 2,990, `compat/` 1,622, `simple/` 497, against the estimate
+  of 1,000 to 1,200: a C compiler for two machines, front end and
+  simple, 3,487 lines of code, and compat's fidelity to 5c 1,125 more
+  than simple.
 
 ### Later: `opti/` (the author: "we could even have an opti/ variant, in addition to simple/ later")
 

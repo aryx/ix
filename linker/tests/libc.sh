@@ -9,7 +9,9 @@
 # GOOS=plan9 H=-H2: Plan 9's libc and a.out (compared, not run here:
 # machine/tests/plan9.py runs them under 5i and mini-5i).
 # MINICC=1: ix's C is compiled by mini-cc into objects, not 5c -S and
-# mini-asm (5c -O0 for goken's then, the same code).
+# mini-asm (5c -O0 for goken's then, the same code). MINICC_FLAGS=-simple
+# (with MINICC=1): by mini-cc's simple back end, whose executables differ
+# from goken's (DIFF) but must run the same.
 set -u
 export PATH=$HOME/goken/bin:$HOME/goken/ROOT/arch/boot-gcc/bin:$PATH
 IX=$(cd $(dirname $0)/../.. && pwd)/_build/default
@@ -34,7 +36,7 @@ while read -r line; do
     flags=${flags//\$CFLAGS_EXTRA/$(grep '^CFLAGS_EXTRA=' mkfile | cut -d= -f2-)}
     if [ -n "${MINICC:-}" ]; then
       ${O}c -O0 $flags -o $W/g/$b.$O $src > /dev/null 2>&1 || echo "${O}c-FAIL $b"
-      $IX/languages/c/Main.exe -m $O $flags -o $W/t/$b.$O $src 2> $W/t/$b.err || echo "MINICC-FAIL $b"
+      $IX/languages/c/Main.exe ${MINICC_FLAGS:-} -m $O $flags -o $W/t/$b.$O $src 2> $W/t/$b.err || echo "MINICC-FAIL $b"
     else
     ${O}c $flags -S -o $W/g/$b.$O $src 2>$W/t/$b.err | grep '^	' > $W/t/$b.s || echo "${O}c-FAIL $b"
     $IX/assembler/Main.exe -m $O -o $W/t/$b.$O $W/t/$b.s || echo "MINIASM-FAIL $b"
@@ -59,7 +61,7 @@ for c in "${progs[@]}"; do
   incs="-I$HOME/goken/include -I$HOME/goken/include/ALL -I$HOME/goken/include/arch/$OBJ"
   if [ -n "${MINICC:-}" ]; then
     (cd $(dirname $c) && ${O}c -O0 $incs -o $W/g/$b.$O $b.c > /dev/null 2>&1) || { echo "${O}c-FAIL $b"; continue; }
-    (cd $(dirname $c) && $IX/languages/c/Main.exe -m $O $incs -o $W/t/$b.$O $b.c) || { echo "MINICC-FAIL $b"; continue; }
+    (cd $(dirname $c) && $IX/languages/c/Main.exe ${MINICC_FLAGS:-} -m $O $incs -o $W/t/$b.$O $b.c) || { echo "MINICC-FAIL $b"; continue; }
   else
   (cd $(dirname $c) && ${O}c $incs -S -o $W/g/$b.$O $b.c 2>/dev/null | grep '^	' > $W/t/$b.s) || { echo "${O}c-FAIL $b"; continue; }
   $IX/assembler/Main.exe -m $O -o $W/t/$b.$O $W/t/$b.s || { echo "MINIASM-FAIL $b"; continue; }
@@ -73,8 +75,8 @@ for c in "${progs[@]}"; do
     continue
   fi
   same=$(python3 $TESTS/elfcmp.py $W/g/$b.exe $W/t/$b.exe)
-  (mkdir -p $W/run && cd $W/run && timeout 10 $W/g/$b.exe one two > $W/g/$b.out 2>&1; echo "exit $?" >> $W/g/$b.out)
-  (mkdir -p $W/run && cd $W/run && timeout 10 $W/t/$b.exe one two > $W/t/$b.out 2>&1; echo "exit $?" >> $W/t/$b.out)
+  (mkdir -p $W/run && cd $W/run && timeout -k 2 10 $W/g/$b.exe one two > $W/g/$b.out 2>&1; echo "exit $?" >> $W/g/$b.out)
+  (mkdir -p $W/run && cd $W/run && timeout -k 2 10 $W/t/$b.exe one two > $W/t/$b.out 2>&1; echo "exit $?" >> $W/t/$b.out)
   if cmp -s $W/g/$b.out $W/t/$b.out; then run="runs the same ($(tail -1 $W/t/$b.out))"; else run="RUNS DIFFERENTLY"; fi
   echo "$b: $same; $run"
 done

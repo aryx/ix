@@ -3,8 +3,8 @@
  * vlongs, which the machine computes itself) are the front end's,
  * Machines.arm64. *)
 
-(* for Emit *)
-val backend : Emit.backend
+(* for Regs *)
+val backend : Regs.backend
 
 (* for Gen *)
 val hooks : Gen.hooks

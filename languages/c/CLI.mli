@@ -1,8 +1,9 @@
-(* mini-cc [-m 5|7] [-S] [-x] [-o out] [-Idir] [-Dname[=value]] file.c
+(* mini-cc [-m 5|7] [-simple] [-S] [-x] [-o out] [-Idir] [-Dname[=value]] file.c
  * -m the machine (5, arm, the default; 7, arm64), -S the listing on
  * stdout, -x each function's trees on stdout too; the object in mini-asm's
  * format, for mini-ld, to out or x.5 (x.7) in the current directory,
- * as 5c. 5c's other flags are ignored. *)
+ * as 5c. 5c's other flags are ignored. -simple: the back end whose
+ * contract is the behavior (simple/), not 5c's listing (compat/). *)
 
 type caps =
     < open_in : string -> Cap.FS_.open_in;

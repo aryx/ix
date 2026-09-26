@@ -30,10 +30,26 @@ let compat (mach : Tree.machine) : backend =
   {
     init = (fun () ->
       (match mach.thechar with
-       | '5' -> Emit.be := Some Arm.backend; Gen.hooks := Some Arm.hooks
-       | _ -> Emit.be := Some Arm64.backend; Gen.hooks := Some Arm64.hooks);
+       | '5' -> Regs.be := Some Arm.backend; Gen.hooks := Some Arm.hooks
+       | _ -> Regs.be := Some Arm64.backend; Gen.hooks := Some Arm64.hooks);
       (* acom first: a pass of 5c's front end, the listing's *)
       Check.xcom := (fun n -> Gen.xcom (Acom.acom n));
+      Check.outstring := Emit.outstring;
+      Declare.gextern := Emit.gextern;
+      Emit.init ();
+      Regs.init ());
+    codgen = Gen.codgen;
+    finish = (fun () -> Regs.gclean (); Emit.gclean ());
+    listing = Emit.listing;
+    obj = Emit.obj;
+  }
+
+(* the behavior only: a stack machine (simple/) *)
+let simple_backend : backend =
+  let open Ix_cc_simple in
+  {
+    init = (fun () ->
+      Check.xcom := Lower.calls64;
       Check.outstring := Emit.outstring;
       Declare.gextern := Emit.gextern;
       Emit.init ());
@@ -96,12 +112,11 @@ let main (caps : < caps; .. >) (argv : string array) : int =
   args (List.tl (Array.to_list argv));
   let path s = match Files.path s with Ok p -> p | Error m -> failwith m in
   match List.map path !files, List.map path (List.rev !incs) with
-  | _ when !simple -> eprint caps "mini-cc: -simple: not yet (plan_cc.md, decision 8)\n"; 1
   | [ file ], incs -> (
       (* x.c to x.5, in the current directory, as 5c *)
       let out = if !out <> "" then path !out else Fpath.set_ext ("." ^ String.make 1 !mach.thechar) (Fpath.base file) in
-      match compile caps !mach (compat !mach) ~dump:!dump ~listing:!listing ~out (List.rev !defs) incs file with
+      match compile caps !mach (if !simple then simple_backend else compat !mach) ~dump:!dump ~listing:!listing ~out (List.rev !defs) incs file with
       | Ok () -> 0
       | Error m -> eprint caps (m ^ "\n"); 1)
   | exception Failure m -> eprint caps ("mini-cc: " ^ m ^ "\n"); 1
-  | _, _ -> eprint caps "usage: mini-cc -m 5|7 [-x] [-S] [-Idir] [-Dname=value] [-o out] file.c\n"; 1
+  | _, _ -> eprint caps "usage: mini-cc -m 5|7 [-simple] [-x] [-S] [-Idir] [-Dname=value] [-o out] file.c\n"; 1

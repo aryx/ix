@@ -1,6 +1,6 @@
 ; the back end whose listings are 5c's and 7c's at -O0, byte for byte
 (library
  (name ix_cc_compat)
- (modules Acom Emit Multiply Gen Arm Arm64)
+ (modules Acom Regs Multiply Gen Arm Arm64)
  (flags (:standard -open Ix_cc))
  (libraries ix_cc ix_core ix_asm fpath logs caps))

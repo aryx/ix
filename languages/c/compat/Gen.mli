@@ -57,7 +57,7 @@ val xcom : Tree.expr -> Tree.expr
 (* what the machines' modules build with: a move, an operation, a
  * comparison and its branch, a switch's table *)
 val gmove : Tree.expr -> Tree.expr -> unit
-val gopcode : Emit.gop -> Tree.expr option -> Tree.expr option -> Tree.expr option -> unit
+val gopcode : Regs.gop -> Tree.expr option -> Tree.expr option -> Tree.expr option -> unit
 val op2 : Tree.binop -> Tree.expr -> Tree.expr -> unit
 val op3 : Tree.binop -> Tree.expr -> Tree.expr -> Tree.expr -> unit
 val compare : ?tr:bool -> Tree.binop -> Tree.expr -> Tree.expr -> unit

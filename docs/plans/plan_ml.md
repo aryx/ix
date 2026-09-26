@@ -750,6 +750,20 @@ phase 7 lists; other machines.
 
 [`notes_ml_related_work.md`](../related-work/notes_ml_related_work.md).
 
+## Later: compat/, simple/, opti/ here too
+
+The author (2026-09-26, while mini-cc was split, plan_cc.md decision
+8): "maybe later we can do the same for languages/ml/ and have a
+compat/ there too with Gas.ml in it, simple/ for the current way to
+do, and later an opti/". To settle first: mini-cc's compat/ is a
+*contract* (5c's listing, byte for byte), while mini-ml has none of
+that kind, and `Gas.ml` is an *output* (GNU's assembly, route B), not
+a fidelity; it runs after the same `Lower` as the Plan 9 route. So the
+cut may be two axes rather than one directory each: the back end's
+design (simple/, then opti/'s passes on `Lower`'s IR, as for C) and
+the output's syntax (Plan 9's or GNU's, a printer over the same
+instructions). Not started.
+
 ## Appendix: the counts
 
 The evidence, from `languages/ml/tests/count_ml.py` (2026-09-26).

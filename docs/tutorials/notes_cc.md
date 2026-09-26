@@ -34,14 +34,16 @@ goken's 5c and 7c, and xix's `compiler/`.
 | `languages/c/compat/Gen` | code from the tree | §4, §5, §6, §7 |
 | `languages/c/compat/Multiply` | a multiplication by a constant | §5 |
 | `languages/c/compat/Arm`, `Arm64` | what each machine decides | §8 |
-| `languages/c/compat/Emit`, `CLI` | the instructions, `-S`, the objects, `mini-cc` | §9 |
+| `languages/c/compat/Regs` | 5c's registers, the frame's areas | §4, §7 |
+| `languages/c/Emit`, `Com64`, `CLI` | the instructions, `-S`, the objects; arm's vlong calls; `mini-cc` | §8, §9 |
+| `languages/c/simple/Lower`, `Gen` | `-simple`: a stack machine, for both machines | |
 
 Each module's `.mli` says what it does and where it departs from 5c
 and 7c, with the papers it follows; read Tree's first, then in the
 order of the table. `languages/c/` is the language, shared;
 `compat/` is the back end whose listings are 5c's and 7c's, byte for
-byte (plan_cc.md, decision 8: a free back end, `simple/`, is planned
-beside it).
+byte; `simple/` (`mini-cc -simple`) the one whose contract is only the
+behavior, a stack machine in 500 lines (plan_cc.md, decision 8).
 
 ## 1. From a `.c` to a running program
 

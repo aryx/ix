@@ -1,0 +1,7 @@
+; the back end whose contract is the behavior (plan_cc.md, decision 8):
+; a stack machine, for arm64 and arm
+(library
+ (name ix_cc_simple)
+ (modules Lower Gen)
+ (flags (:standard -open Ix_cc))
+ (libraries ix_cc ix_asm))

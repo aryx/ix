@@ -6796,3 +6796,59 @@ Step 3b will add the draw protocol (#i), and rio arrives in step 4.
 **Claude (summary):**
 
 Claude committed step 3a as 7dbea63 with kernel, mini-pi, and plan update files. The commit included prompt-history.md which the user's hook automatically stages in version control. Claude excluded changes from other sessions including languages/c and top-level Makefile modifications. Claude identified step 3b next, the #i draw device for screen drawing functionality. This device builds on pixel libraries and serves as a requirement for rio in step 4.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:35
+
+**Yoann:**
+
+> fantastic work! Typing on the keyboard though send to many keys sometimes, the sensitivity is a bit high; for instance I typed ls but got lsss displayed.
+
+**Claude (summary):**
+
+Claude identified key repeat causing ls to output lsss from USB keyboard sensitivity.
+Claude found the root cause: emulated clock running ahead of real time at idle prompts.
+Claude fixed it by adding pacing to Main.ml to synchronize emulated and real clocks.
+Claude tested with sleep 3 and verified proper timing with no repeated keypresses.
+Claude left all Main.ml changes uncommitted and ready for Yoann to commit to the repo.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:42
+
+**Yoann:**
+
+> let's commit
+
+**Claude (summary):**
+
+Claude committed the key-repeat fix as e8c35e9 with three raspberry/ files and prompt-history.md.
+The fix prevents ls commands from being incorrectly repeated by the key-repeat mechanism in mini-pi.
+Claude suggested verifying the fix using ./mini-pi -g mini-9pi to confirm ls stays stable.
+Claude had not personally tested the fix in the window and deferred testing to Yoann.
+The commit was not pushed yet, kept local pending Yoann's validation of the key-repeat fix.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:43
+
+**Yoann:**
+
+> it works! great! What's next?
+
+**Claude (summary):**
+
+Claude proposed starting step 3b, the draw device, which implements image allocation, drawing, and a message protocol.
+The first milestone is a graphics program from the SD card that opens a display and draws, verified against 9pi's pixels.
+The full implementation ports about 3000 lines of C to OCaml, delegating pixel operations to principia's existing C libraries.
+After this milestone come layer support for rio and then rio itself.
+Yoann confirmed he wants to begin with this first-client milestone immediately.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:02
+
+**Yoann:**
+
+> and maybe later we can do the same for languages/ml/ and have a compat/ there too with Gas.ml in it, simple/ for the current way to do, and later an opti/

@@ -17,6 +17,7 @@ open Tree
 
 module A = Ix_asm.Asm
 open Emit
+open Regs
 
 let load_op = function
   | Tfloat -> "MOVF" | Tdouble -> "MOVD" | Tchar -> "MOVB" | Tuchar -> "MOVBU" | Tshort -> "MOVH" | Tushort -> "MOVHU"
@@ -206,10 +207,10 @@ let sucopy (n : expr) (nn : expr) w =
 let table (n : expr) _ range def = Gen.gcase range n; patch (p ()) def
 
 let backend = {
-  arch = A.Arm; nreg = 16; nfreg = 8; regret = 0; fregret = 0; regsp = 13;
+  nreg = 16; nfreg = 8; regret = 0; fregret = 0; regsp = 13;
   (* the linker's temporary R11, SB R12, SP, LR, PC; R9 and R10 for extern registers *)
   reserved = [ 11; 12; 13; 14; 15; 10; 9 ]; regtmp = 11; word = 4; float_from_last = false;
-  ret = "RET"; offset32 = true; zero_reg = None;
+  ret = "RET"; zero_reg = None;
   gmove; gmover; gopcode;
 }
 

@@ -17,6 +17,7 @@ open Tree
 
 module A = Ix_asm.Asm
 open Emit
+open Regs
 
 (* a word is MOVW, a vlong or pointer MOV *)
 let width_op et = if ewidth et = 4 then (if typeu et then "MOVWU" else "MOVW") else "MOV"
@@ -224,10 +225,10 @@ let sucopy (n : expr) (nn : expr) w =
 let table (n : expr) tn range def = Gen.compare Hi range n; patch (p ()) def; Gen.gopcode Gcase (Some n) None (Some tn)
 
 let backend = {
-  arch = A.Arm64; nreg = 32; nfreg = 32; regret = 0; fregret = 0; regsp = 31;
+  nreg = 32; nfreg = 32; regret = 0; fregret = 0; regsp = 31;
   (* the linker's temporary R17, SB R28, SP (and ZR) R31; R26 and R27 for extern registers *)
   reserved = [ 17; 28; 31; 27; 26 ]; regtmp = 17; word = 8; float_from_last = true;
-  ret = "RETURN"; offset32 = false; zero_reg = Some 31;
+  ret = "RETURN"; zero_reg = Some 31;
   gmove; gmover; gopcode;
 }
 
