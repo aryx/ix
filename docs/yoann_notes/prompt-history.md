@@ -6768,3 +6768,31 @@ Claude recommended starting with Emit output-side move, then Lower and Gen for a
 **Yoann:**
 
 > whatever you think is best, and lead to simpler and smaller LOC. Also we should arm32 support too at some point also for simple/ no?
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:30
+
+**Yoann:**
+
+> let's commit and do step 3! when can we use mini-pi -g mini-9pi ?
+
+**Claude (summary):**
+
+Claude completed step 3a: framebuffer blue (0x7F), Swcursor module for cursor, boot text matching C 9pi.
+All checks pass on mini-qemu and QEMU; reference PPM screens match byte-for-byte after echo and mouse moves.
+Step 3a commit includes kernel/9pi/, kernel/lib/kernel.mk, mini-pi, plan_9pi.md, and updated session files.
+Mini-pi -g mini-9pi now works with USB keyboard and mouse input.
+Step 3b will add the draw protocol (#i), and rio arrives in step 4.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:33
+
+**Yoann:**
+
+> yes let's commit
+
+**Claude (summary):**
+
+Claude committed step 3a as 7dbea63 with kernel, mini-pi, and plan update files. The commit included prompt-history.md which the user's hook automatically stages in version control. Claude excluded changes from other sessions including languages/c and top-level Makefile modifications. Claude identified step 3b next, the #i draw device for screen drawing functionality. This device builds on pixel libraries and serves as a requirement for rio in step 4.

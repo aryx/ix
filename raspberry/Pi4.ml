@@ -61,6 +61,9 @@ let quantum = 1000
 (* the counter: 62.5 ticks a simulated microsecond *)
 let count t = Int64.of_int ((t.now * 125 / (2 * t.cfg.ips)) + t.skipped)
 
+(* claude: the board's time, microseconds (the counter at 62.5 MHz) *)
+let now t = Int64.to_int (count t) * 2 / 125
+
 (* a timer's condition, and its line to the GIC, the core's own *)
 let fired t tm = tm.ctl land 1 <> 0 && Int64.unsigned_compare (count t) tm.cval >= 0
 let update_timer t c tm = Gic.set_private t.gic c.id tm.ppi (fired t tm && tm.ctl land 2 = 0)

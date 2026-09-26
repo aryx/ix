@@ -56,6 +56,9 @@ val run : t -> batch:int -> unit
 (* the time, in instructions of a core *)
 val instructions : t -> int
 
+(* the board's time, microseconds (its generic timer's) *)
+val now : t -> int
+
 (* the framebuffer (the mailbox's): as RGB (QMP's screendump), as the
  * kernel wrote it (the window); None before a kernel asks for one *)
 val screen : t -> (int * int * string) option

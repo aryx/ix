@@ -31,8 +31,18 @@ let usage = "usage: mini-qemu -M raspi1ap|raspi4b [-m size] [-smp n] [-nographic
 
 (* the board run in batches; the host's input polled (raw on a
  * terminal, Ctrl-A x to quit), the console's output written, the
- * screen shown 30 times a second of the host's, QMP served *)
-let loop caps ~out ~graphics ~qmp ~run ~input ~frame ~key ~pointer ~qmp_poll =
+ * screen shown 30 times a second of the host's, QMP served.
+ *
+ * claude: with a window, the board's time ([now], microseconds) is kept
+ * from running ahead of the host's: an idle kernel's time skips to its
+ * next tick (the WFI), so without it a key held 100ms of a person's
+ * time lasted far longer in the board's, and 9pi's usb/kb repeated it
+ * (its repeat starts after 160ms: "ls" gave "lsss"). QEMU keeps its
+ * clock the host's too. Behind (a busy kernel), the board does not
+ * catch up: the time lost is lost, as a slower machine's. Without a
+ * window (the tests, session.py's timed keys), it runs as fast as it
+ * can, its time the instructions' only. *)
+let loop caps ~out ~graphics ~qmp ~run ~now ~input ~frame ~key ~pointer ~qmp_poll =
   let tty = Unix.isatty Unix.stdin in
   let saved = if tty then Some (Unix.tcgetattr Unix.stdin) else None in
   Option.iter (fun (a : Unix.terminal_io) ->
@@ -59,12 +69,20 @@ let loop caps ~out ~graphics ~qmp ~run ~input ~frame ~key ~pointer ~qmp_poll =
   let quit () = restore (); exit 0 in
   let last_frame = ref 0. in
   let n = ref 0 in
+  let paced = display != Display.none in
+  (* the host's time when the board's was 0 *)
+  let base = ref (Unix.gettimeofday ()) in
+  let pace () =
+    let ahead = (float_of_int (now ()) /. 1e6) -. (Unix.gettimeofday () -. !base) in
+    if ahead > 0.001 then Unix.sleepf (min ahead 0.02)
+    else if ahead < 0. then base := !base -. ahead in
   (try
      while true do
        run ();
        if Buffer.length out > 0 then (Console.print caps (Buffer.contents out); flush stdout; Buffer.clear out);
        incr n;
        if !n land 15 = 0 then begin
+         if paced then pace ();
          poll ();
          Option.iter (fun q -> qmp_poll q ~quit) qmp;
          let now = Unix.gettimeofday () in
@@ -161,7 +179,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
          * screendump; the USB keyboard and mouse on its DWC2 *)
         let machine = { Qmp.screen = (fun () -> Pi4.screen board); send_keys = Pi4.send_keys board;
                         key = Pi4.key board; pointer = Pi4.pointer board } in
-        loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Pi4.run board ~batch:4096) ~input:(Pi4.input board)
+        loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Pi4.run board ~batch:4096) ~now:(fun () -> Pi4.now board) ~input:(Pi4.input board)
           ~frame:(fun () -> Pi4.frame board) ~key:(Pi4.key board) ~pointer:(Pi4.pointer board)
           ~qmp_poll:(fun q ~quit -> Qmp.poll q machine ~quit)
       end
@@ -174,7 +192,7 @@ let main (caps : < Cap.argv; Cap.open_in; Cap.stdin; Cap.stdout; Cap.stderr; .. 
          | _, Some (f, addr) -> Board.load_raw board ~addr (read f)
          | Some k, None -> Board.load_kernel board (read k)
          | None, None -> ());
-        loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Board.run board ~batch:4096) ~input:(Board.input board)
+        loop caps ~out ~graphics:!graphics ~qmp:!qmp ~run:(fun () -> Board.run board ~batch:4096) ~now:(fun () -> Board.now board) ~input:(Board.input board)
           ~frame:(fun () -> Board.frame board) ~key:(Board.key board) ~pointer:(Board.pointer board) ~qmp_poll:(fun q ~quit ->
             Qmp.poll q { Qmp.screen = (fun () -> Board.screen board); send_keys = Board.send_keys board;
                          key = Board.key board; pointer = Board.pointer board } ~quit)
