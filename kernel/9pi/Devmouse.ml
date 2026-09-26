@@ -29,7 +29,7 @@ type state = { x : int; y : int; buttons : int; counter : int; msec : int }
 
 let st = ref { x = 0; y = 0; buttons = 0; counter = 0; msec = 0 }
 let lastcounter = ref 0
-let resize = ref 0
+let resizes = ref 0
 let lastresize = ref 0
 let is_open = ref false
 let acceleration = ref 0
@@ -87,7 +87,9 @@ let mousetrack dx dy b msec =
 
 let xy () = (!st.x, !st.y)
 
-let changed () = !lastcounter <> !st.counter || !lastresize <> !resize
+let resize () = incr resizes; Proc.wakeup Mouse_change
+
+let changed () = !lastcounter <> !st.counter || !lastresize <> !resizes
 
 let now_ms () = !Proc.ticks * 10
 
@@ -122,7 +124,7 @@ let rec read_mouse n =
     let b = buttonmap.(m.buttons land 7) lor (m.buttons land (3 lsl 3)) in
     let b = if !scrollswap then (if b = 8 then 16 else if b = 16 then 8 else b) else b in
     lastcounter := m.counter;
-    let r = if !lastresize <> !resize then begin lastresize := !resize; "r" end else "m" in
+    let r = if !lastresize <> !resizes then begin lastresize := !resizes; "r" end else "m" in
     let s = r ^ num m.x ^ " " ^ num m.y ^ " " ^ num b ^ " " ^ num m.msec ^ " " in
     String.sub s 0 (min n (String.length s))
   end
@@ -144,7 +146,7 @@ let init () =
       if c.qid.path = qmouse then begin
         if !is_open then raise (Error einuse);
         is_open := true;
-        lastresize := !resize
+        lastresize := !resizes
       end;
       Dev.tab_open c m);
     Dev.close = (fun c ->

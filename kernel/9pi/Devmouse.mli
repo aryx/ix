@@ -21,5 +21,8 @@ val screen : (int * int * int * int) option ref
 (* mousexy: the mouse's position *)
 val xy : unit -> int * int
 
+(* mouseresize: the screen changed (its next read an 'r') *)
+val resize : unit -> unit
+
 (* the device registered; the arrow cursor loaded and drawn *)
 val init : unit -> unit

@@ -46,3 +46,51 @@ external load : image -> string -> int = "draw_load"
 (* the chans (draw.h's GREY1, GREY8) *)
 val grey1 : int
 val grey8 : int
+
+(* The draw device's (Devdraw): its messages' ints in an int array, as
+ * draw9.c's d9_* take them; a 32-bit chan or colour as two 16-bit
+ * halves *)
+
+(* a null image (an allocation failed) *)
+external isnil : image -> bool = "draw_isnil"
+(* makescreenimage's: another image on the screen's memory *)
+external screenimage : unit -> image = "draw_screenimage"
+(* 'b': [| r[4] chan[2] repl clipr[4] value[2] |] *)
+external allocimage : int array -> image = "draw_allocimage"
+external setrepl : image -> unit = "draw_setrepl"
+(* [| clipr[4] |] *)
+external setclipr : image -> int array -> unit = "draw_setclipr"
+(* its chan's name, [| chan[2] repl r[4] clipr[4] depth layer |] *)
+external info : image -> string * int array = "draw_info"
+(* [drawop dst src mask [| r[4] p[2] q[2] op |]] *)
+external drawop : image -> image -> image -> int array -> unit = "draw_drawop"
+(* [| p0[2] p1[2] end0 end1 radius sp[2] op |] *)
+external line : image -> image -> int array -> unit = "draw_line"
+(* [| end0 end1 radius sp[2] op fill n pts[2n] |]: -1 no memory *)
+external poly : image -> image -> int array -> int = "draw_poly"
+(* [| c[2] a b thick sp[2] op arc alpha phi |] *)
+external ellipse : image -> image -> int array -> unit = "draw_ellipse"
+(* [memload dst [| r[4] compressed |] data]: the bytes used, -1 bad *)
+external memload : image -> int array -> string -> int = "draw_memload"
+(* [unload img [| r[4] |]]: its pixels *)
+external unload : image -> int array -> string = "draw_unload"
+
+(* Layers: a screen (Memscreen: its image, its fill), windows on it *)
+type memscreen
+external memscreen : image -> image -> memscreen = "draw_memscreen"
+external freememscreen : memscreen -> unit = "draw_freememscreen"
+(* its image's chan, its halves *)
+external memscreenchan : memscreen -> int * int = "draw_memscreenchan"
+(* 'b' on a screen: [| r[4] refresh clipr[4] value[2] |], a null image
+ * when it fails *)
+external lalloc : memscreen -> int array -> image = "draw_lalloc"
+(* its refresh's pointer: a Refx's number (Devdraw's), 0 none *)
+external lsetrefresh : image -> int -> unit = "draw_lsetrefresh"
+(* [| refx screenr[4] onscreen |] *)
+external layerinfo : image -> int array = "draw_layerinfo"
+(* [lfree l delete]: memldelete (its screen still good) or memlfree *)
+external lfree : image -> bool -> unit = "draw_lfree"
+(* [ltofront windows front]: 0, -1 not windows, -2 not on one screen *)
+external ltofront : image array -> bool -> int = "draw_ltofront"
+(* [| log[2] scr[2] |]: -1 failed, 0 no move, 1 moved *)
+external lorigin : image -> int array -> int = "draw_lorigin"

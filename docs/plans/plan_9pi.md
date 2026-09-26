@@ -469,3 +469,28 @@ QEMU warns of a re-entrant I/O on bcm2835-fb at the framebuffer's
 mailbox request, for the C 9pi as for mini-9pi: filtered out of the
 sessions. Next, step 3b: `#i`, devdraw's protocol, over the same
 libraries.
+
+2026-09-26, **stage D, step 3b and step 4: `#i`, and rio**. `Devdraw`
+is devdraw.c and drawmesg.c (with drawalloc.c, drawname.c,
+drawwindow.c, drawmisc.c): the clients (`/dev/draw/new`, `n/ctl`,
+`data`, `colormap`, `refresh`), their images by number, the names
+(the screen's "noborder.screen.1"), fonts' characters, screens and
+their windows, the refreshes of windows refreshed by messages; every
+message of draw.h's protocol parsed in OCaml. Their pixel work is
+principia's libraries' still (decision 4): `draw9.c`'s d9_* (an image
+allocated and filled, a drawing with its op, lines, polygons,
+ellipses and arcs, pixels loaded and read, memlayer's windows), the
+message's ints passed as an int array, a 32-bit chan or colour as its
+halves. The cursor avoids a drawing as on 9pi: memdraw's hwdraw
+(draw9.c's, 9pi's screen.c's) calls `Swcursor.avoid` back (so OCaml's
+collector may run inside a drawing: a primitive takes its arguments'
+ints, and copies of their strings, first). Not as 9pi: no flushes (on
+the Pi, 9pi's do nothing), no blanking, the colormap's colours 0.
+**`colors` draws the C 9pi's screen pixel for pixel**, and **rio**:
+`graphics.py` (raspberry/tests/9pi_graphics.py's steps: lines typed at
+the console, the mouse moved, rio started, its menu, a window swept
+out, `echo hello from rio` typed in it) gives the C 9pi's 11 screens and
+console, under mini-qemu and QEMU (`make check`: `tests/rio-c.md5`,
+`tests/rio-c.txt`, from `make expected-rio`). `mini-pi -g mini-9pi`
+runs rio in a window. Stage D's goal is reached; next, stage E
+(networking) or F (memdraw in OCaml).

@@ -33,12 +33,19 @@
 #                   as 9pi draws it, the arrow cursor), after a session
 #                   and after the USB mouse moved, under mini-qemu and
 #                   QEMU: the C 9pi's pixels (tests/screen*-c.ppm.gz)
+#                   Then rio (graphics.py: raspberry/tests/9pi_graphics.py's
+#                   steps, the USB keyboard and mouse: the console, rio
+#                   started, its menu, a window swept out, a command in
+#                   it), every screen and the console the C 9pi's
+#                   (tests/rio-c.md5, tests/rio-c.txt), under mini-qemu
+#                   and QEMU
 #   make expected-screen  the C 9pi's screens, under QEMU (tests/*.ppm.gz)
+#   make expected-rio     the C 9pi's rio screens (their md5s) and console
 
 MAKEFLAGS += --no-builtin-rules
 
 PRINCIPIA ?= $(HOME)/principia
-ML = Types Dev Proc Chan Devroot Devcons Devenv Devsys Devarch Devdup Devsrv Devpipe Devproc Emmc Devsd P9 Devmnt Usb Usbdwc Devusb Kbd Draw Swcursor Swconsole Devkbin Devmouse Devstub Fault Exec Syscall Main
+ML = Types Dev Proc Chan Devroot Devcons Devenv Devsys Devarch Devdup Devsrv Devpipe Devproc Emmc Devsd P9 Devmnt Usb Usbdwc Devusb Kbd Draw Swcursor Swconsole Devkbin Devmouse Devdraw Devstub Fault Exec Syscall Main
 
 # the bootdir, as kernel/conf/arm/pi's: boot.rc as /boot/boot (or a
 # test's script: BOOTRC)
@@ -56,10 +63,11 @@ KERNDATE ?= $(shell ./kerndate.py $(PRINCIPIA))
 # principia's C pixel libraries (plan_9pi.md, decision 4), compiled by
 # gcc with principia's headers (Plan 9 C: -fplan9-extensions, p9gcc.h's
 # USED and SET) and linked in (lib/kernel.mk's EXTRA_OBJS), with
-# draw9.c (their libc, the kernel's d9_* interface) and drawglue.c (its
-# OCaml primitives)
+# draw9.c (their libc, the kernel's d9_* interface, and hwdraw: 9pi's
+# screen.c's, not libmemdraw's hooks.c) and drawglue.c (its OCaml
+# primitives)
 GFX = $(PRINCIPIA)/lib_graphics
-MEMDRAW = alloc alphadraw arc chan cmap color compressed defont draw ellipse fillpoly hooks init io line poly \
+MEMDRAW = alloc alphadraw arc chan cmap color compressed defont draw ellipse fillpoly init io line poly \
   replmul resolution string subfont transfer
 MEMLAYER = $(basename $(notdir $(wildcard $(GFX)/libmemlayer/*.c)))
 LIBDRAW = arith replclipr_geom chan resolution defont icossin icossin2 compressed misc
@@ -112,6 +120,14 @@ expected-screen: | $(B)
 	$(SESSION_PY) --prompt "% " $(MOVE) --timeout 200 --screendump $(B)/c-move.ppm --out $(B)/c-move.txt $(SCREEN_SESSION) -- $(QEMU) $(C9PI)
 	gzip -n -9 < $(B)/c-move.ppm > tests/screen-move-c.ppm.gz
 
+RIO_SCREENS = boot.ppm $(foreach i,1 2 3 4 5 6 7 8 9 10,step$(i).ppm)
+
+expected-rio: | $(B)
+	rm -rf $(B)/rio-c
+	./graphics.py $(B)/rio-c -- $(QEMU) $(C9PI)
+	cd $(B)/rio-c && md5sum $(RIO_SCREENS) > $(CURDIR)/tests/rio-c.md5
+	$(call unwarned,$(B)/rio-c/console.txt) | tr -d '\r' > tests/rio-c.txt
+
 check: $(IMAGE) kernel-pi1-b.img
 	$(SESSION_PY) --prompt "% " --timeout 300 --out $(B)/mini-c.txt --lines tests/session-c.cmds -- $(MINIQEMU) $(BOOT) $(SD)
 	diff $(B)/mini-c.txt tests/session-c && echo "ok 9pi: stage C's session under mini-qemu"
@@ -137,6 +153,14 @@ check: $(IMAGE) kernel-pi1-b.img
 	$(SESSION_PY) --prompt "% " $(MOVE) --timeout 200 --screendump $(B)/qemu-move.ppm --out $(B)/qemu-move.txt $(SCREEN_SESSION) -- $(QEMU) $(QEMU_BOOT) $(SD) $(USB)
 	gzip -dc tests/screen-move-c.ppm.gz | cmp - $(B)/mini-move.ppm && gzip -dc tests/screen-move-c.ppm.gz | cmp - $(B)/qemu-move.ppm \
 	  && echo "ok 9pi: the screen after the USB mouse moved, as the C 9pi's, under mini-qemu and QEMU"
+	rm -rf $(B)/rio-mini $(B)/rio-qemu
+	./graphics.py --step 10 $(B)/rio-mini -- $(MINIQEMU) $(BOOT) $(SD) $(USB)
+	./graphics.py $(B)/rio-qemu -- $(QEMU) $(QEMU_BOOT) $(SD) $(USB)
+	cd $(B)/rio-mini && md5sum --quiet -c $(CURDIR)/tests/rio-c.md5
+	cd $(B)/rio-qemu && md5sum --quiet -c $(CURDIR)/tests/rio-c.md5
+	tr -d '\r' < $(B)/rio-mini/console.txt | diff - tests/rio-c.txt
+	$(call unwarned,$(B)/rio-qemu/console.txt) | tr -d '\r' | diff - tests/rio-c.txt \
+	  && echo "ok 9pi: rio (its menu, a window swept out, a command in it), every screen and the console the C 9pi's, under mini-qemu and QEMU"
 
 # stage B's image: its own build directory, tests/boot-b.rc as /boot/boot
 # (the rule in the outer make only: the inner one builds it as IMAGE)

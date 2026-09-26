@@ -131,7 +131,7 @@ let () =
   List.iteri (fun i (name, init) -> Devcons.print (Printf.sprintf "reset %d, %s\n" i name); init ())
     [ "root", Devroot.init; "cons", Devcons.init; "env", Devenv.init; "proc", Devproc.init; "sys", Devsys.init;
       "pipe", Devpipe.init; "dup", Devdup.init; "arch", Devarch.init; "mnt", Devmnt.init; "srv", Devsrv.init;
-      "draw", Devstub.draw; "mouse", Devmouse.init; "kbin", Devkbin.init; "kbmap", Devstub.kbmap; "sd", Devsd.init;
+      "draw", Devdraw.init; "mouse", Devmouse.init; "kbin", Devkbin.init; "kbmap", Devstub.kbmap; "sd", Devsd.init;
       "ether", Devstub.ether; "ip", Devstub.ip; "uart", Devstub.uart; "usb", Devusb.init ];
   (* confinit's summary, 9pi's numbers *)
   Devcons.print "448M memory: 91M kernel data, 357M user, 1696M swap\n";

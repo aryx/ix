@@ -51,6 +51,8 @@ let avoid (x0, y0, x1, y1) =
 
 let init () =
   enabled := true;
+  (* hwdraw's (draw9.c): any drawing on the screen avoids it *)
+  Callback.register "swcursor_avoid" avoid;
   let i = { back = Draw.alloc (0, 0, 32, 32) 0;
             mask = Draw.alloc (0, 0, 16, 16) Draw.grey8; mask1 = Draw.alloc (0, 0, 16, 16) Draw.grey1;
             img = Draw.alloc (0, 0, 16, 16) Draw.grey8; img1 = Draw.alloc (0, 0, 16, 16) Draw.grey1 } in

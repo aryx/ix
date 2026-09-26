@@ -6880,3 +6880,35 @@ Recorded the languages/ml/ idea in plan_ml.md for future development.
 **Claude (summary):**
 
 Claude committed the ARM stack machine implementation as e53580c with 29 files changed. Claude suggested splitting languages/ml/ into compat/ containing Gas.ml and simple/ containing current Lower and Gen. Gas.ml is an output format rather than a fidelity level, justifying the compat/ separation. Future work could add opti/ variant with SSA and other optimizations built on simple/. Kernel work, Makefile, mini-pi, and plan_9pi.md remain uncommitted.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 13:19
+
+**Yoann:**
+
+> yes, let's split also languages/ml/ with compat/ containing Gas.ml and simple/ containing the current Lower and Gen that maybe later one we could change in a new opti/ variant (with SSA and what's not, if useful)
+
+**Claude (summary):**
+
+Claude split languages/ml/ into compat/ containing Gas.ml and simple/ containing Lower and Gen modules.
+Module dependency analysis verified the clean cut: Gas depends on Asm, Lower on Scope, Gen on Lower only.
+The CLI library was reorganized with back end opens in dune flags without requiring any code changes.
+All tests passed: 150 test suites identical, corpus 192 ok, arm64 programs and arm subset zero failures.
+Documentation was updated to reflect the moved files and the scratch worktree was cleaned up.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 13:27
+
+**Yoann:**
+
+> let's commit
+
+**Claude (summary):**
+
+Claude committed the split for mini-ml alongside mini-cc with compat/ for bit-for-bit equivalence and simple/ for behavior-only implementations.
+An opti/ subdirectory is planned next to both simple/ directories as an optimization pass layer over each compiler's intermediate representation.
+The pattern isolates byte-for-byte compatibility constraints in compat/ subdirectories while preserving freedom for clean implementations in simple/.
+Mini-cc and mini-ml now share identical layouts, providing a template for other mini-xxx programs.
+Prompt history was staged in the commit; other work on kernel/9pi remains uncommitted.

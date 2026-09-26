@@ -23,11 +23,10 @@ let h = ref 0
 
 let inset (x0, y0, x1, y1) n = (x0 + n, y0 + n, x1 - n, y1 - n)
 
-let fill r img = Swcursor.avoid r; Draw.draw (Draw.screen ()) r img (0, 0, 0, 0) (Draw.opaque ())
+let fill r img = Draw.draw (Draw.screen ()) r img (0, 0, 0, 0) (Draw.opaque ())
 
 (* the default font's s at (x, y), in black *)
 let text (x, y) s =
-  Swcursor.avoid (x, y, x + Draw.stringwidth s, y + !h);
   ignore (Draw.string (Draw.screen ()) (x, y) (Draw.black ()) s)
 
 (* the positions a backspace goes back to (xbuf) *)
@@ -36,7 +35,6 @@ let xbuf = ref []
 let scroll () =
   let (x0, y0, x1, y1) = !win in
   let o = scroll_lines * !h in
-  Swcursor.avoid !win;
   Draw.draw (Draw.screen ()) (x0, y0, x1, y1 - o) (Draw.screen ()) (x0, y0 + o, x0, y0 + o) (Draw.opaque ());
   fill (x0, y1 - o, x1, y1) (Draw.white ());
   let (cx, cy) = !cur in
@@ -97,7 +95,6 @@ let putbyte ch =
 let screenwin () =
   let orange = Draw.color16 0x40 0xfd in
   let (x0, y0, x1, _) = !win in
-  Swcursor.avoid (x0, y0, x1, y0 + !h + 5 + 6);
   Draw.draw (Draw.screen ()) (x0, y0, x1, y0 + !h + 5 + 6) orange (0, 0, 0, 0) (Draw.opaque ());
   Draw.free orange;
   win := inset !win 5;

@@ -11,7 +11,7 @@
  * cursoroff and ksetcursor): a 16x16 picture drawn on the screen, what
  * it covers kept aside (in back) and put back when it is hidden. Any
  * drawing on the screen first calls [avoid] with its rectangle
- * (memdraw's hwdraw hook in 9pi); the clock redraws the cursor at the
+ * (memdraw's hwdraw hook, draw9.c's, calls it back); the clock redraws the cursor at the
  * mouse's position ([clock], each tick).
  *
  * The pictures are GREY8 images built from the cursor's bits, then drawn

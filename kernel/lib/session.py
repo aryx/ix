@@ -137,4 +137,6 @@ def main():
     else: sys.stdout.write(text)
     sys.exit(0 if ok else 1)
 
-main()
+# claude: importable (9pi/graphics.py uses its Qmp)
+if __name__ == "__main__":
+    main()

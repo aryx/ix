@@ -25,8 +25,8 @@
 #   ./mini-pi mini-9pi       ix's mini-9pi (kernel/9pi/: 9pi in OCaml) on the
 #                       Pi1, principia's SD card image, to rc's prompt;
 #                       built first; -g: its console drawn in a window as
-#                       9pi draws it, a USB keyboard and mouse (no rio yet:
-#                       plan_9pi.md, stage D)
+#                       9pi draws it, a USB keyboard and mouse: type rio
+#                       there (the draw device, Devdraw.ml)
 #
 # Options:
 #   -g   a window: the framebuffer (and for xv6, a USB keyboard: type in

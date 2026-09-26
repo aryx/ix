@@ -26,7 +26,6 @@ let stub dc name attached =
 
 let rxmit = ref false
 
-let draw () = stub 'i' "draw" (fun () -> ())
 (* kbmap's letter a rune, κ (U+03BA): a private byte *)
 let kbmap () = let d = Char.chr 0xba in stub d "kbmap" (fun () -> ()); Dev.set_rune d 0x3ba
 let ether () = stub 'l' "ether" (fun () -> ())
