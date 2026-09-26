@@ -29,14 +29,19 @@ goken's 5c and 7c, and xix's `compiler/`.
 | `languages/c/Lexer`, `Parser` (ocamlyacc) | C into a tree | §3 |
 | `languages/c/Declare` | declarations, scopes, frames, initializers | §3, §7 |
 | `languages/c/Check` | types, and the tree made explicit | §4 |
-| `languages/c/Gen` | code from the tree | §4, §5, §6, §7 |
-| `languages/c/Multiply` | a multiplication by a constant | §5 |
-| `languages/c/Arm`, `Arm64` | what each machine decides | §8 |
-| `languages/c/Emit`, `CLI` | the instructions, `-S`, the objects, `mini-cc` | §9 |
+| `languages/c/Machines` | the types' sizes, the calling convention, per machine | §8 |
+| `languages/c/compat/Acom` | 5c's arithmetic rewrites | §4 |
+| `languages/c/compat/Gen` | code from the tree | §4, §5, §6, §7 |
+| `languages/c/compat/Multiply` | a multiplication by a constant | §5 |
+| `languages/c/compat/Arm`, `Arm64` | what each machine decides | §8 |
+| `languages/c/compat/Emit`, `CLI` | the instructions, `-S`, the objects, `mini-cc` | §9 |
 
 Each module's `.mli` says what it does and where it departs from 5c
 and 7c, with the papers it follows; read Tree's first, then in the
-order of the table.
+order of the table. `languages/c/` is the language, shared;
+`compat/` is the back end whose listings are 5c's and 7c's, byte for
+byte (plan_cc.md, decision 8: a free back end, `simple/`, is planned
+beside it).
 
 ## 1. From a `.c` to a running program
 

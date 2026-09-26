@@ -13,13 +13,40 @@ type caps = < Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
 
 let print = Console.print and eprint = Console.eprint
 
+(* what the command asks of a back end: its hooks in the front end set
+ * (after the front end's own state), a function's code, the file's
+ * end, its listing and its object *)
+type backend = {
+  init : unit -> unit;
+  codgen : Tree.sym -> Tree.stmt -> unit;
+  finish : unit -> unit;
+  listing : unit -> string;
+  obj : Fpath.t -> Ix_asm.Asm.obj;
+}
+
+(* 5c's and 7c's at -O0, byte for byte (compat/) *)
+let compat (mach : Tree.machine) : backend =
+  let open Ix_cc_compat in
+  {
+    init = (fun () ->
+      (match mach.thechar with
+       | '5' -> Emit.be := Some Arm.backend; Gen.hooks := Some Arm.hooks
+       | _ -> Emit.be := Some Arm64.backend; Gen.hooks := Some Arm64.hooks);
+      (* acom first: a pass of 5c's front end, the listing's *)
+      Check.xcom := (fun n -> Gen.xcom (Acom.acom n));
+      Check.outstring := Emit.outstring;
+      Declare.gextern := Emit.gextern;
+      Emit.init ());
+    codgen = Gen.codgen;
+    finish = Emit.gclean;
+    listing = Emit.listing;
+    obj = Emit.obj;
+  }
+
 (* a front end's state is global: one file per run; the tokens are
  * read by Lexer, from its input stack, not a lexbuf *)
-let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs incs file =
+let compile (caps : < caps; .. >) (mach : Tree.machine) (be : backend) ~dump ~listing ~out defs incs file =
   Tree.mach := Some mach;
-  (match mach.thechar with
-   | '5' -> Emit.be := Some Arm.backend; Gen.hooks := Some Arm.hooks
-   | _ -> Emit.be := Some Arm64.backend; Gen.hooks := Some Arm64.hooks);
   Tree.init_types ();
   Pre.profile := true;
   Lexer.init ();
@@ -31,13 +58,10 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
   (* "." is the source's directory; <...> skips it *)
   Pre.includes := Fpath.parent file :: incs;
   Pre.read_file := Files.read_opt caps;
-  Check.xcom := Gen.xcom;
-  Check.outstring := Emit.outstring;
-  Declare.gextern := Emit.gextern;
-  Emit.init ();
+  be.init ();
   Declare.on_function := (fun (f : Tree.sym) body ->
     if dump then print caps (Tree.prtree f.name body);
-    Gen.codgen f body);
+    be.codgen f body);
   match Files.read_opt caps file with
   | None -> Error (Printf.sprintf "cannot open %s" (Fpath.to_string file))
   | Some text ->
@@ -45,18 +69,19 @@ let compile (caps : < caps; .. >) (mach : Tree.machine) ~dump ~listing ~out defs
       Tree.lineno := 1;
       (match Parser.prog (fun _ -> Lexer.token ()) (Lexing.from_string "") with
        | () ->
-           Emit.gclean ();
-           if listing then print caps (Emit.listing ());
-           Ix_asm.Asm.save caps out (Emit.obj file);
+           be.finish ();
+           if listing then print caps (be.listing ());
+           Ix_asm.Asm.save caps out (be.obj file);
            Ok ()
        | exception Tree.Error m -> Error (Printf.sprintf "%s:%s" (Fpath.to_string file) m)
        | exception Parsing.Parse_error -> Error (Printf.sprintf "%s:%d: syntax error" (Fpath.to_string file) !Tree.lineno))
 
 let main (caps : < caps; .. >) (argv : string array) : int =
-  let mach = ref Arm.machine and dump = ref false and listing = ref false and out = ref "" and defs = ref [] and incs = ref [] and files = ref [] in
+  let mach = ref Machines.arm and simple = ref false and dump = ref false and listing = ref false and out = ref "" and defs = ref [] and incs = ref [] and files = ref [] in
   let rec args = function
-    | "-m" :: "5" :: rest -> mach := Arm.machine; args rest
-    | "-m" :: "7" :: rest -> mach := Arm64.machine; args rest
+    | "-m" :: "5" :: rest -> mach := Machines.arm; args rest
+    | "-m" :: "7" :: rest -> mach := Machines.arm64; args rest
+    | "-simple" :: rest -> simple := true; args rest
     | "-x" :: rest -> dump := true; args rest
     | "-o" :: o :: rest -> out := o; args rest
     | "-S" :: rest -> listing := true; args rest
@@ -71,10 +96,11 @@ let main (caps : < caps; .. >) (argv : string array) : int =
   args (List.tl (Array.to_list argv));
   let path s = match Files.path s with Ok p -> p | Error m -> failwith m in
   match List.map path !files, List.map path (List.rev !incs) with
+  | _ when !simple -> eprint caps "mini-cc: -simple: not yet (plan_cc.md, decision 8)\n"; 1
   | [ file ], incs -> (
       (* x.c to x.5, in the current directory, as 5c *)
       let out = if !out <> "" then path !out else Fpath.set_ext ("." ^ String.make 1 !mach.thechar) (Fpath.base file) in
-      match compile caps !mach ~dump:!dump ~listing:!listing ~out (List.rev !defs) incs file with
+      match compile caps !mach (compat !mach) ~dump:!dump ~listing:!listing ~out (List.rev !defs) incs file with
       | Ok () -> 0
       | Error m -> eprint caps (m ^ "\n"); 1)
   | exception Failure m -> eprint caps ("mini-cc: " ^ m ^ "\n"); 1

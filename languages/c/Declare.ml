@@ -14,7 +14,7 @@ open Tree
 (* a function's name and its body, parsed: to the code generator *)
 let on_function : (sym -> stmt -> unit) ref = ref (fun _ _ -> ())
 
-(* the back end's, set by Gen: an initializer's data (swt.c's gextern) *)
+(* the back end's, set by the command (CLI): an initializer's data (swt.c's gextern) *)
 let gextern : (sym -> expr -> int -> int -> unit) ref = ref (fun _ _ _ _ -> ())
 
 (*****************************************************************************)

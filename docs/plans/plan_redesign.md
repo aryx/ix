@@ -44,8 +44,8 @@ below are local redesigns, not rewrites.
    while it parses, so an unknown mnemonic is an error with file:line
    at assembly time. The compiler's backends write constructors, not
    strings: `ins "MOVW"`, `"CMN" ^ String.sub cmp 3`
-   (`languages/c/Emit.ml` ~144), and `(p ()).as_ <- "BGT"`
-   (`languages/c/Arm.ml` ~200). To decide: keep the string in the object
+   (`languages/c/compat/Emit.ml` ~144), and `(p ()).as_ <- "BGT"`
+   (`languages/c/compat/Arm.ml` ~200). To decide: keep the string in the object
    (arch-neutral `Asm.obj`, about 10 lines of decode at load), or make
    the object an arch-indexed sum. Risk: none to output; golden.sh,
    libc.sh, languages/c/tests/listing.sh.

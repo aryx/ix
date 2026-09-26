@@ -10,7 +10,7 @@
  * The trees are ADTs, where 5c's are one Node with an op, a left and a
  * right: an [expr] is its [kind] ([Binary], [Assign], [Call]...) with
  * what the passes learn of it (its type, its complexity, its
- * addressability); the passes (Check, Gen's xcom) return new trees
+ * addressability); the passes (Check, the back end's xcom) return new trees
  * rather than rewrite them in place. Statements, declarators and
  * initializers have their own types ([stmt], [decl], [init]); in 5c they
  * are Nodes too. Symbols and types stay mutable records: declarations

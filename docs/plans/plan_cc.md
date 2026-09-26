@@ -536,6 +536,10 @@ after the compiler, by what it taught.
     structure returned), from `5c -O0 -S` and `7c -O0 -S`;
   - qc--'s size per target, and xix's compiler: 5,553 lines, its
     front end complete, its code generator mostly `raise Todo`.
+- **2026-09-26, amended**: two back ends, compat (byte for byte, the
+  default) and `-simple` (behavior only), one front end; see
+  "Amendment (2026-09-26)" before the appendix. Step 1, the cut, done
+  the same day; simple/ not started.
 
 ## Verification
 
@@ -555,6 +559,151 @@ in).
 ## Related work
 
 [`notes_cc_related_work.md`](../related-work/notes_cc_related_work.md).
+
+## Amendment (2026-09-26): two back ends, `-simple`
+
+The question (the author): mini-ml is smaller than mini-cc, but
+TinyML bigger than TinyC; "what if we were relaxing the constraint on
+mini-c like we did on mini-ml? Would that lead to far simpler code?
+... not the full TinyC road, just a simpler mini-c"; then: "split the
+code in languages/c/ and have the common code there, and then a
+subfolder for a version that is byte-to-byte compatible, and another
+folder for a more free version? And a flag to switch".
+
+Why the sizes cross: a mini twin's size is its contract's, a tiny
+variant's its language's. mini-ml's contract is the behavior
+(plan_ml.md: "Unlike mini-cc against 5c, nothing is compared byte for
+byte"), so it lowers to a stack machine (`Lower.ml`, then a 317-line
+`Gen.ml`); mini-cc's is the listing, instruction for instruction
+(decision 3). In tiny/, both are stack machines with no contract, and
+ML's own work shows: types inferred, patterns compiled, closures,
+exceptions, the collector's roots.
+
+### What relaxing would buy: a quarter, not more
+
+Estimates, from reading the modules (not measured; step 4 measures):
+
+- **The language, whatever the contract** (about 2,900 lines): `Pre`,
+  `Lexer`, `Parser.mly`, `Tree`, `Declare` (dcl.c's declarations and
+  initializers are C's semantics, not 5c's habits), `Check`'s typing
+  (the promotions, the usual conversions), and the ABI (decision 4's
+  calling convention, the structures' layout: libc's assembly and the
+  kernel link with what mini-cc writes).
+- **5c's, for the listing only** (about 1,100 to 1,300 lines):
+  `Multiply` and `mulcon` (a `MUL` would do); `acom`, the sums
+  regrouped, down to glibc's merge sort's order of equal terms; most of
+  `ccom`'s rewrites (the constants' folding stays: case labels and
+  initializers need it); the `hooks` record's twelve choices (`rsb`,
+  `mul32`, `asop_load`, `zero_arg`...) and part of `Arm` and `Arm64`;
+  Sethi-Ullman's order (`xcom`), 5c's registers, `boolgen`'s jumps,
+  the switch's binary search and tables.
+
+So mini-cc relaxed would be about 4,000 lines against 5,250: simpler,
+not far simpler. Relaxing alone would lose the oracle (the listings
+found what the corpus missed, twice, and check mini-asm and mini-ld by
+the way) and the twin (Gen reads as cgen.c, sgen.c and com64.c, for
+the reader of principia's `compilers/`). Hence both, split.
+
+### Decision 8: one front end, two back ends, a flag
+
+```
+languages/c/          the language, shared (~2,900)
+  Pre, Lexer, Parser, Tree, Declare,
+  Check (typing, commas, constants folded),
+  Machines (the types' sizes, the calling convention), CLI, Main
+languages/c/compat/   byte for byte with 5c and 7c -O0: today's back end
+  Acom (out of Check), Gen, Multiply, Emit, Arm, Arm64
+languages/c/simple/   the behavior only, mini-ml's design (~1,000-1,200)
+  Lower (the tree to a stack machine), Gen (a record per machine)
+languages/c/opti/     later: passes on simple's IR, each switchable
+```
+
+`mini-cc` stays 5c's twin by default; `mini-cc -simple` picks the other
+back end. The cut exists already: `CLI.ml` gives the front end its back
+end through four hooks (`Check.xcom`, `Check.outstring`,
+`Declare.gextern`, `Declare.on_function`), and the flag chooses who
+fills them. This is the optimizations' rule the other way round (the
+simple path clear, the rest a section of its own, switchable): the
+reader reads the front end and `simple/`, about 4,000 lines, and
+`compat/` is fidelity to 5c, read to see how 5c does it. The total
+grows, to about 6,300.
+
+What the cut must settle:
+
+1. **`acom` leaves `Check.complex`** (`!xcom (acom (ccom (comma n)))`):
+   it is 5c's, run by compat's `xcom` hook. `ccom`'s folding stays in
+   Check; what of the rest of `ccom` is 5c's only, the cut measures.
+2. **The strings' data is written while typing**, in 5c's order
+   (`Check.outstring`): for simple, only where they go, its own
+   `outstring`; a constraint of compat's, said in `Check.mli`.
+3. **`Emit` splits**: both back ends write mini-asm's instructions, so
+   decision 2's law holds for both (`mini-cc -S f.c | mini-asm` the
+   same object as `mini-cc f.c`). The instructions, operands (`naddr`),
+   data (`outstring`, `gextern`), the file's end and the listing's
+   format are shared, in `languages/c/`; the registers
+   (`regalloc`...) and the frame's areas are compat's.
+   *Deferred to step 2* (2026-09-26, at the cut): `Emit`'s operands
+   are compat's trees (`naddr` takes a `Reg` node, 5c's 32-bit
+   offsets, the float registers numbered from `nreg`), so what simple
+   can share is known only once simple is written; step 1 moved `Emit`
+   whole into `compat/`.
+4. **64-bit arithmetic on arm** (Gen's com64 section, decision 5) is
+   behavior, not fidelity: simple needs the calls too, so the rewrite
+   moves to the shared side, or simple has its own, smaller.
+
+Tests: compat keeps its own (`listing.sh 5` and `7`, the executables
+byte for byte). simple's are behavior's, against 7c's and 5c's:
+`hello_libc` and its outputs, `tiny/TinyC_tests/`, `TinyC_fuzz.py`'s
+programs, and all of goken's libc compiled with `-simple`, linked,
+the programs run. The fuzzer against the reference, as every program.
+
+It also answers "Outside the compiler"'s question inside the compiler:
+what an IR buys, against writing Plan 9's instructions from the trees,
+on the same C and the same front end.
+
+### Phasing
+
+1. **The cut, no behavior changed**: the files moved, `acom` out of
+   Check, `Emit` split, `-simple` refused. Done when `listing.sh 5`
+   and `listing.sh 7` are the same, and the executables still goken's.
+   *Done (2026-09-26)*: `compat/` (`Acom`, `Emit`, `Multiply`, `Gen`,
+   `Arm`, `Arm64`: the library `ix_cc_compat`, which opens `Ix_cc`);
+   the machines' records (sizes, `typecmplx`, `machcap`...) out of
+   `Arm` and `Arm64` into `Machines.ml`, the front end's; `CLI.ml` a
+   library of its own (`ix_cc_cli`), the back end a record (`init`,
+   `codgen`, `finish`, `listing`, `obj`), compat's `init` setting the
+   four hooks, `Check.xcom` as `Gen.xcom (Acom.acom n)`; `-simple`
+   refused. `Emit` not split (item 3). Checked: `listing.sh 5` and
+   `7`, 241 the same, 0 different; `fuzz.sh 150`, 300 the same;
+   `MINICC=1 linker/tests/libc.sh 5` and `7`, every executable the
+   same as goken's (but the section table).
+2. **simple on arm64**: `Lower`, the arm64 record; the tests above,
+   against 7c.
+3. **simple on arm**: the record, the 64-bit calls; against 5c.
+4. **The numbers**: lines per directory measured
+   (`scripts/stats/loc.py`), this amendment's estimates corrected,
+   `notes_cc.md` told of the two back ends.
+
+### Later: `opti/` (the author: "we could even have an opti/ variant, in addition to simple/ later")
+
+Two optimizers, by their reference:
+
+- **compat's `-O2`**: 5c's registerization and peephole (`reg.c`,
+  `peep.c`, 2,700 lines per machine), byte for byte with goken's
+  default, so the oracle still holds. They rewrite compat's
+  instructions after Gen, so they are compat's modules (`compat/Reg`,
+  `compat/Peep`); "Out of scope"'s later phase.
+- **`languages/c/opti/`, free**, the third directory beside
+  `compat/` and `simple/` (the author: "so compat/ simple/ opti/"):
+  passes on simple's stack machine, not a third lowering: `Lower`'s IR
+  in, the same IR out (constants, locals kept in registers, a
+  peephole), before simple's `Gen`; `mini-cc -O` is `-simple` with
+  them. Each pass its own module and flag (one per pass), as the
+  optimizations' rule asks; tested as simple is, by behavior, plus the same programs with
+  each pass on and off. What it is worth is measured: the instructions
+  run (mini-qemu's count) and the lines, against simple's.
+
+Decided after simple is built, by what its IR allows.
 
 ## Appendix: the counts and the comparisons
 

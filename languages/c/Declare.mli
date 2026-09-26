@@ -24,7 +24,7 @@
 (* a function's name and its body, parsed: to the code generator *)
 val on_function : (Tree.sym -> Tree.stmt -> unit) ref
 
-(* the back end's, set by Gen: an initializer's data (swt.c's gextern) *)
+(* the back end's, set by the command (CLI): an initializer's data (swt.c's gextern) *)
 val gextern : (Tree.sym -> Tree.expr -> int -> int -> unit) ref
 
 (* the state the parser shares (cc.h's globals): the frame's size, the

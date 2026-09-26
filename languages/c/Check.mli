@@ -2,25 +2,23 @@
  * scon.c, acom.c), each a function from a tree to a tree: the typing
  * [tcom], which inserts the conversions and checks the operands against
  * Tree's tables; the rewrites of comma expressions, the simplifications
- * and constant folding (ccom, evconst), the arithmetic rewrites (acom);
- * then the generator's [xcom]. [complex] is all of them.
+ * and constant folding (ccom, evconst); then the back end's [xcom].
+ * [complex] is all of them. 5c's arithmetic rewrites (acom) are the
+ * compat back end's (compat/Acom.ml), run by its xcom.
  *
  * Plan 9's C, not ANSI's: unsigned char and short promote to unsigned
  * int, and double op float is computed as float (cck's table); the
- * listing depends on both. acom sorts its terms as 5c's qsort does on
- * glibc (a merge sort), so equal terms keep 5c's order.
+ * listing depends on both.
  *
  * The passes have effects: the typing writes the strings' data, in the
  * order the expressions come, as 5c.
  *
  * References: Ken Thompson, "Plan 9 C Compilers", sections "Typing"
  * ("Implicit operations on the tree are added, such as type promotions
- * and taking the address of arrays and functions"), "Machine-independent
- * optimization" and "Arithmetic rewrites" (factoring: 4+8*a+16*b+5 is
- * transformed into 9+8*(a+2*b), as arises "from address manipulation
- * and array indexing"). *)
+ * and taking the address of arrays and functions") and
+ * "Machine-independent optimization". *)
 
-(* what the front end asks of the back end, set by Gen *)
+(* what the front end asks of the back end, set by the command (CLI) *)
 val outstring : (string -> int -> int) ref
 val xcom : (Tree.expr -> Tree.expr) ref
 
@@ -33,6 +31,16 @@ val vlog : Tree.expr -> int
 (* a conversion that makes no code *)
 val nocast : Tree.typ -> Tree.typ -> bool
 
+(* a conversion that means nothing: small to large, of one kind *)
+val nilcast : Tree.typ -> Tree.typ -> bool
+
+(* a node of type t at the line diagnosed; a constant; a cast; a
+ * constant's value, or 0 (for compat's Acom) *)
+val mkt : Tree.typ -> Tree.kind -> Tree.expr
+val konst : int64 -> Tree.typ -> Tree.expr
+val cast_to : Tree.expr -> Tree.typ -> Tree.expr
+val ival : Tree.expr -> int64
+
 (* an error unless the operator's table takes the operands' types *)
 val tcompat : Tree.expr -> Tree.typ -> Tree.typ -> (Tree.etype -> Tree.etype -> bool) -> unit
 
@@ -44,6 +52,6 @@ val comrel : Tree.binop -> Tree.binop
  * array or a function used is its address *)
 val tcom : ?addr:bool -> Tree.expr -> Tree.expr
 
-(* all the passes, then Gen's xcom; ~ret: a function's result,
+(* all the passes, then the back end's xcom; ~ret: a function's result,
  * converted to its type *)
 val complex : ?ret:Tree.typ -> Tree.expr -> Tree.expr

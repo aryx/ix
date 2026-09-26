@@ -11,25 +11,6 @@
 
 open Tree
 
-(* what 7c generates itself, rather than com64.c's calls (7c's machcap.c) *)
-let machcap (n : expr option) =
-  match n with
-  | None -> true
-  | Some n -> (
-      match n.e with
-      | Binary ((Mul | Lmul), _, _) | Assign (Some (Mul | Lmul), _, _) -> typechlv (et n)
-      | Binary ((Add | And | Or | Sub | Xor | Ashl | Lshr | Ashr), l, _) | Unary (Neg, l) -> typechlv (et l)
-      | Unary ((Cast | Not | Postinc | Postdec | Preinc | Predec), _) | Cond _ | Binary ((Comma | Andand | Oror), _, _)
-      | Assign (Some (Add | Sub | And | Or | Xor | Ashl | Ashr | Lshr), _, _) -> true
-      | Binary (o, _, _) -> is_rel o
-      | _ -> false)
-
-let machine = {
-  thechar = '7'; sz_ind = 8; maxalign = 8;
-  typecmplx = typesu; typeword = typechlvp; typeswitch = typechlv;
-  machcap;
-}
-
 (*****************************************************************************)
 (* Moves (7c's txt.c gmove) *)
 (*****************************************************************************)

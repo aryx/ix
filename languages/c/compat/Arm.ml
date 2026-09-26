@@ -11,14 +11,6 @@
 
 open Tree
 
-(* vlongs are structures to 5c: returned through a pointer, and their
- * operators calls to _addv... (com64.c) *)
-let machine = {
-  thechar = '5'; sz_ind = 4; maxalign = 4;
-  typecmplx = typesuv; typeword = typechlp; typeswitch = typechl;
-  machcap = (fun _ -> false);
-}
-
 (*****************************************************************************)
 (* Moves (txt.c's gmove) *)
 (*****************************************************************************)

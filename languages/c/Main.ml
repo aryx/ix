@@ -9,4 +9,4 @@
  *)
 (* mini-cc, the ix C compiler: see CLI.mli *)
 
-let () = Cap.main (fun caps -> Logging.setup caps ~name:"mini-cc"; CapStdlib.exit caps (Ix_cc.CLI.main caps (CapSys.argv caps)))
+let () = Cap.main (fun caps -> Logging.setup caps ~name:"mini-cc"; CapStdlib.exit caps (Ix_cc_cli.CLI.main caps (CapSys.argv caps)))

@@ -1,13 +1,23 @@
+; the language, shared by the back ends: compat/ (5c's and 7c's
+; listings, byte for byte), and later simple/ and opti/ (plan_cc.md,
+; decision 8)
 (library
  (name ix_cc)
- (modules Tree Pre Lexer Parser Declare Check Emit Multiply Gen Arm Arm64 CLI)
+ (modules Tree Pre Lexer Parser Declare Check Machines)
  (libraries ix_core ix_asm fpath logs caps))
 
 (ocamlyacc Parser)
+
+; the command: the front end given a back end
+(library
+ (name ix_cc_cli)
+ (modules CLI)
+ (flags (:standard -open Ix_cc))
+ (libraries ix_cc ix_cc_compat ix_core ix_asm fpath logs caps))
 
 (executable
  (name Main)
  (public_name mini-cc)
  (package ix)
  (modules Main)
- (libraries ix_cc caps))
+ (libraries ix_cc_cli caps))

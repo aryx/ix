@@ -115,7 +115,7 @@ In cck's `com64.c`, `nodv2uh = fvn("_v2ul", TUSHORT)`: a vlong cast to
 `ushort` calls `_v2ul`, like a cast to `ulong`, while every other
 conversion has its own function. Probably a typo for `_v2uh`; the
 result isn't truncated to 16 bits by the call. Only 5c uses these
-calls. ix: the same (`languages/c/Gen.ml`, `of_v`). Not checked at run
+calls. ix: the same (`languages/c/compat/Gen.ml`, `of_v`). Not checked at run
 time.
 
 ### 8. The multiply table's cache and 0
@@ -134,7 +134,7 @@ computes in the host's `long` (64 bits), 7c's in `int32`.
 digits: `$4.294967e+09`, so a `5ck -S` listing doesn't reassemble to
 the same object. Principia's 5c prints `%.17e` (with Plan 9's fmt,
 the fewest digits that read back, then zeros). ix: mini-cc prints as
-principia's 5c (`languages/c/Emit.ml`, `e17`).
+principia's 5c (`languages/c/compat/Emit.ml`, `e17`).
 
 ### 10. cck's `-x` dump: runes and offsets
 

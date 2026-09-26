@@ -6660,3 +6660,79 @@ Claude left both files unchanged and saved the twenty-line threshold to memory.
 **Claude (summary):**
 
 Claude identified roughly 1,100–1,300 removable lines specific to byte-identity: Multiply.ml (155), acom in Check.ml (125), the hooks record (492 in Arm.ml and Arm64.ml), and back-end optimizations (2,000 to 1,000–1,200 lines). The preprocessor, parser, typechecker, and ABI totaling about 2,900 lines would remain in any version. Claude recommended keeping mini-cc as-is to preserve byte-identity testing and the 5c twin mapping, but his detailed breakdown of what-stays-versus-what-goes enabled Yoann's structural counter-proposal: split the code into shared common parts and separate version-specific subfolders with a flag.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 10:56
+
+**Yoann:**
+
+> let's go!
+
+**Claude (summary):**
+
+Claude implemented Kbd module with 9pi's scancode tables, Devkbin for #Ι/kbin with UTF-8 decoding, and Devmouse for #m.
+Claude updated session.py to test all US keyboard characters including shifted keys like quotes, hashes, and capitals.
+Claude verified all eight mini-9pi checks pass byte-for-byte identical to C 9pi console output under both emulators.
+Mini-xv6's thirteen checks still pass; step 3 will add framebuffer, draw, and mouse screen support.
+Work is ready to commit; Yoann asks when mini-pi -g mini-9pi graphics mode becomes available.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:27
+
+**Yoann:**
+
+> Maybe we can split the code in languages/c/ and have the common code there, and then a subfolder for a version that is byte-to-byte compatible, and another folder for a more free version? And a flag to switch from one to the other?
+
+**Claude (summary):**
+
+Claude proposed splitting languages/c into compat and simple backends, using four existing CLI.ml hooks to switch code generation.
+Proposed directory layout: languages/c (shared), languages/c/compat (5c-compatible), languages/c/simple (stackIR design).
+Outlined four refactoring steps: move files and acom, arm64 simple backend, arm backend, then measure.
+Code grows from 2900 to 6300 lines total, but the simple path readable at 4000 lines.
+Yoann agreed to the approach and asked Claude to update plan_cc.md accordingly.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:33
+
+**Yoann:**
+
+> yes, adjust the plan, amend it at the end maybe.
+
+**Claude (summary):**
+
+Claude agreed and said it would write an amendment to the plan. The amendment section would be placed just before the existing appendix. Claude would also commit to adding a pointer in the Status file. This structure allowed the plan to be adjusted while keeping existing docs intact. The amendment approach enabled the project design to remain flexible and adjustable.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:50
+
+**Yoann:**
+
+> we could even have an opti/ variant, in addition to simple/ later
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:50
+
+**Yoann:**
+
+> so compat/ simple/ opti/
+
+**Claude (summary):**
+
+Claude confirmed three sibling directories: compat/, simple/, and opti/, with each as a standalone peer. Claude explained that opti/ would contain compiler optimization passes operating on simple/'s intermediate representation. Claude agreed to update the plan to reflect this folder organization.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:51
+
+**Yoann:**
+
+> ok let's do it for languages/c/
+
+**Claude (summary):**
+
+Claude identified CLI hooks as the seam for splitting the C compiler backend. Claude moved acom out of Check into compat/Acom.ml for the back-end record. Claude updated CLI wiring with a single back-end record grouping for future -simple flag support. Claude verified the refactoring by building without warnings and comparing listing outputs against 5c and 7c. Claude updated the tutorial module table and paths in docs to reflect the new structure.
