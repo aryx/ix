@@ -553,6 +553,19 @@ arm64 `ocamlopt`.
     `sbrk` fails under Linux's ASLR (`plan_bugs_goken.md` 23), and
     `malloc` is a bump allocator of 64MB whose `free` does nothing, so
     the runtime's halves are in the bss.
+  - The fuzzer, `tiny/TinyML_fuzz.py` (`make test-ocaml`): random
+    well-typed programs (each expression generated for a type, from the
+    variables of that type in scope), with prints inside expressions so
+    that the order of evaluation shows; their outputs recorded by
+    `ocamlopt`, then compared. 800 programs (seeds 1, 7, 13) the same,
+    and with `ML_HEAP=64`; the first 300 of seed 7 found **a second bug
+    of ocaml-light's `ocamlopt` on arm64**: `(let v = (print_string "x";
+    0) in fun y -> v) 5` prints `xx` (bytecode: `x`); its `-dlambda` is
+    right, `(apply (let (v/38 (seq ...)) (function y/39 v/38)) 5)`, so
+    the native back end evaluates the let twice. The fuzzer names a
+    function before applying it. And ocaml-light's `test/`: `takc`,
+    `taku` and `sieve` (the programs without records or arrays) the
+    same, kept out of the repository (INRIA's).
   - Physical equality of two equal constants differs (`[1] == [1]` is
     true with `ocamlopt`, which shares structured constants; tiny-ml
     allocates each): unspecified, not tested.

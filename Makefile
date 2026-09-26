@@ -68,6 +68,14 @@ test-goken: all
 	GOOS=plan9 H=-H2 ./linker/tests/libc.sh 5 $(GOKEN_W)/plan9_5 $(HOME)/goken/tests/c/hello_libc/*.c
 	./machine/tests/plan9.py $(GOKEN_W)/plan9_5 $(GOKEN_W)/libc5
 
+# The ML compilers against ocaml-light's ocamlopt for arm64
+# (kernel/ocaml-light.sh arm64 builds it in /tmp/ix-ocaml-light-arm64),
+# and goken: random programs, their outputs recorded by ocamlopt, then
+# compared (make test-goken compares the recorded ones); see
+# tiny/TinyML_fuzz.py.
+test-ocaml: all
+	mkdir -p $(GOKEN_W)/tinyml && ./tiny/TinyML_fuzz.py $(GOKEN_W)/tinyml 100 && RECORD=1 ./tiny/TinyML_test.sh $(GOKEN_W)/tinyml/*.ml
+
 # The database against chidb (~/github/chidb, built): the course's
 # .dbmf cases (in make test too, when chidb's checkout is there), the
 # SQL corpus (stdout, stderr, the file, and SQLite reading it), the
@@ -89,7 +97,7 @@ build-docker:
 build-docker-ocaml5:
 	docker build -t "ix" --build-arg OCAML_VERSION=5.1.1 .
 
-.PHONY: all test test-differential test-goken test-chidb test-pi clean build-docker build-docker-ocaml5
+.PHONY: all test test-differential test-goken test-ocaml test-chidb test-pi clean build-docker build-docker-ocaml5
 
 # mini-qemu against QEMU (plan_pi.md): 9pi's session, the Pi1 xv6
 # ports' boots and graphics, the Pi4's boot and 16 of usertests' tests
