@@ -1,7 +1,7 @@
 (library
  (name ix_ml)
- (modules Ast Lexer Parser Scope CLI)
- (libraries ix_core fpath logs caps))
+ (modules Ast Lexer Parser Scope Lower Gen CLI)
+ (libraries ix_core ix_asm fpath logs caps))
 
 (ocamllex Lexer)
 

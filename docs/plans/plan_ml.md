@@ -512,6 +512,35 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 3: the back end, arm and arm64 at once.**
+  `languages/ml/Lower.ml` (Scope's tree to a stack machine: the
+  patterns' tests, closures, known calls, the primitives; what the plan
+  split into Lambda, Match and Closure, tiny-ml's design generalized),
+  `Gen.ml` (the stack machine to Plan 9's assembly, a record per
+  machine; the text parsed into the object by mini-asm's own parser, so
+  the objects' law holds by construction), `runtime/runtime.c` (mini-cc;
+  the collector, compare and hash, strings, arrays, the channels,
+  Sys, the uncaught exception; floats' primitives stubs that fail when
+  called, phase 7), `tests/run.sh` (the stdlib compiled, each program
+  linked by mini-ld with the units it needs, `mini-ml -M`, transitively;
+  run, compared, again with `ML_HEAP=64`). Every module of ocaml-light's
+  stdlib compiles, on both machines. The 17 programs of `tests/tiny/`
+  print what ocaml-light's `ocamlopt` prints, on arm64 natively and on
+  arm under qemu-arm (live, `LIVE=1`), and with `ML_HEAP=64`.
+  - Decided on the way: `try` is setjmp's (`BL ml_try(SB)` records the
+    handler and returns 0, raise returns there with the exception):
+    tiny-ml's `BL` to a label is not a call mini-ld links (it encodes it
+    wrong, and its follow drops the code after it). Floats: a literal a
+    static block of its bits, an operation a call of the runtime.
+  - Found: **mini-ld's `DATA /8` wrote a value's top byte wrong** when
+    bits 62 and 63 differ (the value went through an OCaml int), which
+    every 8th byte of mini-ml's strings showed: fixed (`linker/Link.ml`),
+    the golden tests the same. **7l builds a negative offset below -256
+    from SP** (`plan_bugs_goken.md` 24; mini-ld the same, being its
+    twin): mini-ml computes such a slot's address itself. **ocaml-light's
+    `ocamlopt` for arm hangs on an uncaught exception** (under qemu-arm:
+    `raise Not_found` at the toplevel never exits), where mini-ml prints
+    it and exits 2; its arm64 one doesn't.
 - **2026-09-26, phase 2: Scope.** `languages/ml/Scope.ml`: the names
   resolved, modules flattened (nested, aliased, opened), another unit's
   from its `.mli` read as source (its `.ml` without one), found in the

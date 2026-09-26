@@ -392,6 +392,8 @@ let implementation load name items =
   let items, _, _ = structure [ name ] env items in
   items
 
+let units_named () = List.sort compare (Hashtbl.fold (fun n m acc -> if m <> None then n :: acc else acc) units [])
+
 (*****************************************************************************)
 (* -dscope *)
 (*****************************************************************************)

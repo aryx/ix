@@ -86,5 +86,8 @@ type loader = string -> [ `Sig of Ast.signature | `Str of Ast.structure ] option
  * capitalized) *)
 val implementation : loader -> string -> Ast.structure -> item list
 
+(* the other units the last implementation named (-M) *)
+val units_named : unit -> string list
+
 (* -dscope *)
 val show_item : item -> string

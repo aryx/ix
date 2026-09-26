@@ -9,7 +9,7 @@
  *)
 (* See CLI.mli *)
 
-type caps = < Cap.open_in; Cap.stdout; Cap.stderr >
+type caps = < Cap.open_in; Cap.open_out; Cap.stdout; Cap.stderr >
 
 let print = Console.print and eprint = Console.eprint
 
@@ -41,21 +41,43 @@ let loader (caps : < caps; .. >) dirs : Scope.loader =
       | Ok (`Str s) -> Some (`Str s)
       | Error m -> raise (Scope.Error (0, m)))
 
+(* the assembly into the object, through mini-asm's parser *)
+let output (caps : < caps; .. >) mach ~listing ~out ~file text =
+  if listing then print caps text
+  else Ix_asm.Asm.save caps out (Ix_asm.Parser.parse caps (Gen.arch mach) file text)
+
 let main (caps : < caps; .. >) (argv : string array) : int =
-  let dast = ref false and dscope = ref false and incs = ref [] and files = ref [] in
+  let dast = ref false and dscope = ref false and dir = ref false and listing = ref false and start = ref false and deps = ref false in
+  let mach = ref Gen.arm and out = ref "" and incs = ref [] and files = ref [] in
   let rec args = function
     | "-dast" :: rest -> dast := true; args rest
     | "-dscope" :: rest -> dscope := true; args rest
+    | "-dir" :: rest -> dir := true; args rest
+    | "-M" :: rest -> deps := true; args rest
+    | "-S" :: rest -> listing := true; args rest
+    | "-start" :: rest -> start := true; args rest
+    | "-m" :: "5" :: rest -> mach := Gen.arm; args rest
+    | "-m" :: "7" :: rest -> mach := Gen.arm64; args rest
+    | "-o" :: o :: rest -> out := o; args rest
     | "-I" :: d :: rest -> incs := d :: !incs; args rest
     | f :: rest -> files := f :: !files; args rest
     | [] -> ()
   in
   args (List.tl (Array.to_list argv));
   let path s = match Files.path s with Ok p -> p | Error m -> failwith m in
-  match List.map path (List.rev !files), List.map path (List.rev !incs) with
-  | [ file ], incs -> (
+  let ext = match Gen.arch !mach with Arm -> ".5" | Arm64 -> ".7" in
+  let outfile file = if !out <> "" then path !out else Fpath.set_ext ext (Fpath.base file) in
+  let fail m = eprint caps (m ^ "\n"); 1 in
+  match List.rev !files, List.map path (List.rev !incs) with
+  | units, _ when !start ->
+      let file = path "start.s" in
+      (match output caps !mach ~listing:!listing ~out:(outfile file) ~file (Gen.startup !mach units) with
+       | () -> 0
+       | exception Failure m -> fail ("mini-ml: " ^ m))
+  | [ f ], incs -> (
+      let file = path f in
       match parse caps file with
-      | Error m -> eprint caps (m ^ "\n"); 1
+      | Error m -> fail m
       | Ok (`Sig items) ->
           if !dast then print caps (String.concat "\n" (List.map Ast.show_sig items) ^ "\n");
           0
@@ -63,9 +85,20 @@ let main (caps : < caps; .. >) (argv : string array) : int =
           if !dast then print caps (String.concat "\n" (List.map Ast.show_item items) ^ "\n");
           let name = String.capitalize_ascii (Fpath.to_string (Fpath.rem_ext (Fpath.base file))) in
           match Scope.implementation (loader caps (Fpath.parent file :: incs)) name items with
-          | items ->
+          | exception Scope.Error (l, m) -> fail (Printf.sprintf "%s:%d: %s" (Fpath.to_string file) l m)
+          | items -> (
               if !dscope then print caps (String.concat "\n" (List.map Scope.show_item items) ^ "\n");
-              0
-          | exception Scope.Error (l, m) -> eprint caps (Printf.sprintf "%s:%d: %s\n" (Fpath.to_string file) l m); 1))
-  | _ -> eprint caps "usage: mini-ml [-dast] [-dscope] [-I dir] file.ml\n"; 2
-  | exception Failure m -> eprint caps ("mini-ml: " ^ m ^ "\n"); 1
+              if !deps then print caps (String.concat " " (Scope.units_named ()) ^ "\n");
+              if !dast || !dscope || !deps then 0
+              else
+                match Lower.unit_ name items with
+                | exception Failure m -> fail (Printf.sprintf "%s: %s" (Fpath.to_string file) m)
+                | u ->
+                    if !dir then
+                      List.iter (fun (fn : Lower.func) ->
+                        print caps (fn.name ^ ":\n" ^ String.concat "" (List.map (fun i -> "\t" ^ Lower.show i ^ "\n") fn.code))) u.funcs;
+                    match Gen.unit_ !mach u with
+                    | exception Failure m -> fail (Printf.sprintf "%s: %s" (Fpath.to_string file) m)
+                    | text -> if !dir then 0 else (output caps !mach ~listing:!listing ~out:(outfile file) ~file text; 0))))
+  | _ -> eprint caps "usage: mini-ml [-m 5|7] [-S] [-o out] [-I dir] file.ml | -start Unit...\n"; 2
+  | exception Failure m -> fail ("mini-ml: " ^ m)

@@ -252,6 +252,21 @@ allocator of 64MB whose `free` does nothing (`port/minimal_malloc.c`,
 by design a stand-in) and can't hold a copying collector's halves as
 they grow.
 
+### 24. 7l builds a negative offset below -256 from SP
+
+`MOV R0, -264(R26)`: the offset is out of the unscaled form's range, so
+7l builds it in R17 and stores register-indexed, but builds it with an
+ADD from register 31 as if it were ZR, where an ADD's 31 is SP:
+`add x17, sp, #0xef8` (7l says so on stderr: `omovlit add -264
+(0xfffffffffffffef8)`). Found 2026-09-26 by mini-ml, whose frames on
+its value stack are below R26: a function of more than 32 slots crashed.
+Reproduce: `printf '\tTEXT\t_main(SB), $-8\n\tMOV\tR0, -264(R26)\n\tRETURN\n'
+> t.s; 7a t.s; 7l -H7 -s t.7`, then `objdump -D -b binary -m aarch64`.
+ix: mini-ld makes the same bytes (it is 7l's twin); mini-ml computes
+such a slot's address itself (`languages/ml/Gen.ml`, `slot_ref`). Fix:
+a MOVN (or a MOVZ/MOVK sequence) for a negative constant, as for a
+positive one.
+
 ## How they were found
 
 The runners that compare ix with its reference, case by case or file

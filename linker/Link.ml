@@ -463,8 +463,8 @@ let data_bytes t =
       match d.value with
       | Asm.Str s -> for i = 0 to d.width - 1 do Bytes.set b (a + i) (if i < String.length s then s.[i] else '\000') done
       | Imm n ->
-          let v = Int64.to_int n in
-          for i = 0 to d.width - 1 do Bytes.set b (a + i) (Char.chr ((v asr (8 * i)) land 255)) done
+          (* claude: in 64 bits: through an int, bit 63 was bit 62's copy *)
+          for i = 0 to d.width - 1 do Bytes.set b (a + i) (Char.chr (Int64.to_int (Int64.logand (Int64.shift_right_logical n (8 * i)) 255L))) done
       | Addr m ->
           let v = address t d.dversion m in
           for i = 0 to d.width - 1 do Bytes.set b (a + i) (Char.chr ((v asr (8 * i)) land 255)) done
