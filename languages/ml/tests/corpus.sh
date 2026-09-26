@@ -12,7 +12,7 @@
 # and .mli of mini-9pi (kernel/9pi, kernel/lib), of ocaml-light's
 # stdlib (the one the kernels are built with: $OCL/src/stdlib, from
 # kernel/ocaml-light.sh) and of its test/ ($OCAML_LIGHT/test), through
-# mini-ml (parsed, and a .ml's names resolved), with the kernel's and
+# mini-ml (a .mli parsed; a .ml compiled, for arm), with the kernel's and
 # the stdlib's directories as -I; each failure printed, then
 # the counts. The files outside the subset are expected to fail:
 # EXPECTED lists them.
@@ -29,9 +29,11 @@ if [ ${#files[@]} = 0 ]; then
   [ -d $OCAML_LIGHT/test ] && files+=($(find $OCAML_LIGHT/test -name '*.ml' -o -name '*.mli' | sort))
 fi
 # outside the subset: let-operators (letstar), a functor (sets: Set.Make),
-# Caml Light's #open (testmain); and Lex's main, whose Scanner and Grammar
-# are generated (ocamllex, ocamlyacc)
-EXPECTED=" letstar.ml sets.ml testmain.ml main.ml "
+# Caml Light's #open (testmain); Lex's main, whose Scanner and Grammar
+# are generated (ocamllex, ocamlyacc); not yet: a recursive value
+# (recvalues), a function of 11 arguments on arm, which passes 8 in
+# registers (manyargs)
+EXPECTED=" letstar.ml sets.ml testmain.ml main.ml recvalues.ml manyargs.ml "
 ok=0; expected=0; failures=0
 for f in "${files[@]}"; do
   if out=$($ML -I $ROOT/kernel/lib -I $OCL/src/stdlib $f 2>&1 >/dev/null); then ok=$((ok + 1))

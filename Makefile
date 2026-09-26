@@ -68,13 +68,23 @@ test-goken: all
 	GOOS=plan9 H=-H2 ./linker/tests/libc.sh 5 $(GOKEN_W)/plan9_5 $(HOME)/goken/tests/c/hello_libc/*.c
 	./machine/tests/plan9.py $(GOKEN_W)/plan9_5 $(GOKEN_W)/libc5
 
-# The ML compilers against ocaml-light's ocamlopt for arm64
-# (kernel/ocaml-light.sh arm64 builds it in /tmp/ix-ocaml-light-arm64),
-# and goken: random programs, their outputs recorded by ocamlopt, then
-# compared (make test-goken compares the recorded ones); see
-# tiny/TinyML_fuzz.py.
+# The ML compilers against ocaml-light's ocamlopt for arm64 and arm
+# (kernel/ocaml-light.sh arm64 and arm build them in
+# /tmp/ix-ocaml-light-*), and goken: tiny-ml on random programs, their
+# outputs recorded by ocamlopt, then compared (make test-goken compares
+# the recorded ones; see tiny/TinyML_fuzz.py); mini-ml's front end and
+# type checker over the corpus (languages/ml/tests/), its programs
+# (tests/tiny/, ocaml-light's test/, the random ones), on arm64 and, under
+# qemu-arm, on arm, run and compared with ocamlopt's.
+OCAML_LIGHT_TESTS = $(addprefix $(HOME)/ocaml-light/test/,fib.ml takc.ml taku.ml sieve.ml quicksort.ml soli.ml bdd.ml boyer.ml nucleic.ml KB Moretest/bigints.ml Moretest/equality.ml Moretest/io.ml Moretest/patmatch.ml Moretest/signals.ml Moretest/wc.ml Moretest/testrandom.ml)
 test-ocaml: all
 	mkdir -p $(GOKEN_W)/tinyml && ./tiny/TinyML_fuzz.py $(GOKEN_W)/tinyml 100 && RECORD=1 ./tiny/TinyML_test.sh $(GOKEN_W)/tinyml/*.ml
+	./languages/ml/tests/corpus.sh
+	./languages/ml/tests/types.sh
+	./languages/ml/tests/run.sh 7 $(GOKEN_W)/ml7 languages/ml/tests/tiny/*.ml
+	LIVE=1 ./languages/ml/tests/run.sh 7 $(GOKEN_W)/ml7 $(OCAML_LIGHT_TESTS)
+	LIVE=1 ./languages/ml/tests/run.sh 5 $(GOKEN_W)/ml5 $(addprefix languages/ml/tests/tiny/,arith.ml closures.ml compare.ml exceptions.ml gc.ml lists.ml loops.ml strings.ml variants.ml)
+	LIVE=1 ./languages/ml/tests/run.sh 7 $(GOKEN_W)/ml7 $(GOKEN_W)/tinyml/*.ml
 
 # The database against chidb (~/github/chidb, built): the course's
 # .dbmf cases (in make test too, when chidb's checkout is there), the
