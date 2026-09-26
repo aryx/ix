@@ -184,12 +184,17 @@ def files():
 FIELDS = ["files", "ml", "mli", "mll_mly", "code", "comment", "blank", "lines"]
 # the lines first, right beside the name they count, the rest after it
 REST = [f for f in FIELDS if f != "lines"]
-WIDTH = 30  # of the name column
+# 80 columns: the lines (7), 2 spaces, the name, then each cell a
+# space wider than its title or its numbers ("37,704"), whichever is
+# the longer
+WIDTH = 25  # of the name column: "  tiny/TinyBuildSystem.ml" with -v
+CELL = {"files": 6, "ml": 5, "mli": 5, "mll_mly": 8, "code": 7,
+        "comment": 8, "blank": 7}
 
 
 def row(name, s, indent=0):
-    cells = "".join(f"{s[f]:>9,}" for f in REST)
-    print(f"{s['lines']:>9,}  {' ' * indent}{name:<{WIDTH - indent}}{cells}")
+    cells = "".join(f"{s[f]:>{CELL[f]},}" for f in REST)
+    print(f"{s['lines']:>7,}  {' ' * indent}{name:<{WIDTH - indent}}{cells}")
 
 
 def main():
@@ -219,7 +224,8 @@ def main():
                 t[f] += s[f]
         return t
 
-    print(f"{'lines':>9}  {'':<{WIDTH}}" + "".join(f"{f:>9}" for f in REST))
+    print(f"{'lines':>7}  {'':<{WIDTH}}"
+          + "".join(f"{f:>{CELL[f]}}" for f in REST))
     order = [g for g, _ in GROUPS] + ["tests", "other"]
     for group in order:
         subs = stats.get(group, {})
