@@ -22,6 +22,30 @@ ocaml-light, with its literate book (`~/ocaml-light/docs/literate/`).
 
 ## 0. Where the code is, and a reading order
 
+**As built (2026-09-26).** tiny-ml and mini-ml's phases 1 to 4 are
+written (plan_ml.md's Status has the numbers and the tests); this
+tutorial was written before them, and its sections are checked against
+the code in phase 8. Where the code differs from what follows:
+
+- `Match`, `Lambda` and `Closure` are one module, `Lower`: Scope's tree
+  goes straight to the stack machine (§10), as in tiny-ml, patterns as
+  tests (§7) and closures (§9) made on the way; there is no `-dlam`,
+  `-dir` prints the stack machine's code.
+- `Arm` and `Arm64` are two records in `Gen`.
+- A call's closure and arguments are in slots of the frame on the value
+  stack, which the stack machine's call names; the arguments are passed
+  in registers (R1.., the closure in R0). The value stack's top is R10
+  on arm, R26 on arm64, as §10 says.
+- `try` is setjmp's: `BL ml_try(SB)` records the handler (the stack
+  pointers, the return address, the previous one) and returns 0;
+  `raise` returns there again with the exception (§10's "handler's
+  code" is that return address).
+- The commands: `mini-ml -m 5 -I stdlib x.ml` makes `x.5`; `mini-ml -m 5
+  -start Pervasives ... X Std_exit` the start object, which initializes
+  the units in their order; `mini-ld -m 5 -H7` links them with
+  `runtime/runtime.c` (by mini-cc) and goken's libc. `languages/ml/tests/
+  run.sh` does all of it for a program.
+
 The modules as planned (plan_ml.md, "How to be smaller"):
 
 | module | what | section |

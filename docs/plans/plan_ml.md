@@ -512,6 +512,13 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, the size, and `make test-ocaml`.** mini-ml: 2,403
+  lines of code (3,117 with comments), Lower 688 lines, Scope 552,
+  Parser 444, Typing 408, Gen 309; the plan's target was about 5,350.
+  The runtime about 1,200 lines of C (target 1,300). `make test-ocaml`
+  runs tiny-ml's and mini-ml's tests against ocaml-light (the corpus
+  compiled and typed, `-i`, the programs on both machines, 100 random
+  ones): all pass.
 - **2026-09-26, phase 7 started: floats, on arm64.** Boxed always
   (decision 4): a literal a static block of its bits, an operation a call
   of the runtime, whose C (by mini-cc) does the arithmetic, the
