@@ -512,6 +512,17 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 2 started: the parser.** `languages/ml/`: `Ast.ml`
+  (the tree, and `-dast`'s S-expressions), `Lexer.mll`, `Parser.mly`
+  (ocaml-light's grammar for the subset: 40 shift/reduce conflicts,
+  resolved by shifting, where ocaml-light's own has 42), `CLI.ml`,
+  `Main.ml`: `mini-ml -dast f.ml`. `languages/ml/tests/corpus.sh`: 181
+  files of the corpus parse (mini-9pi's 65 `.ml` and `.mli`,
+  ocaml-light's stdlib, its `test/`); the 3 others are outside the
+  subset (`letstar.ml`'s let-operators, `sets.ml`'s functor,
+  `testmain.ml`'s Caml Light `#open`). ocaml-light's `map.ml` and
+  `set.ml` have no functor (they are polymorphic), so they are in.
+
 - **2026-09-26, phase 0 finished, phase 1 done: tiny-ml.**
   - The conventions (phase 0), on arm64: 7c allocates R0 to R15
     (`REGMIN` 9 to `REGMAX` 15, and the arguments), its linker's

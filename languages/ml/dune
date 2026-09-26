@@ -1,0 +1,15 @@
+(library
+ (name ix_ml)
+ (modules Ast Lexer Parser CLI)
+ (libraries ix_core fpath logs caps))
+
+(ocamllex Lexer)
+
+(ocamlyacc Parser)
+
+(executable
+ (name Main)
+ (public_name mini-ml)
+ (package ix)
+ (modules Main)
+ (libraries ix_ml caps))
