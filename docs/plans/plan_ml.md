@@ -512,6 +512,24 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 3: milestone 1, ocaml-light's `test/`.** Its
+  programs through mini-ml, run and compared live with its `ocamlopt`
+  (`LIVE=1 tests/run.sh`), and with `ML_HEAP=64`: fib, takc, taku,
+  sieve, quicksort, soli, bdd, boyer, and Moretest's bigints, equality,
+  io, patmatch, signals, wc the same on arm64; the first eight on arm
+  too, under qemu-arm. Not yet: KB and Lex (several units, Lex's
+  generated), recvalues (`let rec` of a value that isn't a function),
+  and those with floats, Int32/Int64, marshalling or C of their own;
+  alloc loops forever printing the collector's own statistics.
+  syserror: ocaml-light's arm64 executable segfaults on its uncaught
+  `Sys_error`, mini-ml's prints it.
+  - What it took: an expression's operands computed into slots when two
+    or more allocate or call (boyer's terms were 9 deep, arm has 8
+    registers), big blocks allocated empty then filled; a toplevel
+    `external` also a global, a closure of its primitive, for an importer
+    whose `.mli` says `val` (pervasives' `output_char`); a stub in the
+    runtime for each C primitive of the stdlib it lacks (85, generated
+    from the `external`s), which fails when called.
 - **2026-09-26, phase 3: the back end, arm and arm64 at once.**
   `languages/ml/Lower.ml` (Scope's tree to a stack machine: the
   patterns' tests, closures, known calls, the primitives; what the plan

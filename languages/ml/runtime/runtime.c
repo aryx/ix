@@ -1003,6 +1003,97 @@ value sys_time(value u) { unsupported("Sys.time"); return u; }
 value output_value(value c, value v) { unsupported("output_value"); return v; }
 value input_value(value c) { unsupported("input_value"); return c; }
 
+/* the stdlib's other externals, which a unit's closure of its externals
+ * names (Lower's Iexternal): each fails when called. The list is the
+ * stdlib's non-% primitives this file doesn't define (Int32, Int64, the
+ * floats' functions, Gc, Weak, Digest, Lexing's and Parsing's engines,
+ * marshalling, and some of Sys) */
+value acos_float(void) { unsupported("acos_float"); return 0; }
+value asin_float(void) { unsupported("asin_float"); return 0; }
+value atan2_float(void) { unsupported("atan2_float"); return 0; }
+value atan_float(void) { unsupported("atan_float"); return 0; }
+value caml_channel_size(void) { unsupported("caml_channel_size"); return 0; }
+value caml_get_exception_backtrace(void) { unsupported("caml_get_exception_backtrace"); return 0; }
+value caml_input_int(void) { unsupported("caml_input_int"); return 0; }
+value caml_seek_in(void) { unsupported("caml_seek_in"); return 0; }
+value caml_seek_out(void) { unsupported("caml_seek_out"); return 0; }
+value ceil_float(void) { unsupported("ceil_float"); return 0; }
+value cos_float(void) { unsupported("cos_float"); return 0; }
+value cosh_float(void) { unsupported("cosh_float"); return 0; }
+value exp_float(void) { unsupported("exp_float"); return 0; }
+value floor_float(void) { unsupported("floor_float"); return 0; }
+value fmod_float(void) { unsupported("fmod_float"); return 0; }
+value frexp_float(void) { unsupported("frexp_float"); return 0; }
+value gc_compaction(void) { unsupported("gc_compaction"); return 0; }
+value gc_full_major(void) { unsupported("gc_full_major"); return 0; }
+value gc_get(void) { unsupported("gc_get"); return 0; }
+value gc_major(void) { unsupported("gc_major"); return 0; }
+value gc_minor(void) { unsupported("gc_minor"); return 0; }
+value gc_set(void) { unsupported("gc_set"); return 0; }
+value gc_stat(void) { unsupported("gc_stat"); return 0; }
+value input_value_from_string(void) { unsupported("input_value_from_string"); return 0; }
+value int32_add(void) { unsupported("int32_add"); return 0; }
+value int32_and(void) { unsupported("int32_and"); return 0; }
+value int32_div(void) { unsupported("int32_div"); return 0; }
+value int32_format(void) { unsupported("int32_format"); return 0; }
+value int32_mod(void) { unsupported("int32_mod"); return 0; }
+value int32_mul(void) { unsupported("int32_mul"); return 0; }
+value int32_neg(void) { unsupported("int32_neg"); return 0; }
+value int32_of_int(void) { unsupported("int32_of_int"); return 0; }
+value int32_of_string(void) { unsupported("int32_of_string"); return 0; }
+value int32_or(void) { unsupported("int32_or"); return 0; }
+value int32_shift_left(void) { unsupported("int32_shift_left"); return 0; }
+value int32_shift_right(void) { unsupported("int32_shift_right"); return 0; }
+value int32_shift_right_unsigned(void) { unsupported("int32_shift_right_unsigned"); return 0; }
+value int32_sub(void) { unsupported("int32_sub"); return 0; }
+value int32_to_int(void) { unsupported("int32_to_int"); return 0; }
+value int32_xor(void) { unsupported("int32_xor"); return 0; }
+value int64_add(void) { unsupported("int64_add"); return 0; }
+value int64_and(void) { unsupported("int64_and"); return 0; }
+value int64_div(void) { unsupported("int64_div"); return 0; }
+value int64_format(void) { unsupported("int64_format"); return 0; }
+value int64_mod(void) { unsupported("int64_mod"); return 0; }
+value int64_mul(void) { unsupported("int64_mul"); return 0; }
+value int64_neg(void) { unsupported("int64_neg"); return 0; }
+value int64_of_int(void) { unsupported("int64_of_int"); return 0; }
+value int64_of_int32(void) { unsupported("int64_of_int32"); return 0; }
+value int64_of_string(void) { unsupported("int64_of_string"); return 0; }
+value int64_or(void) { unsupported("int64_or"); return 0; }
+value int64_shift_left(void) { unsupported("int64_shift_left"); return 0; }
+value int64_shift_right(void) { unsupported("int64_shift_right"); return 0; }
+value int64_shift_right_unsigned(void) { unsupported("int64_shift_right_unsigned"); return 0; }
+value int64_sub(void) { unsupported("int64_sub"); return 0; }
+value int64_to_int(void) { unsupported("int64_to_int"); return 0; }
+value int64_to_int32(void) { unsupported("int64_to_int32"); return 0; }
+value int64_xor(void) { unsupported("int64_xor"); return 0; }
+value ldexp_float(void) { unsupported("ldexp_float"); return 0; }
+value lex_engine(void) { unsupported("lex_engine"); return 0; }
+value log10_float(void) { unsupported("log10_float"); return 0; }
+value log_float(void) { unsupported("log_float"); return 0; }
+value marshal_data_size(void) { unsupported("marshal_data_size"); return 0; }
+value md5_chan(void) { unsupported("md5_chan"); return 0; }
+value md5_string(void) { unsupported("md5_string"); return 0; }
+value modf_float(void) { unsupported("modf_float"); return 0; }
+value output_value_to_buffer(void) { unsupported("output_value_to_buffer"); return 0; }
+value output_value_to_string(void) { unsupported("output_value_to_string"); return 0; }
+value parse_engine(void) { unsupported("parse_engine"); return 0; }
+value sin_float(void) { unsupported("sin_float"); return 0; }
+value sinh_float(void) { unsupported("sinh_float"); return 0; }
+value sqrt_float(void) { unsupported("sqrt_float"); return 0; }
+value sys_chdir(void) { unsupported("sys_chdir"); return 0; }
+value sys_close(void) { unsupported("sys_close"); return 0; }
+value sys_file_exists(void) { unsupported("sys_file_exists"); return 0; }
+value sys_getcwd(void) { unsupported("sys_getcwd"); return 0; }
+value sys_is_directory(void) { unsupported("sys_is_directory"); return 0; }
+value sys_remove(void) { unsupported("sys_remove"); return 0; }
+value sys_rename(void) { unsupported("sys_rename"); return 0; }
+value sys_system_command(void) { unsupported("sys_system_command"); return 0; }
+value tan_float(void) { unsupported("tan_float"); return 0; }
+value tanh_float(void) { unsupported("tanh_float"); return 0; }
+value weak_create(void) { unsupported("weak_create"); return 0; }
+value weak_get(void) { unsupported("weak_get"); return 0; }
+value weak_set(void) { unsupported("weak_set"); return 0; }
+
 /*****************************************************************************/
 /* main */
 /*****************************************************************************/

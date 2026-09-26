@@ -56,6 +56,7 @@ type item =
   | Ieval of expr
   | Ivalue of bool * (pattern * expr) list * (var * global) list
   | Iexception of global * string
+  | Iexternal of global * string * int
 
 exception Error of int * string
 
@@ -359,7 +360,10 @@ let rec structure path env (items : Ast.structure) : item list * env * env =
           let gs = List.map (fun (x, v) -> x, v, define path x) vs in
           emit (Ivalue (r = Rec, bs, List.map (fun (_, v, g) -> v, g) gs));
           List.fold_left (fun (env, exports) (x, _, g) -> add_value x (Global g) env, add_value x (Global g) exports) (env, exports) (List.rev gs)
-      | Iexternal (x, t, p :: _) -> both (add_value x (Prim (p, arity t)))
+      | Iexternal (x, t, p :: _) ->
+          (* its own unit calls the primitive; another may name it by a val *)
+          emit (Iexternal (define path x, p, arity t));
+          both (add_value x (Prim (p, arity t)))
       | Iexternal (x, _, []) -> error it.iloc "%s: an external without a primitive" x
       | Itype ds -> both (fun env -> List.fold_left (fun env d -> decl d env) env ds)
       | Iexception (c, ts) ->
@@ -464,3 +468,4 @@ let show_item = function
   | Ivalue (r, bs, gs) ->
       Printf.sprintf "(let%s %s) -> %s" (if r then "rec" else "") (bindings bs) (list (fun (v, g) -> var v ^ ":" ^ g.gsym) gs)
   | Iexception (g, c) -> Printf.sprintf "(exception %s %s)" c g.gsym
+  | Iexternal (g, p, n) -> Printf.sprintf "(external %s %s/%d)" g.gsym p n

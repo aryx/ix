@@ -75,6 +75,7 @@ type item =
   | Ieval of expr
   | Ivalue of bool * (pattern * expr) list * (var * global) list
   | Iexception of global * string
+  | Iexternal of global * string * int   (* a global too, for an importer whose .mli says val *)
 
 exception Error of int * string
 

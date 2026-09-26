@@ -277,6 +277,9 @@ let prim p n =
 (* Expressions *)
 (*****************************************************************************)
 
+(* an operand: an expression, or what pushes a value already known *)
+type operand = E of Scope.expr | F of (unit -> unit)
+
 (* e's value pushed *)
 let rec value env (e : Scope.expr) =
   match e.e with
@@ -288,16 +291,16 @@ let rec value env (e : Scope.expr) =
   | Econs (c, args) -> (
       match c.kind with
       | Const n -> emit (Int n)
-      | Block t -> block env t (List.map (fun e -> fun () -> value env e) args)
-      | Exn g -> block env 0 ((fun () -> emit (Block (mangle g.gsym))) :: List.map (fun e -> fun () -> value env e) args))
-  | Etuple es -> block env 0 (List.map (fun e -> fun () -> value env e) es)
+      | Block t -> block env t (List.map (fun e -> E e) args)
+      | Exn g -> block env 0 (F (fun () -> emit (Block (mangle g.gsym))) :: List.map (fun e -> E e) args))
+  | Etuple es -> block env 0 (List.map (fun e -> E e) es)
   | Earray [] -> emit (Block "caml_atom0")
-  | Earray es -> block env 0 (List.map (fun e -> fun () -> value env e) es)
+  | Earray es -> block env 0 (List.map (fun e -> E e) es)
   | Erecord (size, fs) ->
       block env 0
         (List.init size (fun pos ->
           match List.find_opt (fun ((l : Scope.label), _) -> l.pos = pos) fs with
-          | Some (_, e) -> fun () -> value env e
+          | Some (_, e) -> E e
           | None -> error "a record without its field %d" pos))
   | Ewith (r, size, fs) ->
       value env r;
@@ -306,8 +309,8 @@ let rec value env (e : Scope.expr) =
       block env 0
         (List.init size (fun pos ->
           match List.find_opt (fun ((l : Scope.label), _) -> l.pos = pos) fs with
-          | Some (_, e) -> fun () -> value env e
-          | None -> fun () -> emit (Get s); emit (Field pos)))
+          | Some (_, e) -> E e
+          | None -> F (fun () -> emit (Get s); emit (Field pos))))
   | Efield (r, l) -> value env r; emit (Field l.pos)
   | Esetfield (r, l, v) -> value env v; value env r; emit (SetField l.pos); emit (Int 0)
   | Eapply (f, args) -> ignore (app env f args false)
@@ -354,15 +357,35 @@ let rec value env (e : Scope.expr) =
 (* a block of the fields' values, each pushed by its function, the last
  * first; a big one allocated empty then filled, so that the stack
  * machine's depth stays small *)
-and block _env tag fields =
+and block env tag fields =
   let n = List.length fields in
-  if n <= 4 then (List.iter (fun f -> f ()) (List.rev fields); emit (Alloc (tag, n)))
+  if n <= 4 then (operands env (List.rev fields); emit (Alloc (tag, n)))
   else begin
     emit (Int n); emit (Int tag); emit (CallC ("obj_block", 2));
     let b = slot () in
     emit (Set b);
-    List.iteri (fun i f -> let pos = n - 1 - i in f (); emit (Get b); emit (SetField pos)) (List.rev fields);
+    List.iteri (fun i f -> let pos = n - 1 - i in operands env [ f ]; emit (Get b); emit (SetField pos)) (List.rev fields);
     emit (Get b)
+  end
+
+(* operands pushed in their order (the last argument first); two or
+ * more of them allocating or calling are computed into slots first,
+ * in that order, so that the depth is the operands', not their
+ * nesting's (boyer's terms: 9 on arm's 8 registers) *)
+and operands env ops =
+  let complex = function
+    | E { e = Econst _ | Evar _ | Econs (_, []); _ } | F _ -> false
+    | E _ -> true
+  in
+  if List.length (List.filter complex ops) < 2 then List.iter (function E e -> value env e | F f -> f ()) ops
+  else begin
+    let slots =
+      List.map (fun o ->
+        match o with
+        | E e when complex o -> value env e; let s = slot () in emit (Set s); Some s
+        | _ -> None) ops
+    in
+    List.iter2 (fun o s -> match o, s with _, Some s -> emit (Get s) | E e, None -> value env e | F f, None -> f ()) ops slots
   end
 
 (* e as a function's last: its value returned, or a call made a jump *)
@@ -438,8 +461,7 @@ and app env (f : Scope.expr) args tl =
   in
   let args_in k =
     let first = List.filteri (fun i _ -> i < k) args and later = List.filteri (fun i _ -> i >= k) args in
-    List.iter (value env) (List.rev later);
-    List.iter (value env) (List.rev first)
+    operands env (List.map (fun e -> E e) (List.rev later @ List.rev first))
   in
   let known =
     match f.e with
@@ -500,7 +522,7 @@ and closure env name (e : Scope.expr) =
 
 and alloc_closure env lab n fvs =
   let e = entry n lab in
-  block env closure_tag ((fun () -> emit (Sym e)) :: (fun () -> emit (Sym lab)) :: List.map (fun id () -> var env (Local { vname = ""; vid = id })) fvs)
+  block env closure_tag (F (fun () -> emit (Sym e)) :: F (fun () -> emit (Sym lab)) :: List.map (fun id -> F (fun () -> var env (Local { vname = ""; vid = id }))) fvs)
 
 (* let rec: static if the functions need nothing but each other; else
  * their closures allocated, then those that name a later one patched *)
@@ -573,6 +595,13 @@ let unit_ name (items : Scope.item list) =
     match it with
     | Ieval e -> value [] e; emit Drop
     | Iexception (g, c) -> let name = string_block c in data := Exception (mangle g.gsym, name) :: !data
+    | Iexternal (g, p, n) ->
+        (* the primitive as a function, a static closure *)
+        let sym = mangle g.gsym in
+        globals := sym :: !globals;
+        var [] (Prim (p, n));
+        emit (SetG sym);
+        data := Global (sym, None) :: !data
     | Ivalue (r, bs, gs) ->
         let env = bind [] r bs in
         List.iter (fun ((v : Scope.var), (g : Scope.global)) ->
