@@ -4,24 +4,42 @@
 # (written by Haiku, since the full answers are long and not deterministic).
 #
 #   history.py prompt              UserPromptSubmit hook (its work in a
-#                                  detached child): flush the pending
-#                                  summary (see below), then append the
-#                                  new prompt
-#   history.py answer              Stop hook: stash the answer as pending,
-#                                  instead of summarizing it right away
+#                                  detached child): write the session's
+#                                  previous exchange (see below), then
+#                                  keep the new prompt as the session's
+#                                  open one
+#   history.py answer              Stop hook: attach the answer to the
+#                                  session's open prompt
+#   history.py end                 SessionEnd hook: write the session's
+#                                  last exchange, with no next prompt
 #   history.py stage-if-commit     PreToolUse (Bash) hook: `git add` this
 #                                  file when the command is a `git commit`,
-#                                  so pending history rides along with it
+#                                  so the history rides along with it
 #   history.py rebuild TRANSCRIPT  regenerate the whole file from a session
 #                                  transcript (.jsonl)
+#   history.py rebuild-from 'YYYY-MM-DD HH:MM' TRANSCRIPT...
+#                                  keep the entries before that time,
+#                                  regenerate the rest from the sessions'
+#                                  transcripts, interleaved by time
 #
-# The summary of an answer is written lazily, on the *next* prompt rather
-# than right after the answer (Stop hook just stashes prompt+answer in
-# PENDING). That next prompt is what Yoann actually reacted to, so it is
-# passed to the summarizer as extra context to judge what in the answer
-# mattered, without being summarized itself. This means the last exchange
-# of a session stays pending until something (even in a later session)
-# triggers a new prompt in this repo.
+# An exchange is written whole, its prompt then the summary of its
+# answer, and lazily: when the *same session's* next prompt comes (or the
+# session ends), not right after the answer. That next prompt is what
+# Yoann actually reacted to, so it is passed to the summarizer as extra
+# context to judge what in the answer mattered, without being summarized
+# itself.
+#
+# Each session has its own open exchange (SESSIONS/<session id>.json).
+# old: one pending answer for the repository, and the prompt written at
+# once; with two sessions at the same time, an answer of one was
+# summarized under the other's next prompt, and a Stop overwrote the
+# other's pending answer (2026-09-25 and 26: four sessions interleaved).
+# Now an entry is never split, and entries of concurrent sessions come in
+# the order they were written, their headings keeping the prompts' times.
+#
+# A session started in this repository but working on another project
+# is listed in IGNORED (one session id per line, # for comments), and
+# not recorded.
 #
 # The hooks get their JSON payload on stdin.
 import concurrent.futures, datetime, fcntl, json, os, re, subprocess, sys, time
@@ -29,7 +47,8 @@ import concurrent.futures, datetime, fcntl, json, os, re, subprocess, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 PATH = os.path.join(ROOT, "docs", "yoann_notes", "prompt-history.md")
-PENDING = os.path.join(ROOT, ".claude", "hooks", ".pending-answer.json")
+SESSIONS = os.path.join(ROOT, ".claude", "hooks", ".sessions")
+IGNORED = os.path.join(ROOT, ".claude", "hooks", "ignored-sessions")
 DEBUG_LOG = os.path.join(ROOT, ".claude", "hooks", ".debug.log")
 LOCK = os.path.join(ROOT, ".claude", "hooks", ".history.lock")
 
@@ -49,9 +68,14 @@ came to be.
 
 Entries are appended by Claude Code hooks (`.claude/hooks/history.py`,
 set in `.claude/settings.json`), so only sessions started in this
-repository are recorded. The first entries, from a session started in
-ocaml-elm-playground before this repository existed, were rebuilt from
-that session's transcript. Times are UTC.
+repository are recorded (but those listed in
+`.claude/hooks/ignored-sessions`, started here for another project). An
+entry is written when its session's next prompt comes, so entries of
+sessions run at the same time may be a little out of order. The first
+entries, from a session started in ocaml-elm-playground before this
+repository existed, were rebuilt from that session's transcript, and so
+were those from 2026-09-25 09:19 to 2026-09-26 08:06, which concurrent
+sessions had mixed up. Times are UTC.
 """
 
 SEPARATOR = "\n" + "-" * 72 + "\n"
@@ -116,32 +140,40 @@ def append(text):
             f.write(HEADER)
         f.write(text)
 
-def save_pending(prompt, answer):
-    with open(PENDING, "w") as f:
-        json.dump({"prompt": prompt, "answer": answer}, f)
+def session_path(sid):
+    return os.path.join(SESSIONS, re.sub(r"[^\w-]", "_", sid) + ".json")
 
-def load_pending():
-    if not os.path.exists(PENDING):
-        return None
-    with open(PENDING) as f:
-        return json.load(f)
-
-def clear_pending():
-    if os.path.exists(PENDING):
-        os.remove(PENDING)
-
-def take_pending():
-    # move it away at once: a Stop hook that fires while the summary is
-    # being written then stashes the next exchange instead of losing it
-    taken = PENDING + ".%d" % os.getpid()
+def load_session(sid):
     try:
-        os.rename(PENDING, taken)
+        with open(session_path(sid)) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def save_session(sid, open_exchange):
+    os.makedirs(SESSIONS, exist_ok=True)
+    with open(session_path(sid), "w") as f:
+        json.dump(open_exchange, f)
+
+def take_session(sid):
+    # move it away at once: an answer attached while the summary is
+    # being written goes to the next exchange instead of being lost
+    path = session_path(sid)
+    taken = path + ".%d" % os.getpid()
+    try:
+        os.rename(path, taken)
     except FileNotFoundError:
         return None
     with open(taken) as f:
-        pending = json.load(f)
+        open_exchange = json.load(f)
     os.remove(taken)
-    return pending
+    return open_exchange
+
+def ignored(sid):
+    if not os.path.exists(IGNORED):
+        return False
+    with open(IGNORED) as f:
+        return sid in (l.split("#")[0].strip() for l in f)
 
 def is_notification(prompt):
     # background-task notifications, subagents' reports (<agent-message>)
@@ -154,16 +186,43 @@ def debug_log(msg):
         f.write("[%s] %s\n" % (
             datetime.datetime.now(datetime.timezone.utc).isoformat(), msg))
 
-def flush_pending(pending, next_prompt):
-    if not pending:
+def render_exchange(prompt, when, summary):
+    text = render_prompt(prompt, when)
+    return text + render_summary(summary) if summary else text
+
+def write_exchange(open_exchange, next_prompt):
+    """The session's open exchange as an entry: its prompt, then its
+    answer's summary if it had an answer."""
+    if not open_exchange:
         return
-    # Never lose the exchange: if summarization fails, fall back to a
-    # truncated raw answer instead of clearing pending with nothing written.
-    s = summarize(pending["prompt"], pending["answer"], next_prompt)
-    if not s:
-        s = "(summary generation failed - raw answer follows)\n\n" + \
-            pending["answer"][:1000]
-    append(render_summary(s))
+    when = datetime.datetime.fromisoformat(open_exchange["time"])
+    answer = open_exchange.get("answer")
+    s = None
+    if answer:
+        # Never lose the exchange: if summarization fails, fall back to
+        # a truncated raw answer.
+        s = summarize(open_exchange["prompt"], answer, next_prompt) or \
+            "(summary generation failed - raw answer follows)\n\n" + answer[:1000]
+    append(render_exchange(open_exchange["prompt"], when, s))
+
+def detached(work):
+    # Summarizing can take longer than Claude Code waits for a hook
+    # (60 s), which used to kill it after the summary and before the
+    # prompt: lost prompts, summaries under the wrong entry. So the work
+    # goes to a detached child, serialized by a lock so that entries stay
+    # whole, and the hook returns at once.
+    if os.fork() == 0:
+        os.setsid()
+        devnull = os.open(os.devnull, os.O_RDWR)
+        for fd in (0, 1, 2):
+            os.dup2(devnull, fd)
+        try:
+            with open(LOCK, "w") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                work()
+        except Exception as e:
+            debug_log("detached: %r" % e)
+        os._exit(0)
 
 def summarize(prompt, answer, next_prompt=None):
     if not answer.strip():
@@ -205,6 +264,17 @@ def exchanges(transcript):
             if isinstance(c, str) and c.strip() and not c.startswith("<"):
                 turns.append({"prompt": c, "time": d["timestamp"],
                               "answer": []})
+        elif d.get("type") == "attachment":
+            # a prompt Yoann sent while Claude was working ("absorbed mid
+            # turn"): not a "user" entry, but a queued command, which the
+            # prompt hook records like any prompt
+            a = d.get("attachment", {})
+            c = a.get("prompt")
+            if (a.get("type") == "queued_command" and a.get("commandMode") == "prompt"
+                    and a.get("origin", {}).get("kind") == "human"
+                    and isinstance(c, str) and c.strip() and not c.startswith("<")):
+                turns.append({"prompt": c, "time": d["timestamp"],
+                              "answer": []})
         elif d.get("type") == "assistant" and turns:
             for b in d.get("message", {}).get("content", []):
                 if b.get("type") == "text" and b["text"].strip():
@@ -225,44 +295,44 @@ def main():
     if os.environ.get(GUARD):
         return
     if mode == "prompt":
-        prompt = json.load(sys.stdin).get("prompt", "")
-        if not prompt.strip() or is_notification(prompt):
+        data = json.load(sys.stdin)
+        prompt, sid = data.get("prompt", ""), data.get("session_id", "")
+        if not prompt.strip() or is_notification(prompt) or ignored(sid):
             return
         now = datetime.datetime.now(datetime.timezone.utc)
-        pending = take_pending()
-        # Summarizing can take longer than Claude Code waits for a hook
-        # (60 s), which used to kill it after the summary and before the
-        # prompt: lost prompts, summaries under the wrong entry. So the
-        # work goes to a detached child, serialized by a lock so that
-        # entries stay in order, and the hook returns at once.
-        if os.fork() == 0:
-            os.setsid()
-            devnull = os.open(os.devnull, os.O_RDWR)
-            for fd in (0, 1, 2):
-                os.dup2(devnull, fd)
-            try:
-                with open(LOCK, "w") as lock:
-                    fcntl.flock(lock, fcntl.LOCK_EX)
-                    flush_pending(pending, prompt)
-                    append(render_prompt(prompt, now))
-            except Exception as e:
-                debug_log("prompt: %r" % e)
-            os._exit(0)
+        previous = take_session(sid)
+        # a prompt sent while the answer is still being written has no
+        # answer of its own: written alone, as its prompt
+        save_session(sid, {"prompt": prompt, "time": now.isoformat()})
+        detached(lambda: write_exchange(previous, prompt))
     elif mode == "answer":
-        transcript_path = json.load(sys.stdin)["transcript_path"]
+        data = json.load(sys.stdin)
+        sid, transcript_path = data.get("session_id", ""), data["transcript_path"]
+        if ignored(sid):
+            return
         turns = exchanges(transcript_path)
         # The transcript file can lag slightly behind the Stop event: retry
-        # briefly rather than stash an empty answer and lose the exchange.
+        # briefly rather than attach an empty answer and lose it.
         for _ in range(5):
             if turns and turns[-1]["answer"].strip():
                 break
             time.sleep(0.3)
             turns = exchanges(transcript_path)
-        if turns and turns[-1]["answer"].strip():
-            save_pending(turns[-1]["prompt"], turns[-1]["answer"])
+        open_exchange = load_session(sid)
+        if not open_exchange:
+            debug_log("answer: no open prompt for session %s" % sid)
+        elif turns and turns[-1]["answer"].strip():
+            open_exchange["answer"] = turns[-1]["answer"]
+            save_session(sid, open_exchange)
         elif turns:
             debug_log("answer: empty answer after retries for prompt=%r" %
                       turns[-1]["prompt"][:200])
+    elif mode == "end":
+        sid = json.load(sys.stdin).get("session_id", "")
+        if ignored(sid):
+            return
+        last = take_session(sid)
+        detached(lambda: write_exchange(last, None))
     elif mode == "stage-if-commit":
         data = json.load(sys.stdin)
         command = data.get("tool_input", {}).get("command", "")
@@ -285,6 +355,45 @@ def main():
                 f.write(render_prompt(t["prompt"], t["time"]))
                 if s:
                     f.write(render_summary(s))
+
+    elif mode == "rebuild-from":
+        rebuild_from(sys.argv[2], sys.argv[3:])
+
+def entry_time(chunk):
+    m = re.match(r"\s*## (\d{4}-\d\d-\d\d \d\d:\d\d)", chunk)
+    return m.group(1) if m else None
+
+def rebuild_from(start, transcripts):
+    """Keep the entries before [start] as they are; regenerate the rest
+    from the transcripts, each exchange summarized with its own
+    session's next prompt, the entries in the prompts' order. A session
+    with an open exchange (running now) keeps its last prompt open."""
+    sessions = []
+    for t in transcripts:
+        sid = os.path.basename(t)[:-len(".jsonl")]
+        if ignored(sid):
+            continue
+        turns = exchanges(t)
+        if load_session(sid):
+            turns = turns[:-1]
+        for i, turn in enumerate(turns):
+            nxt = turns[i + 1]["prompt"] if i + 1 < len(turns) else None
+            if turn["time"].strftime("%Y-%m-%d %H:%M") >= start:
+                sessions.append((turn, nxt))
+    sessions.sort(key=lambda e: e[0]["time"])
+    with concurrent.futures.ThreadPoolExecutor(4) as pool:
+        sums = list(pool.map(
+            lambda e: summarize(e[0]["prompt"], e[0]["answer"], e[1]), sessions))
+    with open(LOCK, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        chunks = open(PATH).read().split(SEPARATOR)
+        kept = [c for c in chunks[1:] if (entry_time(c) or "") < start]
+        with open(PATH, "w") as f:
+            f.write(HEADER)
+            for c in kept:
+                f.write(SEPARATOR + c)
+            for (turn, _), s in zip(sessions, sums):
+                f.write(render_exchange(turn["prompt"], turn["time"], s))
 
 if __name__ == "__main__":
     main()

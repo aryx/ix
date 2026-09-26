@@ -1,4 +1,4 @@
-.claude/hooks/.pending-answer.json
+.claude/hooks/.sessions/
 .claude/hooks/.debug.log
 __pycache__/
 _build/

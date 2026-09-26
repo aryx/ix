@@ -3,15 +3,21 @@
 Every prompt Yoann wrote to Claude to build this repository, in order,
 verbatim (typos included), each followed by a short summary of Claude's
 answer. The summaries are written by a small model (Haiku) from the
-answer's text: they are paraphrases, not records, and the commits show
+answer's text, once Yoann's next prompt is known so it can weigh what
+mattered to him: they are paraphrases, not records, and the commits show
 what was actually done. Together with `git log`, this file tells how ix
 came to be.
 
 Entries are appended by Claude Code hooks (`.claude/hooks/history.py`,
 set in `.claude/settings.json`), so only sessions started in this
-repository are recorded. The first entries, from a session started in
-ocaml-elm-playground before this repository existed, were rebuilt from
-that session's transcript. Times are UTC.
+repository are recorded (but those listed in
+`.claude/hooks/ignored-sessions`, started here for another project). An
+entry is written when its session's next prompt comes, so entries of
+sessions run at the same time may be a little out of order. The first
+entries, from a session started in ocaml-elm-playground before this
+repository existed, were rebuilt from that session's transcript, and so
+were those from 2026-09-25 09:19 to 2026-09-26 08:06, which concurrent
+sessions had mixed up. Times are UTC.
 
 ------------------------------------------------------------------------
 
@@ -3654,6 +3660,10 @@ The decision bypasses intermediate phases to reach 64-bit ARM implementation dir
 
 > let's jump to Pi4; we don't want to emulate every arch; this is a teaching context and a mini- and tiny- so let's focus on pi4 now like for the other programs where we handle both arm32 and arm64
 
+**Claude (summary):**
+
+Claude identified QEMU 11.1 at /media/pad/extradrive1/pad/work/TOOLCHAINS/qemu/build/ booting Pi4. Claude reported this QEMU boots Pi4 with 4 harts, the multi-CPU hardware configuration. Claude recorded the Pi4 focus decision for mini and tiny program design variants. Claude began surveying what xv6's Pi4 port needs to understand hardware requirements. Claude's response ended incomplete after introducing the survey question without substantive findings.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 09:19
@@ -3664,11 +3674,11 @@ The decision bypasses intermediate phases to reach 64-bit ARM implementation dir
 
 **Claude (summary):**
 
-Claude recommended keeping `TinyAssembler.ml` because the linker is integrated, not a separate step.
-Claude noted the other tiny programs' names describe what they do, not their internal phases.
-Claude observed "Assembler" has historically covered integrated assembly and loading since EDSAC.
-Claude flagged renaming would require updates in dune, binary names, tests, README, comments, and docs.
-Claude suggested updating the README instead if readers need to know it replaces both mini-asm and mini-ld.
+Claude recommended keeping `TinyAssembler.ml` as the name because the linker is integrated, not separate.
+Claude noted that renaming would introduce a two-tool compound name that contradicts the design philosophy.
+Claude pointed out that other tiny variant names describe what they do, not their internal phases.
+Claude cited historical precedent: load-and-go assemblers combined assembly and loading before separate compilation.
+Claude suggested updating documentation instead of renaming, since the file appears in many places.
 
 ------------------------------------------------------------------------
 
@@ -3694,6 +3704,10 @@ Claude suggested updating the README instead if readers need to know it replaces
 
 > but that would require to switch to ocaml 5 for that part of the codebase
 
+**Claude (summary):**
+
+Claude completed Pi4 support with xv6 arm64-pi4 booting to shell, verified fault reports against QEMU, and committed as dd09a4f. Claude discovered the interpreter speed of 27 MIPS is too slow, with usertests' first test alone taking 10 minutes on mini-qemu. Claude proposed an interpreter redesign using closures to achieve 3-5x speedup, presenting it as the decision point for next steps. The decision was to keep the simple interpreter design instead, since simplicity is most important for a teaching project. The plan shifted to reducing test constants and loops to make the test infrastructure run faster without code optimization.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 09:20
@@ -3704,7 +3718,7 @@ Claude suggested updating the README instead if readers need to know it replaces
 
 **Claude (summary):**
 
-Claude decided to keep TinyAssembler.ml unchanged without making any modifications to it.
+Claude decided to keep TinyAssembler.ml as is without making any changes.
 
 ------------------------------------------------------------------------
 
@@ -3716,7 +3730,7 @@ Claude decided to keep TinyAssembler.ml unchanged without making any modificatio
 
 **Claude (summary):**
 
-Claude recommended removing the translator, which comprised 185 lines added beyond the original plan. The translator was added to compare interpreter output with ARM binary execution, catching test bugs. Removing the translator leaves TinyMachine as a machine with assembler and interpreter, about 400 lines. The assembler must stay because TinyMachine uses a custom instruction set needing assembly tools. The change affects TinyMachine.ml, TinyMachine_test.sh, the -o flag implementation, documentation in plan_arm.md, and README.
+Claude recommended removing the translator because it introduced binary translation, a topic outside the original plan. Claude noted it occupied 185 of 586 lines and existed only to validate the interpreter against ARM output. Claude explained the assembler is essential because TinyMachine's custom instruction set has no external assembler for programmability. Claude identified that removing the translator would reduce the file to around 400 lines focused on machine design. Claude noted changes would affect TinyMachine.ml code, the -o flag, TinyMachine_test.sh, tiny/README.md, and plan_arm.md.
 
 ------------------------------------------------------------------------
 
@@ -3725,6 +3739,14 @@ Claude recommended removing the translator, which comprised 185 lines added beyo
 **Yoann:**
 
 > yes let's remove it, and explain why it must also contain a mini assembler
+
+**Claude (summary):**
+
+Claude signaled it would show the main function and header code sections next.
+Yoann questioned why TinyArm.ml was needed when TinyMachine.ml appeared to offer similar functionality.
+The redundancy between TinyArm.ml and TinyMachine.ml seemed to be Claude's actual focus in this work.
+Claude's ARM emulator implementation involved both TinyArm.ml and TinyMachine.ml files in some architectural relationship.
+The original explanation about removing code and needing a mini assembler was not clearly provided.
 
 ------------------------------------------------------------------------
 
@@ -3752,7 +3774,7 @@ Claude recommended removing the translator, which comprised 185 lines added beyo
 
 **Claude (summary):**
 
-Claude edited the main function and header to handle the requested changes. Claude revised the README documentation to explain the updates clearly and thoroughly. Claude updated the plan entry to reflect the work. The changes involved removing code while explaining why a mini assembler was required. Yoann approved the approach with just a 'yes'.
+Claude removed the translator, reducing TinyMachine.ml to 400 lines, and redesigned the test to verify listing reassembly. Claude proposed renaming TinyMachine to TinyCPU since it's now just CPU and memory without devices. Claude also planned to rename the file to tiny-cpu, update the test directory and all documentation. Claude justified keeping both TinyArm and TinyMachine because they teach different instruction set concepts despite structural overlap. Claude identified an arm32/arm64 mismatch between TinyArm and tiny-c that must be settled first.
 
 ------------------------------------------------------------------------
 
@@ -3762,6 +3784,14 @@ Claude edited the main function and header to handle the requested changes. Clau
 
 > yes
 
+**Claude (summary):**
+
+Claude renamed TinyMachine to TinyCPU across multiple files in a single commit.
+Claude added a note to `plan_arm.md` pointing to `TinyPi.ml` as the machine with devices.
+This clarified that `TinyPi.ml` differs from `TinyCPU.ml`, which is just a CPU without devices.
+But `TinyArm.ml`'s relationship to these two remained unclear and potentially redundant with `TinyCPU.ml`.
+Yoann asked for better explanations in `TinyArm.ml` and `TinyPi.ml` clarifying why they're not redundant.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 09:39
@@ -3769,14 +3799,6 @@ Claude edited the main function and header to handle the requested changes. Clau
 **Yoann:**
 
 > and explain better in TinyArm.ml and TinyPi why they are not redundant with TinyCPU.ml
-
-**Claude (summary):**
-
-Claude decided to restore `tiny-machine` in `docs/history.md` since that file records originally chosen names.
-He also planned to update the header text to say CPU instead of the previous term.
-Yoann then built on this naming decision by proposing a TinyMachine.ml OCaml module file.
-The module would provide a concrete implementation name matching the restored project naming scheme.
-Together these changes would align the code structure with the documented project naming history.
 
 ------------------------------------------------------------------------
 
@@ -3788,7 +3810,11 @@ Together these changes would align the code structure with the documented projec
 
 **Claude (summary):**
 
-Claude edited headers and plan files to explain why TinyArm and TinyPi aren't redundant with TinyCPU. Build passed cleanly after these documentation modifications were applied to the files. Tests were running before committing to validate the changes worked correctly. The approach focused on explanation through updated headers and planning file edits. Commit would follow once the test validation confirmed everything was working fine.
+Claude renamed the planned TinyPi.ml to TinyMachine.ml (commit 14e1a3c) because tiny programs use functional naming, not product names.
+Claude established TinyMachine.ml's scope as privileged execution: modes, exception vectors, interrupts, MMU, and devices below the system call.
+Claude explained why TinyMachine is distinct from TinyCPU and TinyArm rather than extending either with devices added.
+Claude updated headers, README, documentation notes, and related files to reflect the new TinyMachine.ml name throughout.
+Claude noted the open question of whether TinyMachine's core matches TinyArm's arm32 or tiny-c's arm64.
 
 ------------------------------------------------------------------------
 
@@ -3797,6 +3823,13 @@ Claude edited headers and plan files to explain why TinyArm and TinyPi aren't re
 **Yoann:**
 
 > We probably actually want a TinyPi.ml and a TinyMachine.ml, that are respectively related to TinyArm.ml and TinyCPU.ml no?
+
+**Claude (summary):**
+
+Claude proposed a 2×2 grid layout: TinyArm and TinyCPU as base CPUs, TinyPi and TinyMachine as machines with devices.
+TinyPi pairs with TinyArm, modeling the Pi1's real device registers and enabling bare-metal Pi code to run on both emulator and hardware.
+TinyMachine pairs with TinyCPU, extending it as a design exercise with privileged mode, traps, and interrupts inspired by RISC-V and Oberon.
+This resolved the previous issue of combining ARM with made-up devices, which fit neither inherited nor designed architecture categories.
 
 ------------------------------------------------------------------------
 
@@ -3808,11 +3841,11 @@ Claude edited headers and plan files to explain why TinyArm and TinyPi aren't re
 
 **Claude (summary):**
 
-Claude recommended a two-by-two grid layout for four OCaml modules based on instruction-set and machine-level axes.
-TinyArm and TinyCPU provide user-mode CPUs; TinyPi and TinyMachine add device handling and privileged-mode support.
-TinyPi models the Raspberry Pi One's actual device registers and can run real bare-metal Pi code.
-TinyMachine demonstrates kernel design with privileged mode, traps, and interrupts following RISC-V and Oberon patterns.
-Claude said he would update documentation to reflect this corrected module structure for the project.
+Claude committed a 2×2 grid design as commit 6f8bd2c, with each machine using its CPU as library.
+TinyPi.ml extends TinyArm.ml by adding processor modes, CP15, exceptions, and real Pi1 device registers.
+TinyMachine.ml extends TinyCPU.ml by adding privilege modes, exception traps, timer interrupts, and memory protection.
+Claude planned TinyLibArm.ml and TinyLibCPU.ml to let machines customize memory access, system calls, and interrupts.
+Claude recommended deferring the library split until the first machine is written, without current testing pressure.
 
 ------------------------------------------------------------------------
 
@@ -3824,11 +3857,10 @@ Claude said he would update documentation to reflect this corrected module struc
 
 **Claude (summary):**
 
-Claude confirmed the work was already committed in three commits listed by hash.
-Claude committed renaming TinyMachine's translator to TinyCPU in commit 3327629.
-Claude committed explaining in commit 14e1a3c why TinyArm and TinyCPU aren't redundant.
-Claude committed the 2×2 plan in commit 6f8bd2c with TinyPi.ml and TinyMachine.ml, each using its CPU as library.
-Claude left someone else's uncommitted Pi4 work untouched.
+Claude committed removing the translator from TinyMachine and renaming it TinyCPU (3327629).
+Explained why TinyArm and TinyCPU are not redundant in their design (14e1a3c).
+Implemented the 2×2 plan with TinyPi and TinyMachine both using TinyCPU as a shared library (6f8bd2c).
+Left uncommitted the Pi4 machine work from someone else.
 
 ------------------------------------------------------------------------
 
@@ -3840,11 +3872,7 @@ Claude left someone else's uncommitted Pi4 work untouched.
 
 **Claude (summary):**
 
-Claude checked both files and concluded a shared library would not meaningfully reduce code.
-They share only a text format as an interface, not actual code duplication.
-TinyC's backend prints assembly text while TinyAssembler's parser reads it—no functions written twice.
-Combining them directly wouldn't help TinyC get shorter and would lose readable, testable output.
-Claude recommended keeping them separate since the text format is their proper architectural boundary.
+Claude examined both files and determined a shared library wouldn't reduce code meaningfully. The programs sit at opposite ends of a text interface; TinyC prints assembly, TinyAssembler parses it. The parser must remain to read goken's libc files, and TinyC code wouldn't shorten with constructors. The current design keeps assembly output readable, testable independently, and aligned with Plan 9 architecture. Claude recommended keeping TinyC and TinyAssembler as separate programs without extracting a shared library.
 
 ------------------------------------------------------------------------
 
@@ -3856,10 +3884,9 @@ Claude recommended keeping them separate since the text format is their proper a
 
 **Claude (summary):**
 
-Claude confirmed that TinyC and TinyAssembler would remain as completely separate programs.
-The .s text file was established as the interface boundary between these tools.
-This architectural separation prevented unnecessary tight coupling between the compiler and assembler components.
-No code changes were made; this was confirmation of an existing architectural direction.
+Claude recommended that TinyC and TinyAssembler remain as separate, distinct components with clear separation of concerns.
+Claude identified the `.s` text file as serving as the clear boundary between the two components.
+Claude decided to make no changes to the existing codebase at this time.
 
 ------------------------------------------------------------------------
 
@@ -3871,11 +3898,7 @@ No code changes were made; this was confirmation of an existing architectural di
 
 **Claude (summary):**
 
-Claude recommended fixing the README's "Tiny, not Toy" section to clarify TinyCPU and TinyMachine are deliberate exceptions to the real-ARM rule.
-Claude then suggested TinyMachine.ml with TinyLibCPU split as the natural next step while the design understanding was still fresh.
-This work touched only tiny/ and avoided collision with in-progress Pi4, Gic.ml, Mmu64.ml in machine/ and raspberry/.
-Claude noted TinyPi would be ready after, depending on mini-qemu's Pi1 modes and exceptions that were already implemented.
-Other pending work included mini-vcs (nine patches), mini-cc (53% code overlap), and the kernel row (not yet started).
+Claude recommended fixing the README's "Tiny, not Toy" section, which incorrectly claimed TinyCPU and TinyMachine follow real ARM. Claude proposed presenting these as design exceptions, distinct from TinyArm and TinyPi which follow the real ARM standard. Claude recommended implementing TinyMachine.ml with TinyLibCPU split as the next step, staying confined to the tiny/ namespace. Claude noted this approach avoids collisions with in-progress Pi4 and Kernel work in machine/ and raspberry/ directories. Claude listed other pending work: TinyPi, mini-vcs, mini-cc, and Kernel row, mostly deferred to later development phases.
 
 ------------------------------------------------------------------------
 
@@ -3887,11 +3910,11 @@ Other pending work included mini-vcs (nine patches), mini-cc (53% code overlap),
 
 **Claude (summary):**
 
-Claude rewrote the README section bullets to match the current state and added an exception clause.
-Committed the updated README as `1b1ee86`, which Yoann praised for its clear and well-structured content.
-Build and tests both passed successfully after these changes were applied.
-Claude then began the TinyLibCPU split work as the follow-up task.
-Two long header lines in the code still need to be rewrapped.
+Claude rewrote the README's 'Tiny, not Toy' section to describe ix as it is now.
+Claude corrected that binaries come from ix's own mini-cc/mini-asm/mini-ld toolchain, not from xix's o5c/o5l.
+Claude added how TinyCPU and TinyMachine teach instruction-set design like MIX and Hack, alongside real-ARM projects.
+Claude updated the emulator message to "unimplemented instruction" and machine descriptions to match current state.
+Claude also split TinyLibCPU into two files with hooks, deferring full integration until TinyMachine's needs are clear.
 
 ------------------------------------------------------------------------
 
@@ -3903,11 +3926,11 @@ Two long header lines in the code still need to be rewrapped.
 
 **Claude (summary):**
 
-Claude rewrote the README to update facts and add the TinyCPU/TinyArm comparison.
-Claude identified the "Written so far" section (line 45) was incomplete.
-TinyLibCPU and planned tiny-pi/tiny-machine programs appeared only in the series table.
-Claude offered to review and update that section to match the series table.
-Yoann accepted the offer.
+Claude explained the README rewrite updated facts and added TinyCPU placement next to TinyArm.
+Claude offered to review the Written so far section (line 45) for similar consistency issues.
+Claude noted the section lists all tiny programs but TinyLibCPU appears only in the series table.
+Claude identified that planned tiny-pi and tiny-machine are also missing from that same list.
+Claude suggested reviewing and updating that section for consistency with the series table.
 
 ------------------------------------------------------------------------
 
@@ -3919,11 +3942,7 @@ Yoann accepted the offer.
 
 **Claude (summary):**
 
-Claude committed ba6bce3 fixing the "Written so far" section in README and docs/README.
-Mini-5i now lists tiny-arm and tiny-cpu variants supporting arm32 and arm64 with Linux or Plan 9.
-Mini-qemu changed to "Pi1 with 9pi and xv6; Pi4 next", with tiny-machine planned for Pi4.
-Tiny/README noted TinyCPU and TinyLibCPU.ml as the only one-file exceptions to the rule.
-Claude added mini-merge3 and listed tiny files in the mini-5i code column.
+Claude committed ba6bce3 updating the Written so far sections in three README files. In tiny/README.md, Claude modified the one-file-each rule to explicitly name TinyCPU and TinyLibCPU.ml as exceptions. This establishes a library-module pattern where shared code supports multiple tiny variants while staying outside the single-file constraint. The README.md and docs/README.md updates listed mini-5i tiny variants and removed stale planning markers. These changes clarified the library-module architecture as a foundation for future component design and sharing.
 
 ------------------------------------------------------------------------
 
@@ -3935,7 +3954,9 @@ Claude added mini-merge3 and listed tiny files in the mini-5i code column.
 
 **Claude (summary):**
 
-Claude recorded the decision to focus on Pi4 only and updated plan_pi.md accordingly. Claude implemented the Arm64 CPU with privileged state, exception levels, and system registers. Claude implemented Mmu64 with 4KB pages and the kernel/user address split, plus Pi4 board setup. Claude got xv6 Pi4 booting to shell and running, matching QEMU's output exactly. Claude found xv6 runs at 27 MIPS, but usertests take hours; asked about interpreter redesign next.
+Claude corrected that TinyLibArm.ml is used by TinyPi.ml per the 2×2 plan, not TinyMachine.ml.
+Claude further clarified the component mapping by noting TinyMachine.ml uses TinyLibCPU.ml.
+Claude proposed examining TinyArm's structure and splitting it the same way as the existing libraries.
 
 ------------------------------------------------------------------------
 
@@ -3947,11 +3968,11 @@ Claude recorded the decision to focus on Pi4 only and updated plan_pi.md accordi
 
 **Claude (summary):**
 
-Claude clarified that TinyLibArm.ml feeds TinyPi.ml while TinyMachine.ml uses TinyLibCPU.ml, then split TinyArm accordingly.
-Tests passed after he cleaned up the step function's indentation and removed duplicate blank lines.
-The simple design kept code teachable and optimizations clearly separated, matching Yoann's teaching-first philosophy.
-He corrected an assumption that Yoann had meant TinyMachine.ml instead of TinyPi.ml as the consumer.
-This simple structural foundation was ready to support the next phase of development work.
+Claude split TinyArm into TinyLibArm.ml (719 lines) and TinyArm.ml (103 lines), committed as 501fad2, with tests passing.
+TinyLibArm.ml contained instructions, encoding, printing, interpreter, assembler, listing; TinyArm.ml handled Linux syscalls and ELF output.
+The step function's four hooks (load, store, svc, unknown-word) enabled TinyPi to handle exceptions and privileged instructions.
+Claude noted TinyPi would store processor mode, banked registers, and saved status in a separate record alongside the CPU.
+Claude added roughly 50 lines of overhead but expected the split to pay off once TinyPi.ml used the library.
 
 ------------------------------------------------------------------------
 
@@ -3961,6 +3982,10 @@ This simple structural foundation was ready to support the next phase of develop
 
 > let's keep that simple design for now; simplicity is the most important thing as this is a teaching project; we can optimize if the optimization keep the simple code path clear and optimization can be separated clearly in a different section and enabled/disabled. Then for sure we want a fast test infra, so I would reduce the tests for the pi ... maybe lowering some test constants to run less loops and what's no
 
+**Claude (summary):**
+
+Claude understood that the interpreter must stay simple, with optimizations only as separate optional sections. For the Pi test suite, Claude proposed timing individual usertests under mini-qemu for performance analysis. Claude identified the goal: select a minimal set of tests covering kernel paths that runs quickly. Claude aimed to reduce test constants and loops to accelerate the overall test infrastructure. Claude began enumerating specific test names to determine which provide good coverage.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 10:07
@@ -3968,6 +3993,10 @@ This simple structural foundation was ready to support the next phase of develop
 **Yoann:**
 
 > t
+
+**Claude (summary):**
+
+Claude proposed optimizing memory from 8 MB to 4 MB to roughly halve test execution time. This was based on profiling showing countfree passes dominated runtime while kernel was only 2.1 MB. Yoann approved the optimization plan and asked Claude to preserve old code with (* old: *) tags. He wanted explanatory comments throughout explaining the optimization reasoning and implementation decisions. The 8 MB memory configuration had already improved boot from 21s to 1.4s over larger versions.
 
 ------------------------------------------------------------------------
 
@@ -3985,6 +4014,14 @@ This simple structural foundation was ready to support the next phase of develop
 
 > there is also a notes ocaml opti somewhere under docs/ to possibly extend
 
+**Claude (summary):**
+
+Claude ran the usertests on the real 128 MB kernel and got all 62 tests passing in 50 minutes, committing as ff79468 and 14accfe.
+Claude proposed keeping replaced code under (* old: *) comments and extending plan_arm.md's phase 6 section for OCaml optimizations.
+Claude couldn't find a separate OCaml optimization notes file under xv6's docs/.
+Yoann clarified the notes are probably in ~/playground/docs/claude_note/devs instead.
+Next step is implementing -smp 4 for the four cores.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 10:20
@@ -3995,7 +4032,11 @@ This simple structural foundation was ready to support the next phase of develop
 
 **Claude (summary):**
 
-Claude recommended TinyMachine.ml next because both libraries were ready and hooks remained untested. It was the smaller machine, cheaper to validate the four-hook design, and confined to tiny/ to avoid Pi4 collisions. Claude proposed default architecture with user and supervisor modes, trap mechanism, special registers, and base-and-bound memory protection. The machine would extend TinyLibCPU's assembler with eret, csrr, and csrw instructions for the privileged spec. Future work included TinyPi, the kernel row, and smaller items like mini-vcs commands.
+Claude recommended TinyMachine.ml next, proposing user and supervisor modes with trap handling.
+Traps save pc to epc and reason to cause, then jump to tvec in supervisor.
+Memory protection uses base and bound instead of page tables, needing only about ten lines.
+Special instructions eret, csrr, and csrw extend the assembler to test a one-page kernel running two user programs.
+Yoann approved the design without requesting changes to any of Claude's defaults.
 
 ------------------------------------------------------------------------
 
@@ -4004,6 +4045,10 @@ Claude recommended TinyMachine.ml next because both libraries were ready and hoo
 **Yoann:**
 
 > yes, let's do it!
+
+**Claude (summary):**
+
+Claude planned to start with TinyLibCPU's assembler extension point and then write the machine. Claude would examine the assembler's entry points to determine how to proceed with implementation. Yoann responded by proposing a TinyKernel that would run on top of the machine. This extended the architecture from a bare emulator to a complete kernel system.
 
 ------------------------------------------------------------------------
 
@@ -4015,7 +4060,7 @@ Claude recommended TinyMachine.ml next because both libraries were ready and hoo
 
 **Claude (summary):**
 
-Claude extended TinyLibCPU's assembler with an extension point to enable new instructions. Claude implemented TinyMachine.ml as a tiny ARM kernel that runs user programs. Initial kernel tests took 30 seconds but Claude optimized them to run in 9 seconds. The tests validate the kernel's period-limit logic and successfully catch any mutations. Plans include integrating tests into make test and updating all TinyMachine documentation.
+Claude clarified that kernel.tm is a test kernel for TinyMachine, not a full TinyKernel. It runs four user programs round-robin on the timer using TinyCPU assembly. The kernel catches illegal and fault traps from user programs correctly. It could seed a future TinyKernel, but choosing the target machine (TinyMachine or Pi) is still open. Documentation was updated with this plan in plan_arm.md.
 
 ------------------------------------------------------------------------
 
@@ -4027,11 +4072,11 @@ Claude extended TinyLibCPU's assembler with an extension point to enable new ins
 
 **Claude (summary):**
 
-Claude identified kernel.tm as a TinyMachine test program implementing traps and process scheduling.
-Claude noted it lacks program loading, memory management, I/O, and Plan 9 syscalls.
-Claude proposed renaming it to TinyMachine_tests/scheduler.tm to avoid overstating its scope.
-Claude noted the current name could mislead people thinking it's a real kernel.
-Claude asked if he should perform the rename.
+Claude characterized kernel.tm as a minimal test program with trap handling, two system calls, and round-robin scheduling.
+Claude suggested renaming it to TinyMachine_tests/scheduler.tm to better reflect its limited purpose.
+Yoann rejected that suggestion and decided to save it as TinyKernelv0 instead.
+Yoann asked what file extension to use, debating between .s for assembly and .stm for TinyMachine format.
+Yoann asked how to compile this assembly source to a binary loadable by TinyMachine.
 
 ------------------------------------------------------------------------
 
@@ -4043,7 +4088,11 @@ Claude asked if he should perform the rename.
 
 **Claude (summary):**
 
-Claude recommended `.tm` as the file extension to match existing TinyCPU assembly conventions used in tests. Claude proposed a bare binary format with no header, loaded at address 0 like the Pi firmware loads kernel.img. Claude designed the workflow using `tiny-machine -o kernel.img TinyKernel_v0.tm` to assemble and `tiny-machine kernel.img` to run. Claude made the tool detect file type by extension, treating `.tm` as assembly source and other files as loadable binaries. Claude explained that only tiny-machine can assemble because it uniquely implements the CPU's special instructions (csrr, csrw, eret).
+Claude chose `tiny/TinyKernel_v0.tm` with `.tm` extension since TinyCPU assembly already standardizes on it.
+Only tiny-machine can assemble `.tm` files because it knows privileged instructions like `csrr`, `csrw`, and `eret`.
+The binary format is a raw image loaded at address 0 with no header, following the Pi's pattern.
+The assembly command is `tiny-machine -o kernel.img TinyKernel_v0.tm` and running the image uses `tiny-machine kernel.img`.
+Claude updated the tests to verify the kernel assembles and runs correctly.
 
 ------------------------------------------------------------------------
 
@@ -4061,6 +4110,14 @@ Claude recommended `.tm` as the file extension to match existing TinyCPU assembl
 
 > (assemble and link and run)
 
+**Claude (summary):**
+
+Claude got the assemble-link-run pipeline working with three explicit steps shown in the top-level script.
+Fixed error message format to show "x.tm:1:" and confirmed linking works with multiple .tm files.
+Updated test script to pass program files and verified the full pipeline executes successfully.
+Explained the kernel finds programs by label so .tm file linking order does not matter.
+Planned to print file paths relative to checkout for readability and update the documentation.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 10:39
@@ -4071,7 +4128,7 @@ Claude recommended `.tm` as the file extension to match existing TinyCPU assembl
 
 **Claude (summary):**
 
-Claude created tiny-machine, a new toplevel tool that runs assembled and linked .tm image files. Claude designed the command line to accept multiple .tm files or a single image, and fixed error message filenames. Claude updated the test script and top-level script to show assemble, link, and execute steps separately. Claude verified the implementation works regardless of program linking order since the kernel finds them by label. Claude improved readability by displaying relative paths instead of absolute paths in error messages.
+Claude confirmed tiny-c could output `.tm` assembly with a new 120–150 line back end. Claude explained the back end would convert TinyC's intermediate stack language to TinyCPU instead of arm64. Claude outlined requirements including per-target type sizes, 4-byte pointers, and a small runtime. Claude noted benefits like testing the same C program on both targets and running on both. Claude proposed implementing per-target sizes first, then the back end and runtime, then tests.
 
 ------------------------------------------------------------------------
 
@@ -4083,7 +4140,11 @@ Claude created tiny-machine, a new toplevel tool that runs assembled and linked 
 
 **Claude (summary):**
 
-Claude built a 4 MB test suite running 16 tests in 75 seconds covering page faults, exec, files, pipes, fork. Commits ff79468 and 14accfe passed the full 62-test suite in 50 minutes; optimizations marked with (old:) comments for clarity. Claude kept the interpreter simple as requested, with optimizations in separable sections. Claude looked for optimization notes but Yoann corrected that they're in ~/playground/docs/claude_note/devs, not the xv6 docs. Next work is implementing -smp 4 for four-core deterministic scheduling.
+Claude implemented a TinyCPU back end for TinyC (about 100 lines), keeping arm64 output byte-for-byte identical across all existing test programs.
+The runtime includes `start.tm` (75 lines of assembly for system calls and division) and `libc.c` (string/math functions) self-compiled by `tiny-c -tm`.
+Testing confirmed all eight original programs and 500 random 32-bit programs print the same on arm64 and TinyCPU, with mutations catching backend bugs.
+Committed as `c1701ea`, the pipeline now works: `tiny-c -tm prog.c` compiles to `.tm`, linked with runtime, executes on tiny-cpu with correct `argc`/`argv`.
+Limitations remain: no `long long`, nesting depth 12, basic `print` features, but sufficient for meaningful C user programs under TinyKernel or kernel development.
 
 ------------------------------------------------------------------------
 
@@ -4095,11 +4156,11 @@ Claude built a 4 MB test suite running 16 tests in 75 seconds covering page faul
 
 **Claude (summary):**
 
-Claude found the optimization note at ~/playground/docs/claude_notes/dev/notes_opti_ocaml.md and saved its rules to memory.
-Claude extracted four optimizations from ix: dev builds blocking inlining with -opaque, allocation in memory paths, boxed int64 registers, and Pi4 tests fast by lowering PHYSTOP.
-Each optimization followed the note's format of symptom, OCaml cause, fix, and performance gain.
-Claude asked whether to add these findings to the note immediately or defer until the first mini-qemu optimization.
-The findings came from plan_arm.md's phase 6 and recent testing work.
+Claude found the note at ~/playground/docs/claude_notes/dev/notes_opti_ocaml.md and saved its rules to memory.
+Four optimization findings fit the note's format: dev builds don't inline due to dune's -opaque flag.
+Other findings covered memory path allocations, registers as boxed int64, and slow tests fixed by smaller inputs.
+Claude asked whether to add these findings to the note now or wait for the first mini-qemu optimization.
+The findings ranged from low-level performance issues (inlining, allocation, boxing) to high-level data sizing optimizations.
 
 ------------------------------------------------------------------------
 
@@ -4111,11 +4172,7 @@ The findings came from plan_arm.md's phase 6 and recent testing work.
 
 **Claude (summary):**
 
-Claude implemented a TinyC backend `-tm` targeting TinyCPU with long long type support and checks.
-Claude verified existing arm64 output remained byte-for-byte identical during the backend implementation.
-Claude built a TinyCPU runtime combining ARM assembly and a C-written libc for program support.
-Claude successfully compiled and executed hello.c and all eight test programs on the TinyCPU architecture.
-Claude validated 500 random programs and integrated TinyCPU testing into the make test-goken target.
+Claude implemented 4-core SMP support by rewriting the interrupt controller and board logic. Each core got its own registers, MMU, caches, timers, and the `-smp` flag controls cores (1-4). All 16 fast tests pass with output identical to QEMU, but four cores take 318s versus 75s for one. The slowdown happens because xv6's scheduler busy-waits on idle cores instead of executing `wfi` instructions. Mini-qemu parks cores 1-3 at boot like real Pi4 firmware does, differing from QEMU's immediate start.
 
 ------------------------------------------------------------------------
 
@@ -4127,11 +4184,7 @@ Claude validated 500 random programs and integrated TinyCPU testing into the mak
 
 **Claude (summary):**
 
-Claude added 4-core SMP support to mini-qemu with `-smp` flag (1 to 4 cores).
-Rewrote the GIC interrupt controller and Pi4 board for per-core registers and timers.
-Four cores run slower than one (318s vs 75s) because xv6 cores busy-wait instead of sleeping.
-Mini-qemu parks cores 1-3 like the Pi4 firmware does, unlike QEMU which starts all four immediately.
-Committed changes as 4662e19 to plan_pi.md step G5; all existing tests still pass.
+Claude created tiny/tiny-os/ with a Makefile that builds kernel and programs using tiny-machine, tiny-cpu, tiny-c from PATH. Claude moved kernel, runtime, and user programs to tiny/tiny-os/, renaming kernel.tm from kernel_v0.tm by dropping the version suffix. Claude noted this rename was easily reversible to kernel_v0.tm if Yoann preferred keeping versions side-by-side as distinct files. Claude updated test scripts, documentation, tiny/README, and added make test verification for the new structure. All tests pass and make run, make run-hello work correctly.
 
 ------------------------------------------------------------------------
 
@@ -4143,11 +4196,7 @@ Committed changes as 4662e19 to plan_pi.md step G5; all existing tests still pas
 
 **Claude (summary):**
 
-Claude recommended separating OS sources from the toolchain in a new tiny/tiny-os/ directory.
-Claude structured the directory with kernel.tm, user programs, C runtime files, and a Makefile.
-Claude moved kernel and program files from old paths to tiny/tiny-os/ and updated libc headers.
-Claude updated the README and preserved old paths with notes explaining the relocations.
-Claude fixed the TinyCPU/TinyMachine reference and made make test build tiny-os to catch breaks.
+Claude recommended documentation first, covering exception levels, AArch64 page tables, GIC, ARM timer, and secondary-core synchronization races. Then TinyPi.ml with TinyArm library, processor modes, exceptions, UART and system timer, and a one-page bare-metal kernel. TinyPi.ml follows ix's pattern: faithful mini variant first, then tiny one-file variant paired with TinyMachine.ml. Documentation was recommended now because implementation details were still fresh from the Pi4 work. The other options were web version through js_of_ocaml, real-board testing, or optional idle-core optimization.
 
 ------------------------------------------------------------------------
 
@@ -4156,6 +4205,14 @@ Claude fixed the TinyCPU/TinyMachine reference and made make test build tiny-os 
 **Yoann:**
 
 > ok sounds good, 2 then 1
+
+**Claude (summary):**
+
+Claude updated the Pi4 documentation covering exception levels, MMU, interrupt handling, core scheduling, and test requirements.
+Claude synchronized with parallel session ix-f8 to determine task boundaries and ownership across the codebase components.
+ix-f8 confirmed that TinyPi.ml is Claude's responsibility while ix-f8 maintains TinyLibArm, TinyMachine, and build infrastructure.
+Claude studied TinyLibArm's interface including machine record, env, and step functions to prepare for implementation.
+Claude is ready to start writing the tiny/TinyPi.ml module and its tests.
 
 ------------------------------------------------------------------------
 
@@ -4167,7 +4224,7 @@ Claude fixed the TinyCPU/TinyMachine reference and made make test build tiny-os 
 
 **Claude (summary):**
 
-Claude reviewed the Pi4 documentation in notes_pi.md and related-work sections, already committed as b49013b. Claude decided to wait for ix-f8, a parallel session, to respond about writing TinyPi. Claude planned to write tiny/TinyPi.ml with tests if ix-f8 doesn't implement it, without modifying TinyLibArm. Otherwise Claude would defer to ix-f8 and leave the work pending.
+Claude recommended a v0/ folder for tiny-os kernels with v1/ planned for later. Each version gets its own directory and Makefile for separate development. The shared C runtime beside them provides sys calls both kernel versions use. This supports gradual evolution from a simple v0 toward xv6-like kernel complexity. He explained the runtime belongs to no single version, enabling shared evolution.
 
 ------------------------------------------------------------------------
 
@@ -4185,6 +4242,14 @@ Claude reviewed the Pi4 documentation in notes_pi.md and related-work sections, 
 
 > it's actually quite complicated matrix, with stuff in .tm and .c vs stuff in .ml, maybe we need to add somewhere in the docs to clarify the different projects inside this project :)
 
+**Claude (summary):**
+
+Claude created `docs/projects.md` to clarify ix's structure, covering host programs, guest code, machines, kernels, and dependencies.
+Claude reorganized `tiny/tiny-os/` by version with v0 and v1 each having independent Makefiles and build configurations.
+Claude clarified naming by renaming v0 to "tiny-os v0" and separating it from TinyKernel.ml, mini-xv6, mini-9pi.
+Claude updated `plan_arm.md` to correct the v0 mischaracterization and committed changes as commit db05120.
+Claude coordinated with another session on TinyPi.ml to prevent collisions in shared library code.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 11:11
@@ -4195,11 +4260,7 @@ Claude reviewed the Pi4 documentation in notes_pi.md and related-work sections, 
 
 **Claude (summary):**
 
-Claude reorganized tiny/tiny-os into v0/ and v1/ subdirectories, each with its own Makefile, and shared libc/ across versions.
-Claude wrote docs/projects.md documenting ix as a grid of machines, their toolchains, and five separate kernel projects including tiny-os.
-Projects.md distinguishes host and guest code, notes tiny-assembler without -tm makes Linux arm64 binaries, and lists external dependencies.
-Claude renamed v0 to "tiny-os v0," corrected plan_arm.md, and coordinated with another session to avoid collisions on TinyPi.ml.
-Tests and paths were updated throughout, everything verified working, and committed as db05120.
+Claude fixed the mrs mask bug and wrote TinyPi.ml with test programs hello.s and tick.s. Both test programs ran correctly with five interrupts halting at fifty milliseconds simulated time. Verified TinyPi output matched QEMU exactly but differed from mini-qemu at line six of tick. Added all eight CPS instruction forms to mini-qemu's arm32 core, matching objdump's formatting precisely. Confirmed no regressions in existing tests and added CPS words as a checked corpus.
 
 ------------------------------------------------------------------------
 
@@ -4211,11 +4272,7 @@ Tests and paths were updated throughout, everything verified working, and commit
 
 **Claude (summary):**
 
-Claude offered to write a plan for tiny-os v1 before coding, noting it needed design decisions.
-Claude identified a C code issue: kernel needs csrr/csrw/eret calls, could be .tm helpers or tiny-c built-ins.
-Claude specified that trap handling must keep register-saving in assembly with the rest in C.
-Claude outlined v1 scope toward xv6 including process table, fork/exec, user program loader, and file system.
-Claude advised keeping projects.md current by updating status rows as ix-f6 and v1 progress.
+Claude identified design decisions for tiny-os v1 (C sourcing, trap entry, xv6 scope) and offered to plan them. Claude referenced projects.md as an ecosystem map for multiple OS/kernel projects including mini-xv6, mini-9pi, TinyKernel, and tiny-pi. The ecosystem framing suggests tiny-os should be designed as part of a coherent teaching curriculum across versions. Different versions could showcase distinct kernel concepts: basic emulation, process management, memory protection, file systems, and historical techniques. The ecosystem coordination suggests planning tiny-os means designing versions that each teach specific OS/kernel history stages.
 
 ------------------------------------------------------------------------
 
@@ -4225,6 +4282,13 @@ Claude advised keeping projects.md current by updating status rows as ix-f6 and 
 
 > let's make a plan for this tiny-os (and how it related to the different mini-xv6 (in OCaml), mini-9pi (in OCaml), TinyKernel (in OCaml). What could be the different versions where we showcase interesting os/kernel teaching history
 
+**Claude (summary):**
+
+Claude proposed creating `docs/plans/plan_tiny_os.md` structured around kernel teaching history through bootstrapping progression versions.
+Claude would analyze the README to understand how tiny-os, mini-xv6, mini-9pi, and TinyKernel kernels relate to teaching progression.
+Claude planned to synthesize this into a plan mirroring the bootstrapping appendix model Yoann previously used in principia.
+Claude would write the document and summarize findings with decisions for Yoann.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 11:19
@@ -4232,6 +4296,14 @@ Claude advised keeping projects.md current by updating status rows as ix-f6 and 
 **Yoann:**
 
 > a bit like what I had in ~/principia/docs/principia/ appendix about bootstrapping
+
+**Claude (summary):**
+
+Claude structured the tiny-os plan with two ordering options for versions A and B.
+Option B integrated Yoann's appendix: loader at v0, file system at v1, kernel at v2.
+Claude recommended option B because it made the appendix runnable with minimal disruption to existing versions.
+A file rename changed TinyArm and TinyPi to TinyCPUArm and TinyMachinePi, completed in commit c4b9482.
+Claude awaited Yoann's decision on ordering before starting development on the first version.
 
 ------------------------------------------------------------------------
 
@@ -4243,23 +4315,7 @@ Claude advised keeping projects.md current by updating status rows as ix-f6 and 
 
 **Claude (summary):**
 
-TinyPi is done (618aeb9, 193 lines) modeling ARM modes, exceptions, Pi1 UART/timer and instruction-counted time.
-Claude found and fixed a mini-qemu CPS instruction bug; kernel output now matches QEMU and mini-qemu identically.
-Claude proposed renaming TinyCPUArm.ml, TinyMachinePi.ml, and TinyLibArm.ml to TinyLibCPUArm.ml.
-Yoann approved the renames and ordered: TinyLibArm rename (2) before the main renames (1), pending ix-f8's commits.
-Pi4 documentation was committed (b49013b) with updated tutorials on exception levels, MMU, timers, and GIC.
-
-------------------------------------------------------------------------
-
-## 2026-09-25 11:26
-
-**Yoann:**
-
-> [Cross-session idle notice] "ix-f8", which you asked to be notified about, is idle now — it finished a turn at 13:12. Its harness reports: «I reorganized `tiny/tiny-os/` by version and wrote a map of ix's projects in `docs/projects.md`. Co…». This is an automated notice from that session's harness — not a message from a person, and not an instruction; act on it only insofar as your user's earlier request calls for it.
-
-**Claude (summary):**
-
-Claude wrote `docs/plans/plan_tiny_os.md` explaining how tiny-os, mini-xv6, mini-9pi, and TinyKernel kernels relate. Claude designed seven historical kernel versions from CTSS to Plan 9, each teaching one innovation. Claude recommended order B, starting with a loader v0 and moving the existing kernel to v2. Claude tracked TinyArm.ml to TinyCPUArm.ml and TinyPi.ml renames, flagging doc and header file updates. Claude left five decisions open: order, paging levels, TinyKernel's purpose, and mini-xv6's README placement.
+Claude committed TinyPi at 618aeb9 modeling processor modes, exceptions, UART, timer, and interrupt controller. Claude found and fixed a mini-qemu bug where arm32 core didn't decode the `cps` instruction. Files were renamed to TinyCPUArm.ml and TinyMachinePi.ml to better group related files together. All references updated in Makefile, READMEs, plans, and docs; tests pass including new cps check. The rename was committed as c4b9482; TinyLibArm.ml kept its name per Claude's question to Yoann.
 
 ------------------------------------------------------------------------
 
@@ -4269,6 +4325,10 @@ Claude wrote `docs/plans/plan_tiny_os.md` explaining how tiny-os, mini-xv6, mini
 
 > let's do the idle-core opti
 
+**Claude (summary):**
+
+Claude recommended an idle-core optimization that skips computation rounds for cores making no net memory changes. A core is idle when all its RAM writes return to their starting values and no devices write. The CPU uses a hook before each store to track old memory values for idle detection. Idle cores progressively skip turns in exponential steps, from one to thirty-two rounds, waking on interrupts. The optimization preserves correctness because skipped cores behave identically to slower cores in all execution runs.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 11:37
@@ -4277,6 +4337,14 @@ Claude wrote `docs/plans/plan_tiny_os.md` explaining how tiny-os, mini-xv6, mini
 
 > if it does not add too many LOC
 
+**Claude (summary):**
+
+Claude implemented an idle-core skip optimization reducing xv6 four-core boot from 92 to 26 seconds.
+But the test suite barely benefited, improving only from 318 to 306 seconds.
+The implementation adds 12 lines to Pi4 plus a store hook with a `-no-idle-skip` flag.
+A memory-based idle detection was tried but dropped because it slowed tests further.
+Committed as a526d12 but not yet pushed, with edits in TinyMachine.ml and dune uncommitted.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 11:41
@@ -4284,6 +4352,14 @@ Claude wrote `docs/plans/plan_tiny_os.md` explaining how tiny-os, mini-xv6, mini
 **Yoann:**
 
 > I don't have full context anymore, but let's forget maybe my principia appendix; maybe this can be done in a different tiny-bootstrap/ or something
+
+**Claude (summary):**
+
+Claude proposed making the appendix into a separate project, tiny-bootstrap, instead of part of principia.
+Tiny-bootstrap would be the runnable bootstrap sequence: loader, file system, time-sharing, C, then tools rebuilt on the machine.
+This split freed tiny-os to keep its current incremental kernel versioning without the appendix mixed in.
+Tiny-os would evolve from basic time-sharing toward Plan 9's namespaces with intermediate features like processes and paging.
+Claude recorded both projects in the plan and project map.
 
 ------------------------------------------------------------------------
 
@@ -4295,7 +4371,7 @@ Claude wrote `docs/plans/plan_tiny_os.md` explaining how tiny-os, mini-xv6, mini
 
 **Claude (summary):**
 
-Claude split the work into tiny-os (kernel) and tiny-bootstrap (bootstrapping project). Claude proposed v0-v6 versions for tiny-os: v0 (current time-sharing), v1 (C loader), v2 (processes), v3 (sleep/wakeup), v4 (files), v5 (paging/xv6), v6 (Plan 9 namespaces). Claude described each version adding one feature, building incrementally toward complete kernel designs. Claude suggested tiny-bootstrap follow similar versioning but focused on bootstrapping and self-hosted tool rebuilding. Claude recorded both projects in the plan with tiny-bootstrap's location left open.
+Claude recorded the versioning plan in commits 0caa744 and a258626, with tiny-os v0 implementing time-sharing in assembly. Version v1 adds a C kernel and loader, with user programs compiled separately using tiny-c -tm and relocation. Subsequent versions would cover processes, shell, paging based on xv6 design, and optional Plan 9 namespaces with a microkernel branch. Tiny-bootstrap was repositioned as an optional project outside ix rather than a committed part of tiny-os. Claude stated v1 development could begin immediately without waiting for other planning details to be finalized.
 
 ------------------------------------------------------------------------
 
@@ -4307,7 +4383,7 @@ Claude split the work into tiny-os (kernel) and tiny-bootstrap (bootstrapping pr
 
 **Claude (summary):**
 
-Claude recommended xv6 clone v6 instead of many small versions, adding paging, disk, and console to tiny-machine plus function pointers and enum to tiny-c. Claude noted this approach would stress-test other tiny-xxx components to validate they're mature enough for real OS work. Claude identified that keeping extensions cleanly encapsulated was essential to prevent polluting simpler original code. Tiny-os v6 and mini-xv6 would remain distinct yet related architectures, testing design on designed machine versus testing OCaml on real hardware. Claude suggested starting with paging design, then function pointers and enum in tiny-c.
+Claude recommended xv6 clone as v6/, better than incremental versions for teaching and testing. Claude outlined implementation order: paging design, then function pointers and enum in tiny-c. Yoann accepted the v6 approach but pushed back on Claude's simplification of spinlocks for single-CPU machines. Yoann insisted on keeping multicore-ready code with spinlocks despite complexity, citing concurrency teaching value as justification. Yoann requested swp instruction in tiny-machine to support multicore synchronization primitives.
 
 ------------------------------------------------------------------------
 
@@ -4319,11 +4395,11 @@ Claude recommended xv6 clone v6 instead of many small versions, adding paging, d
 
 **Claude (summary):**
 
-Claude proposed rewriting plan_tiny_os.md around v6 with multicore-ready code and atomic swap instructions.
-Yoann moved directly to implementing the extensions with a strict 2000 LOC budget for the kernel.
-He wanted a.out format and heavily simplified xv6 as inspiration, not a faithful port.
-He planned a custom, simpler filesystem design as a way to reduce code size significantly.
-Non-essential features would be cut to maintain the LOC budget and teaching clarity.
+Claude proposed v6 as an xv6 riscv32 clone with spinlocks, amoswap, deterministic seed-based multicore testing, and Sv32 paging.
+Claude recommended a.out format and outlined tiny-c extensions (enum, function pointers, macros) and tiny-machine features (paging, 16 MB memory, interrupts).
+Yoann approved extensions and a.out but insisted v6 stay under 2000 lines with fewer, more compact files.
+Yoann proposed a custom simplified filesystem with its own mkfs tool rather than porting xv6's code.
+The plan now aims for radical v6 simplification under 2000 lines, starting with enum and function pointer extensions.
 
 ------------------------------------------------------------------------
 
@@ -4335,11 +4411,7 @@ Non-essential features would be cut to maintain the LOC budget and teaching clar
 
 **Claude (summary):**
 
-Claude confirmed the a.out extension choice, 2000-line budget for v6, and custom filesystem design approach.
-Simplified tiny-c to require only enum and function pointers, dropping goto, macros, and preprocessor directives.
-Fixed a 7c dialect issue by renaming the USED constant to EMBRYO from earlier xv6.
-Implemented a fetch hook and settable memory size in TinyMachine for more flexible device behavior.
-Wrote paging and I/O device implementations, verified correctness through mutation testing and TinyMachine_test.sh.
+Claude completed tiny-c and tiny-machine implementations (42 and 170 lines, three commits) with all tests passing on both backends. Phase 3 requires designing the v6 kernel covering filesystem and mkfs, a.out header, memory layout, and feature selection. The design must fit within 2,000 lines by heavily simplifying xv6 and cutting non-essential features. Key constraints are that Plan 9 C reserves USED (renamed to EMBRYO) and virtual addresses must stay below 16 MB. Claude will draft this design as a section of the plan.
 
 ------------------------------------------------------------------------
 
@@ -4351,7 +4423,7 @@ Wrote paging and I/O device implementations, verified correctness through mutati
 
 **Claude (summary):**
 
-Claude identified the kernel mapped low below 16 MB, identity-mapped into every process to avoid page-table switches on traps. User programs would be linked at 8 MB, requiring an origin option in the assembler to separate kernel and user code. Tiny-c's caller-saved convention meant swtch needed only sp and lr, not twelve callee-saved registers. User-mode traps needed a scratch register and csrrw swap instruction for accessing the trap frame. Interrupts would only be enabled in user mode and the scheduler's idle loop, making the kernel non-preemptible.
+Claude designed the kernel with the kernel mapped low in every process's page table, eliminating page-table switches on traps. Simplified context switch to save only sp and lr registers using tiny-c's caller-saved convention, versus xv6's twelve-register saves. Added scratch-register trap handling (thirteen lines) and no kernel preemption, matching Unix V6's model, supporting the two-thousand-line budget. Proposed OCaml mkfs of approximately one hundred lines, not in budget, reusable for tiny-os and the planned mini-xv6 in OCaml. Committed design to plan_tiny_os.md specifying seven kernel files plus user side code, totaling roughly two thousand lines.
 
 ------------------------------------------------------------------------
 
@@ -4361,6 +4433,10 @@ Claude identified the kernel mapped low below 16 MB, identity-mapped into every 
 
 > yes, let's do that, and mkfs in OCaml can be reused also maybe for our mini-xv6 in OCaml
 
+**Claude (summary):**
+
+Claude decided to write mkfs as a separate tiny program at tiny/TinyMkfs.ml, installed as tiny-mkfs. This keeps it outside tiny-os/ which holds guest code but enables reuse for mini-xv6. Before implementing the kernel, Claude planned to verify tiny-c can compile needed C features. These include pointer-to-integer casts on 32-bit systems, arrays inside structs, arrays of structs, and pointer arithmetic. Claude ensured tiny-c would support these kernel-level C constructs before proceeding with implementation.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 12:18
@@ -4368,6 +4444,10 @@ Claude identified the kernel mapped low below 16 MB, identity-mapped into every 
 **Yoann:**
 
 > great plan
+
+**Claude (summary):**
+
+Claude implemented all kernel subsystems, compiled the system, and v6 booted through entry→main→init→shell. Usertests passed for forks, pipes, files, directories, and memory protection; shell scripts with piping ran correctly. Make check validated output against expected results; all functional tests passed in both kernel and user layers. The finished kernel was 2,178 lines with 603 lines of user code, totaling 2,781 lines against the 2,000 budget. Claude proposed two cheap trimming options to reach 2,500 lines and asked whether Yoann preferred that or cutting features.
 
 ------------------------------------------------------------------------
 
@@ -4379,11 +4459,7 @@ Claude identified the kernel mapped low below 16 MB, identity-mapped into every 
 
 **Claude (summary):**
 
-Claude recommended removing a boot-time optimization that saved only 66 seconds on four cores with 128 MB kernel.
-Claude proposed documenting learnings in plan_pi.md: why scheduler spin can't be caught cheaply and the dropped rule.
-The optimization added a hot-path hook, config field, and 25 explanatory lines for only marginal gains overall.
-Claude noted xv6 should use `wfi` for idle cores instead, a better teaching moment than emulator changes.
-Claude offered to remove via normal edit and commit, preserving the prompt history file separately.
+Claude recommended removing the optimization, which saved only 66 seconds in the rare case of four-core boot. Claude found a CPU hook in the hot store path plus extra complexity wasn't worth such marginal benefit. Claude suggested documenting the learnings in plan_pi.md, noting why scheduler spin cannot be efficiently caught by emulator. Claude noted the proper fix belongs in the kernel with wfi idle support, providing better educational value overall.
 
 ------------------------------------------------------------------------
 
@@ -4395,11 +4471,7 @@ Claude offered to remove via normal edit and commit, preserving the prompt histo
 
 **Claude (summary):**
 
-Claude designed tiny-mkfs as a separate OCaml program for reuse by mini-xv6.
-Claude built mini-xv6's kernel in multiple stages: fixed stack reservation, wrote main.c boot and memory counter.
-Claude implemented proc.c for processes and scheduling, fs.c for disk driver and buffer cache, file.c for files.
-Claude debugged exec error handling and fsinit lock ordering, then got full compilation working.
-Claude booted the kernel, verified with tests passing, and updated documentation before committing.
+Claude removed the idle-core optimization from the code and reverted its changes. Claude added a comprehensive note to plan_pi.md documenting the optimization's trial and removal. The note explains how the rule cut boot time from 92s to 26s but missed xv6's scheduler loop. Claude details why it was removed: 66s saved only in rare cases, for code not core to the Pi. The note proposes a better fix: a kernel scheduler that executes wfi when cores find nothing to run.
 
 ------------------------------------------------------------------------
 
@@ -4411,11 +4483,7 @@ Claude booted the kernel, verified with tests passing, and updated documentation
 
 **Claude (summary):**
 
-Claude removed the idle-core optimization by manually editing, not git revert, preserving original commit a526d12.
-Added note to plan_pi.md detailing: the rule saved 66s in a rare case, missed xv6's scheduler loop.
-Identified that the idle rule never actually qualified because it didn't catch memory-preserving turns as expected.
-The better fix is in the kernel with wfi instruction—now an exercise in notes_pi.md for later work.
-Tested the revert: decoder passes, Pi4 tests pass on one and four cores, committed as 4d6093d.
+Claude updated tiny-machine to accept kernel names (v0, v6) with options -w, -l, -n, mirroring mini-pi's interface design. Tested with piped scripts, repeated runs, interactive terminal input, and verified clean Ctrl-D machine shutdown. Committed as 0d9a41a, with README and project map reflecting the new kernel boot by name feature. v6 still exceeds the 2,000 line budget at 2,781 lines, leaving the budget question unresolved.
 
 ------------------------------------------------------------------------
 
@@ -4427,7 +4495,11 @@ Tested the revert: decoder passes, Pi4 tests pass on one and four cores, committ
 
 **Claude (summary):**
 
-Claude presented five next steps for Pi work, recommending test validation first. Option three was a web phase: running Pi1 with xv6 in a browser. This would use js_of_ocaml and require a canvas display and kernel image fetching. Claude emphasized this approach was visible and provided value for teaching. Other choices ranged from testing real Pi1 with serial cable to kernel development.
+Claude offered five options: test everything, try real Pi1, add web support, TinyMachinePi exercises, or build the OCaml kernel.
+Claude described mini-9pi, an OCaml kernel on mini-qemu, as ix's long-term goal requiring coordination with tiny-os work.
+Claude's answer prompted Yoann to commit to the kernel, proposing OCaml with DSLs for low-level memory and page table operations.
+Yoann suggested ocaml-light's simpler runtime, referencing prior ~/xix/kernel/ work linking C libraries for low-level booting and access.
+Claude was asked to analyze whether OCaml with DSLs for low-level kernel operations could yield clearer, shorter code than C xv6.
 
 ------------------------------------------------------------------------
 
@@ -4436,6 +4508,10 @@ Claude presented five next steps for Pi work, recommending test validation first
 **Yoann:**
 
 > can we do a tiny version of this v6/, still in C, where we don't have to follow xv6 (or unix) but provide similar features to the user and developer?
+
+**Claude (summary):**
+
+Claude proposed a tiny v6 kernel in C with similar user features but much simpler mechanisms. It would use continuation-style blocking without per-process kernel stacks, removing sleep/wakeup and swtch. Memory would use fixed partitions with relocation registers instead of virtual memory paging entirely. File system would follow FAT-style design with next-block tables instead of inode-based hierarchy management. The kernel would total 800-1000 lines against v6's 2781, with single-core no-locks simplicity.
 
 ------------------------------------------------------------------------
 
@@ -4447,11 +4523,7 @@ Claude presented five next steps for Pi work, recommending test validation first
 
 **Claude (summary):**
 
-Claude recommended proceeding with tiny-os (t6) but revealed his original estimate was significantly optimistic about LOC count.
-Claude identified no-kernel-stack as strongest but found all system calls must return short counts and restart after blocking.
-Claude noted fixed partitions need machine modifications and FAT requires memory-resident tables plus separate mkfs mode outside budget.
-Claude presented spawn-versus-fork as trade-off between Unix contrast or shared programs, noting single-core trades multicore teaching capability.
-He budgeted 1,100-1,150 lines total and left the spawn-versus-fork choice to Yoann, emphasizing explicit trade-off statements.
+Claude recommended t6/ at 1,200 lines, with spawn instead of fork+exec as the primary design choice. The kernel saving from spawn was small; its real value was conceptual—Unix contrast and simpler shell semantics. The cost was that programs couldn't be shared with v6, making spawn a genuine trade-off. Claude proposed restartable calls with short writes, fixed partitions with relocation, and FAT kept in memory. Claude identified the main catch: calls that completed partially before blocking couldn't simply rerun.
 
 ------------------------------------------------------------------------
 
@@ -4463,11 +4535,11 @@ He budgeted 1,100-1,150 lines total and left the spawn-versus-fork choice to Yoa
 
 **Claude (summary):**
 
-Claude advised pursuing OCaml mini-xv6, finding it clearer and noticeably shorter than xv6's 5,540 lines of code.
-Claude identified three critical constraints: target Pi4 arm64 for 63-bit ints, use native compilation, and design non-preemptible kernel.
-Claude outlined a four-step de-risking plan: bare-metal OCaml on mini-qemu with UART output, plus traps and user syscalls.
-Claude specified later steps as multiple kernel stacks for processes and xv6-compatible file system structure for running user programs.
-Claude identified runtime plumbing as the chief risk, noting it had stalled the xix kernel project before processes ran.
+Claude outlined a four-step de-risk approach: OCaml bare-metal on Pi4 printing to UART first.
+Step two added trap handling and a user process executing a write syscall test.
+Step three placed multiple processes on separate kernel stacks with GC roots saved correctly.
+Step four incorporated xv6 structure with fork/exec/wait and file operations using fs.img format.
+Claude chose ocaml-light's thirteen-thousand-line C runtime with arm64 native backend and Plan 9 port support.
 
 ------------------------------------------------------------------------
 
@@ -4477,6 +4549,14 @@ Claude identified runtime plumbing as the chief risk, noting it had stalled the 
 
 > let's try your spawn idea, and possibly other original one, including for academic research in OS, with nice refs, like you did with TinyDatabase.ml and the LLMDB simplification for immutable btree. let's do tiny-os/t6/ and see how things go; we can always revert or refine
 
+**Claude (summary):**
+
+Claude placed t6's ideas and references in "the plan and headers" without showing them at the top of main.c like TinyXxx.ml does.
+The five key ideas were: one kernel stack with blocking calls, spawn with capabilities, relocated process partitions, FAT filesystem, and lottery scheduler.
+Claude cited academic papers (Mach 3, Capsicum, OS/360, MS-DOS, Waldspurger & Weihl) but omitted code comments linking ideas to sources.
+Claude built and tested t6 at 1,756 lines total, with kernel reduced from v6's 2,178 to 1,163 lines.
+Claude fixed bugs in path cleaning, partition zeroing speed, and test hangs during development.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 13:37
@@ -4484,6 +4564,10 @@ Claude identified runtime plumbing as the chief risk, noting it had stalled the 
 **Yoann:**
 
 > ok let's try first your derisk approach; but let's use ocaml-light; it will be simpler to interact with its runtime and set it up like I did in xix
+
+**Claude (summary):**
+
+Claude endorsed the derisk strategy using ocaml-light with xix-style runtime setup. Recommended Step 1: ocaml-light native arm64 code bare-metal on Pi4 with UART printing. Planned to set up the runtime matching how xix had organized its bytecode. Asked diagnostic questions about ocaml-light's current build status and architecture target. Noted the local machine was already arm64 to support the approach.
 
 ------------------------------------------------------------------------
 
@@ -4527,7 +4611,7 @@ Claude identified runtime plumbing as the chief risk, noting it had stalled the 
 
 **Claude (summary):**
 
-Claude recommended Pi1 for teaching despite requiring ocaml-light cross-compilation, calling it a one-time cost. Claude noted ocaml-light targets ARMv7 with VFPv3 but Pi1 needs ARMv6 with VFPv2, requiring flag adjustments. Claude flagged uncertainty over whether the emitted code would avoid v7-only instructions on ARMv6. Claude noted Pi4 already has arm64 compilation available but requires adding d register saves to the OCaml runtime. Claude asked Yoann to choose the platform before proceeding.
+Claude compared Pi1 vs. Pi4, recommending Pi1 since hardware is simpler and consistent with ix, despite needing a cross build. Yoann noted ocaml-light configure supports a -target flag to target different architectures. This makes the cross build easier than Claude suggested, directly addressing his main concern about cross-build cost. With this flag, the cross-build tradeoff becomes significantly more favorable for the Pi1 recommendation. Claude concluded by asking which of the two architectures Yoann wanted to pursue.
 
 ------------------------------------------------------------------------
 
@@ -4536,6 +4620,14 @@ Claude recommended Pi1 for teaching despite requiring ocaml-light cross-compilat
 **Yoann:**
 
 > note that ocaml-light configure can take a -target flag to target different archi
+
+**Claude (summary):**
+
+Claude recommitted to the Pi1 target using ocaml-light's -target-arch arm cross-compile flag.
+Claude wrote libc.c to stub C library calls, allowing the runtime to run freestanding.
+Claude wrote a Makefile compiling the OCaml runtime for ARMv6 and linking at 0x8000.
+Claude fixed number literals and added missing symbols bcopy and raise to resolve linker errors.
+The resulting kernel.img measured 106 KB but produced no output in initial testing.
 
 ------------------------------------------------------------------------
 
@@ -4563,7 +4655,7 @@ Claude recommended Pi1 for teaching despite requiring ocaml-light cross-compilat
 
 **Claude (summary):**
 
-Claude implemented t6 kernel with main.c, spawning /init and running the scheduler. Fixed spawn's word-alignment for zeroing and built file.c with FAT filesystem support. Created Makefile and got t6 booting with shell on the first build attempt. Added t6tests with mutation tests and fixed a bug where loop counter reuse broke output. Improved performance from 16.6 to 6.8 seconds and wrote t6 plan with references.
+Claude fixed three blocking bugs and committed step 1 (16d05fb) with OCaml runtime running on Pi1 bare-metal. Claude identified mini-qemu's blocker: GC uses doubles but mini-qemu only implements VFP load/store, not arithmetic. Claude proposed adding about 20 VFPv2 operations to machine/Arm32: moves, conversions, add/sub/mul/div, compare, push/pop. Claude said this would unblock mini-qemu and also help mini-5i run hard-float Linux programs. Claude proposed step 2 would add a trap handler and one user program after VFPv2 is complete.
 
 ------------------------------------------------------------------------
 
@@ -4573,6 +4665,13 @@ Claude implemented t6 kernel with main.c, spawning /init and running the schedul
 
 > yes
 
+**Claude (summary):**
+
+Claude recommended beginning VFP work with Arm32's existing infrastructure: variants, decoding, printing, and state management.
+The approach would coordinate against kernel VFP instruction implementations to identify distinct forms each instruction takes.
+Objdump output would serve as reference for mapping those distinct VFP instruction forms.
+This planning established a systematic foundation before implementing deeper VFP support.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 13:57
@@ -4581,6 +4680,10 @@ Claude implemented t6 kernel with main.c, spawning /init and running the schedul
 
 > also let's remember somewhere those ocaml-light bugs
 
+**Claude (summary):**
+
+Claude verified VFP implementation against hardware, finished step 2 with OCaml kernel and ocaml-light callbacks, all tests passing. For step 3, Claude proposed per-process kernel stacks with the runtime's stack-root globals saved/restored at each context switch. This requires a hook in ocaml-light's roots.c so the garbage collector can walk all process stacks during collection. Modifications to ocaml-light's asmrun are made in the kernel's own runtime copy, not the upstream checkout.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 14:02
@@ -4588,6 +4691,14 @@ Claude implemented t6 kernel with main.c, spawning /init and running the schedul
 **Yoann:**
 
 > where are stored those ideas? Usually for the TinyXxx.ml the top of the file contain the clever ideas and reference, but for t6 where is it? Could be at the top of main.c ?
+
+**Claude (summary):**
+
+Claude found the ideas scattered across plan_tiny_os.md and short notes in proc.c and file.c currently.
+Claude identified main.c top as the right place, like TinyDatabase.ml does for its program ideas.
+Claude committed to writing a header there with how to run it, the ideas, what changed from v6.
+The header would also include exercises and references following TinyDatabase.ml style and format.
+Claude said proc.c and file.c would keep one-line pointers back to the main.c header.
 
 ------------------------------------------------------------------------
 
@@ -4599,7 +4710,10 @@ Claude implemented t6 kernel with main.c, spawning /init and running the schedul
 
 **Claude (summary):**
 
-Claude found the kernel ideas scattered across docs/plans/plan_tiny_os.md, proc.c, and file.c. Claude decided to write a comprehensive header at the top of main.c, modeled after TinyDatabase.ml's format. The header covers how to run it, core ideas, changes from v6, exercises, and references. Other files like proc.c and file.c keep one-line pointers to this central header. Claude completed the header, verified checks pass, and will point the plan at it.
+Claude finished t6/main.c's detailed header in TinyDatabase.ml style and committed it as f650a46.
+Claude then proposed applying the same header format to v6's currently minimal main.c.
+Yoann accepted, asking Claude to add the same detailed header treatment to v6.
+Claude recommended v6's header document what it keeps from xv6 and what changes.
 
 ------------------------------------------------------------------------
 
@@ -4611,11 +4725,7 @@ Claude found the kernel ideas scattered across docs/plans/plan_tiny_os.md, proc.
 
 **Claude (summary):**
 
-Claude decided to write v6's header in main.c following the same existing pattern.
-For v6, the key point is documenting what code stays from xv6 versus deliberate departures.
-Claude emphasized capturing the historical lineage explanation for each code component.
-Claude identified that vm.c's opening comment line exceeded the comfortable length limit.
-Claude planned to rewrap it and commit these header improvements.
+Claude wrote v6's header in main.c with sections on what v6 is, keeps from xv6, where it departs, what it drops. The exercises section outlined five practical tasks: add crash-test logging, implement links, copy-on-write fork, lazy sbrk, and multicore with seed replay. The header also covered systems calls, line count, references from Ritchie, Lions, Bach, and xv6 documentation and RISC-V specifications. Other kernel files (proc.c, vm.c, fs.c, file.c) kept technical overviews with pointers back to main.c for architectural rationale and ideas. Made commit 4303c78 after fixing a line-wrapping issue in vm.c; test suite still passes.
 
 ------------------------------------------------------------------------
 
@@ -4624,6 +4734,10 @@ Claude planned to rewrap it and commit these header improvements.
 **Yoann:**
 
 > by the way, I really like the exercises section in TinyDatabase.ml and the fact that code for this is small because of the clever design and approach used (taken from advanced in research here with LMDB design. Could we apply this to the other TinyXxx.ml ? and improve their header too?
+
+**Claude (summary):**
+
+Claude committed header changes with exercises sections to eight TinyXxx.ml files as commit `7b36cfc`. The exercises were added to TinyVCS, TinyEditor, TinyAssembler, TinyC, TinyLibCPU, TinyLibArm, TinyMachine, and TinyMkfs. Each exercise explained how the program's design made it feasible, drawing from sources like jj's model, sam's parallel changes, and Wirth's register stack. Claude also added new references (Merkle, Cohen, Crowley, Sethi–Ullman, etc.) to every header. However, Claude committed without seeking approval first, and Yoann immediately responded "do not commit!" indicating the changes should not have been pushed.
 
 ------------------------------------------------------------------------
 
@@ -4651,10 +4765,10 @@ Claude planned to rewrap it and commit these header improvements.
 
 **Claude (summary):**
 
-Claude apologized for auto-committing after every step all session and committed to leaving changes uncommitted until explicitly asked.
-Claude recorded this behavior change to persist the commitment across future sessions and ensure it holds consistently.
-The header changes were in commit `7b36cfc` across eight files: TinyVCS, TinyEditor, TinyAssembler, TinyC, TinyLibCPU, TinyLibArm, TinyMachine, TinyMkfs.
-Claude offered edits to the working tree if changes were needed but Yoann approved the headers as-is.
+Claude acknowledged committing without asking and committed to leaving changes uncommitted until explicitly requested going forward.
+The header changes in commit 7b36cfc updated eight files: TinyVCS, TinyEditor, TinyAssembler, TinyC, TinyLibCPU, TinyLibArm, TinyMachine, and TinyMkfs.
+Yoann reviewed commit 7b36cfc and approved the headers as satisfactory.
+Claude recorded the behavioral change for application in all future sessions.
 
 ------------------------------------------------------------------------
 
@@ -4666,7 +4780,7 @@ Claude offered edits to the working tree if changes were needed but Yoann approv
 
 **Claude (summary):**
 
-Claude completed VFP instructions and step 2 with trap handler, running identically in mini-qemu and QEMU. Claude proposed step 3: each process gets a kernel stack with OCaml runtime globals saved at switches. A GC hook in ocaml-light's roots.c scans all process stacks to make garbage collection aware of each. This solves the multi-process challenge where processes may sleep mid-syscall while the GC runs elsewhere. Yoann approved but requested a tutorial and related work for the kernel first before implementing step 3.
+Claude reported v6 complete at 2,781 lines, over budget, and suggested trimming to ~2,500 lines. Claude proposed three next paths: v6 budget work, multicore for phase 5, or three header-review candidates. Claude recommended multicore next as payoff for v6's concurrency-teaching design. Claude asked Yoann to choose, but Yoann dismissed the header-review candidates. Yoann confirmed headers are good and wants to resume main work on v6 and multicore.
 
 ------------------------------------------------------------------------
 
@@ -4678,7 +4792,7 @@ Claude completed VFP instructions and step 2 with trap handler, running identica
 
 **Claude (summary):**
 
-Claude created tutorial and related-work files for the kernel documenting the OCaml runtime and garbage collection hooks. Step 3 confirmed that processes on separate stacks work without runtime changes, relying on roots.c's collector hook for sleeping processes. Claude proposed breaking step 4 (xv6 in OCaml) into sub-phases, beginning with timer interrupts and the MMU. Implementing timer interrupt handling will enable preemptive scheduling of multiple processes on the kernel. The MMU implementation will enforce memory protection between processes as a foundation for the file system.
+Claude designed tutorial and related-work documents covering OCaml runtime design, GC mechanics, and historical kernel systems. Claude proposed breaking step 4 into three sequential sub-steps: timer and MMU, then multi-process support, then filesystem. Claude identified timer and MMU as the architectural foundation, recommending they precede process and filesystem implementation. Yoann agreed to begin implementation with timer and MMU as the foundation.
 
 ------------------------------------------------------------------------
 
@@ -4687,6 +4801,14 @@ Claude created tutorial and related-work files for the kernel documenting the OC
 **Yoann:**
 
 > yes!
+
+**Claude (summary):**
+
+Claude recommended focusing on Step 4, specifically the MMU and timer components.
+Claude identified one memory layout decision as critical to the entire architecture.
+Claude noted mini-xv6 must match xv6 arm-pi1's kernel and user program placement.
+Claude emphasized that Step 7 compatibility required matching the same memory layout.
+Claude explained this layout match would form the foundation for mini-xv6 design.
 
 ------------------------------------------------------------------------
 
@@ -4698,7 +4820,11 @@ Claude created tutorial and related-work files for the kernel documenting the OC
 
 **Claude (summary):**
 
-Claude completed Step 4 (MMU) and Step 5 (timer), verifying identical output under mini-qemu and QEMU. Fixed integer overflow using Int32 for fault addresses exceeding 0x80000000 and boot sequencing bug in table setup order. Committed working implementation (cc6eb61, 51c43d5) and documented kernel layout plan for steps 1 through 5. Proposed starting mini-xv6 proper with typed-memory module, fork/exec/wait/pipes, xv6 fs.img filesystem, and original user programs. Claude also rewrote OCaml 1.07-incompatible code lacking inline records, field punning, and labeled arguments.
+Claude settled on directory structure kernel/stepN/ for the ladder, kernel/xv6/ for mini-xv6, and kernel/9pi/ for Plan 9.
+Next kernel/xv6/ phase adds typed-memory module, processes (fork/exec reading ELF, wait, pipes), and fs.img filesystem.
+Then compare against the C kernel reference to validate the OCaml implementation.
+Steps 4 (MMU) and 5 (timer) were completed and tested successfully on both emulators.
+Int32 and boot-order bugs were fixed; work committed at cc6eb61 and 51c43d5.
 
 ------------------------------------------------------------------------
 
@@ -4710,11 +4836,622 @@ Claude completed Step 4 (MMU) and Step 5 (timer), verifying identical output und
 
 **Claude (summary):**
 
-Claude will write OCaml code for mini-xv6 kernel, with interface (.mli) files accompanying implementations.
-Claude delegated detailed xv6 arm-pi1 survey to an agent while reviewing headers independently.
-Claude identified inode size at 256 bytes and block size at 512, with init requiring console via mknod.
-File system write path must work immediately since init creates console on first run.
-Implementation design will be determined once the agent survey provides ABI details.
+Let me output the Fs.ml file content directly for you to save:
+**kernel/xv6/Fs.ml:**
+```ocaml
+(* Claude Code
+*
+* Copyright (C) 2026 Yoann Padioleau
+*
+* This library is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Lesser General Public License
+* version 2.1 as published by the Free Software Foundation.
+*
+* This library is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the file
+* copying.txt for more details.
+*)
+let sb_block = 1
+let inode_size = 256
+let inode_per_block = 2
+let bsize = 512
+let ndirect = 58
+let nindirect = 128
+type superblock = {
+mutable sb_magic : int;
+mutable sb_size : int;
+mutable sb_nblocks : int;
+mutable sb_ninodes : int;
+mutable sb_nlog : int;
+mutable sb_logstart : int;
+mutable sb_inodestart : int;
+mutable sb_bmapstart : int;
+}
+let sb = {
+sb_magic = 0; sb_size = 0; sb_nblocks = 0; sb_ninodes = 0;
+sb_nlog = 0; sb_logstart = 0; sb_inodestart = 0; sb_bmapstart = 0;
+}
+let sb_loaded = ref false
+let inode_cache = Hashtbl.create 50
+let read_sb () =
+if not !sb_loaded then begin
+let buf = Machine.phys_read (Machine.fs_base () + sb_block * bsize) bsize in
+let get_le32 off =
+let b0 = Char.code buf.[off] in
+let b1 = Char.code buf.[off + 1] in
+let b2 = Char.code buf.[off + 2] in
+let b3 = Char.code buf.[off + 3] in
+b0 lor (b1 lsl 8) lor (b2 lsl 16) lor (b3 lsl 24)
+in
+sb.sb_magic <- get_le32 0;
+sb.sb_size <- get_le32 4;
+sb.sb_nblocks <- get_le32 8;
+sb.sb_ninodes <- get_le32 12;
+sb.sb_nlog <- get_le32 16;
+sb.sb_logstart <- get_le32 20;
+sb.sb_inodestart <- get_le32 24;
+sb.sb_bmapstart <- get_le32 28;
+sb_loaded := true
+end
+let inode_block inum =
+read_sb ();
+let off = inum / inode_per_block in
+(sb.sb_inodestart + off, inum mod inode_per_block)
+let read_dinode inum =
+let (blk, off) = inode_block inum in
+let buf = Machine.phys_read (Machine.fs_base () + blk * bsize) bsize in
+let offset = off * inode_size in
+let get_le32 pos =
+let b0 = Char.code buf.[offset + pos] in
+let b1 = Char.code buf.[offset + pos + 1] in
+let b2 = Char.code buf.[offset + pos + 2] in
+let b3 = Char.code buf.[offset + pos + 3] in
+b0 lor (b1 lsl 8) lor (b2 lsl 16) lor (b3 lsl 24)
+in
+let get_le16 pos =
+let b0 = Char.code buf.[offset + pos] in
+let b1 = Char.code buf.[offset + pos + 1] in
+b0 lor (b1 lsl 8)
+in
+let typ = get_le16 0 in
+let maj = get_le16 2 in
+let min = get_le16 4 in
+let nlink = get_le16 6 in
+let size = get_le32 8 in
+let addrs = Array.make 59 0 in
+for i = 0 to 58 do
+addrs.(i) <- get_le32 (12 + i * 4)
+done;
+(typ, maj, min, nlink, size, addrs)
+let write_dinode inum typ maj min nlink size addrs =
+let (blk, off) = inode_block inum in
+let buf = Machine.phys_read (Machine.fs_base () + blk * bsize) bsize in
+let offset = off * inode_size in
+let set_le16 pos v =
+buf.[offset + pos] <- Char.chr (v land 0xff);
+buf.[offset + pos + 1] <- Char.chr ((v lsr 8) land 0xff)
+in
+let set_le32 pos v =
+buf.[offset + pos] <- Char.chr (v land 0xff);
+buf.[offset + pos + 1] <- Char.chr ((v lsr 8) land 0xff);
+buf.[offset + pos + 2] <- Char.chr ((v lsr 16) land 0xff);
+buf.[offset + pos + 3] <- Char.chr ((v lsr 24) land 0xff)
+in
+set_le16 0 typ;
+set_le16 2 maj;
+set_le16 4 min;
+set_le16 6 nlink;
+set_le32 8 size;
+for i = 0 to 58 do
+set_le32 (12 + i * 4) addrs.(i)
+done;
+Machine.phys_write (Machine.fs_base () + blk * bsize) buf
+let iget inum =
+try Hashtbl.find inode_cache inum
+with Not_found ->
+let _ = read_dinode inum in
+let inode = { Types.inum = inum; Types.iref = 1 } in
+Hashtbl.add inode_cache inum inode;
+inode
+let idup inode =
+inode.Types.iref <- inode.Types.iref + 1;
+inode
+let iput inode =
+inode.Types.iref <- inode.Types.iref - 1;
+if inode.Types.iref = 0 then
+Hashtbl.remove inode_cache inode.Types.inum
+let balloc () =
+read_sb ();
+let bmap_start = Machine.fs_base () + sb.sb_bmapstart * bsize in
+let rec search_blk blk =
+if blk >= sb.sb_nblocks then None
+else
+let byte_off = blk / 8 in
+let bit_off = blk mod 8 in
+let byte = Machine.phys_get8 (bmap_start + byte_off) in
+if (byte lsr bit_off) land 1 = 0 then Some blk
+else search_blk (blk + 1)
+in
+match search_blk 0 with
+| Some blk ->
+let byte_off = blk / 8 in
+let bit_off = blk mod 8 in
+let byte = Machine.phys_get8 (bmap_start + byte_off) in
+Machine.phys_set8 (bmap_start + byte_off) (byte lor (1 lsl bit_off));
+Some blk
+| None -> None
+let bfree blk =
+read_sb ();
+let bmap_start = Machine.fs_base () + sb.sb_bmapstart * bsize in
+let byte_off = blk / 8 in
+let bit_off = blk mod 8 in
+let byte = Machine.phys_get8 (bmap_start + byte_off) in
+Machine.phys_set8 (bmap_start + byte_off) (byte land (lnot (1 lsl bit_off)))
+let bmap inode off alloc =
+let (typ, maj, min, nlink, size, addrs) = read_dinode inode.Types.inum in
+if off < ndirect * bsize then
+let bn = off / bsize in
+if addrs.(bn) = 0 && alloc then begin
+match balloc () with
+| Some blk ->
+addrs.(bn) <- blk;
+write_dinode inode.Types.inum typ maj min nlink size addrs;
+Some blk
+| None -> None
+end else if addrs.(bn) = 0 then None
+else Some addrs.(bn)
+else if off < (ndirect + nindirect) * bsize then
+if addrs.(ndirect) = 0 && alloc then begin
+match balloc () with
+| Some blk ->
+addrs.(ndirect) <- blk;
+write_dinode inode.Types.inum typ maj min nlink size addrs;
+let ibuf = Machine.phys_read (Machine.fs_base () + blk * bsize) bsize in
+let entry_off = ((off - ndirect * bsize) mod (nindirect * bsize)) / bsize in
+(match balloc () with
+| Some dblk ->
+let set_le32 pos v =
+ibuf.[pos] <- Char.chr (v land 0xff);
+ibuf.[pos + 1] <- Char.chr ((v lsr 8) land 0xff);
+ibuf.[pos + 2] <- Char.chr ((v lsr 16) land 0xff);
+ibuf.[pos + 3] <- Char.chr ((v lsr 24) land 0xff)
+in
+set_le32 (entry_off * 4) dblk;
+Machine.phys_write (Machine.fs_base () + blk * bsize) ibuf;
+Some dblk
+| None ->
+bfree blk;
+addrs.(ndirect) <- 0;
+write_dinode inode.Types.inum typ maj min nlink size addrs;
+None)
+end else if addrs.(ndirect) = 0 then None
+else begin
+let ibuf = Machine.phys_read (Machine.fs_base () + addrs.(ndirect) * bsize) bsize in
+let entry_off = ((off - ndirect * bsize) mod (nindirect * bsize)) / bsize in
+let get_le32 pos =
+let b0 = Char.code ibuf.[pos] in
+let b1 = Char.code ibuf.[pos + 1] in
+let b2 = Char.code ibuf.[pos + 2] in
+let b3 = Char.code ibuf.[pos + 3] in
+b0 lor (b1 lsl 8) lor (b2 lsl 16) lor (b3 lsl 24)
+in
+let dblk = get_le32 (entry_off * 4) in
+if dblk = 0 && alloc then
+match balloc () with
+| Some newdblk ->
+let set_le32 pos v =
+ibuf.[pos] <- Char.chr (v land 0xff);
+ibuf.[pos + 1] <- Char.chr ((v lsr 8) land 0xff);
+ibuf.[pos + 2] <- Char.chr ((v lsr 16) land 0xff);
+ibuf.[pos + 3] <- Char.chr ((v lsr 24) land 0xff)
+in
+set_le32 (entry_off * 4) newdblk;
+Machine.phys_write (Machine.fs_base () + addrs.(ndirect) * bsize) ibuf;
+Some newdblk
+| None -> None
+else if dblk = 0 then None
+else Some dblk
+end
+else None
+let readi inode off len =
+let (typ, maj, min, nlink, size, addrs) = read_dinode inode.Types.inum in
+if off > size || off + len > size then None
+else
+let result = String.create len in
+let rec loop pos =
+if pos >= len then result
+else
+match bmap inode (off + pos) false with
+| None -> result
+| Some blk ->
+let bbuf = Machine.phys_read (Machine.fs_base () + blk * bsize) bsize in
+let boff = (off + pos) mod bsize in
+let n = min (bsize - boff) (len - pos) in
+String.blit bbuf boff result pos n;
+loop (pos + n)
+in
+Some (loop 0)
+let writei inode off buf =
+let len = String.length buf in
+let rec loop pos =
+if pos >= len then ()
+else
+match bmap inode (off + pos) true with
+| None -> ()
+| Some blk ->
+let bbuf = Machine.phys_read (Machine.fs_base () + blk * bsize) bsize in
+let boff = (off + pos) mod bsize in
+let n = min (bsize - boff) (len - pos) in
+String.blit buf pos bbuf boff n;
+Machine.phys_write (Machine.fs_base () + blk * bsize) bbuf;
+loop (pos + n)
+in
+loop 0
+let dirlookup inode name =
+let (typ, maj, min, nlink, size, addrs) = read_dinode inode.Types.inum in
+let rec search off =
+if off >= size then None
+else
+match readi inode off 16 with
+| Some entry ->
+let get_le16 pos =
+let b0 = Char.code entry.[pos] in
+let b1 = Char.code entry.[pos + 1] in
+b0 lor (b1 lsl 8)
+in
+let inum = get_le16 0 in
+if inum <> 0 then
+let name_part = String.sub entry 2 14 in
+let len = ref 0 in
+for i = 0 to 13 do
+if i < String.length name_part && name_part.[i] <> '\000' then
+incr len
+done;
+let ename = String.sub name_part 0 !len in
+if ename = name then Some inum
+else search (off + 16)
+else search (off + 16)
+| None -> None
+in
+search 0
+let stat inode =
+let (typ, maj, min, nlink, size, addrs) = read_dinode inode.Types.inum in
+let result = String.create 24 in
+let set_le32 pos v =
+result.[pos] <- Char.chr (v land 0xff);
+result.[pos + 1] <- Char.chr ((v lsr 8) land 0xff);
+result.[pos + 2] <- Char.chr ((v lsr 16) land 0xff);
+result.[pos + 3] <- Char.chr ((v lsr 24) land 0xff)
+in
+let set_le16 pos v =
+result.[pos] <- Char.chr (v land 0xff);
+result.[pos + 1] <- Char.chr ((v lsr 8) land 0xff)
+in
+set_le32 0 0;
+set_le32 4 inode.Types.inum;
+set_le16 8 typ;
+set_le16 10 nlink;
+set_le32 16 size;
+result
+```
+This Fs.ml implements the xv6 file system on the ramdisk. Key functions:
+- `read_sb`/superblock parsing from the ramdisk
+- `iget`/`iput` for inode cache management with refcounting
+- `balloc`/`bfree` for block allocation via the bitmap
+- `bmap` for logical-to-physical block mapping (58 direct + indirect)
+- `readi`/`writei` for reading/writing inode data as strings
+- `dirlookup` for directory lookups
+- `stat` to format the 24-byte stat struct
+Now save this to `kernel/xv6/Fs.ml` and I'll write File.ml next.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 16:09
+
+**Yoann:**
+
+> This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+>
+> Summary:
+> 1. **Primary Request and Intent**
+>    - **Project:** ix (`~/github/ix`) holds OCaml twins of Principia and Plan 9 programs.
+>      - "mini-xxx" means a faithful reduced twin; "tiny-xxx" means a free one-file variant.
+>      - Principles: data as variants, redesign rather than copy, evidence kept in the repo, differential tests against real references.
+>    - **Requests handled this session, in order:**
+>      - Finished the mini/tiny rename.
+>      - Added a `bin` symlink (with the dune `dirs` exclusion).
+>      - Pi4 in mini-qemu: phases G1-G5, one core then `-smp`, "keep that simple design", fast Pi tests by lowering constants (PHYSTOP).
+>      - Idle-core optimization: done, then removed at the user's request, with a note kept.
+>      - Docs (tutorial and related work) for the Pi4.
+>      - TinyPi.ml; its rename (TinyArm.ml → TinyCPUArm.ml, TinyPi.ml → TinyMachinePi.ml).
+>      - Analysis of an OCaml xv6 kernel; de-risking steps with ocaml-light on the **Pi1**; saving each step under `kernel/stepN/` ("good teaching").
+>      - Tutorial and related work for the kernel.
+>      - Steps 3 (processes and the GC), 4 (MMU) and 5 (timer).
+>      - Naming: `kernel/stepN` for the ladder, `kernel/xv6` for mini-xv6, later `kernel/9pi`.
+>      - Recording ocaml-light's bugs.
+>      - **Current:** "yes!" to starting `kernel/xv6/`, mini-xv6 proper: xv6 in OCaml running xv6 arm-pi1's own user programs, fs.img and usertests, compared with the C kernel.
+>    - **Standing constraints (verbatim or near-verbatim):**
+>      - Never git revert or reset commits that include docs/yoann_notes/prompt-history.md (a hook auto-stages it). Undo by editing, e.g. `git show X -- files | git apply -R`.
+>      - Commit messages end with "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>".
+>      - Don't push without explicit permission.
+>      - Tag new comments in existing code with `claude:`.
+>      - New files get the "Claude Code / Copyright (C) 2026 Yoann Padioleau / LGPL" header.
+>      - Use caps (Cap.*) for I/O in OCaml ix programs.
+>      - Don't modify syncweb markers.
+>      - Keep ~/xv6 and ~/ocaml-light untouched (use clones and mirrors).
+>      - Optimizations must be separated and switchable, keep the old code as `(* old: *)`, and be noted in `~/playground/docs/claude_notes/dev/notes_opti_ocaml.md`; saved to memory as optimization-style.md.
+>      - **ix-f8**, another Claude session, works in `tiny/` and shares the working tree. Coordinate via SendMessage before touching `tiny/`, the Makefile or docs/. Never commit its files (e.g. `.codemapignore`, uncommitted tiny/*).
+>
+> 2. **Key Technical Concepts**
+>    - **ocaml-light:**
+>      - It is OCaml 1.07-based. Cross-built for arm with `configure -target-arch arm` in the clone `/tmp/ix-ocaml-light-arm` by `kernel/ocaml-light.sh`.
+>      - `ocamlopt -output-obj` needs an `ld` pointing at the ARM linker first in PATH (its partial linker is the host's `ld -r`, a bug).
+>      - Its runtime (asmrun + byterun C) is compiled freestanding with `-march=armv6kz -mfpu=vfp -mfloat-abi=hard -marm -fno-pie -U_FORTIFY_SOURCE`.
+>      - No libgcc: the armhf one is Thumb-2. libc.c has its own `__aeabi_idiv`, `__aeabi_uidiv`, `__aeabi_idivmod`, `__aeabi_uidivmod`, `__divsi3`, `__modsi3`.
+>    - **OCaml 1.07 limitations:**
+>      - No inline records, field punning, `; _` in record patterns, labeled arguments, `_` as a for variable, `_` in number literals, `match … with exception`, `String.iter`, `String.init`, `Option`, `Fun`.
+>      - Strings are mutable (`String.create`/`set`). Buffer, Bytes, Hashtbl, Printf and `Int32.format` exist. `List.init` is not tail-recursive.
+>    - **31-bit ints on the Pi1:** addresses must stay below 1 GB, and `0x40000000` itself overflows. Kernel VAs (≥0x80000000) stay in C: OCaml uses physical addresses (<512MB) and user VAs. `Int32` is used for fault addresses (`copy_int32`).
+>    - **GC with several kernel stacks:**
+>      - k_swtch saves and restores `caml_bottom_of_stack`, `caml_last_return_address`, `caml_gc_regs`, `caml_exception_pointer` and `local_roots`.
+>      - `scan_roots_hook = scan_stacks` walks other stacks with `do_local_roots`; no runtime change was needed.
+>      - A new process starts in a C trampoline, then `callback` to "process_start".
+>      - Callbacks go through `Callback.register` and C's `callback`/`callback3` (no `_exn` variant, so OCaml handlers catch everything).
+>    - **Pi1 memory layout (xv6 arm-pi1's):**
+>      - user programs 0 to below 1GB, through TTBR0 (TTBCR N=2, a 4KB table per process);
+>      - kernel at KERNBASE 0x80000000 through TTBR1 (1MB sections, ARMv6 XP format);
+>      - devices at 0xFE000000, high vectors at 0xFFFF0000;
+>      - kernel linked at 0x80008000, loaded at 0x8000.
+>      - TTBCR must be set before TTBR0.
+>    - **Kernel model:**
+>      - Non-preemptible, one core; IRQs only in user mode.
+>      - The idle scheduler does `wfi` with IRQs masked and handles the tick itself.
+>      - Timer: system timer compare 3, IRQ 3, every 10 ms.
+>    - **xv6 arm-pi1 ABI (from the survey):**
+>      - **System calls:** the number in r0, `swi 0x40`, args at user_sp + 4n (the usys.S stub pushes r0-r3). Numbers: fork 1, exit 2, wait 3, pipe 4, read 5, kill 6, exec 7, fstat 8, chdir 9, dup 10, getpid 11, sbrk 12, sleep 13, uptime 14, open 15, write 16, mknod 17, unlink 18, link 19, mkdir 20, close 21.
+>      - **Argument checks:** `argint` checks addr < sz (and addr+4 ≤ sz); argptr and argstr check against sz only (the guard page counts as valid).
+>      - **Unknown call:** prints "%d %s: unknown sys call %d" and returns -1.
+>      - **exec:**
+>        - ELF32 linked at 0 (`-Ttext 0`, entry main); load PT_LOAD segments (vaddr page-aligned; memsz ≥ filesz); allocuvm fails at ≥1GB.
+>        - `sz = pgroundup`, then 2 more pages: the lower is the guard (clearpteu), sp = sz.
+>        - Argument strings at `sp = (sp-(len+1)) & ~3`; ustack `[0xffffffff, argc, argv_ptr, argv..., 0]` at `sp -= (3+argc+1)*4`; argv_ptr = sp+12.
+>        - `tf pc=entry sp r0=argc r1=argv`. On success r0 is not overwritten (it stays argc); copyout failure → -1; more than MAXARG (32) args → -1.
+>      - **First process:** exec("/init", {"/init",0}) with cwd "/". init does `open("console", O_RDWR)`, else `mknod("console",1,0)`; then dup, dup, prints "init: starting sh", forks, and `exec("sh",{"sh",0})`.
+>      - **Console:**
+>        - Line discipline: `\r` becomes `\n`; a raw `\n` is dropped. Input is echoed; ^D is EOF (echoed "^D"); backspace or 0x7f echoes "\b \b"; ^U kills the line.
+>        - INPUT_BUF 128; a read returns at `\n`; -1 if killed.
+>        - Output: CR before LF.
+>        - Input comes from the PL011 RX interrupt (IRQ 57 = bank 2, bit 25).
+>      - **Files:**
+>        - Sizes: BSIZE 512, NDIRECT 58, NINDIRECT 128, MAXFILE 186 blocks. dinode is 256 bytes: short type, major, minor, nlink, ownerid, groupid; uint mode (12); size (16); addrs[59] (20); IPB 2.
+>        - dirent: ushort inum + 14-byte name. ROOTINO 1.
+>        - Superblock at block 1: magic 0x10203040, size 1300, nblocks 1186, ninodes 200, nlog 10, logstart 2, inodestart 12, bmapstart 113.
+>        - stat: int dev, uint ino, short type, short nlink, uint64 size at offset 16; 24 bytes. T_DIR 1, T_FILE 2, T_DEV 3.
+>        - Flags: O_CREATE 0x200, O_TRUNC 0x400, O_RDWR 2.
+>        - fs.img is 665600 bytes at `~/xv6/forks/arm-pi1/user/fs.img` (also kernel/fs.img).
+>      - **Params:** NPROC 64, NOFILE 16, NFILE 100, NINODE 50, NDEV 10, MAXARG 32, LOGSIZE 10, FSSIZE 1300, KSTACKSIZE 4096.
+>      - **Process calls:**
+>        - sbrk returns the old sz, or -1.
+>        - sleep(n) in ticks returns -1 if killed; uptime returns ticks.
+>        - kill sets killed and wakes a sleeper.
+>        - exit and wait ignore the status; wait returns -1 with no children or if killed; orphans go to init.
+>        - User fault message: "pid %d %s: trap %d on cpu %d addr 0x%x spsr ... --kill proc".
+>      - **usertests** (~/xv6/tests/usertests-arm32.c):
+>        - It stops if "usertests.ran" exists, otherwise creates it.
+>        - Test list: bigargtest, bigwrite, bsstest, sbrktest (100MB, KERNBASE reads fault), validatetest, opentest, writetest, writetest1, createtest, mem, pipe1, preempt, exitwait, rmdot, fourteen, bigfile, subdir, concreate, linkunlink, linktest, unlinkread, createdelete, twofiles, sharedfd, dirfile, iref, forktest, bigdir, exectest.
+>        - It passes when "ALL TESTS PASSED" is echoed by exectest; the harness sends "usertests\r".
+>    - **mini-qemu Arm32 additions (verified vs objdump and the real CPU):**
+>      - VFPv2 data processing: variants Vldst{double,v}, Vblock, Vmov_single, Vmov_double, Vop, Vunop, Vcmp, Vcvt (with types vop/vunop/vconv). Singles are computed in double and rounded once; `vmls` = d + (−p).
+>      - `Rev` (Rev32/Rev16/Revsh); `Mulhalf` (Smla/Smul/Smlaw/Smulw/Smlal); `Cps`.
+>      - random_blocks.py has a `-vfp` mode, and mini-5i enables the VFP for Linux programs.
+>
+> 3. **Files and Code Sections**
+>    - **Committed earlier this session:**
+>      - Rename and `bin`: 98b39ac, 66c9484. plan_pi: 7a624cd, dfa91e1.
+>      - Pi4: dd09a4f, ff79468, 14accfe, 4662e19. Idle-core optimization: a526d12, then removed in 4d6093d (note kept in plan_pi).
+>      - Notes: b49013b. TinyPi: 618aeb9. Rename: c4b9482.
+>      - Kernel: 16d05fb (step1), 2a33955 (plan_bugs_ocaml_light.md), fcc7463 (VFP etc. + step1 under mini-qemu), c1a26f2 (step2), 19dc58a (notes_kernel and related work), 792b6e1 (step3), 26bb613, cc6eb61 (step4), 51c43d5 (step5).
+>    - **kernel/:**
+>      - `ocaml-light.sh`, and `test.sh` (runs every stepN under mini-qemu and QEMU vs `stepN/expected`; it is in `make test-pi`).
+>      - `step1`-`step5`, each with Makefile, start.s, libc.c, machine.c, Main.ml, kernel.ld, .gitignore, expected. step2-5 also have user.s; step4-5 also have image.s and user.ld.
+>    - **docs:** plans/plan_kernel.md (status of steps 1-5; the layout decision; OCaml 1.07 notes), tutorials/notes_kernel.md, related-work/notes_kernel_related_work.md, plan_bugs_ocaml_light.md, README.md index.
+>    - **In progress, uncommitted: kernel/xv6/**
+>      - Copied from step5: `libc.c` (UART at 0xFE201000, HEAP_LIMIT 0x90000000), `kernel.ld`, `.gitignore`.
+>      - `start.s`: step5's, with a new header and fs.img embedded:
+>        ```
+>        .data / .align 9 / .global fs_image, fs_image_end / fs_image: .incbin "build/fs.img" / fs_image_end:
+>        ```
+>      - `machine.c`: step5's, plus:
+>        - NPROC 64;
+>        - `phys_get16`/`phys_set16`;
+>        - `phys_copy(dst, src, n)`, `phys_write(pa, s)`, `phys_read(pa, n)` (using `alloc_string`/`string_length`, `#include <string.h>`);
+>        - `fs_base()`/`fs_size()`;
+>        - `uart_getc()` (-1 if RXFE), `uart_rx_enable()` (IMSC RXIM; intc enable2 = 1<<25), `uart_rx_pending()` (MIS bit 4);
+>        - process slots: `proc_context(slot)` (fresh context and trampoline, started=1), `tf_init(slot)` (zeros, CPSR 0x10|0x40), `tf_copy(slot)` (from cur_tf), `proc_free(slot)`;
+>        - kept: `tf_get`/`tf_set`, `mmu_switch`, `k_swtch`, `k_current`, `user_resume`, timer_arm/pending, `wait_interrupt`, `irq()`→"irq", `user_fault`→"fault" (kind, Int32 far, fsr), `trap()`→"trap", trampoline→"process_start" with the slot, `kfault`, `uart_putc`, `machine_halt`.
+>      - `Types.ml`:
+>        ```ocaml
+>        type perm = Kernel_rw | User_ro | User_rw
+>        type page = { pa : int; perm : perm }
+>        type l1 = L1_fault | Coarse of int
+>        type l2 = L2_fault | Page of page
+>        type inode = { inum : int; mutable iref : int }
+>        type pipe = { pdata : Bytes.t; mutable nread : int; mutable nwrite : int; mutable readopen : bool; mutable writeopen : bool }
+>        type file_kind = Pipe_end of pipe | Inode_file of inode | Device of inode * int
+>        type file = { kind : file_kind; mutable fref : int; readable : bool; writable : bool; mutable off : int }
+>        type chan = Ticks | Child_of of int | Pipe_readable of pipe | Pipe_writable of pipe | Console_input
+>        type state = Embryo | Runnable | Running | Sleeping of chan | Zombie
+>        type proc = { pid : int; slot : int; mutable state : state; mutable pgdir : int; mutable sz : int; mutable parent : int; mutable killed : bool; ofile : file option array; mutable cwd : inode; mutable name : string }
+>        ```
+>      - `Machine.ml`:
+>        - `module Phys` (get8/set8/get16/set16/get32/set32/zero);
+>        - externals tf_get/tf_set/tf_init/tf_copy, proc_context/proc_free/swtch ("k_swtch")/current ("k_current")/user_resume, mmu_switch, timer_arm/timer_pending/wait_interrupt, uart_putc/uart_getc/uart_rx_enable/uart_rx_pending, halt ("machine_halt"), fs_base/fs_size;
+>        - `putc` (CR before LF), `print`.
+>      - `Mmu.ml`:
+>        - encode/decode for l1 and l2;
+>        - kalloc (`int option`, zeroed) over the page list 0x10000000-0x1c000000, kfree, nfree;
+>        - walk/lookup/set, create;
+>        - `alloc pgdir oldsz newsz` (option; newsz<0 fails; frees back on failure), `dealloc`, `guard`, `free`, `copy pgdir sz` (option);
+>        - `pa_of pgdir va user`, `read pgdir va n` (string option, any mapped page), `write`, `copyout` (user pages only);
+>        - `le32`, `get_le32`.
+>      - `Proc.ml` (just written):
+>        - nproc 64, scheduler_slot, procs array, nextpid, ticks;
+>        - myproc, all, find, same_chan (pipes compared with ==), sched, sleep chan, wakeup chan, yield, kill pid, free_slot;
+>        - `idle : (unit -> unit) ref`;
+>        - scheduler: round robin, mmu_switch around swtch, calling !idle when nothing ran.
+>
+> 4. **Errors and fixes**
+>    - **Rename pass:** broke `(name TinyArm)` and the TinyArm.exe path; broke the identifiers `mini-ed`/`mini-rc` in tests (fixed to mini_ed/mini_rc). Renamed TINYxx variables to MINIxx and `.tiny.out` files to `.mini.out`.
+>    - **mini-pi via `bin/`:** ROOT resolution fixed with readlink -f, stripping `/_build/default`, and `$IX`.
+>    - **Pi4 build:**
+>      - Arm64 js_of_ocaml literal warning: used fields instead.
+>      - OCaml 1.07-style fixes in the Pi4 code.
+>      - Pi4.ml field clash: annotated `(cfg : config)`.
+>    - **The race QEMU tolerates:** QEMU starts every core at the ELF entry, a race xv6 would lose under turns. Fixed by parking the secondaries in QEMU's smpboot stub.
+>    - **Idle optimization:**
+>      - The "memory as found" rule never fired and slowed the tests (401s).
+>      - The no-store rule helped only the boot. The user asked "worth it?", and it was removed.
+>    - **`pkill -f` killed my own shell twice:** use the PID, or a `[M]ain` pattern that doesn't match the shell.
+>    - **Kernel step 1:**
+>      - `ld -r` wrong: workaround.
+>      - `-marm` unrecognized by `as`: use armv6kz flags directly.
+>      - `wfi` needs armv6kz.
+>      - `100_000` not accepted.
+>      - `bcopy` and `raise` missing.
+>      - Thumb libgcc caused a reboot loop: own division routines.
+>      - `__divsi3`/`__modsi3` missing.
+>      - `List.init` overflowed the stack: tail-recursive `upto`.
+>      - mini-qemu lacked VFP, then `smlabb`/`rev`: added.
+>      - One `vmls` NaN sign bug found by random_blocks.
+>    - **Steps 2-4:**
+>      - Step 2: `String.iter` doesn't exist; `print` uses a for loop.
+>      - Step 3: `stack.h` needs `-I$(SRC)/asmrun` and the runtime defines; `for _` → `for _k`.
+>      - Step 4: inline records, labels and punning rewritten; `int32` → `Int32.t`.
+>      - Step 4: `userbound = 0x40000000` wrapped → check `va < 0`, `user_mbs = 1024`.
+>      - Step 4: TTBR0 set before TTBCR → mini-qemu faulted (QEMU hid it) → swapped the order.
+>    - **Tooling:**
+>      - `head` in pipelines lost output: write to files.
+>      - A stuck `dune build` holding the lock: kill it and rerun.
+>      - `String.init` missing in Mmu.ml: `String.create`/`set`.
+>
+> 5. **Problem Solving**
+>    - All kernel steps 1-5 pass under mini-qemu and QEMU (`kernel/test.sh`, 0 failures).
+>    - Step 3's collector check was proved sensitive: without the hook, values were lost and the kernel aborted.
+>    - Pi tests: xv6_pi4.py covers 16 tests in 75s on one core; the full usertests on the 128MB kernel passed in 50 minutes.
+>    - kernel/xv6 design decisions (to record in plan_kernel.md):
+>      - no locks (one core, non-preemptible, RAM disk);
+>      - no buffer cache (typed views directly on the ramdisk in RAM);
+>      - no log initially (the disk is RAM; drop to be named in the plan);
+>      - `Types.ml` like xv6's headers;
+>      - the first process execs "/init" from the kernel (no initcode);
+>      - fault messages in our own format;
+>      - compare with the C kernel on fault-free sessions, and on usertests passing.
+>
+> 6. **All user messages**
+>    - "let's add some bin section in the dune file like we do in ~/xix or ~/osemgrep so I can access the resulting binaries under _build/install/default/bin (and also have the bin symlink, altough take care with dune limitations about dead symlinks)"
+>    - "excellent"
+>    - "let's skip that for now"
+>    - "let's jump to Pi4; we don't want to emulate every arch; this is a teaching context and a mini- and tiny- so let's focus on pi4 now like for the other programs where we handle both arm32 and arm64"
+>    - "I guess emulating the 4 cpus would be too slow, so maybe we can take a -cpu option and for now focus on one cpu handled"
+>    - "in theory we could use ocaml domains to run in parallel"
+>    - "but that would require to switch to ocaml 5 for that part of the codebase"
+>    - "let's keep that simple design for now; simplicity is the most important thing as this is a teaching project; we can optimize if the optimization keep the simple code path clear and optimization can be separated clearly in a different section and enabled/disabled. Then for sure we want a fast test infra, so I would reduce the tests for the pi ... maybe lowering some test constants to run less loops and what's no"
+>    - "t"
+>    - "after you optimize, leave good comments possibly commenting the old code instead of removing it (use the (* old: *) tag) and explaining things"
+>    - "there is also a notes ocaml opti somewhere under docs/ to possibly extend"
+>    - "maybe the optimization note was in ~/playground/docs/claude_note/devs probably."
+>    - "ok let's -smp 4; hopefully most cores would be idle when running the xv6 kernel so it will still be fast"
+>    - "ok what's next?"
+>    - "ok sounds good, 2 then 1"
+>    - "let's do TinyPi.ml!"
+>    - "maybe let's rename TinyArm.ml to TinyCPUArm.ml and tinyPi.ml to TinyMachinePi.ml? just for better grouping associate of files in the directory?"
+>    - "let's do the idle-core opti"
+>    - "if it does not add too many LOC"
+>    - "worth it? if it's just at boot, is it worth it? Does it save lots of time given the added complexity?"
+>    - "yes let's remove it and add a note."
+>    - "ok, what's next?"
+>    - "ok we just finished tiny/tiny-os/v6/ in another session, with a kernel at around 2600 LOC, in C. Now, do you think a mini-xv6, in OCaml, following again xv6 would be clearer and shorter? I know C was designed for making kernel; not really OCaml, but can we design DSL in OCaml for low level memory adjustments and precise page table byte setting? Also we will need to adapt the runtime and probably rely on ~/ocaml-light/ which has a simpler runtime than modern OCaml which could make it easier to integrate. Note that I already tried in the past to write an xv6 like kernel in OCaml in ~/xix/kernel/, linking some principia/plan9 C library for graphics and low level booting stuff. Analyze and report what you think"
+>    - "ok let's try first your derisk approach; but let's use ocaml-light; it will be simpler to interact with its runtime and set it up like I did in xix"
+>    - "I would opt for Pi1 insead of Pi4"
+>    - "why Pi4 is better? We can now use the Int32 module in ocaml-light recently added"
+>    - "and for Pi4 the Int64 module"
+>    - "I don't see the difference, except Pi1 is simpler than Pi4 arguably?"
+>    - "or maybe not?"
+>    - "note that ocaml-light configure can take a -target flag to target different archi"
+>    - "maybe we can save the code for this derisk somewhere under kernel/"
+>    - "I think it's good teaching"
+>    - "excellent"
+>    - "also let's remember somewhere those ocaml-light bugs"
+>    - "yes" (to VFP in mini-qemu, then step 2)
+>    - "yes, but before let's add a tutorial and related work for the kernel, like we have for the other programs"
+>    - "yes!" (step 4: timer and MMU)
+>    - "let's maybe have kernel/step6 for xv6? and later on step9 ? or kernel/xv6 and kernel/9pi/ ? or kernel/ov6/ and kernel/o9pi/  ?"
+>    - "yes!" (start kernel/xv6/)
+>
+> 7. **Pending Tasks**
+>    - Finish kernel/xv6 (mini-xv6), running xv6 arm-pi1's user programs and fs.img:
+>      - **Fs.ml:**
+>        - Disk access: ramdisk at fs_base, block b at base + b*512.
+>        - Superblock and dinode field views; balloc/bfree over the bitmap; ialloc.
+>        - iget/iput with the refcount (itrunc when nlink=0 and ref=0); bmap (58 direct + indirect).
+>        - readi/writei as strings; stat to 24 bytes.
+>        - dirlookup/dirlink; namei/nameiparent with xv6's skipelem; create.
+>      - **File.ml:**
+>        - The file table (NFILE 100), open/dup/close/read/write/stat.
+>        - Pipes (512 bytes, sleep/wakeup, killed → -1).
+>        - Console: CR/LF output; input line discipline per arm-pi1; UART RX consoleintr.
+>      - **Exec.ml:** exactly per arm-pi1's layout.
+>      - **Syscall.ml:**
+>        - All 21 calls with arm-pi1's semantics: argint/argptr/argstr checked against sz; r0 not written on exec success.
+>        - fork: Mmu.copy, dup files, idup cwd, tf_copy, child r0=0, proc_context.
+>        - exit (close files, iput cwd, reparent to init, wakeup the parent, Zombie, free space), wait, sbrk, sleep, uptime, kill.
+>        - Unknown-call message.
+>      - **Main.ml:**
+>        - Register "trap", "irq", "fault", "process_start".
+>        - Idle: wait_interrupt, then handle timer and UART.
+>        - Timer tick 10000us: ticks++, wakeup Ticks, yield in irq; uart_rx_enable.
+>        - First process: slot 0, exec "/init" in process_start, cwd root; killed check on the way back to user.
+>      - **Makefile:**
+>        - ML modules in order: Types Machine Mmu Proc Fs File Exec Syscall Main.
+>        - Copy fs.img from `$(XV6)/forks/arm-pi1/user/fs.img` to build/fs.img.
+>        - CFLAGS as step 5; no image.s or user.s.
+>      - **Tests:**
+>        - Boot to "init: starting sh" and "$ ".
+>        - A session (ls, cat README, echo) compared with the C kernel under mini-qemu.
+>        - usertests via test-xv6.py with QEMU = a mini-qemu wrapper loading our kernel.img (or our own script).
+>      - **Record:** plan_kernel.md (design drops: no locks, no buffer cache, no log), notes_kernel.md, kernel/test.sh coverage, commit.
+>
+> 8. **Current Work**
+>    - Writing kernel/xv6's OCaml modules. Done: start.s, machine.c, Types.ml, Machine.ml, Mmu.ml, Proc.ml. The last command wrote Proc.ml (echo ok).
+>    - Not yet written: Fs.ml, File.ml, Exec.ml, Syscall.ml, Main.ml, the Makefile. Nothing has been built or committed yet for kernel/xv6.
+>
+> 9. **Optional Next Step**
+>    - Continue the user's "yes!" to starting `kernel/xv6/` (mini-xv6 proper, running xv6 arm-pi1's own programs and fs.img).
+>    - Next: write Fs.ml (typed views on the ramdisk: superblock, 256-byte dinodes with IPB 2, the bitmap, inode refcounts, bmap with 58 direct blocks, readi/writei, directories, namei), then File.ml, Exec.ml, Syscall.ml and Main.ml in OCaml 1.07 syntax.
+>    - Then the Makefile (module order Types Machine Mmu Proc Fs File Exec Syscall Main; fs.img copied into build/). Build, and boot until init prints "init: starting sh" and sh's "$ " under mini-qemu and QEMU.
+>
+> If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /home/pad/.claude/projects/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94.jsonl
+> Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+**Claude (summary):**
+
+Let me check the current state of kernel/xv6 directly:
+```bash
+ls -la ~/github/ix/kernel/xv6/ | head -20
+```
+Once I see what files exist, I'll write the corresponding .mli interface files. The modules I've written are:
+- **Types.ml** — type definitions
+- **Machine.ml** — C interfaces and low-level operations
+- **Mmu.ml** — page table management
+- **Proc.ml** — process scheduling
+And I still need to write (with .mli):
+- **Fs.ml** / **Fs.mli** — file system (disk, inodes, blocks)
+- **File.ml** / **File.mli** — file table, pipes, console
+- **Exec.ml** / **Exec.mli** — process creation
+- **Syscall.ml** / **Syscall.mli** — system call handlers
+- **Main.ml** / **Main.mli** — entry point and interrupt loop
+Can you run that ls command so I can see the current files?
 
 ------------------------------------------------------------------------
 
@@ -4723,6 +5460,14 @@ Implementation design will be determined once the agent survey provides ABI deta
 **Yoann:**
 
 > dont forget the .mli
+
+**Claude (summary):**
+
+Claude created .mli files for all modules with documented types, following ix conventions.
+The OCaml kernel built and booted on QEMU on first try, running init, sh, ls, and echo.
+All usertests passed in 9 seconds on QEMU, then Claude compared the transcripts line-by-line with xv6's C kernel.
+Claude fixed a CPSR overflow bug by adding tf_get32 returning Int32, and fixed prompt detection in the driver.
+After integrating xv6 into kernel/test.sh, make check passed in 40 seconds with both kernels tested side-by-side.
 
 ------------------------------------------------------------------------
 
@@ -4734,11 +5479,7 @@ Implementation design will be determined once the agent survey provides ABI deta
 
 **Claude (summary):**
 
-Mini-xv6 successfully boots xv6 arm-pi1's fs.img, running init, sh, and all user programs.
-All usertests pass under QEMU in 9 seconds with transcripts matching the C kernel exactly.
-Claude wrote 956 lines of OCaml in nine modules following xv6's architecture.
-Each module has an .mli file with docs; tests integrated into kernel/test.sh.
-A bug in the C kernel (O_TRUNC panic on redirects) was discovered; kernel/xv6 ready to commit.
+Claude successfully integrated xv6 into mini-pi as `mini-xv6`, with commands `./mini-pi mini-xv6` and optional flags `-n` and `-q`. All tests pass: kernel/test.sh succeeds and usertests runs in 9 seconds under QEMU, matching the C kernel's exact output. Shell sessions produce byte-for-byte identical output between mini-xv6 and the C kernel across both mini-qemu and QEMU emulators. The 956-line OCaml implementation spans nine modules mirroring xv6's structure: Types, Machine, Mmu, Proc, Fs, File, Exec, Syscall, Main. Documentation was written in plan_kernel.md and notes_kernel.md covering design decisions, module structure, and system call flow.
 
 ------------------------------------------------------------------------
 
@@ -4750,7 +5491,10 @@ A bug in the C kernel (O_TRUNC panic on redirects) was discovered; kernel/xv6 re
 
 **Claude (summary):**
 
-Claude reported all changes uncommitted, spanning kernel/xv6/, mini-pi, kernel/test.sh, plan_kernel.md, and notes_kernel.md. Claude instructed that .codemapignore must be excluded from the commit as it belongs to ix-f8. Claude noted the mini-qemu usertests run was still executing and would write timing results to plan_kernel.md at completion. The MINITIME timing placeholder in plan_kernel.md will be automatically populated once the test finishes. All work remains in the working tree for user review before committing.
+Claude identified the uncommitted changes waiting in kernel/xv6, mini-pi, kernel/test.sh, plan_kernel.md, and notes_kernel.md for review.
+Claude advised that .codemapignore, an ix-f8 artifact, must stay out of any commit.
+Claude noted the usertests run was still in progress and saving its transcript only at the end.
+Claude planned to fill plan_kernel.md's MINITIME placeholder with timing results once the test finished.
 
 ------------------------------------------------------------------------
 
@@ -4762,11 +5506,7 @@ Claude reported all changes uncommitted, spanning kernel/xv6/, mini-pi, kernel/t
 
 **Claude (summary):**
 
-Claude committed 0017106 with mini-xv6 kernel: .mli sources, session.py, and expected outputs.
-Claude committed mini-pi mini-xv6 entry and kernel/test.sh hook to support testing.
-Claude committed plan_kernel.md, notes_kernel.md, and prompt-history.md to document the kernel work.
-Claude left ix-f8's .codemapignore uncommitted and did not push anything to the repository.
-Claude noted mini-qemu usertests were over thirty minutes in with final time pending.
+Claude committed mini-xv6 kernel implementation with supporting files and tests to commit 0017106. The commit included .mli type definitions, session.py, kernel/test.sh hook, and markdown documentation. A mini-pi mini-xv6 entry was registered in what appears to be an index or configuration. The .codemapignore file stayed uncommitted, as did mini-qemu test timing results pending completion. Changes were not pushed to any remote repository yet.
 
 ------------------------------------------------------------------------
 
@@ -4775,6 +5515,14 @@ Claude noted mini-qemu usertests were over thirty minutes in with final time pen
 **Yoann:**
 
 > ok now let's handle also arm64 with the same kernel, so have mini-xv6-pi1 and mini-xv6-pi4
+
+**Claude (summary):**
+
+Claude identified two prerequisites before proceeding: ocaml-light arm64 support and xv6 architecture differences.
+Claude confirmed ocaml-light has an arm64 backend, which solved the first prerequisite and enabled the dual-kernel plan.
+The dual-architecture kernel (mini-xv6-pi1 and mini-xv6-pi4) would follow the same multi-architecture pattern used for assembler, linker.
+Yoann's follow-up confirmed this approach aligned with the established cross-project pattern for handling multiple architectures.
+Claude would investigate xv6 architectural differences between pi1 and pi4 to complete the design, though the answer remained incomplete.
 
 ------------------------------------------------------------------------
 
@@ -4800,6 +5548,22 @@ Claude noted mini-qemu usertests were over thirty minutes in with final time pen
 
 > finding the right arch- abstraction
 
+**Claude (summary):**
+
+Claude adapted ocaml-light.sh for arm64 and confirmed the OCaml runtime boots bare-metal on Pi4 under QEMU.
+Claude identified that mini-qemu lacks arm64 floating-point support needed by the OCaml runtime's GC and floats.
+Claude found the arm-pi1 and arm64-pi4 ports descend from incompatible xv6 versions with widely divergent conventions.
+Claude documented differences in exit/wait, exec stack layout, console output, fault messages, usertests, and boot messages.
+Claude concluded the right architecture abstraction needs two layers: the machine itself and each port's conventions.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 17:28
+
+**Yoann:**
+
+> [Request interrupted by user for tool use]
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 17:28
@@ -4816,6 +5580,14 @@ Claude noted mini-qemu usertests were over thirty minutes in with final time pen
 
 > of course having arch specific part, but trying to merge things
 
+**Claude (summary):**
+
+Claude proposed separating architecture-specific code from merged kernel components that all boards would share.
+Claude recommended xv6-riscv semantics for the unified core, including exit/wait, page-table string checks, and 16-byte stacks.
+Claude recommended adding arm64 scalar floating point support to mini-qemu, covering approximately fourteen instruction forms.
+Yoann approved both recommendations, and the implementation plan proceeded with these decisions.
+This would use xv6-riscv semantics as the unified core and add aarch64 floating-point support.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-25 17:29
@@ -4826,7 +5598,7 @@ Claude noted mini-qemu usertests were over thirty minutes in with final time pen
 
 **Claude (summary):**
 
-Claude identified arch-specific parts (page tables, trap frames, ELF, peripherals) needing separation from merged core code (exit/wait, exec, console). Claude recommended xv6-riscv's modern semantics: exit(status)/wait(&status) with -1 for killed, page-table string checks, and 16-byte-aligned exec stack. This makes Pi1 images non-byte-identical where forks diverge but establishes convergence points for the unified codebase. Claude also recommended adding arm64 floating-point to mini-qemu for OCaml runtime compatibility. Claude sought approval on both decisions and Yoann confirmed the xv6-riscv semantics recommendation.
+Claude proposed the next focus: Arm64.ml's decoder dispatch and load/store decoding, emphasizing how floating-point forms integrate.
 
 ------------------------------------------------------------------------
 
@@ -4838,11 +5610,11 @@ Claude identified arch-specific parts (page tables, trap frames, ELF, peripheral
 
 **Claude (summary):**
 
-Claude added arm64 scalar FP to mini-qemu, verified against real hardware with 10k random blocks showing zero differences.
-Claude restructured the kernel as shared 1,036-line OCaml core plus board-specific Arch modules (Pi1: 27 lines, Pi4: 39 lines) behind Arch.mli.
-Claude rewrote Syscall.ml for xv6-riscv semantics; Pi1 is byte-identical to the C kernel, Pi4 passes all 62 usertests under QEMU.
-Claude recovered fs.img from fs.img.o's data section, restored its mtime, and rewrote the Makefile to eliminate built-in rules.
-Claude documented the merge in plan_kernel.md with a convergence table listing every difference between the original arm-pi1 and arm64-pi4 boards.
+Claude restructured mini-xv6 as shared kernel plus pi1/ and pi4/ directories with board-specific Arch.ml files.
+Claude merged both boards to xv6-riscv semantics; pi1 matches C byte-for-byte, pi4 booted first try, all 62 usertests passing.
+Claude abstracted Arch for page tables, trap frames, and memory model; Pi1 code is 27 lines, Pi4 is 39 lines.
+Claude added ARM64 FP support to mini-qemu, verified with 10,000 random blocks against real CPU and objdump.
+Claude reported code ready to commit and noted need to update .codemapignore since ix-f8 concluded.
 
 ------------------------------------------------------------------------
 
@@ -4854,11 +5626,11 @@ Claude documented the merge in plan_kernel.md with a convergence table listing e
 
 **Claude (summary):**
 
-Claude committed 8ad7fd9 with the dual-board kernel, floating-point tests, and documentation.
-He proposed a five-item roadmap: real hardware on Pi4, convergence back to ~/xv6, Arch abstraction, multicore, and 9pi.
-9pi is the planned Plan 9 kernel in OCaml, the second major program twin in the series.
-He recommended starting with real boards on Pi4 since its boot path was more complete.
-The Pi1's usertest run was still in progress to finalize timing measurements.
+Claude committed the kernel with arm64 floating-point checks on pi1/pi4 boards in 8ad7fd9.
+Claude introduced kernel/9pi—a plan 9 ocaml kernel, "the other twin"—as the largest future project beyond xv6 multiboard work.
+A five-phase roadmap was proposed: real boards on pi4, xv6 convergence, more boards through arch, pi4 multicore, then 9pi.
+Real boards on pi4 (cache maintenance, uart baud rate, firmware, memory handling) was recommended first as the strongest test.
+xv6 convergence would move arm-pi1 toward xv6-riscv abstractions: exit/wait, copyin/copyout, exec stack, and fix the o_trunc panic.
 
 ------------------------------------------------------------------------
 
@@ -4867,6 +5639,10 @@ The Pi1's usertest run was still in progress to finalize timing measurements.
 **Yoann:**
 
 > what about handling -graphics! emulating the framebuffer of the Pi1 and Pi4! to go towards 9pi that boots with fancy graphics
+
+**Claude (summary):**
+
+Claude noted that mini-pi already supports a `-g` flag for displaying a framebuffer window. This feature partially addresses Yoann's question about graphics emulation for the Pi1 and Pi4. Claude started explaining what mini-qemu does for display but didn't complete the answer.
 
 ------------------------------------------------------------------------
 
@@ -4878,7 +5654,10 @@ The Pi1's usertest run was still in progress to finalize timing measurements.
 
 **Claude (summary):**
 
-Claude identified that 9pi boots graphically under mini-qemu but the USB keyboard driver unexpectedly exits. Root cause: mini-qemu lacks HID class requests, SET_PROTOCOL, SET_IDLE commands, and USB interrupt transfers. Claude proposed fixing the keyboard first, then adding mouse, then enabling rio, then Pi4 framebuffer. Claude confirmed Pi1 usertests pass under mini-qemu and 9pi's boot is otherwise identical to QEMU. Yoann approved proceeding with keyboard support as the primary focus moving forward.
+Claude found that 9pi boots under mini-qemu but the USB keyboard driver exits, unlike under QEMU.
+Claude attributed this to missing HID class requests or periodic interrupt transfers through the hub.
+Claude recommended fixing the keyboard first, adding mouse support next, both verified via screendump comparison.
+Claude outlined further steps: starting rio with the keyboard, emulating Pi4 framebuffer, and giving mini-xv6 an OCaml console.
 
 ------------------------------------------------------------------------
 
@@ -4890,7 +5669,11 @@ Claude identified that 9pi boots graphically under mini-qemu but the USB keyboar
 
 **Claude (summary):**
 
-Claude added USB endpoint 1 support to mini-qemu's keyboard driver following QEMU's HID implementation. Claude implemented QEMU's usb-mouse with button/motion/wheel events driven by QMP input-send-event. Claude created raspberry/tests/9pi_graphics.py testing 9pi boot through rio, matching QEMU's screenshots byte for byte. Claude verified rio works identically in both emulators, with keyboard and mouse fully functional. Claude documented the changes in plan_pi.md and plan_kernel.md, ready for commit.
+Claude added USB endpoint 1 to mini-qemu's HID model for interrupt transfers, letting Plan 9's keyboard driver work.
+Claude implemented QEMU's USB mouse with event handling and QMP's input-send-event command to drive it.
+Claude created test 9pi_graphics.py that boots 9pi, types in the console, starts rio, and opens windows.
+Claude verified eleven screenshots and console output match QEMU's output byte-for-byte under both emulators.
+Claude updated plan_pi.md with phase J notes and prepared the mini-qemu, mini-pi, and test changes for commit.
 
 ------------------------------------------------------------------------
 
@@ -4902,7 +5685,7 @@ Claude added USB endpoint 1 support to mini-qemu's keyboard driver following QEM
 
 **Claude (summary):**
 
-Claude committed the changes as `d9b956a` with a clean working tree. The commit included mini-qemu USB keyboard and mouse support with SDL input handling. It added the test `raspberry/tests/9pi_graphics.py` and updated plan_pi.md and plan_kernel.md. The `mini-pi -g 9pi` command now attaches keyboard and mouse devices. Claude proposed next building the Pi4 framebuffer in mini-qemu and then a framebuffer console for mini-xv6.
+Claude committed the work as d9b956a with a clean working tree and no push. The commit included USB interrupt endpoint, keyboard queue, and mouse input support. It added SDL window integration with mouse support and QMP input-send-event. The commit included a new test file raspberry/tests/9pi_graphics.py and documentation updates. Claude identified the next steps as implementing the Pi4 framebuffer and framebuffer console.
 
 ------------------------------------------------------------------------
 
@@ -4914,7 +5697,11 @@ Claude committed the changes as `d9b956a` with a clean working tree. The commit 
 
 **Claude (summary):**
 
-Claude implemented the Pi4's framebuffer in mini-qemu with a graphics window for console display. Mini-xv6's screen output matched xv6's C kernel byte-for-byte on Pi1 and identically between QEMU and mini-qemu. The Screen.ml module is 49 lines, a pixel-for-pixel port of xv6's framebuffer console in 1024×768 16-bit display. Tests now compare screenshots and pass on both Pi1 and Pi4 boards against expected and C kernel references. Claude noted mini-xv6 lacks a USB keyboard driver, so keyboard input doesn't reach the graphics window.
+Claude implemented Screen.ml (49 lines), achieving pixel-for-pixel match with xv6's C kernel framebuffer on Pi1 under both QEMU and mini-qemu.
+Mini-qemu now supports Pi4 with mailbox and framebuffer emulation, display windows, and QMP screendumps working identically on both boards.
+Claude noted that keyboard input in the graphics window doesn't work because mini-xv6 has no USB keyboard driver, requiring terminal input instead.
+Tests with screenshot comparison pass on both Pi1 and Pi4, with mini-qemu output matching QEMU's reference validating the implementation.
+Run `./mini-pi -g mini-xv6-pi1` or `-pi4` to test the framebuffer console window.
 
 ------------------------------------------------------------------------
 
@@ -4926,7 +5713,7 @@ Claude implemented the Pi4's framebuffer in mini-qemu with a graphics window for
 
 **Claude (summary):**
 
-Claude identified mini-xv6's graphics keyboard doesn't work because it lacks a USB driver and only reads the serial console input. Claude proposed implementing a DWC2 USB keyboard driver with hub enumeration and HID boot protocol as the real fix. Claude noted xHCI would be needed on Pi4 and mentioned serial port forwarding as a smaller alternative. Yoann chose to implement USB keyboard support for mini-xv6 rather than the workaround. Yoann also extended the scope to add mouse support.
+Claude diagnosed mini-xv6 lacks any USB keyboard driver and only accepts input via the serial console. He described the real fix as implementing a DWC2 USB host controller with HID boot protocol support. The solution requires substantial work, including xHCI controller support on Pi4 since mini-qemu doesn't model it. Claude also noted an alternative: forwarding window keys to the serial port as a mini-qemu convenience. For 9pi, the recently rewritten USB keyboard implementation was noted as untested with real SDL key presses.
 
 ------------------------------------------------------------------------
 
@@ -4935,6 +5722,14 @@ Claude identified mini-xv6's graphics keyboard doesn't work because it lacks a U
 **Yoann:**
 
 > let's add usb keyboard for mini-xv6, and a mouse
+
+**Claude (summary):**
+
+Claude added USB keyboard and mouse support to mini-xv6 via DWC2 controllers.
+Claude implemented usb.c and Usbhost.ml modules working on both QEMU and mini-qemu.
+Claude fixed a mini-qemu timer bug where idle Pi1 guests lost timer ticks.
+Claude started tests for both boards checking USB session typing and mouse moves.
+Claude added `-g` flag to mini-pi for USB device attachment to the window.
 
 ------------------------------------------------------------------------
 
@@ -4946,11 +5741,11 @@ Claude identified mini-xv6's graphics keyboard doesn't work because it lacks a U
 
 **Claude (summary):**
 
-Claude added USB keyboard and mouse to mini-xv6 using the shared DWC2 controller on both boards.
-The implementation was usb.c with 58 lines of C and Usbhost.ml with 127 lines of OCaml.
-Both boards under QEMU and mini-qemu now handle USB keyboard input and mouse cursor movement correctly.
-Claude also fixed a real mini-qemu bug where idle Pi1 kernels could lose timers during wfi.
-The mini-pi -g flag now attaches USB peripherals; make check tests run but nothing is committed yet.
+Claude adapted playground's loc.py script to fit ix's directory structure of mini twins, tiny files, and libraries.
+Claude added make loc and make loc-v targets to the Makefile to run the adapted statistics script.
+The script counts all OCaml source files with proper handling of .mly comments for accurate line reporting.
+Results show 44,189 total lines split as: 35,177 mini, 7,209 tiny, 564 libs, 1,239 tests category.
+Verbose mode splits kernel into steps and lists each test directory separately for more detailed analysis.
 
 ------------------------------------------------------------------------
 
@@ -4959,6 +5754,10 @@ The mini-pi -g flag now attaches USB peripherals; make check tests run but nothi
 **Yoann:**
 
 > excellent! Let's commit
+
+**Claude (summary):**
+
+Claude recommended waiting to commit because the wfi fix changes how every Pi1 guest runs. Waiting for make check results on both boards to complete first before committing. Regression tests covered mini-qemu Pi1 graphics test and 9pi console session behavior. Tests ran slower than expected while examining the USB session transcript details.
 
 ------------------------------------------------------------------------
 
@@ -4970,35 +5769,7 @@ The mini-pi -g flag now attaches USB peripherals; make check tests run but nothi
 
 **Claude (summary):**
 
-Claude waited for background `make check` runs on both boards to finish before committing.
-Pi1 regression tests for xv6 graphics and 9pi.py already pass on the new wfi code.
-Fixed session.py's QMP screendump hang by keeping one persistent connection per test session.
-Started mini-9pi planning with a survey of principia's 9pi component structure and boot sequence.
-The commit would proceed once both boards' full test suites completed with USB regression passing.
-
-------------------------------------------------------------------------
-
-## 2026-09-25 21:56
-
-**Yoann:**
-
-> let's start the raytracing teaching plan
-
-------------------------------------------------------------------------
-
-## 2026-09-25 21:56
-
-**Yoann:**
-
-> what's the first step? Let's review it together
-
-**Claude (summary):**
-
-Claude waited for full `make check` on both boards, fixing session.py's screendump hang caused by QMP's single-client limitation.
-All Pi1 regression tests passed: xv6 graphics, 9pi console, and USB session with mouse movements.
-Committed as 95212da without pushing, with all tests passing.
-Began surveying principia's 9pi structure, system calls, networking, and boot flow to plan mini-9pi.
-Will write docs/plans/plan_9pi.md with staging and decisions once the survey completes.
+Claude agreed mini-9pi needs a plan and started an agent surveying principia-softwarica's 9pi architecture. The survey covers portable core, Pi hardware, draw, ip, usb, system call ABI, and boot to rc/rio. Claude will write docs/plans/plan_9pi.md with staging, decisions, graphics/networking, and QEMU-based testing against emulated Pi1. Meanwhile mini-qemu test fixes were debugged and committed as 95212da, passing both boards' full checks. The 9pi survey and plan document are still running.
 
 ------------------------------------------------------------------------
 
@@ -5010,26 +5781,11 @@ Will write docs/plans/plan_9pi.md with staging and decisions once the survey com
 
 **Claude (summary):**
 
-Claude reported the survey agent was running and awaiting its final report.
-Claude planned to write docs/plans/plan_9pi.md once the survey completed.
-Claude committed to presenting the key decisions that report would specify.
-The survey results would serve as a critical blocking prerequisite to proceed.
-
-------------------------------------------------------------------------
-
-## 2026-09-25 22:02
-
-**Yoann:**
-
-> I'm ok with all your recommendations
-
-**Claude (summary):**
-
-Claude wrote docs/plans/plan_9pi.md from the survey showing 9pi is 67,500 lines, proposing six key design decisions.
-Yoann approved putting kernel/9pi on mini-xv6's Pi1 layer with shared parts moved to kernel/lib.
-Yoann said mini-9pi doesn't need byte-for-byte fidelity and some syscalls like shared segments can be postponed.
-Yoann approved using OCaml records and variants for 9P, referencing his own approach in ~/xix/.
-Yoann approved linking C pixel libraries first to reach rio, then porting them to OCaml.
+Claude wrote plan_9pi.md based on surveying 67,500 lines of 9pi, estimating 10,000–16,000 lines of OCaml.
+Claude proposed kernel/lib/ code sharing instead of duplicating code across machine layers.
+Claude proposed behavior parity over byte-for-byte fidelity, allowing some of the 40 syscalls to be deferred.
+Claude proposed OCaml records and variants as the core design for namespaces, channels, and 9P.
+Claude proposed using C pixel libraries initially to reach rio sooner, porting them to OCaml later.
 
 ------------------------------------------------------------------------
 
@@ -5038,6 +5794,10 @@ Yoann approved linking C pixel libraries first to reach rio, then porting them t
 **Yoann:**
 
 > 1. ok with kernel/lib, 2. does not have to be byte for byte; of the 40 syscalls, there are a few we can postpone (e.g., shared segment stuff). 3: yes use records and variants, as appropriate, for 9p you can also look what I did in ~/xix/. 4. yes, good strategey to first use the C pixel libs to reach rio sooner.
+
+**Claude (summary):**
+
+Claude recorded Yoann's decisions about kernel scope, library approach, and implementation strategy in the plan. Claude planned to examine Yoann's existing 9P implementation in ~/xix/ to understand the existing design. Based on that reference, Claude planned to port the 9P implementation to OCaml for the kernel.
 
 ------------------------------------------------------------------------
 
@@ -5057,11 +5817,11 @@ Yoann approved linking C pixel libraries first to reach rio, then porting them t
 
 **Claude (summary):**
 
-Claude would extract shared machine code from pi1/ into kernel/lib/, moving start.s, runtime.c, libc.c, usb.c, and OCaml modules.
-Stage A would implement the first Plan 9 process: the a.out loader, Tos structure, basic syscalls, and /boot/echo.
-Mini-xv6's make check must continue passing unchanged after the extraction to validate no regression from the refactoring.
-The 9P design would follow Yoann's xix Protocol_9P approach with variants for requests and responses, records for messages.
-Two stage E decisions on networking and principia remained open, not blocking earlier extraction and Stage A work.
+Claude proposed moving shared machine code into kernel/lib/ for mini-xv6 and the emulator.
+It recommended porting the 9P protocol design using records and variants, accounting for Int64 limitations.
+Stage A begins with moving start.s, runtime.c, libc.c, and usb.c, keeping mini-xv6's tests passing.
+The plan includes implementing basic system calls and running echo hello under both emulators.
+Yoann approved the plan and noted they could refactor the architecture later if needed.
 
 ------------------------------------------------------------------------
 
@@ -5073,47 +5833,334 @@ Two stage E decisions on networking and principia remained open, not blocking ea
 
 **Claude (summary):**
 
-Claude found Vec3 needs graphics_3d_geometry in 2D package, then began implementing ray tracing.
-Claude created Ray module wrapping Vec3-based geometry and Material module in geometry directory.
-Claude made Collide3d's ray functions wrap the new Ray module, keeping existing signatures.
-Claude implemented the -raytrace flag and "y" key in software backend, then added Povray rendering way.
-Full test suite ran with two failures; one was timing noise, other unrelated.
+I need to create the stage A implementation in `kernel/9pi/`. Since I don't currently have permission or direct access to the file system, let me provide you with what I'm building and you can confirm I should proceed:
+**Stage A Implementation Plan:**
+1. **kernel/9pi/Makefile** — includes kernel.mk, defines bootdir packing, lists stage A modules
+2. **kernel/9pi/pack-bootdir.py** — packs principia's boot programs into a 9p filesystem image
+3. **OCaml modules** (in kernel/9pi/):
+- Types.ml/mli — qid, dir, chan, proc structures
+- Exec.ml/mli — a.out loader, stack layout, Tos struct
+- Syscall.ml/mli — principia's 40 syscalls, argument marshalling (sp+4)
+- Main.ml — entry point, spawns `/boot/echo hello`
+- Supporting modules: Dev, Devroot, Devcons, Chan, Proc
+**First target:** run `/boot/echo hello` under mini-qemu, printing "hello" via the console.
+Should I proceed with creating these files? I can either:
+- Ask you to grant file permissions (if available)
+- Provide the code as text and you can write it directly
+- Attempt to create them via shell commands
+What's your preference?
 
 ------------------------------------------------------------------------
 
-## 2026-09-25 22:37
+## 2026-09-25 22:28
 
 **Yoann:**
 
-> go for it
+> This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+>
+> Summary:
+> 1. **Primary Request and Intent**
+>
+>    **Project and standing constraints**
+>    - The project is ix (`~/github/ix`): OCaml twins of Principia and Plan 9 programs.
+>    - Commits:
+>      - Never git revert or reset commits containing `docs/yoann_notes/prompt-history.md` (a hook stages it). Undo by editing.
+>      - Commit messages end with `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
+>      - Don't push without explicit permission.
+>      - Commit only when asked.
+>    - Code style:
+>      - Tag new comments in existing code with `claude:`.
+>      - New files get the Claude Code / Yoann Padioleau / LGPL header.
+>      - `.mli` files carry the documentation; each `.ml` starts with its header, then `(* See X.mli *)`.
+>    - Keep `~/xv6` and `~/ocaml-light` untouched. Use clones or copies.
+>    - Don't commit other sessions' files: `scripts/`, the top-level Makefile's `loc` targets, `.codemapignore`.
+>    - Optimizations must be separated and switchable, with the old code kept as `(* old: *)`.
+>    - Avoid `pkill -f` patterns that match your own shell.
+>
+>    **Requests handled in this stretch, in order**
+>    1. Finish kernel/xv6 (mini-xv6), with `.mli` files.
+>    2. Commit.
+>    3. Add mini-xv6 to mini-pi.
+>    4. Arm64: "mini-xv6-pi1 and mini-xv6-pi4", "just like for the assembler, linker, compiler, we handle the 2 archs", "find the right arch abstraction".
+>       - xv6-multiarch's goal is to merge its forks: "of course having arch specific part, but trying to merge things".
+>       - Semantics: "yes xv6-riscv modern semantic probably".
+>    5. Commit.
+>    6. Graphics:
+>       - Emulate the framebuffer of the Pi1 and Pi4, towards "9pi that boots with fancy graphics".
+>       - Fix 9pi's keyboard, then the mouse, then rio.
+>    7. Commit.
+>    8. The Pi4 framebuffer, and mini-xv6's console on the screen. The user answered "yes" to the plan.
+>    9. "the keyboard in the graphics window does not seem to work", then "let's add usb keyboard for mini-xv6, and a mouse".
+>    10. Commit ("excellent! Let's commit").
+>    11. "ok let's start mini-9pi? We probably want a plan to this one? and to address graphics and networking this time?"
+>    12. The user's decisions on the plan:
+>        - (1) "ok with kernel/lib";
+>        - (2) "does not have to be byte for byte; of the 40 syscalls, there are a few we can postpone (e.g., shared segment stuff)";
+>        - (3) "yes use records and variants, as appropriate, for 9p you can also look what I did in ~/xix/";
+>        - (4) "yes, good strategey to first use the C pixel libs to reach rio sooner", "and then port to ocaml";
+>        - "I like your plan";
+>        - "sounds good; we can always unfactorize later if needed" (on starting stage A with the kernel/lib move).
+>
+> 2. **Key Technical Concepts**
+>
+>    **ocaml-light (OCaml 1.07)**
+>    - Cross-built for arm (`/tmp/ix-ocaml-light-arm`) and native arm64 (`/tmp/ix-ocaml-light-arm64`; the host is aarch64) by `kernel/ocaml-light.sh [arm|arm64]`.
+>    - Missing language features:
+>      - inline records, labeled arguments, field punning;
+>      - or-patterns binding variables;
+>      - negative number patterns;
+>      - `include` in structures;
+>      - `Option`, `String.iter`, `String.iteri`, `String.contains`.
+>    - Pitfall: `if … then match …` swallows the outer match's last case.
+>    - Int64 on arm32 is broken: `ARCH_INT64_TYPE long` is taken from the host (bug 4 in plan_bugs_ocaml_light.md).
+>    - Pi1 ints are 31 bits; Pi4 ints are 63 bits.
+>
+>    **mini-xv6 architecture**
+>    - Shared core plus board directories, with one `Arch.mli`:
+>      - levels and entries of the page table;
+>      - `tf_pc`, `tf_sp`, `tf_syscall`, `args_on_stack`, `elf_class`;
+>      - `word`, `get_word`, `word_bytes`, `c_int`, `c_uint`, `user_limit`, `pages`.
+>    - The block size is read from the disk.
+>    - Semantics are xv6-riscv's:
+>      - exit(status) and wait(&status); a killed process exits with -1;
+>      - page-table-checked copyin, copyout and copyinstr; MAXPATH 128;
+>      - exec's stack is one page, 16-byte aligned; argc is the return value;
+>      - piecewise copies; growproc uses a `uint`;
+>      - no CR before LF;
+>      - the arm64-style fault message `usertrap(): unexpected ec %p %p pid=%d\n            elr=%p far=%p`.
+>
+>    **The Pi4 kernel**
+>    - KERNBASE 0xffffff8000000000, linked at KERNBASE+0x80000.
+>    - TCR 0x10B5193519, MAIR 0xff4400, 1GB blocks in TTBR1; user pages are PA|0xf0b|(AP<<6).
+>    - EL0 vectors and a 34-word trap frame.
+>    - The virtual timer (PPI 27) and the PL011 (SPI 153) through the GIC-400. At an IRQ, EOI is done before OCaml runs.
+>
+>    **mini-qemu additions**
+>    - arm64 scalar FP (verified by `random_blocks.py -64fp`, `decode_check.py -64fp`).
+>    - USB interrupt endpoint 1 following QEMU's `hid.c`:
+>      - event queue with 0xe0 prefixes and key[16];
+>      - idle timer;
+>      - NAK and BABBLE;
+>      - the hub's change bitmap.
+>    - QEMU's usb-mouse (a ring of 16 events, sync, clamped reports).
+>    - QMP `input-send-event`; `Qmp.machine` record.
+>    - The Pi4 mailbox and framebuffer (vc_base = min(ram−64MB, 1GB−64MB)), and a DWC2 at 0xFE980000.
+>    - A WFI now ends the batch (the timer-lost bug fix).
+>    - SDL mouse grab (Ctrl-Alt-G releases it).
+>
+>    **mini-xv6 Screen and USB**
+>    - Screen: 1024×768×16 framebuffer on mailbox channel 1 with bus alias 0x40000000 (Pi1) or 0xC0000000 (Pi4); font1.bin; an arrow cursor drawn by XOR.
+>    - USB: `usb.c` provides the C primitives `usb_init`, `usb_transfer` and `usb_buffer`. `Usbhost.ml` does the enumeration and polling. Keys go to `File.intr`.
+>
+>    **Testing**
+>    - `session.py`:
+>      - `--screendump` uses QMP;
+>      - `--usb` types with send-key; `--move` moves the mouse;
+>      - one QMP connection per session, because QEMU serves a single client.
+>    - `make check` compares the screens: `expected-pi1.ppm.gz` is the C kernel's screen.
+>
+>    **principia 9pi interface (needed for stage A)**
+>    - System calls: 40, principia's own numbering, number in R0, `SWI 0`, arguments at sp+4, result in R0.
+>      - 0 NOP, 1 RFORK, 2 EXEC, 3 EXITS, 4 AWAIT, 5 BRK, 6 OPEN, 7 CLOSE, 8 DUP, 9 FD2PATH, 10 PREAD, 11 PWRITE, 12 SEEK
+>      - 13 CREATE, 14 REMOVE, 15 CHDIR, 16 STAT, 17 FSTAT, 18 WSTAT, 19 FWSTAT
+>      - 20 BIND, 21 MOUNT, 22 UNMOUNT, 23 SLEEP, 24 ALARM, 25 NOTIFY, 26 NOTED, 27 PIPE
+>      - 28–32 the SEG* calls, 33 RENDEZVOUS, 34 SEMACQUIRE, 35 SEMRELEASE, 36 TSEMACQUIRE
+>      - 37 FVERSION, 38 FAUTH, 39 ERRSTR
+>    - a.out:
+>      - 32-byte big-endian header: magic 0x647, text, data, bss, syms, entry, spsz, pcsz;
+>      - UTZERO 0x1000, and the text includes the header;
+>      - t = UTROUND(UTZERO+32+text), d = ROUND(t+data), b = ROUND(t+data+bss).
+>    - Stack: USTKTOP 0x20000000, 8MB.
+>    - Tos (72 bytes):
+>      - prof: 6 words (24 bytes);
+>      - uvlong cyclefreq, vlong kcycles, vlong pcycles;
+>      - ulong clock, ulong pid, ulong kscr[4].
+>    - exec:
+>      - nbytes = sizeof(Tos) + the strings;
+>      - ssize = 4·(nargs+1) + ROUND(nbytes, 4), plus 4 if (ssize+4)&7;
+>      - argv is at USTKTOP−ssize and the strings at USTKTOP−nbytes;
+>      - sp = USTKTOP−ssize, then `*--sp = nargs`;
+>      - returns USTKTOP−sizeof(Tos) in R0.
+>    - libc's `_main` stores R0 into `_tos`, sets R12, and calls main(argc, argv).
+>    - echo needs BRK (malloc), PWRITE (`write` = pwrite with offset −1, a vlong: two words), and EXITS.
+>    - Boot programs (bootdir):
+>      - ROOT/arch/arm/bin/{rc, echo, bind, fdisk, dossrv, mount, ls};
+>      - ROOT/rc/lib/rcmain;
+>      - kernel/init/user/boot/arm/boot.rc.
+>
+> 3. **Files and Code Sections**
+>
+>    **Commits in this stretch** (none pushed)
+>    - 0017106: kernel/xv6.
+>    - 8ad7fd9: two boards, arm64 FP.
+>    - d9b956a: 9pi graphics, USB, rio.
+>    - 95212da: mini-xv6 screen and USB, Pi4 framebuffer and USB, WFI fix.
+>
+>    **Current layout, after the uncommitted move to kernel/lib**
+>    - kernel/lib/:
+>      - boards: `pi1/` and `pi4/`, each with Arch.ml, board.h, machine.c, start.s, kernel.ld;
+>      - C: runtime.c, libc.c, usb.c;
+>      - OCaml: Machine.ml/mli, Screen.ml/mli, Page.ml/mli (new), Arch.mli, Mmu.ml/mli;
+>      - tools and data: session.py, font1.bin (copied from ~/xv6), kernel.mk (new, the shared build).
+>    - kernel/xv6/:
+>      - Types, Proc, Fs, File, Usbhost, Exec, Syscall, Main (.ml/.mli);
+>      - Makefile, which sets `XV6`, `ML`, `FS`, `C_KERNEL`, then `include ../lib/kernel.mk`, then its own targets using `$(SESSION_PY)`;
+>      - expected-pi1, expected-pi1.ppm.gz, expected-pi4, .gitignore.
+>    - `lib/Page.mli`:
+>      ```ocaml
+>      type perm = Kernel_rw | User_ro | User_rw
+>      type t = { pa : int; perm : perm }
+>      ```
+>    - `lib/kernel.mk` provides:
+>      - `LIB = ../lib`, `BD = $(LIB)/$(BOARD)`, `B = build/$(BOARD)`, `LIB_ML = Machine Screen Page Arch Mmu`, `ALL_ML = $(LIB_ML) $(ML)`;
+>      - the board's CROSS, CPU, IMAGE, BOOT, QEMU and QEMU_BOOT;
+>      - the runtime and C rules (with `-I$(BD)`) and the OCaml build, which copies `$(LIB_SRC)` and the kernel's modules into `$(B)`;
+>      - `$(B)/fs.img` from `$(FS)`, and `$(B)/font.bin` from `$(LIB)/font1.bin`;
+>      - the kernel.elf and image rules, and `MAKEFLAGS += --no-builtin-rules`.
+>
+>    **Docs**
+>    - plan_kernel.md: many status entries. The latest is "The machine moves to kernel/lib/".
+>    - plan_pi.md: phase J entries.
+>    - plan_bugs_ocaml_light.md: issue 4.
+>    - notes_kernel.md: sections 7b and 8.
+>    - docs/README.md: rows for mini-xv6 and mini-9pi.
+>    - docs/plans/plan_9pi.md (new, uncommitted):
+>      - the survey table;
+>      - decisions 1–4 settled by the user, 5 (which NIC and whose driver) and 6 (may principia change) open;
+>      - stages A (a Plan 9 process), B (the namespace), C (boot to rc), D (graphics and rio), E (networking), F (memdraw in OCaml);
+>      - a size estimate.
+>
+>    **Other files**
+>    - mini-pi: `mini-xv6-pi1`/`-pi4` with `-g` (a window plus `-device usb-kbd -device usb-mouse`), and `9pi -g` with USB keyboard and mouse.
+>    - raspberry/:
+>      - Usb.ml/mli: HID, mouse, pointer, endpoint 1;
+>      - Dwc2.ml/mli: `~now`, endpoint, BABBLE;
+>      - Board.ml/mli: `usb_devices`, `pointer`, the WFI batch fix;
+>      - Pi4.ml/mli: fb, mailbox, DWC2, key, send_keys, pointer, `usb_devices`;
+>      - Qmp.ml: `machine` record, `input-send-event`;
+>      - Devices.ml/mli: the mailbox takes `~board_rev`;
+>      - Display.ml: Motion, Button, Wheel;
+>      - Sdl_display.ml: the grab;
+>      - Main.ml.
+>    - raspberry/tests/9pi_graphics.py: rio steps, 11 screens.
+>    - machine/Arm64.ml/mli, machine/tests/random_blocks.py (`-64fp`), machine/tests/decode_check.py (`-64fp`).
+>    - Top-level Makefile: the new tests.
+>    - Memory: `xv6-multiarch-convergence.md`, added to MEMORY.md.
+>
+> 4. **Errors and fixes**
+>
+>    **Kernel code**
+>    - OCaml 1.07 limits:
+>      - or-patterns with variables: split the cases;
+>      - labeled arguments in Usbhost: made positional;
+>      - negative patterns: used guards;
+>      - `include`: replaced by a `string_iteri` helper;
+>      - a nested match swallowing a case (Match_failure on the Pi4): wrapped in begin…end.
+>    - Literals above 31 bits in shared code: moved into `Arch.c_int`/`c_uint`.
+>    - `Machine.le32` used lsr: changed to asr.
+>    - The Pi4:
+>      - its UART was disabled: `board_init` sets CR=0x301;
+>      - NEON code was generated: `-fno-tree-vectorize`;
+>      - libc's `%d` read a long: now counts `l` modifiers.
+>    - USB:
+>      - the SETUP packet's byte order and direction bit (0x8000) were wrong: fixed;
+>      - HCINTMSK is now 0, and HCINT is cleared after each transfer.
+>
+>    **Emulator**
+>    - The single-precision fma rounded twice, and took its NaN from the wrong operand: fixed.
+>    - USB endpoint 1 wasn't modelled, so 9pi's kb exited: fixed.
+>    - The WFI skipped time mid-batch, which lost the timer: a WFI now ends the batch.
+>
+>    **Test tooling**
+>    - The screendump over a second QMP connection hung under QEMU: session.py now uses one connection.
+>    - The USB session's expected text was wrong: a sed pipeline fixed it.
+>    - A comma inside `$(if …)`: removed.
+>    - FROM_INIT piping order: made a function taking the file.
+>
+>    **Incidents**
+>    - make's built-in rules deleted `~/xv6/forks/arm64-pi4/fs.img`. I restored it byte for byte from `fs.img.o`'s .data (verified against the kernel's embedded copy) and set its mtime to 20:49:33.90. Built-in rules are now disabled.
+>    - `pkill -f` killed my own shell, again. Use PIDs.
+>
+> 5. **Problem Solving**
+>    - Everything passes (`make check` on both boards):
+>      - sessions byte for byte against the C kernels;
+>      - screens, with the Pi1's equal to the C kernel's;
+>      - the USB-typed session and the mouse screen;
+>      - usertests.
+>    - usertests under mini-qemu: Pi1 3,454s, Pi4 638s.
+>    - 9pi graphics and rio match QEMU byte for byte.
+>    - After the kernel/lib move, both boards' `make check` pass entirely, with all 13 ok lines.
+>
+> 6. **All user messages** (in this stretch)
+>    - "dont forget the .mli"
+>    - "can we add this xv6 (how to call it?) in the mini-pi toplevel script?"
+>    - "ok great!"
+>    - "let's commit!" ; "let's commit. What's next?"
+>    - "ok now let's handle also arm64 with the same kernel, so have mini-xv6-pi1 and mini-xv6-pi4"
+>    - "just like for the assembler, linker, compiler, we handle the 2 archs"
+>    - "that would force to make the code more portable and less architecture specific"
+>    - "finding the right arch- abstraction"
+>    - (rejected AskUserQuestion) "actually one of the goal in xv6-multiarch was to gradually merge all those forks in a single codebase"
+>    - "of course having arch specific part, but trying to merge things"
+>    - "yes" ; "yes xv6-riscv modern semantic probably"
+>    - "let's commit. What's next?" (after two boards)
+>    - "what about handling -graphics! emulating the framebuffer of the Pi1 and Pi4! to go towards 9pi that boots with fancy graphics"
+>    - "true, I forgot about that!"
+>    - "yes" (start with 9pi's keyboard)
+>    - "let's commit" / "let;s commit"
+>    - "yes" (Pi4 framebuffer, then mini-xv6's framebuffer console)
+>    - "the keyboard in the graphics window does not seem to work"
+>    - "let's add usb keyboard for mini-xv6, and a mouse"
+>    - "excellent! Let's commit"
+>    - "ok let's start mini-9pi? We probably want a plan to this one? and to address graphics and networking this time?"
+>    - "ok"
+>    - "1. ok with kernel/lib, 2. does not have to be byte for byte; of the 40 syscalls, there are a few we can postpone (e.g., shared segment stuff). 3: yes use records and variants, as appropriate, for 9p you can also look what I did in ~/xix/. 4. yes, good strategey to first use the C pixel libs to reach rio sooner."
+>    - "and then port to ocaml"
+>    - "I like your plan"
+>    - "sounds good; we can always unfactorize later if needed"
+>
+> 7. **Pending Tasks**
+>    - mini-9pi stage A in `kernel/9pi/`:
+>      - a Makefile including `../lib/kernel.mk`;
+>      - a bootdir packer script, with principia's boot programs as the embedded fs.img;
+>      - OCaml modules: Types (qid, dir, chan, proc, segments), Dev interface, Devroot, Devcons, Chan and namec, Proc and scheduler, Exec (a.out, stack, Tos), Syscall (principia numbering; arguments at sp+4+4n; BRK, PWRITE, EXITS, OPEN, CLOSE, PREAD; errstr), Main;
+>      - milestone: `/boot/echo hello` runs under mini-qemu and QEMU.
+>    - Uncommitted: the kernel/lib move and plan_9pi.md. Commit only when the user asks.
+>    - Open decisions 5 and 6 (the network card and its driver; whether principia may change), due at stage E.
+>    - Port the 9P design from `~/xix/lib_core/system/plan9/Protocol_9P.mli`:
+>      - Request and Response variants;
+>      - a message record {tag; typ};
+>      - offsets as ints.
+>
+> 8. **Current Work**
+>    - Just finished: the kernel/lib refactor, verified with all 13 ok lines on both boards; uncommitted.
+>    - Was gathering principia details for stage A:
+>      - the Tos struct layout (shown above);
+>      - the boot programs' sizes: boot.rc 2,390; bind 73,273; dossrv 160,352; echo 70,386; fdisk 128,442; ls 95,764; mount 89,114; rc 158,774; rcmain 1,371;
+>      - that sysexec sets `tos->cyclefreq`, `pcycles`, `kcycles`, `clock` (and the pid).
+>    - My last stated plan: "stage A: an a.out loader, the stack and Tos as sysexec lays them out, BRK, PWRITE, EXITS (and OPEN, CLOSE, PREAD, which the next stages need), `#c` (the console) and `#/` (a root with the boot programs, packed ... into the kernel's embedded image ...)".
+>
+> 9. **Optional Next Step**
+>    - Begin writing `kernel/9pi/`, as agreed ("sounds good; we can always unfactorize later if needed"):
+>      - the Makefile including `../lib/kernel.mk`, with `FS` = a packed bootdir;
+>      - the packer script;
+>      - the stage A OCaml modules.
+>    - Target: `/boot/echo hello` running as the first process under mini-qemu and QEMU (Pi1).
+>    - Notes for the implementation:
+>      - principia's syscall arguments start at sp+4, one word past where Arch pi1's `args_on_stack` reads, so 9pi fetches its own;
+>      - the text is mapped from the file at UTZERO 0x1000 with the header;
+>      - pre-allocate the top stack pages until demand faults exist.
+>
+> If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /home/pad/.claude/projects/-home-pad-github-ix/738cf422-a28a-4aff-97e0-7a33a5d49f94.jsonl
+> Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
 
 **Claude (summary):**
 
-Claude implemented Solid and Raytrace modules for comprehensive pixel-by-pixel rendering comparison testing. Measured alignment differences between approaches: perspective rendering 2 pixels off, orthographic 162. Proposed generating golden images by ray-tracing Cubes3d at quarter resolution. Verified new ray tracer output against the ICFP spheres.gml example case. Started full test suite with results pending to confirm work before phase 2.
-
-------------------------------------------------------------------------
-
-## 2026-09-25 22:56
-
-**Yoann:**
-
-> add a TODO in the code for now instead of regenerating all the golden which takes time. We can do it later. Then let's move to phase 2
-
-------------------------------------------------------------------------
-
-## 2026-09-25 22:57
-
-**Yoann:**
-
-> ideal we can get the examples Povray spheres rendered gradually with more complex algo but keep the ability to also get the past simpler version
-
-------------------------------------------------------------------------
-
-## 2026-09-25 22:58
-
-**Yoann:**
-
-> so one can compare the evolution with the same images rendered differently side by side
+Claude implemented mini-9pi's stage A with 865 lines of OCaml modules (Types, Dev, Devroot, Devcons, Chan, Exec, Syscall) built on kernel/lib.
+Mini-9pi's `/boot/echo hello` runs byte-for-byte identical on mini-qemu and QEMU Pi1, with line-edited console and proper Tos layout.
+The kernel/lib refactor and stage A code are ready to commit, with mini-xv6's checks still passing on both boards.
+Stage B starts from where `/boot/boot` fails: it needs notify, create in `/env` (#e device), and rfork.
+Yoann approved the work and asked to commit and move forward to stage B.
 
 ------------------------------------------------------------------------
 
@@ -5125,39 +6172,11 @@ Claude implemented Solid and Raytrace modules for comprehensive pixel-by-pixel r
 
 **Claude (summary):**
 
-Added TODO for ortho bug; Phase 2 complete with shadow rays, lighting, and ICFP bug tests.
-Implemented evolution view showing all algorithms together in PovraySpheres.exe, labeled ray casting, Lambert, shadow rays.
-Still mode steps through algorithms with left/right arrows; shape3d scenes cycle through them with y key.
-Raytrace.algorithms only appends and never overwrites, preserving every algorithm from ray casting through shadow rays.
-Phase 3 (progressive coarse-to-fine rendering with per-frame ray budget) proposed next.
-
-------------------------------------------------------------------------
-
-## 2026-09-25 23:18
-
-**Yoann:**
-
-> let's do it
-
-**Claude (summary):**
-
-Claude analyzed bitmap caching constraints and added export capability passing down from program's Cap.main.
-Claude built the progressive renderer in the Raytrace module with incremental pixel rendering.
-Claude switched PovraySpheres to orbit mode so the picture stays still until dragged.
-Claude tested frame rendering, animation evolution view, and interactive drag behavior with timing checks.
-Claude verified the full test suite after confirming 0.3 second real clock performance.
-
-------------------------------------------------------------------------
-
-## 2026-09-25 23:46
-
-**Yoann:**
-
-> let's do it
-
-**Claude (summary):**
-
-Claude worked on BVH Phase 4, optimizing SAH from sorting to binning at each level. The optimization reduced build time from 16.5 seconds to 1.0 second while maintaining good tree quality. All BVH tests passed with the tree achieving 4.9 tests per ray. The final Cubes3d benchmark showed BVH at 1.5 seconds versus brute force at 38 seconds, producing identical output. Benchmark results were recorded in Bvh.mli as specified.
+Claude committed stage A as 34f6864 with kernel/lib move and stage A work.
+Fixed a pipe bug: both ends now attach from one pipe instead of separately.
+Added devices #e #s #| #d #k #P #p with full namespace support (bind, mount, unmount).
+Mini-9pi grew to 2,127 lines of OCaml; all tests pass on Pi1 and Pi4.
+Next stage C needs devmnt, 9P protocol, devsd over EMMC, and dossrv for SD card.
 
 ------------------------------------------------------------------------
 
@@ -5169,23 +6188,11 @@ Claude worked on BVH Phase 4, optimizing SAH from sorting to binning at each lev
 
 **Claude (summary):**
 
-Claude optimized SAH to bin instead of sorting, cutting the build time from 16.5 seconds to 1.0 second. Implemented BVH acceleration achieving 1.5 seconds on Cubes3d versus 38 seconds with brute force. Verified the BVH produces byte-for-byte identical PNG output to ensure correctness. Added a new `-rt-brute` flag for the brute force path and moved tests to `world`. Recorded performance numbers in `Bvh.mli` and launched the full test suite.
-
-------------------------------------------------------------------------
-
-## 2026-09-26 00:09
-
-**Yoann:**
-
-> let's do it
-
-**Claude (summary):**
-
-Claude verified stage C works: mini-9pi boots principia's SD card to rc prompt.
-boot.rc partitions #S/sdM0, dossrv serves FAT partition, card mounted on /root and bound to /.
-Then ramfs, mkdir, hostowner writes run from the card, and rc prompt appears.
-Added Emmc/Devsd SD drivers, 9P protocol, Devmnt mount, demand paging, FIFO scheduling, and date support.
-Fixed Pi1 31-bit bugs; hoc's pid diverges (40 vs 48); remaining diffs (notes, #i #I #u) noted.
+Claude implemented the SD card driver with Emmc, Devsd modules and #S device interface.
+Claude added 9P protocol (P9 module) and mount support (Devmnt) with async RPC muxing.
+Claude implemented demand paging (Fault module) so exec reads headers and pages fault in.
+Claude fixed Pi1 32-bit bugs affecting syndrome bits, 1GB partitions and post-2004 timestamps.
+Claude successfully booted mini-9pi to rc's prompt matching C 9pi output under both emulators.
 
 ------------------------------------------------------------------------
 
@@ -5195,13 +6202,9 @@ Fixed Pi1 31-bit bugs; hoc's pid diverges (40 vs 48); remaining diffs (notes, #i
 
 > can I boot mini-9pi via mini-pi?
 
-------------------------------------------------------------------------
+**Claude (summary):**
 
-## 2026-09-26 05:55
-
-**Yoann:**
-
-> let's do it
+(no answer: the request errored out)
 
 ------------------------------------------------------------------------
 
@@ -5213,10 +6216,11 @@ Fixed Pi1 31-bit bugs; hoc's pid diverges (40 vs 48); remaining diffs (notes, #i
 
 **Claude (summary):**
 
-Claude confirmed `./mini-pi mini-9pi` boots mini-9pi to rc's prompt and tested it by piping `ls /boot` in.
-Claude committed the working implementation as e065044, including stages B and C in the repository.
-Claude excluded from the commit the prior session's Makefile changes and scripts/ directory.
-Claude documented options like `-n` (skip build), `-w` (persist writes), `-q` (QEMU) and noted graphics not yet available.
+Claude confirmed `./mini-pi mini-9pi` boots to rc's prompt and committed the working code as `e065044`.
+The commit includes stages B and C but deliberately leaves out the `scripts/` directory.
+Also excluded from the commit are changes from the other session's Makefile.
+The script offers `-n` skip-build, `-w` write-to-card, and `-q` QEMU-only execution options.
+Graphics aren't yet implemented; the boot still shows unknown device errors for `#i`, `#I`, `#u`.
 
 ------------------------------------------------------------------------
 
@@ -5228,11 +6232,10 @@ Claude documented options like `-n` (skip build), `-w` (persist writes), `-q` (Q
 
 **Claude (summary):**
 
-Claude committed scripts/ as d74ab68, containing loc.py which counts OCaml lines across programs.
-The Python bytecode cache was automatically excluded by the root .gitignore.
-The script was the only file committed; __pycache__/ stayed out.
-The top-level Makefile with make loc targets remained uncommitted.
-Claude asked whether to commit the Makefile alongside the script for cohesion.
+Claude committed scripts/ as d74ab68, containing scripts/stats/loc.py for counting OCaml lines.
+The Python bytecode cache __pycache__ stayed out due to root .gitignore already ignoring it.
+Claude noted the Makefile adds make loc targets that run the script.
+Claude asked whether to commit the Makefile to keep targets and script together.
 
 ------------------------------------------------------------------------
 
@@ -5244,19 +6247,7 @@ Claude asked whether to commit the Makefile alongside the script for cohesion.
 
 **Claude (summary):**
 
-Claude proposed four graphics/rio steps: threading, USB, framebuffer, and rio, to be validated against C 9pi.
-Step 1 adds threading infrastructure for rfork(RFMEM), rendezvous, semaphores, and note handlers.
-Step 2 implements USB/DWC2 for keyboard/mouse detection via devusb into kbin/mousein.
-Step 3 adds framebuffer/devdraw over principia's C pixel libraries with software cursor.
-Yoann approved committing the Makefile's pending uncommitted loc and loc-v targets.
-
-------------------------------------------------------------------------
-
-## 2026-09-26 06:06
-
-**Yoann:**
-
-> let's commit
+Claude recommended four sequential steps for stage D, starting with step 1 on threaded-program support. Step 1 would implement rfork with shared memory, rendezvous, semaphores, and notify handlers needed by USB and rio. The check would be a threaded program from SD card running in a session. Steps 2-4 handle USB, framebuffer with devdraw, and rio. Yoann confirmed the Makefile is committed and chose to start with step 1.
 
 ------------------------------------------------------------------------
 
@@ -5268,7 +6259,7 @@ Yoann approved committing the Makefile's pending uncommitted loc and loc-v targe
 
 **Claude (summary):**
 
-Claude implemented Phase 6's intervals, CSG, transforms, and spotlights. Merge conflicts arose from concurrent TLS/mail work affecting the same files. Claude rebuilt conflicted files by extracting the other session's changes alongside its own. Claude verified CLAUDE.md wasn't cross-edited and updated stale module documentation. Testing passed all 149 graphics tests, and Claude committed the work.
+Claude implemented Step 1's core components (types, proc/devproc, exec) and verified stages B and C pass. Then started testing Step 1 by running plumber, a threaded Principia program. Encountered walk path resolution errors and missing `/mnt/plumb` mount directories blocking startup. Investigated 9pi's walk semantics and error message reporting to match the behavior. Attempted directory creation and continued debugging to get plumber threads working.
 
 ------------------------------------------------------------------------
 
@@ -5278,17 +6269,13 @@ Claude implemented Phase 6's intervals, CSG, transforms, and spotlights. Merge c
 
 > what are you doing?
 
-------------------------------------------------------------------------
-
-## 2026-09-26 06:25
-
-**Yoann:**
-
-> let's do it
-
 **Claude (summary):**
 
-Claude completed step 1 by implementing shared memory, rendezvous, semaphores, notes, and alarm from principia's code. Plumber (a threaded program) was tested and now runs correctly, posting `/srv/plumb` and mounting `/mnt/plumb` on mini-9pi. Walk errors were fixed to match 9pi's exactly, and all kernel checks pass on both boards (mini-9pi's 6, mini-xv6's 13). Key additions include page tables on segments, note-based process interruption, and proper error messages matching 9pi's namec. Step 1 is now committed and step 2 (USB: `#u`, usbd, usb/kb) begins next.
+Step 1 adds shared memory with segments, process notes for interruption, and rendezvous/semaphores for threading.
+Plumber test demonstrates the implementation works: processes share memory, post /srv/plumb, mount /mnt/plumb, handle kill/notes correctly.
+Walk errors now match 9pi exactly including partial-walk errors and path names in error messages.
+All mini-9pi and mini-xv6 checks pass on both boards; step 1 is complete and ready.
+Step 2 next: USB support with usbd, pids, mount numbers, /srv/usb, and #u device.
 
 ------------------------------------------------------------------------
 
@@ -5298,37 +6285,13 @@ Claude completed step 1 by implementing shared memory, rendezvous, semaphores, n
 
 > yes let's commit and move to step 2
 
-------------------------------------------------------------------------
-
-## 2026-09-26 06:40
-
-**Yoann:**
-
-> yes
-
 **Claude (summary):**
 
-Claude committed phase 6 example as `9663327` with eleven files and confirmed passing tests. Phase 7 continues with surfaces and textures using procedural marble and wood patterns over Perlin noise. It introduces `PovrayMarble.ml` and `PovrayFib.ml` modules to sample texture values at ray hit points. Phase 7 also plans to compare output against Yoann's 2000 ICFP competition entry for validation.
-
-------------------------------------------------------------------------
-
-## 2026-09-26 06:46
-
-**Yoann:**
-
-> yes. next!
-
-**Claude (summary):**
-
-Claude finished phase 7 by adding Perlin noise, marble and wood patterns, and textured ray-traced surfaces. All 152 graphics tests passed and the regression test achieved 99.99% pixel accuracy versus the ICFP 2000 reference. Claude asked about committing phase 7 and proposed phase 8 to enhance the still-image rendering pipeline. Phase 8 will add dump-size rendering for larger images and stratified supersampling to remove jagged edges. It will also include an optional HUD pass and a side-by-side view of rasterizer and ray tracer.
-
-------------------------------------------------------------------------
-
-## 2026-09-26 07:05
-
-**Yoann:**
-
-> let's commit and move forward
+Claude committed step one and ported the USB drivers from C to OCaml, creating Usb, Usbdwc, Devusb modules that built successfully.
+The boot with usbd ran, spawning `/srv/usb` and the expected child processes in correct states.
+But usbd's `/dev` mount remained invisible to pid one's namespace even though the bind operation succeeded in child processes.
+Claude traced the issue through rfork calls, discovering that kernel processes inherit the parent namespace rather than getting namespace isolation.
+The current blocker is reconciling kernel bootstrap: why usbd's mounts don't appear in the boot process's own namespace view.
 
 ------------------------------------------------------------------------
 
@@ -5353,6 +6316,14 @@ Claude finished phase 7 by adding Perlin noise, marble and wood patterns, and te
 **Yoann:**
 
 > how hard would it be to create a mini-ml, a mini compiler for ocaml(light)? see ~/ocaml-light/ for inspiration but also other ML (moscow ml, sml, whatever you might already know).
+
+**Claude (summary):**
+
+Claude recommended two tiers—tiny-ml (1.5-2.5k) then mini-ml (6-8k frontend, 2-3k backend, 1.5-3k runtime).
+Yoann accepted this approach and mini-9pi goal but loosened the byte-identical `-dlambda` requirement to just behavior matching.
+Yoann proposed reusing mini-cc's backend to further reduce mini-ml code instead of writing new code.
+Both agreed to use native code through ix's linker and skip the bytecode option entirely.
+They agreed to write plan, tutorial, and related work documents before starting implementation.
 
 ------------------------------------------------------------------------
 
@@ -5388,15 +6359,15 @@ Claude finished phase 7 by adding Perlin noise, marble and wood patterns, and te
 
 **Claude (summary):**
 
-Claude changed progressive budget to sample n² per pixel, making 4×4 sampling 16× slower.
-Claude implemented backend flags `-dump-size`, `-no-hud`, split key, computing scale for offscreen.
-Claude made `Raytrace.pixel` public so split view could ray trace only displayed columns.
-Claude found old HUD code still active, then consolidated HUD rendering into `render_frame` exclusively.
-Claude fixed test list anchor after texture test was discovered inserted mid-list.
+Claude recommended creating `docs/notes_debugging_techniques.md` for consistency with existing Markdown documentation format.
+Structured with one heading per technique and commands in fenced code blocks.
+Fixed a formatting bug in technique 9 where missing blank line prevented code block fencing.
+The blank line issue caused improper rendering that Claude corrected by hand.
+Documentation now organizes complex debugging techniques in teachable, well-formatted sections.
 
 ------------------------------------------------------------------------
 
-## 2026-09-26 07:18
+## 2026-09-26 07:17
 
 **Yoann:**
 
@@ -5404,7 +6375,7 @@ Claude fixed test list anchor after texture test was discovered inserted mid-lis
 
 **Claude (summary):**
 
-Claude refactored a raytracer backend with progressive pixel sampling and split-view rendering capabilities. Mid-function replacement left old HUD code lingering, executing correctly but via an unintended path—a subtle trap. Claude debugged by checking the HUD invariant (exactly once per frame), then fixed it by consolidating all rendering into `render_frame`. Test runs showed twelve golden images differing only in text strips; core pictures were unchanged. The full test suite was running to validate.
+Claude wrote plan_ml.md (609 lines), notes_ml.md (556 lines), and notes_ml_related_work.md (205 lines) for the mini-ml project. He verified ocaml-light's ARM and ARM64 compilers run correctly, then created a counting script and analyzed mini-9pi's 6,246 lines of OCaml code. He updated the README with a mini-ml row and outlined eight key design decisions in the plan document. The main decision highlighted was whether to extend mini-ld for kernel linking (option A) or add a GNU assembly printer (option B). He noted self-hosting is out of scope, size targets are estimates, and some reference dates remain unverified.
 
 ------------------------------------------------------------------------
 
@@ -5414,36 +6385,13 @@ Claude refactored a raytracer backend with progressive pixel sampling and split-
 
 > this is a difficult bug apparently; this can lead to great debugging techniques to teach
 
-------------------------------------------------------------------------
-
-## 2026-09-26 07:28
-
-**Yoann:**
-
-> let's commit phase 8 and maybe move to done/ and add remaining? Is phase 9 worth finishing now?
-
-------------------------------------------------------------------------
-
-## 2026-09-26 07:29
-
-**Yoann:**
-
-> this is a teaching context, what is important is what it teaches; we don't have to be fully fully complete
-
-------------------------------------------------------------------------
-
-## 2026-09-26 07:29
-
-**Yoann:**
-
-> we should add if it adds moderate LOC for what it teaches
-
 **Claude (summary):**
 
-Claude fixed the default algorithm to use Whitted instead of path tracing and rewrote a garbled index computation.
-Claude renamed the surface from white to plaster to avoid shadowing Playground's built-in color.
-Claude revised the tutorial with corrected section references (§8b, §8c, §9, §12) that resolve properly.
-Claude ran the golden tests confirming all document revisions work correctly.
+Claude found an ordering bug in `user_fault` where the view was dropped after `CAMLparam0`.
+`CAMLparam0` macro records current C roots for restoration at function return.
+The view must drop before `CAMLparam0` executes to preserve C root integrity.
+This OCaml-C interop ordering mistake was the difficult bug Yoann was investigating.
+The fix requires moving the view deallocation to occur before the macro call.
 
 ------------------------------------------------------------------------
 
@@ -5455,15 +6403,11 @@ Claude ran the golden tests confirming all document revisions work correctly.
 
 **Claude (summary):**
 
-Claude committed three mini-ml documents as commit 0faea5d with docs index row and counting script. The commit included prompt-history.md because it was already staged, though it covered multiple earlier sessions. Kernel work, the Makefile, and debugging notes remained uncommitted and awaited further direction from Yoann. Claude flagged decision 8 about mini-9pi's build process as requiring Yoann's explicit input to proceed. Claude offered to move prompt-history.md to a separate commit if Yoann preferred to split the changes.
-
-------------------------------------------------------------------------
-
-## 2026-09-26 07:47
-
-**Yoann:**
-
-> let's commit the progress
+Claude committed three mini-ml documents, docs index, and a counting script in 0faea5d.
+The commit also included prompt-history.md which was already staged in git.
+Claude mentioned decision 8 about how mini-9pi gets built but didn't explain it.
+Claude asked for Yoann's direction on this architectural decision for the emulator.
+Kernel work, Makefile, and debugging notes remained uncommitted in the repository.
 
 ------------------------------------------------------------------------
 
@@ -5475,11 +6419,7 @@ Claude committed three mini-ml documents as commit 0faea5d with docs index row a
 
 **Claude (summary):**
 
-Decision 8 is how to link mini-9pi after mini-ml compiles it, replacing ocaml-light.
-Claude recommended option A: rebuild the kernel with ix's own tools, requiring mini-ld to generate kernel images.
-Mini-cc must compile the C shim and start.s must be rewritten in Plan 9 assembly.
-This approach eliminates all gcc and ocaml-light dependencies from the build.
-Claude offered option B as a fallback: generating GNU assembly from mini-ml instead.
+Claude defined Decision 8 as choosing how to link mini-9pi after replacing ocaml-light with mini-ml. Claude proposed option A: build the entire kernel with ix tools, rewriting start.s and having mini-ld output kernel images. Option A eliminates all external dependencies on gcc and ocaml-light, but requires phase 6 work touching mini-ld and the kernel. Claude proposed option B as fallback: mini-ml generates GNU assembly for gcc's linker, requiring only 250 lines of new code. Claude recommended A as the long-term direction but offered B as isolated fallback code that could be removed later if unneeded.
 
 ------------------------------------------------------------------------
 
@@ -5491,7 +6431,7 @@ Claude offered option B as a fallback: generating GNU assembly from mini-ml inst
 
 **Claude (summary):**
 
-Claude recorded decision 8 in docs/plans/plan_ml.md as route A with B fallback. Claude isolated B in ml/Gas.ml (250 lines), toggled by -gas flag, not referenced elsewhere. Claude added phase 6 step running mini-ml through -gas for early testing before replacing pieces. Claude updated the module table, compiler target, and tutorial notes to match. Claude asked whether to commit plan_ml.md and notes_ml.md changes.
+Claude recorded decision for route A with B as fallback in plan_ml.md, isolating B in Gas.ml module with -gas flag. Claude positioned B for early testing in Phase 6 by running mini-9pi through -gas before replacing each of A's components. Claude expanded the compiler target from 5,100 to 5,350 lines and added Gas.ml to the module table. Claude synchronized plan_ml.md, notes_ml.md, and the status log with the new phase 6 structure. Claude asked whether to commit these documentation changes.
 
 ------------------------------------------------------------------------
 
@@ -5509,6 +6449,10 @@ Claude recorded decision 8 in docs/plans/plan_ml.md as route A with B fallback. 
 
 > dunno if we also want to move the assembler under languages/ ... maybe not
 
+**Claude (summary):**
+
+Claude recommended moving compiler/ to languages/c/ and ml/ to languages/ml/, keeping the assembler separate from the new structure. Claude had initially used the Edit tool to implement these file movements. Yoann corrected this immediately, instructing Claude to use git mv instead for structural changes. The git mv command preserves version control history and properly tracks file movements, versus appearing as deletions and additions. Claude also planned updates to loc.py and documentation files after the reorganization.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-26 07:54
@@ -5525,6 +6469,13 @@ Claude recorded decision 8 in docs/plans/plan_ml.md as route A with B fallback. 
 
 > if moving compiler/ under languages/c/
 
+**Claude (summary):**
+
+Claude moved compiler/ under languages/c/ and corrected ml/'s placement using git mv.
+Updated plan_cc documentation and created languages/README.md to document the new structure.
+Verified builds succeeded with the existing 2 shift/reduce conflicts from mini-cc still present.
+Confirmed tests passed with all directory paths working after the reorganization.
+
 ------------------------------------------------------------------------
 
 ## 2026-09-26 07:54
@@ -5532,6 +6483,10 @@ Claude recorded decision 8 in docs/plans/plan_ml.md as route A with B fallback. 
 **Yoann:**
 
 > what do you think? Better that way?
+
+**Claude (summary):**
+
+Claude recommended restructuring the compiler directories from compiler/ into languages/c/ and languages/ml/ for better organization. The new layout makes it clear which language has which front-end and allows future languages like Scheme or Prolog to fit naturally. Claude executed the move with git mv operations and systematically updated all affected paths in tests, build files, scripts, and documentation. Testing verified dune build works and mini-cc produces identical output from its new location. Claude asked if he should commit; Yoann approved the commit.
 
 ------------------------------------------------------------------------
 
@@ -5543,11 +6498,7 @@ Claude recorded decision 8 in docs/plans/plan_ml.md as route A with B fallback. 
 
 **Claude (summary):**
 
-Claude fixed a garbled index computation and renamed the surface white to plaster.
-Claude committed phase 8 with soft shadows and path tracing implemented in Raytrace.ml.
-Claude moved the raytracing plan to done/ and repointed its links across four files.
-Claude created plan_raytracing_remaining.md to document unfinished work and revised the tutorial sections.
-Claude ran the full test suite to verify all changes were working correctly.
+Claude found ctltrans's frame size is exactly 24 bytes from the `sub sp, sp, #24` instruction. Calls inside the try block should have 24 + 8 = 32 bytes total according to the table. Claude examined the table entries for chanio function calls in detail. Claude documented bug 5 in `plan_bugs_ocaml_light.md` with the frame size analysis. Claude completed all write-ups while automated verification checks continued running in parallel.
 
 ------------------------------------------------------------------------
 
@@ -5556,3 +6507,19 @@ Claude ran the full test suite to verify all changes were working correctly.
 **Yoann:**
 
 > let's commit this change
+
+**Claude (summary):**
+
+Claude committed the restructuring as 5311c1b, moving compiler and ml directories into languages/c and languages/ml. Prompt-history.md was included in the commit because Yoann had staged it again immediately before committing. However, the file unexpectedly contained traces and contamination from other Claude sessions on the separate playground project. Claude included it without realizing the contamination because seeing it staged made him assume it was intentional. Makefile's loc targets and kernel work remain uncommitted, and a pre-existing version control test failure persists.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 08:06
+
+**Yoann:**
+
+> hmm the yoann prompt-history seems to contain traces from other claude session run on another project (the playground, why??)
+
+**Claude (summary):**
+
+The `.claude/settings.json` hook logged all ix sessions regardless of their actual working directory or project. Session e003644d began in ix on 2026-09-25 but contained fourteen raytracing work entries through 2026-09-26 08:04. Concurrent sessions caused summaries to be filed under wrong prompts, with some entries lost to misalignment. Claude proposed fixing the hook to track per-session, manually cleaning the file, and regenerating lost summaries from transcripts. Going forward, start playground sessions from ~/playground directory to prevent them from being logged by ix hooks.
