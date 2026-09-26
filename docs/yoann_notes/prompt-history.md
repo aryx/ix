@@ -5285,3 +5285,155 @@ Claude implemented Phase 6's intervals, CSG, transforms, and spotlights. Merge c
 **Yoann:**
 
 > let's do it
+
+**Claude (summary):**
+
+Claude completed step 1 by implementing shared memory, rendezvous, semaphores, notes, and alarm from principia's code. Plumber (a threaded program) was tested and now runs correctly, posting `/srv/plumb` and mounting `/mnt/plumb` on mini-9pi. Walk errors were fixed to match 9pi's exactly, and all kernel checks pass on both boards (mini-9pi's 6, mini-xv6's 13). Key additions include page tables on segments, note-based process interruption, and proper error messages matching 9pi's namec. Step 1 is now committed and step 2 (USB: `#u`, usbd, usb/kb) begins next.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 06:39
+
+**Yoann:**
+
+> yes let's commit and move to step 2
+
+------------------------------------------------------------------------
+
+## 2026-09-26 06:40
+
+**Yoann:**
+
+> yes
+
+**Claude (summary):**
+
+Claude committed phase 6 example as `9663327` with eleven files and confirmed passing tests. Phase 7 continues with surfaces and textures using procedural marble and wood patterns over Perlin noise. It introduces `PovrayMarble.ml` and `PovrayFib.ml` modules to sample texture values at ray hit points. Phase 7 also plans to compare output against Yoann's 2000 ICFP competition entry for validation.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 06:46
+
+**Yoann:**
+
+> yes. next!
+
+**Claude (summary):**
+
+Claude finished phase 7 by adding Perlin noise, marble and wood patterns, and textured ray-traced surfaces. All 152 graphics tests passed and the regression test achieved 99.99% pixel accuracy versus the ICFP 2000 reference. Claude asked about committing phase 7 and proposed phase 8 to enhance the still-image rendering pipeline. Phase 8 will add dump-size rendering for larger images and stratified supersampling to remove jagged edges. It will also include an optional HUD pass and a side-by-side view of rasterizer and ray tracer.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:05
+
+**Yoann:**
+
+> let's commit and move forward
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:08
+
+**Yoann:**
+
+> what is the current plan? What are you currently doing?
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:09
+
+**Yoann:**
+
+> please add a notes_debugging_techniques.txt like I did in my other project to teach me your debugging tech with taking your debugging session as examples
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:11
+
+**Yoann:**
+
+> how hard would it be to create a mini-ml, a mini compiler for ocaml(light)? see ~/ocaml-light/ for inspiration but also other ML (moscow ml, sml, whatever you might already know).
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:11
+
+**Yoann:**
+
+> put it under docs/ directly
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:12
+
+**Yoann:**
+
+> or .md
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:12
+
+**Yoann:**
+
+> if it's more convenient
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:12
+
+**Yoann:**
+
+> and to be consistent
+
+**Claude (summary):**
+
+Claude changed progressive budget to sample n² per pixel, making 4×4 sampling 16× slower.
+Claude implemented backend flags `-dump-size`, `-no-hud`, split key, computing scale for offscreen.
+Claude made `Raytrace.pixel` public so split view could ray trace only displayed columns.
+Claude found old HUD code still active, then consolidated HUD rendering into `render_frame` exclusively.
+Claude fixed test list anchor after texture test was discovered inserted mid-list.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:18
+
+**Yoann:**
+
+> I like your reccomendation, and compiling mini-9pi is indeed the great target. But as opposed to the other, no need to match byte per byte the existing ocaml-light, even at the -dlambda level. I agree we should skip the bytecode and try to reuse some mini-cc backend maybe to reduce the code. let's make a plan, tutorial, and related work documents like for the other programs and let me review that before commit
+
+**Claude (summary):**
+
+Claude refactored a raytracer backend with progressive pixel sampling and split-view rendering capabilities. Mid-function replacement left old HUD code lingering, executing correctly but via an unintended path—a subtle trap. Claude debugged by checking the HUD invariant (exactly once per frame), then fixed it by consolidating all rendering into `render_frame`. Test runs showed twelve golden images differing only in text strips; core pictures were unchanged. The full test suite was running to validate.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:25
+
+**Yoann:**
+
+> this is a difficult bug apparently; this can lead to great debugging techniques to teach
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:28
+
+**Yoann:**
+
+> let's commit phase 8 and maybe move to done/ and add remaining? Is phase 9 worth finishing now?
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:29
+
+**Yoann:**
+
+> this is a teaching context, what is important is what it teaches; we don't have to be fully fully complete
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:29
+
+**Yoann:**
+
+> we should add if it adds moderate LOC for what it teaches
