@@ -31,7 +31,7 @@ type ir =
   | SetIndex
   | Alloc of int * int
   | Op of op
-  | Call of target * int * bool
+  | Call of target * int list * bool
   | CallC of string * int
   | Label of int | Jmp of int
   | Jz of int | Jnz of int
@@ -400,7 +400,7 @@ and control env (e : Scope.expr) tl =
   match e.e with
   | Eseq (a, b) -> value env a; emit Drop; k env b
   | Eif (c, a, b) ->
-      let b = match b with Some b -> b | None -> { e with e = Econs ({ cname = "()"; kind = Const 0; arity = 0; nconst = 1; nblock = 0 }, []) } in
+      let b = match b with Some b -> b | None -> { e with e = Econs ({ cname = "()"; kind = Const 0; arity = 0; nconst = 1; nblock = 0; ctype = [], [], Scope.unit_t }, []) } in
       let other = label () in
       value env c;
       emit (Jz other);
@@ -442,11 +442,11 @@ and var env (v : Scope.value) =
       match Hashtbl.find_opt known_globals g.gsym with
       | Some { loc = Static sym; _ } -> emit (Block sym)
       | _ -> emit (GetG (mangle g.gsym)))
-  | Prim (p, n) ->
+  | Prim (p, n, t) ->
       (* a primitive as a value: the function that applies it *)
       let xs = List.init n (fun i -> new_var (Printf.sprintf "prim%d" i)) in
       let mk e : Scope.expr = { e; loc = 0 } in
-      let body = mk (Eapply (mk (Evar (Prim (p, n))), List.map (fun x -> mk (Evar (Local x))) xs)) in
+      let body = mk (Eapply (mk (Evar (Prim (p, n, t))), List.map (fun x -> mk (Evar (Local x))) xs)) in
       value env (List.fold_right (fun x b -> mk (Efunction [ Scope.Pvar x, None, b ])) xs body)
 
 (* f args: a primitive, a known function's code called with its
@@ -454,14 +454,14 @@ and var env (v : Scope.value) =
  * in a tail call *)
 and app env (f : Scope.expr) args tl =
   let m = List.length args in
-  let rest k =
-    let n = m - k in
-    for i = 1 to n do emit (Call (Code 0, 1, tl && i = n)) done;
+  let first k = List.filteri (fun i _ -> i < k) args and later k = List.filteri (fun i _ -> i >= k) args in
+  (* the arguments in slots, the last computed first *)
+  let slots es = List.rev (List.map (to_slot env) (List.rev es)) in
+  (* the result on the stack applied to the arguments in slots, one at a time *)
+  let rest ss =
+    let n = List.length ss in
+    List.iteri (fun i a -> let r = slot () in emit (Set r); emit (Call (Code 0, [ r; a ], tl && i = n - 1))) ss;
     tl && n > 0
-  in
-  let args_in k =
-    let first = List.filteri (fun i _ -> i < k) args and later = List.filteri (fun i _ -> i >= k) args in
-    operands env (List.map (fun e -> E e) (List.rev later @ List.rev first))
   in
   let known =
     match f.e with
@@ -470,17 +470,33 @@ and app env (f : Scope.expr) args tl =
     | _ -> None
   in
   match f.e, known, args with
-  | Evar (Prim ("%sequand", _)), _, [ a; b ] ->
+  | Evar (Prim ("%sequand", _, _)), _, [ a; b ] ->
       value env { f with e = Eif (a, b, Some { f with e = Econst (Int 0) }) }; false
-  | Evar (Prim ("%sequor", _)), _, [ a; b ] ->
+  | Evar (Prim ("%sequor", _, _)), _, [ a; b ] ->
       value env { f with e = Eif (a, { f with e = Econst (Int 1) }, Some b) }; false
-  | Evar (Prim (p, n)), _, _ when m >= n -> args_in n; prim p n; rest n
-  | Evar v, Some (lab, n), _ when m >= n ->
-      args_in n;
-      var env v;
-      emit (Call (Direct lab, n, tl && m = n));
-      if m = n then tl else rest n
-  | _ -> args_in m; value env f; rest 0
+  | Evar (Prim (p, n, _)), _, _ when m >= n ->
+      let ls = slots (later n) in
+      operands env (List.map (fun e -> E e) (List.rev (first n)));
+      prim p n;
+      rest ls
+  | Evar _, Some (lab, n), _ when m >= n ->
+      let ss = slots args in
+      let c = to_slot env f in
+      emit (Call (Direct lab, c :: List.filteri (fun i _ -> i < n) ss, tl && m = n));
+      if m = n then tl else rest (List.filteri (fun i _ -> i >= n) ss)
+  | _, _, a :: _ ->
+      let ss = slots args in
+      let c = to_slot env f in
+      emit (Call (Code 0, [ c; List.hd ss ], tl && m = 1));
+      ignore a;
+      if m = 1 then tl else rest (List.tl ss)
+  | _, _, [] -> value env f; false
+
+(* e's value in a slot: a local already in one is its own *)
+and to_slot env (e : Scope.expr) =
+  match e.e with
+  | Evar (Local x) when (match (lookup env x).loc with Slot _ -> true | _ -> false) -> (match (lookup env x).loc with Slot s -> s | _ -> assert false)
+  | _ -> value env e; let s = slot () in emit (Set s); s
 
 (* let: the values in env, then their names *)
 and bind env r bs =
@@ -574,12 +590,19 @@ and compile_fun lab ps benv body =
  * block [the next one; the closure; the k arguments...], or the call *)
 let curry_fun n k =
   cur := { code = []; nslots = 2; ntries = 0 };
-  emit (Get 1);
-  for i = k downto 1 do emit (Get 0); emit (Field (1 + i)) done;
-  emit (Get 0);
-  if k > 0 then emit (Field 1);
-  if k < n - 1 then (emit (Sym (curry n (k + 1))); emit (Alloc (closure_tag, k + 3)); emit Ret)
-  else emit (Call (Code 1, n, true));
+  if k < n - 1 then begin
+    emit (Get 1);
+    for i = k downto 1 do emit (Get 0); emit (Field (1 + i)) done;
+    emit (Get 0);
+    if k > 0 then emit (Field 1);
+    emit (Sym (curry n (k + 1))); emit (Alloc (closure_tag, k + 3)); emit Ret
+  end
+  else begin
+    let field i = emit (Get 0); emit (Field i); let s = slot () in emit (Set s); s in
+    let args = List.init k (fun i -> field (2 + i)) in
+    let orig = if k > 0 then field 1 else 0 in
+    emit (Call (Code 1, (orig :: args) @ [ 1 ], true))
+  end;
   funcs := { name = curry n k; nparams = 1; nslots = !cur.nslots; code = List.rev !cur.code } :: !funcs
 
 (*****************************************************************************)
@@ -595,11 +618,11 @@ let unit_ name (items : Scope.item list) =
     match it with
     | Ieval e -> value [] e; emit Drop
     | Iexception (g, c) -> let name = string_block c in data := Exception (mangle g.gsym, name) :: !data
-    | Iexternal (g, p, n) ->
+    | Iexternal (g, p, n, t) ->
         (* the primitive as a function, a static closure *)
         let sym = mangle g.gsym in
         globals := sym :: !globals;
-        var [] (Prim (p, n));
+        var [] (Prim (p, n, t));
         emit (SetG sym);
         data := Global (sym, None) :: !data
     | Ivalue (r, bs, gs) ->
@@ -645,7 +668,9 @@ let show = function
          | Add -> "add" | Sub -> "sub" | Mul -> "mul" | Div -> "div" | Mod -> "mod" | And -> "and" | Or -> "or"
          | Xor -> "xor" | Lsl -> "lsl" | Lsr -> "lsr" | Asr -> "asr" | Cmp r -> "cmp " ^ show_rel r
          | Poly r -> "poly " ^ show_rel r | Neg -> "neg" | Not -> "not" | IsInt -> "isint" | Tag -> "tag" | Size -> "size")
-  | Call (t, n, tl) -> Printf.sprintf "call%s %s %d" (if tl then " tail" else "") (match t with Direct f -> f | Code k -> Printf.sprintf "field%d" k) n
+  | Call (t, ss, tl) ->
+      Printf.sprintf "call%s %s %s" (if tl then " tail" else "") (match t with Direct f -> f | Code k -> Printf.sprintf "field%d" k)
+        (String.concat " " (List.map string_of_int ss))
   | CallC (f, n) -> Printf.sprintf "callc %s %d" f n
   | Label l -> Printf.sprintf "L%d:" l
   | Jmp l -> Printf.sprintf "jmp L%d" l

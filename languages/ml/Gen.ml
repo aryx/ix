@@ -195,12 +195,10 @@ let func m out (fn : func) =
         reload ();
         result ()
     | Op o -> op o
-    | Call (t, n, tail) ->
-        if n > m.nregs then error "%s: a call of %d arguments" fn.name n;
+    | Call (t, slots, tail) ->
+        if List.length slots - 1 > m.nregs then error "%s: a call of %d arguments" fn.name (List.length slots - 1);
         spill ();
-        get (spill_slot !sp) 0;
-        for k = 1 to n do get (spill_slot (!sp - k)) k done;
-        sp := !sp - n - 1;
+        List.iteri (fun k s -> get s k) slots;
         let target = match t with Direct f -> f ^ "(SB)" | Code k -> ins "%s\t%d(R0), R%d" mov (w * k) m.tmp; sprintf "(R%d)" m.tmp in
         if tail then (epilogue (); ins "B\t%s" target; dead := true) else (ins "BL\t%s" target; reload (); result ())
     | CallC (f, n) -> spill (); call_c f n; reload (); result ()
@@ -303,7 +301,7 @@ let startup m units =
   let handler = 1 in
   let code =
     [ TryEnter (0, handler) ]
-    @ List.concat_map (fun u -> [ Int 0; Call (Direct (Lower.mangle u ^ ".Init"), 0, false); Drop ]) units
+    @ List.concat_map (fun u -> [ Call (Direct (Lower.mangle u ^ ".Init"), [ 0 ], false); Drop ]) units
     @ [ TryExit 0; Int 0; Ret; Label handler; Catch 0; CallC ("ml_uncaught", 1); Ret ]
   in
   func m out { name = "ml_program"; nparams = 0; nslots = 1; code };

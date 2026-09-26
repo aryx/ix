@@ -15,23 +15,30 @@
  * is first named (its .ml when it has none), as a C compiler reads a
  * header: no compiled interface. Pervasives is opened first. *)
 
+(* a type, resolved: a constructor is its declaration, which an
+ * abbreviation (type t = int * int) expands to, its parameters named *)
+type ty = Tvar of string | Tarrow of ty * ty | Ttuple of ty list | Tconstr of tdecl * ty list
+and tdecl = { tpath : string; tparams : string list; mutable tabbrev : ty option }
+
 type var = { vname : string; vid : int }
 
 (* gsym, the symbol: M.x, or M.x/2 for a toplevel value a later one of
  * the same name shadows (the last is the one exported) *)
-type global = { gpath : string list; gname : string; mutable gsym : string }
+type global = { gpath : string list; gname : string; mutable gsym : string; gtype : ty option (* its .mli's *) }
 
 type value =
   | Local of var
   | Global of global
-  | Prim of string * int   (* an external: its primitive, its arity (its type's arrows) *)
+  | Prim of string * int * ty   (* an external: its primitive, its arity (its type's arrows), its type *)
 
 (* a constructor: its kind, its arity, and its type's numbers of
  * constant and non-constant constructors (a switch's size) *)
 type kind = Const of int | Block of int | Exn of global
-type cons = { cname : string; kind : kind; arity : int; nconst : int; nblock : int }
+(* ctype: its type's parameters, its arguments' types, its result's *)
+type cons = { cname : string; kind : kind; arity : int; nconst : int; nblock : int; ctype : string list * ty list * ty }
 
-type label = { lname : string; pos : int; mut : bool; size : int }
+(* ltype: its type's parameters, the field's type, the record's *)
+type label = { lname : string; pos : int; mut : bool; size : int; ltype : string list * ty * ty }
 
 type pattern =
   | Pany
@@ -75,7 +82,7 @@ type item =
   | Ieval of expr
   | Ivalue of bool * (pattern * expr) list * (var * global) list
   | Iexception of global * string
-  | Iexternal of global * string * int   (* a global too, for an importer whose .mli says val *)
+  | Iexternal of global * string * int * ty   (* a global too, for an importer whose .mli says val *)
 
 exception Error of int * string
 
@@ -86,6 +93,21 @@ type loader = string -> [ `Sig of Ast.signature | `Str of Ast.structure ] option
 (* a unit's implementation, M the module's name (its file's,
  * capitalized) *)
 val implementation : loader -> string -> Ast.structure -> item list
+
+(* the predefined types *)
+val int_t : ty
+val char_t : ty
+val string_t : ty
+val float_t : ty
+val bool_t : ty
+val unit_t : ty
+val exn_t : ty
+val array_d : tdecl
+val list_d : tdecl
+val format_d : tdecl
+
+(* the unit's own interface, if it has one: its values' types *)
+val interface : unit -> (string * ty) list option
 
 (* the other units the last implementation named (-M) *)
 val units_named : unit -> string list

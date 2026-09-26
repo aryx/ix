@@ -42,7 +42,7 @@ type ir =
   | SetIndex                          (* a block, an index, a value; bounds checked *)
   | Alloc of int * int                (* a tag, n values by the block, the top its field 0 *)
   | Op of op
-  | Call of target * int * bool       (* the closure then n arguments by the result; a tail call *)
+  | Call of target * int list * bool  (* the slots of the closure then of the arguments; a tail call *)
   | CallC of string * int             (* the runtime's function of n arguments *)
   | Label of int | Jmp of int
   | Jz of int | Jnz of int            (* false is the ML 0 *)

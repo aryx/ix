@@ -9,12 +9,15 @@
  *)
 (* See Scope.mli *)
 
+type ty = Tvar of string | Tarrow of ty * ty | Ttuple of ty list | Tconstr of tdecl * ty list
+and tdecl = { tpath : string; tparams : string list; mutable tabbrev : ty option }
+
 type var = { vname : string; vid : int }
-type global = { gpath : string list; gname : string; mutable gsym : string }
-type value = Local of var | Global of global | Prim of string * int
+type global = { gpath : string list; gname : string; mutable gsym : string; gtype : ty option }
+type value = Local of var | Global of global | Prim of string * int * ty
 type kind = Const of int | Block of int | Exn of global
-type cons = { cname : string; kind : kind; arity : int; nconst : int; nblock : int }
-type label = { lname : string; pos : int; mut : bool; size : int }
+type cons = { cname : string; kind : kind; arity : int; nconst : int; nblock : int; ctype : string list * ty list * ty }
+type label = { lname : string; pos : int; mut : bool; size : int; ltype : string list * ty * ty }
 
 type pattern =
   | Pany
@@ -56,7 +59,7 @@ type item =
   | Ieval of expr
   | Ivalue of bool * (pattern * expr) list * (var * global) list
   | Iexception of global * string
-  | Iexternal of global * string * int
+  | Iexternal of global * string * int * ty
 
 exception Error of int * string
 
@@ -74,55 +77,52 @@ type env = {
   values : (string * value) list;
   conses : (string * cons) list;
   labels : (string * label) list;
+  types : (string * tdecl) list;
   modules : (string * modl) list;
 }
 
 and modl = { mpath : string list; menv : env Lazy.t }
 
-let empty = { values = []; conses = []; labels = []; modules = [] }
+let empty = { values = []; conses = []; labels = []; types = []; modules = [] }
 
 (* inner's names in front of outer's: an open *)
 let add inner outer =
   { values = inner.values @ outer.values; conses = inner.conses @ outer.conses; labels = inner.labels @ outer.labels;
-    modules = inner.modules @ outer.modules }
+    types = inner.types @ outer.types; modules = inner.modules @ outer.modules }
 
 let add_value x v env = { env with values = (x, v) :: env.values }
 let add_module m md env = { env with modules = (m, md) :: env.modules }
 let symbol path x = String.concat "." (path @ [ x ])
-let global path x = { gpath = path; gname = x; gsym = symbol path x }
+let global ?ty path x = { gpath = path; gname = x; gsym = symbol path x; gtype = ty }
 let rec arity = function Ast.Tarrow (_, r) -> 1 + arity r | _ -> 0
 
-(* a type's constructors, numbered, and its labels *)
-let decl (d : Ast.type_decl) env =
-  match d.tkind with
-  | Abstract -> env
-  | Variant cs ->
-      let nconst = List.length (List.filter (fun (_, a) -> a = []) cs) in
-      let nblock = List.length cs - nconst in
-      let _, _, conses =
-        List.fold_left (fun (ic, ib, acc) (c, args) ->
-          let kind, ic, ib = if args = [] then Const ic, ic + 1, ib else Block ib, ic, ib + 1 in
-          ic, ib, (c, { cname = c; kind; arity = List.length args; nconst; nblock }) :: acc) (0, 0, []) cs
-      in
-      { env with conses = conses @ env.conses }
-  | Record ls ->
-      let size = List.length ls in
-      { env with labels = List.rev (List.mapi (fun pos (l, mut, _) -> l, { lname = l; pos; mut; size }) ls) @ env.labels }
+let tdecl path x params = { tpath = symbol path x; tparams = params; tabbrev = None }
+let int_d = tdecl [] "int" [] and char_d = tdecl [] "char" [] and string_d = tdecl [] "string" []
+let float_d = tdecl [] "float" [] and bool_d = tdecl [] "bool" [] and unit_d = tdecl [] "unit" []
+let exn_d = tdecl [] "exn" [] and array_d = tdecl [] "array" [ "a" ] and list_d = tdecl [] "list" [ "a" ]
+let format_d = tdecl [] "format" [ "a"; "b"; "c" ]
+let int_t = Tconstr (int_d, []) and char_t = Tconstr (char_d, []) and string_t = Tconstr (string_d, [])
+let float_t = Tconstr (float_d, []) and bool_t = Tconstr (bool_d, []) and unit_t = Tconstr (unit_d, [])
+let exn_t = Tconstr (exn_d, [])
 
-let exn_cons c g n = c, { cname = c; kind = Exn g; arity = n; nconst = 0; nblock = 0 }
+let exn_cons c g ts = c, { cname = c; kind = Exn g; arity = List.length ts; nconst = 0; nblock = 0; ctype = [], ts, exn_t }
 
-(* the predefined: bool, unit, list, and the runtime's exceptions *)
+(* the predefined: the base types, bool, unit, list, and the runtime's
+ * exceptions *)
 let predef =
-  let bools = [ "false", Const 0; "true", Const 1 ] in
+  let bool c k = c, { cname = c; kind = k; arity = 0; nconst = 2; nblock = 0; ctype = [], [], bool_t } in
+  let list = Tconstr (list_d, [ Tvar "a" ]) in
+  let exn c ts = exn_cons c { gpath = []; gname = c; gsym = "caml_exn_" ^ c; gtype = None } ts in
   { empty with
+    types = List.map (fun d -> d.tpath, d) [ int_d; char_d; string_d; float_d; bool_d; unit_d; exn_d; array_d; list_d; format_d ];
     conses =
-      List.map (fun (c, k) -> c, { cname = c; kind = k; arity = 0; nconst = 2; nblock = 0 }) bools
-      @ [ "()", { cname = "()"; kind = Const 0; arity = 0; nconst = 1; nblock = 0 };
-          "[]", { cname = "[]"; kind = Const 0; arity = 0; nconst = 1; nblock = 1 };
-          "::", { cname = "::"; kind = Block 0; arity = 2; nconst = 1; nblock = 1 } ]
-      @ List.map (fun (c, n) -> exn_cons c { gpath = []; gname = c; gsym = "caml_exn_" ^ c } n)
-          [ "Match_failure", 1; "Assert_failure", 1; "Out_of_memory", 0; "Stack_overflow", 0; "Invalid_argument", 1;
-            "Failure", 1; "Not_found", 0; "Sys_error", 1; "End_of_file", 0; "Division_by_zero", 0 ] }
+      [ bool "false" (Const 0); bool "true" (Const 1);
+        "()", { cname = "()"; kind = Const 0; arity = 0; nconst = 1; nblock = 0; ctype = [], [], unit_t };
+        "[]", { cname = "[]"; kind = Const 0; arity = 0; nconst = 1; nblock = 1; ctype = [ "a" ], [], list };
+        "::", { cname = "::"; kind = Block 0; arity = 2; nconst = 1; nblock = 1; ctype = [ "a" ], [ Tvar "a"; list ], list } ]
+      @ [ exn "Match_failure" [ Ttuple [ string_t; int_t; int_t ] ]; exn "Assert_failure" [ Ttuple [ string_t; int_t; int_t ] ];
+          exn "Out_of_memory" []; exn "Stack_overflow" []; exn "Invalid_argument" [ string_t ]; exn "Failure" [ string_t ];
+          exn "Not_found" []; exn "Sys_error" [ string_t ]; exn "End_of_file" []; exn "Division_by_zero" [] ] }
 
 (*****************************************************************************)
 (* Units: another file's names, from its source *)
@@ -137,27 +137,40 @@ let rec unit_modl name =
   | None ->
       let m =
         Option.map (fun src ->
-          { mpath = [ name ]; menv = lazy (match src with `Sig s -> sig_env [ name ] s | `Str s -> str_env [ name ] s) })
+          { mpath = [ name ];
+            menv = lazy (let scope = base name in match src with `Sig s -> sig_env [ name ] scope s | `Str s -> str_env [ name ] scope s) })
           (!loader name)
       in
       Hashtbl.replace units name m;
       m
 
-(* what an interface exports *)
-and sig_env path (items : Ast.signature) =
-  List.fold_left (fun env (it : Ast.sig_item) ->
-    match it.s with
-    | Sval (x, _) -> add_value x (Global (global path x)) env
-    | Sexternal (x, t, p :: _) -> add_value x (Prim (p, arity t)) env
-    | Sexternal (x, _, []) -> error it.sloc "%s: an external without a primitive" x
-    | Stype ds -> List.fold_left (fun env d -> decl d env) env ds
-    | Sexception (c, ts) -> { env with conses = exn_cons c (global path c) (List.length ts) :: env.conses }
-    | Smodule (m, MTsig s) -> add_module m { mpath = path @ [ m ]; menv = lazy (sig_env (path @ [ m ]) s) } env
-    | Smodule (m, MTident _) -> error it.sloc "module %s: a module type's name (none in the subset)" m
-    | Sopen _ -> env) empty items
+(* a unit's scope before its first item: the predefined, and
+ * Pervasives's names, but in Pervasives *)
+and base name =
+  if name = "Pervasives" then predef
+  else match unit_modl "Pervasives" with Some md -> add (Lazy.force md.menv) predef | None -> error 0 "no Pervasives (-I the stdlib)"
+
+(* what an interface exports; its types resolved in its scope *)
+and sig_env path scope (items : Ast.signature) =
+  snd
+    (List.fold_left (fun (scope, exports) (it : Ast.sig_item) ->
+      let both f = f scope, f exports in
+      match it.s with
+      | Sval (x, t) -> both (add_value x (Global (global ~ty:(resolve scope it.sloc t) path x)))
+      | Sexternal (x, t, p :: _) -> both (add_value x (Prim (p, arity t, resolve scope it.sloc t)))
+      | Sexternal (x, _, []) -> error it.sloc "%s: an external without a primitive" x
+      | Stype ds -> let d = decls path scope ds in both (add d)
+      | Sexception (c, ts) ->
+          let c = exn_cons c (global path c) (List.map (resolve scope it.sloc) ts) in
+          both (fun env -> { env with conses = c :: env.conses })
+      | Smodule (m, MTsig s) ->
+          let md = { mpath = path @ [ m ]; menv = lazy (sig_env (path @ [ m ]) scope s) } in
+          both (add_module m md)
+      | Smodule (m, MTident _) -> error it.sloc "module %s: a module type's name (none in the subset)" m
+      | Sopen id -> add (Lazy.force (find_module scope it.sloc id).menv) scope, exports) (scope, empty) items)
 
 (* what an implementation without an interface exports: its toplevel *)
-and str_env path (items : Ast.structure) =
+and str_env path scope (items : Ast.structure) =
   let rec pvars (p : Ast.pattern) =
     match p.p with
     | Pvar x -> [ x ]
@@ -168,21 +181,26 @@ and str_env path (items : Ast.structure) =
     | Por (p, _) -> pvars p
     | Pany | Pconst _ | Prange _ | Pconstruct (_, None) -> []
   in
-  List.fold_left (fun env (it : Ast.item) ->
-    match it.i with
-    | Ieval _ | Iopen _ -> env
-    | Ivalue (_, bs) -> List.fold_left (fun env x -> add_value x (Global (global path x)) env) env (List.concat_map (fun (p, _) -> pvars p) bs)
-    | Iexternal (x, t, p :: _) -> add_value x (Prim (p, arity t)) env
-    | Iexternal (x, _, []) -> error it.iloc "%s: an external without a primitive" x
-    | Itype ds -> List.fold_left (fun env d -> decl d env) env ds
-    | Iexception (c, ts) -> { env with conses = exn_cons c (global path c) (List.length ts) :: env.conses }
-    | Imodule (m, me) ->
-        let rec md = function
-          | Ast.Mstruct s -> { mpath = path @ [ m ]; menv = lazy (str_env (path @ [ m ]) s) }
-          | Mident id -> find_module predef it.iloc id
-          | Mconstraint (me, _) -> md me
-        in
-        add_module m (md me) env) empty items
+  snd
+    (List.fold_left (fun (scope, exports) (it : Ast.item) ->
+      let both f = f scope, f exports in
+      match it.i with
+      | Ieval _ -> scope, exports
+      | Ivalue (_, bs) -> List.fold_left (fun acc x -> let f = add_value x (Global (global path x)) in f (fst acc), f (snd acc)) (scope, exports) (List.concat_map (fun (p, _) -> pvars p) bs)
+      | Iexternal (x, t, p :: _) -> both (add_value x (Prim (p, arity t, resolve scope it.iloc t)))
+      | Iexternal (x, _, []) -> error it.iloc "%s: an external without a primitive" x
+      | Itype ds -> let d = decls path scope ds in both (add d)
+      | Iexception (c, ts) ->
+          let c = exn_cons c (global path c) (List.map (resolve scope it.iloc) ts) in
+          both (fun env -> { env with conses = c :: env.conses })
+      | Imodule (m, me) ->
+          let rec md = function
+            | Ast.Mstruct s -> { mpath = path @ [ m ]; menv = lazy (str_env (path @ [ m ]) scope s) }
+            | Mident id -> find_module scope it.iloc id
+            | Mconstraint (me, _) -> md me
+          in
+          both (add_module m (md me))
+      | Iopen id -> add (Lazy.force (find_module scope it.iloc id).menv) scope, exports) (scope, empty) items)
 
 and find_module env loc (id : Ast.longid) =
   match id with
@@ -199,14 +217,53 @@ and find_module env loc (id : Ast.longid) =
         | None -> error loc "unbound module %s" (symbol md.mpath m)) md rest
 
 (* M.N.x: x in the module M.N, or in env *)
-let lookup env loc (id : Ast.longid) field what =
+and lookup : 'a. env -> int -> Ast.longid -> (env -> (string * 'a) list) -> string -> 'a =
+ fun env loc id field what ->
   match List.rev id with
   | [] -> assert false
-  | x :: rmods ->
+  | x :: rmods -> (
       let env = if rmods = [] then env else Lazy.force (find_module env loc (List.rev rmods)).menv in
       match List.assoc_opt x (field env) with
       | Some v -> v
-      | None -> error loc "unbound %s %s" what (Ast.name id)
+      | None -> error loc "unbound %s %s" what (Ast.name id))
+
+(* a type expression's constructors resolved *)
+and resolve env loc (t : Ast.ty) =
+  match t with
+  | Tvar v -> Tvar v
+  | Tarrow (a, b) -> Tarrow (resolve env loc a, resolve env loc b)
+  | Ttuple ts -> Ttuple (List.map (resolve env loc) ts)
+  | Tconstr (id, args) ->
+      let d = lookup env loc id (fun e -> e.types) "type" in
+      if List.length args <> List.length d.tparams then error loc "the type %s expects %d argument(s)" (Ast.name id) (List.length d.tparams);
+      Tconstr (d, List.map (resolve env loc) args)
+
+(* a group of type declarations (type a = ... and b = ...): each its
+ * declaration first, then, all in scope, their abbreviations,
+ * constructors (numbered) and labels; what the group adds *)
+and decls path env (ds : Ast.type_decl list) =
+  let tds = List.map (fun (d : Ast.type_decl) -> d, tdecl path d.tname d.tparams) ds in
+  let delta = { empty with types = List.rev_map (fun ((d : Ast.type_decl), td) -> d.tname, td) tds } in
+  let env = add delta env in
+  List.fold_left (fun delta ((d : Ast.type_decl), td) ->
+    td.tabbrev <- Option.map (resolve env d.tloc) d.tmanifest;
+    let res = Tconstr (td, List.map (fun v -> Tvar v) d.tparams) in
+    match d.tkind with
+    | Abstract -> delta
+    | Variant cs ->
+        let nconst = List.length (List.filter (fun (_, a) -> a = []) cs) in
+        let nblock = List.length cs - nconst in
+        let _, _, conses =
+          List.fold_left (fun (ic, ib, acc) (c, args) ->
+            let kind, ic, ib = if args = [] then Const ic, ic + 1, ib else Block ib, ic, ib + 1 in
+            let ctype = d.tparams, List.map (resolve env d.tloc) args, res in
+            ic, ib, (c, { cname = c; kind; arity = List.length args; nconst; nblock; ctype }) :: acc) (0, 0, []) cs
+        in
+        { delta with conses = conses @ delta.conses }
+    | Record ls ->
+        let size = List.length ls in
+        let labels = List.mapi (fun pos (l, mut, t) -> l, { lname = l; pos; mut; size; ltype = d.tparams, resolve env d.tloc t, res }) ls in
+        { delta with labels = List.rev labels @ delta.labels }) delta tds
 
 let value env loc id = lookup env loc id (fun e -> e.values) "value"
 let cons env loc id = lookup env loc id (fun e -> e.conses) "constructor"
@@ -362,14 +419,16 @@ let rec structure path env (items : Ast.structure) : item list * env * env =
           List.fold_left (fun (env, exports) (x, _, g) -> add_value x (Global g) env, add_value x (Global g) exports) (env, exports) (List.rev gs)
       | Iexternal (x, t, p :: _) ->
           (* its own unit calls the primitive; another may name it by a val *)
-          emit (Iexternal (define path x, p, arity t));
-          both (add_value x (Prim (p, arity t)))
+          let ty = resolve env it.iloc t in
+          emit (Iexternal (define path x, p, arity t, ty));
+          both (add_value x (Prim (p, arity t, ty)))
       | Iexternal (x, _, []) -> error it.iloc "%s: an external without a primitive" x
-      | Itype ds -> both (fun env -> List.fold_left (fun env d -> decl d env) env ds)
+      | Itype ds -> let d = decls path env ds in both (add d)
       | Iexception (c, ts) ->
           let g = define path c in
           emit (Iexception (g, c));
-          both (fun env -> { env with conses = exn_cons c g (List.length ts) :: env.conses })
+          let c = exn_cons c g (List.map (resolve env it.iloc) ts) in
+          both (fun env -> { env with conses = c :: env.conses })
       | Imodule (m, me) ->
           let rec md = function
             | Ast.Mstruct s ->
@@ -385,16 +444,23 @@ let rec structure path env (items : Ast.structure) : item list * env * env =
   in
   List.rev !out, env, exports
 
+let own = ref None
+
 let implementation load name items =
   loader := load;
   Hashtbl.reset units;
   Hashtbl.reset defined;
-  let env =
-    if name = "Pervasives" then predef
-    else match unit_modl "Pervasives" with Some md -> add (Lazy.force md.menv) predef | None -> error 0 "no Pervasives (-I the stdlib)"
-  in
-  let items, _, _ = structure [ name ] env items in
+  own := None;
+  let items, _, _ = structure [ name ] (base name) items in
+  (* the unit's interface: its values' types, which Typing checks *)
+  (match load name with
+   | Some (`Sig s) ->
+       let exports = sig_env [ name ] (base name) s in
+       own := Some (List.rev (List.filter_map (function x, Global { gtype = Some t; _ } | x, Prim (_, _, t) -> Some (x, t) | _ -> None) exports.values))
+   | _ -> ());
   items
+
+let interface () = !own
 
 let units_named () = List.sort compare (Hashtbl.fold (fun n m acc -> if m <> None then n :: acc else acc) units [])
 
@@ -408,7 +474,7 @@ let var v = Printf.sprintf "%s/%d" v.vname v.vid
 let show_value = function
   | Local v -> var v
   | Global g -> g.gsym
-  | Prim (p, n) -> Printf.sprintf "%%%s/%d" p n
+  | Prim (p, n, _) -> Printf.sprintf "%s/%d" p n
 
 let show_cons c =
   match c.kind with
@@ -468,4 +534,4 @@ let show_item = function
   | Ivalue (r, bs, gs) ->
       Printf.sprintf "(let%s %s) -> %s" (if r then "rec" else "") (bindings bs) (list (fun (v, g) -> var v ^ ":" ^ g.gsym) gs)
   | Iexception (g, c) -> Printf.sprintf "(exception %s %s)" c g.gsym
-  | Iexternal (g, p, n) -> Printf.sprintf "(external %s %s/%d)" g.gsym p n
+  | Iexternal (g, p, n, _) -> Printf.sprintf "(external %s %s/%d)" g.gsym p n

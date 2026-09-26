@@ -512,6 +512,18 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 3: calls through slots; types resolved.** A
+  call's closure and arguments are computed into slots (a local already
+  in one is its own), and the stack machine's call names them; an
+  unknown call applies them one at a time. It costs what the spill did,
+  and makes a call's depth 1: `Printf.sprintf` with many arguments was
+  20 deep in mini-9pi's Usbdwc, for arm's 8 registers. Every file of the
+  corpus now compiles for arm, mini-9pi's included, but manyargs.ml (a
+  function of 11 arguments: they are passed in registers, 8 on arm)
+  and recvalues.ml. For phase 4, Scope resolves the types too: a
+  constructor, a label, an external and an `.mli`'s value carry their
+  declared types, a type group's declarations in scope for each other,
+  an interface's types resolved in its own scope (its opens).
 - **2026-09-26, phase 3: KB, and the fuzzer.** `tests/run.sh` takes a
   directory of units (ordered by `mini-ml -M`): KB (Knuth-Bendix, five
   units with their `.mli`s) the same as `ocamlopt`'s on arm64 and arm;
