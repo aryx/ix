@@ -1,4 +1,5 @@
 mini-9pi
+#u/usb/ep1.0: dwcotg: port 0X0 irq 9
 booooooooting ARM ...
 % ls /boot
 /boot/bind
@@ -18,6 +19,8 @@ b 3
 /env/*
 /env/0
 /env/cflag
+/env/cputype
+/env/etherargs
 /env/fn#sigexit
 /env/home
 /env/ifs
@@ -25,7 +28,9 @@ b 3
 /env/pid
 /env/prompt
 /env/rcname
+/env/service
 /env/status
+/env/terminal
 /env/x
 % ls -l /dev/cons /env/x
 --rw-rw---- c 0 '' '' 0 Sep  9  2026 /dev/cons

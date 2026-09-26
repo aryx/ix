@@ -16,6 +16,12 @@ let scheduler_slot = nproc
 let procs : proc option array = Array.make nproc None
 let nextpid = ref 1
 
+(* the pids 9pi's kernel processes take (kgenrandom and alarm at the
+ * boot, kpager at the swap's start, rxmitproc at #I's attach): spent
+ * at the same moments, so that the processes' pids are 9pi's (mini-9pi
+ * has no such processes) *)
+let kproc (_ : string) = incr nextpid
+
 (* the clock: 100 a second *)
 let ticks = ref 0
 
@@ -60,6 +66,10 @@ let sleep ch =
   p.state <- Sleeping ch;
   sched ();
   interrupted p
+
+let tsleep ms =
+  let until = !ticks + ((ms + 9) / 10) in
+  while !ticks < until do sleep Ticks done
 
 let wakeup ch =
   List.iter (fun p -> match p.state with Sleeping c when c = ch -> ready p | _ -> ()) (all ())

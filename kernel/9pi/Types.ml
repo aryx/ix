@@ -204,9 +204,11 @@ type proc = {
   mutable text : string;
   mutable start : int;
   (* the system call it is in (/proc/n/status: "Pread"...), its
-   * arguments' first bytes (/proc/n/args) *)
+   * arguments' first bytes (/proc/n/args), NUL-separated, or a name it
+   * gave itself (setargs: libthread's threadsetname) *)
   mutable psstate : string;
   mutable args : string;
+  mutable setargs : bool;
   (* the notes posted, not yet delivered (NNOTE at most); one pending
    * (a sleep interrupted); in a handler (notified), the frame it runs
    * on (the user's NFrame, 0: none), the last one delivered *)

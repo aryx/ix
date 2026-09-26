@@ -401,3 +401,31 @@ Not exercised by a program yet: tsemacquire, alarm, NSAVE. Stage C's
 and step 1's sessions differ from the C 9pi only by what usbd changes:
 its pids, mount numbers and `/srv/usb`. Step 2 (`#u`) should close
 that gap.
+
+2026-09-26, **stage D, step 2a: USB's `#u`**. `Usb` (usb.h's types),
+`Usbdwc` (usbdwc.c: control, interrupt and bulk transfers, data toggles,
+NAKs retried, the root port, over kernel/lib's polled `usb_transfer`;
+split transactions skipped as 9pi skips them under emulation) and
+`Devusb` (devusb.c: `#u/usb/ctl`, `epN.M/{data,ctl}`, the ctl commands,
+the root hub's toy replies). boot.rc's usbd now runs as on 9pi: its four
+processes (work, usbfs, outproc, fsioproc, named by threadsetname:
+`/proc/n/args` is procargs'), `/srv/usb`, its mount on `/dev`. With
+QEMU's USB keyboard and mouse it enumerates the hub, the keyboard and
+the mouse through mini-9pi's `#u` (usb/kb then stops at `#Ι/kbin` and
+`#m/mousein`: step 2b). `#i` and `#I` exist as empty directories until
+their stages. The pids 9pi's kernel processes take (kgenrandom, alarm,
+kpager at the swap's start, rxmitproc at `#I`'s attach) are spent at
+the same moments, the boot process has userinit's environment
+(terminal, cputype, service, etherargs), a forked child has no
+arguments: **9pi.py's session is now the C 9pi's byte for byte** from
+rc's first prompt on, hoc's pid (48) included.
+
+A compiler bug found on the way: with the USB devices attached the
+kernel crashed in the OCaml collector. The ocaml-light fork's ARM
+backend gave calls made while an argument is on the stack (an
+application of more than 8 arguments: Printf with 8 or more) a frame
+descriptor 4 bytes too big (plan_bugs_ocaml_light.md, bug 5). Fixed by
+upstream OCaml's rounding of the outgoing area, as a patch
+`kernel/ocaml-light.sh` applies to its clone
+(`kernel/ocaml-light-patches/`). The hunt is written up in
+`docs/notes_debugging_techniques.md`, technique 8.

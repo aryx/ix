@@ -103,3 +103,6 @@ val getu31 : string -> int -> int
 (* a directory's entries from index [dri], as many whole ones as fit in
  * n bytes (devdirread): the bytes, how many *)
 val dirread : dir list -> int -> int -> string * int
+
+(* %q: quoted as rc would read it, when it needs to be *)
+val quote : string -> string

@@ -133,6 +133,7 @@ let exec p path args =
   (* the arguments' first 128 bytes, NUL-separated (/proc/n/args) *)
   let a = String.concat "" (List.map (fun a -> a ^ "\000") args) in
   p.args <- (if String.length a > 128 then String.sub a 0 128 else a);
+  p.setargs <- false;
   Array.iteri (fun fd o -> match o with
     | Some c when (match c.opened with Some m -> m.cexec | None -> false) -> p.fgrp.fds.(fd) <- None; Chan.close c
     | _ -> ()) p.fgrp.fds;

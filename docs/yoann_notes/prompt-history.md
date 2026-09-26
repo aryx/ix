@@ -6523,3 +6523,15 @@ Claude committed the restructuring as 5311c1b, moving compiler and ml directorie
 **Claude (summary):**
 
 The `.claude/settings.json` hook logged all ix sessions regardless of their actual working directory or project. Session e003644d began in ix on 2026-09-25 but contained fourteen raytracing work entries through 2026-09-26 08:04. Concurrent sessions caused summaries to be filed under wrong prompts, with some entries lost to misalignment. Claude proposed fixing the hook to track per-session, manually cleaning the file, and regenerating lost summaries from transcripts. Going forward, start playground sessions from ~/playground directory to prevent them from being logged by ix hooks.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 08:12
+
+**Yoann:**
+
+> yes
+
+**Claude (summary):**
+
+Claude was regenerating one hundred fifty-three summaries using Haiku in parallel batches of four. The regeneration recovers mid-turn messages by teaching exchanges() to read queued_command attachments as prompts. This preserves messages that otherwise get lost like "dunno if we also…" and "please use git mv…". After the regeneration completes, Claude will validate results against the backup copy. Finally, Claude will commit the fix to resolve the transcript corruption from overlapping sessions.

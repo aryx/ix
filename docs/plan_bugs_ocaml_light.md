@@ -61,6 +61,49 @@ compiler, `sizeof` read from its object, as autoconf does).
 the Pi4's build (`-target-arch arm64` on this aarch64 host) is native
 and right.
 
+## 5. A stack argument breaks the ARM backend's frame descriptors (a bug)
+
+**What** (found 2026-09-26, `kernel/9pi`: a kernel crash in the
+collector): `asmcomp/arm/emit.mlp`'s `frame_size` rounds the whole frame
+to 8, `stack_offset` included (the AAPCS alignment fix):
+
+```
+let size = !stack_offset + 4 * num_stack_slots.(0) + 8 * num_stack_slots.(1)
+           + (if !contains_calls then 4 else 0) in
+Misc.align size 8
+```
+
+That is right only if `stack_offset` is itself a multiple of 8, and
+`asmcomp/arm/proc.ml`'s `calling_conventions` returns the outgoing
+stack area unrounded (`(loc, !ofs)`). One argument on the stack (an
+application of more than 8 arguments, whose closure call is
+`caml_apply9`'s; a C call of more than 4) makes `stack_offset` 4, and
+every call site recorded while it is pushed gets a descriptor 4 bytes
+too big. In `kernel/9pi`'s `Usbdwc.chanio`, a `Printf.sprintf` of 8
+format arguments:
+
+```
+sub   sp, sp, #4           @ the 9th argument on the stack
+bl    caml_apply8          @ its descriptor: frame size 56
+                           @ the frame: 48 (prologue) + 4 = 52
+```
+
+A minor collection during that call walks the stack off by a word: the
+next "return address" is a saved sp, not in the frame table, and the
+lookup's probe reaches an empty slot (a NULL descriptor dereferenced in
+`oldify_local_roots`). Any program applying a function to more than 8
+arguments (Printf with 8 or more, a record of 9 fields built by a
+function...) can crash this way, depending on when the collector runs.
+
+**Fix**: upstream OCaml's, in `calling_conventions`: `(loc, Misc.align
+!ofs 8)` ("keep stack 8-aligned"), so that `Istackoffset` is always a
+multiple of 8 and `frame_size`'s rounding stays exact. (The arm64
+backend already has upstream's `Misc.align !ofs 16`.)
+
+**Workaround**: `kernel/ocaml-light-patches/arm-stack-align.patch`, the
+fix, applied by `kernel/ocaml-light.sh` to its clone (which rebuilds a
+`/tmp` build made without the current patches).
+
 ## Not ocaml-light's, found on the way
 
 - **Ubuntu's armhf libgcc is Thumb-2 for ARMv7**: an ARMv6 cannot run

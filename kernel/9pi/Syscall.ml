@@ -65,25 +65,6 @@ let offset lo hi =
   else if hi > 0 || lo < 0 then raise (Error ebadarg)
   else Some lo
 
-(* %q: quoted as rc would read it, when it needs to be *)
-let quote s =
-  let needs = s = "" || (let r = ref false in
-                         for i = 0 to String.length s - 1 do
-                           if (try ignore (String.index " \t\n'`^#*[]=|&;()<>{}$\"" s.[i]); true with Not_found -> false)
-                           then r := true
-                         done; !r) in
-  if not needs then s
-  else begin
-    let b = Buffer.create (String.length s + 2) in
-    Buffer.add_char b '\'';
-    for i = 0 to String.length s - 1 do
-      if s.[i] = '\'' then Buffer.add_char b '\'';
-      Buffer.add_char b s.[i]
-    done;
-    Buffer.add_char b '\'';
-    Buffer.contents b
-  end
-
 (*****************************************************************************)
 (* Processes *)
 (*****************************************************************************)
@@ -172,7 +153,7 @@ let rfork (p : proc) flag =
       pgdir = pgdir; segs = segs;
       fgrp = fg; pgrp = pg; egrp = eg; slash = p.slash; dot = p.dot;
       notify = p.notify; noteid = (if flag land rfnoteg <> 0 then !noteids else p.noteid);
-      errstr = ""; text = p.text; start = !Proc.ticks; psstate = ""; args = p.args;
+      errstr = ""; text = p.text; start = !Proc.ticks; psstate = ""; args = ""; setargs = false;
       notes = []; notepending = false; notified = false; ureg = 0; lastnote = ("", Nuser); alarm = 0;
       rgrp = (if flag land rfrend <> 0 then { rend = [] } else p.rgrp); rendtag = 0; rendval = 0 } in
     if flag land rfnowait = 0 then p.nchild <- p.nchild + 1;
@@ -191,15 +172,9 @@ let await (p : proc) buf n =
     | [] -> Proc.sleep (Child_exit p.pid); wait ()
     | w :: rest -> p.waitq <- rest; w in
   let w = wait () in
-  user_snprint p buf n (Printf.sprintf "%d %d %d %d %s" w.wpid 0 0 w.wtime (quote w.wmsg))
+  user_snprint p buf n (Printf.sprintf "%d %d %d %d %s" w.wpid 0 0 w.wtime (Dev.quote w.wmsg))
 
-let sleep_ms (p : proc) ms =
-  if ms <= 0 then Proc.yield ()
-  else begin
-    let until = !Proc.ticks + ((ms + 9) / 10) in
-    while !Proc.ticks < until do Proc.sleep Ticks done
-  end;
-  0
+let sleep_ms (_ : proc) ms = if ms <= 0 then Proc.yield () else Proc.tsleep ms; 0
 
 (*****************************************************************************)
 (* Memory *)

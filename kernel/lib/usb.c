@@ -97,3 +97,12 @@ value usb_transfer(value vdesc, value vpid, value vlen)
   if (!(hcint & 0x1)) return Val_long(-3);                 /* not complete: an error */
   return Val_long(len - (USB(HCTSIZ(0)) & 0x7ffff));
 }
+
+/* claude: the PID the channel's next packet would have (HCTSIZ's bits
+ * 29-30: 0 DATA0, 2 DATA1), after a transfer: the endpoint's data
+ * toggle, which mini-9pi keeps between transfers (usbdwc's hctsiz&Pid) */
+value usb_pid(value unit)
+{
+  (void)unit;
+  return Val_long((USB(HCTSIZ(0)) >> 29) & 3);
+}

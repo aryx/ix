@@ -175,3 +175,19 @@ let dirread dirs dri n =
   let k = go (drop dri dirs) 0 in
   if k = 0 && drop dri dirs <> [] then raise (Error "i/o count too small");
   Buffer.contents b, k
+
+let quote s =
+  let special c = try ignore (String.index " \t\n'`^#*[]=|&;()<>{}$\"" c); true with Not_found -> false in
+  let needs = s = "" || (let r = ref false in for i = 0 to String.length s - 1 do if special s.[i] then r := true done; !r) in
+  if not needs then s
+  else begin
+    let b = Buffer.create (String.length s + 2) in
+    Buffer.add_char b '\'';
+    for i = 0 to String.length s - 1 do
+      if s.[i] = '\'' then Buffer.add_char b '\'';
+      Buffer.add_char b s.[i]
+    done;
+    Buffer.add_char b '\'';
+    Buffer.contents b
+  end
+

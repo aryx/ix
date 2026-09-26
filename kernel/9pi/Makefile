@@ -32,7 +32,7 @@
 MAKEFLAGS += --no-builtin-rules
 
 PRINCIPIA ?= $(HOME)/principia
-ML = Types Dev Proc Chan Devroot Devcons Devenv Devsys Devarch Devdup Devsrv Devpipe Devproc Emmc Devsd P9 Devmnt Fault Exec Syscall Main
+ML = Types Dev Proc Chan Devroot Devcons Devenv Devsys Devarch Devdup Devsrv Devpipe Devproc Emmc Devsd P9 Devmnt Usb Usbdwc Devusb Devstub Fault Exec Syscall Main
 
 # the bootdir, as kernel/conf/arm/pi's: boot.rc as /boot/boot (or a
 # test's script: BOOTRC)

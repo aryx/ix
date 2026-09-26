@@ -64,6 +64,12 @@ let status p =
 (* %.Nx: hex, zero-padded to w digits *)
 let hex w v = let s = Printf.sprintf "%x" v in String.make (max 0 (w - String.length s)) '0' ^ s
 
+(* procargs: the arguments quoted, space-separated; a name the process
+ * gave itself: "text [name]" *)
+let procargs p =
+  if p.setargs then p.text ^ " [" ^ p.args ^ "]"
+  else String.concat " " (List.map Dev.quote (List.filter (fun a -> a <> "") (String.split_on_char '\000' p.args)))
+
 let segment p =
   String.concat "" (List.map (fun s ->
     let name = match s.kind with Text -> "Text" | Data -> "Data" | Bss -> "Bss" | Stack -> "Stack" in
@@ -105,7 +111,7 @@ let init () =
       let p = find (c.qid.path / 32) in
       match name_of c.qid.path with
       | "status" -> readstr off n (status p)
-      | "args" -> readstr off n p.args
+      | "args" -> readstr off n (procargs p)
       | "fd" -> readstr off n (fds p)
       | "ns" -> readstr off n (ns p)
       | "noteid" -> readstr off n (num p.noteid)
@@ -118,6 +124,11 @@ let init () =
            if s = "kill" || s = "kill\n" then ignore (Proc.postnote p "sys: killed" Nexit)
            else raise (Error ebadctl)
        | "note" -> ignore (Proc.postnote p s Nuser)
+       | "args" ->
+           if s = "" then raise (Error "i/o count too small");
+           if String.length s >= 128 then raise (Error "read or write too large");
+           p.args <- (try String.sub s 0 (String.index s '\000') with Not_found -> s);
+           p.setargs <- true
        | "notepg" ->
            List.iter (fun q -> if q.noteid = p.noteid then ignore (Proc.postnote q s Nuser)) (procs ())
        | _ -> raise (Error eperm));

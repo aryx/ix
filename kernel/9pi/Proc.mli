@@ -20,6 +20,11 @@ val procs : proc option array
 (* the running process *)
 val myproc : unit -> proc
 
+(* a pid spent as 9pi's kernel process of that name takes it (kgenrandom,
+ * alarm, kpager, rxmitproc: mini-9pi has none), for the pids to be
+ * 9pi's *)
+val kproc : string -> unit
+
 (* the clock's ticks (100 a second) *)
 val ticks : int ref
 
@@ -35,6 +40,10 @@ val ready : proc -> unit
  * sleepers readied); the CPU given up *)
 val sched : unit -> unit
 val sleep : wait_chan -> unit
+
+(* asleep [ms] milliseconds (to the next tick: 10ms each; interrupted
+ * by a note, as sleep) *)
+val tsleep : int -> unit
 
 (* a sleep's error when a note is pending ("interrupted": Plan 9's
  * Eintr, the note then delivered) *)

@@ -128,6 +128,9 @@ let read (c : chan) n off =
   | "bintime" -> String.make (min n 24) '\000'
   | _ -> raise (Error egreg)
 
+(* the swap's pager started (its kernel process: a pid) *)
+let kpager = ref false
+
 let write (c : chan) s _ =
   (match name_of c.qid.path with
    | "cons" -> print s
@@ -136,7 +139,8 @@ let write (c : chan) s _ =
        else if s = "rawoff" then begin raw := false; if Buffer.length line > 0 then send () end
        else if s = "holdon" || s = "holdoff" then ()
        else raise (Error ebadctl)
-   | "null" | "swap" | "time" | "bintime" -> ()
+   | "swap" -> if s = "start" && not !kpager then begin kpager := true; Proc.kproc "kpager" end
+   | "null" | "time" | "bintime" -> ()
    | _ -> raise (Error eperm));
   String.length s
 

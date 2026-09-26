@@ -100,6 +100,15 @@ let process_start (_ : int) =
 (* The boot *)
 (*****************************************************************************)
 
+(* the boot process's environment, as 9pi's userinit sets it (ksetenv):
+ * terminal ("ARM" and its conf file's path, as 9pi's buffer cuts it:
+ * the C kernel's value under QEMU), cputype, service, etherargs (QEMU's
+ * MAC) *)
+let boot_env =
+  let v i name value = { ename = name; evalue = value; epath = i; evers = 0 } in
+  [ v 1 "terminal" "ARM /home/pad/github/principia-softwarica/kernel/COMPIL"; v 2 "cputype" "arm";
+    v 3 "service" "terminal"; v 4 "etherargs" "-a 525400123457" ]
+
 let () =
   Callback.register "trap" trap;
   Callback.register "irq" irq;
@@ -119,6 +128,8 @@ let () =
   Devmnt.init ();
   Devsrv.init ();
   Devsd.init ();
+  Devusb.init ();
+  Devstub.init ();
   Proc.idle := (fun () -> Machine.wait_interrupt (); ignore (devices ()));
   Machine.timer_arm tick_us;
   Machine.uart_rx_enable ();
@@ -127,12 +138,14 @@ let () =
   Machine.tf_init 0;
   Proc.procs.(0) <-
     Some { pid = 1; slot = 0; state = Runnable; parent = 0; nchild = 0; waitq = []; pgdir = 0; segs = [];
-           fgrp = Chan.fgrp_new (); pgrp = { mnt = [] }; egrp = { vars = []; last_path = 0 };
+           fgrp = Chan.fgrp_new (); pgrp = { mnt = [] }; egrp = { vars = boot_env; last_path = List.length boot_env };
            slash = slash; dot = Chan.clone slash; notify = 0; noteid = 1;
-           errstr = ""; text = "*init*"; start = 0; psstate = ""; args = "";
+           errstr = ""; text = "*init*"; start = 0; psstate = ""; args = ""; setargs = false;
            notes = []; notepending = false; notified = false; ureg = 0; lastnote = ("", Nuser); alarm = 0;
            rgrp = { rend = [] }; rendtag = 0; rendval = 0 };
   Proc.nextpid := 2;
+  Proc.kproc "kgenrandom";
+  Proc.kproc "alarm";
   Machine.proc_context 0;
   (match Proc.procs.(0) with Some p -> Proc.ready p | None -> ());
   Proc.scheduler ()

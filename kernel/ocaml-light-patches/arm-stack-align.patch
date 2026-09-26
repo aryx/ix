@@ -1,0 +1,24 @@
+diff --git a/asmcomp/arm/proc.ml b/asmcomp/arm/proc.ml
+index 81808bd3..2c22b11e 100644
+--- a/asmcomp/arm/proc.ml
++++ b/asmcomp/arm/proc.ml
+@@ -157,7 +157,18 @@ let calling_conventions first_int last_int first_float last_float
+           ofs := !ofs + size_float
+         end
+   done;
+-  (loc, !ofs)
++  (* claude: the outgoing stack area rounded up to 8, as upstream OCaml's
++   * ARM backend does ("keep stack 8-aligned"). Emit's frame_size aligns
++   * the whole frame, stack_offset included, to 8 (AAPCS), which is only
++   * right if stack_offset is itself a multiple of 8. With this area a
++   * plain multiple of 4 (one stack argument: an application of more than
++   * 8 arguments, caml_apply9's closure call, or a C call of more than 4),
++   * stack_offset became 4 and every call site recorded while it was
++   * pushed got a frame descriptor 4 bytes too big: a collection there
++   * walked the stack off by a word, took a saved sp for a return
++   * address, and crashed on a NULL frame descriptor (ix's mini-9pi, a
++   * Printf.sprintf of 11 arguments: plan_bugs_ocaml_light.md, bug 5) *)
++  (loc, Misc.align !ofs 8)
+ (*e: function [[Proc.calling_conventions]] *)
+ 
+ (*s: function [[Proc.incoming]] *)

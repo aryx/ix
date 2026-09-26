@@ -1,10 +1,8 @@
 mini-9pi
+#u/usb/ep1.0: dwcotg: port 0X0 irq 9
 booooooooting ARM ...
 partition...
 dossrv: serving #s/dos
-bind: #i: unknown device in # filename
-bind: #I: unknown device in # filename
-usbd: #u: unknown device in # filename
 % ls /
 /9PI
 /ADM
@@ -58,6 +56,6 @@ written by the emulator
 % cat /CONFIG.TXT | wc
      49     194    1346
 % echo 1.5*2 | hoc
-hoc 40: suicide: undefined instruction: pc 0x3ba4
+hoc 48: suicide: undefined instruction: pc 0x3ba4
 
 % 
