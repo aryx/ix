@@ -61,6 +61,9 @@ val find : char -> t
 
 (* a device by the rune of its letter; a letter's rune; a rune in UTF-8 *)
 val find_rune : int -> t
+
+(* a registered device's letter made a rune *)
+val set_rune : char -> int -> unit
 val rune_of : char -> int
 val utf8 : int -> string
 val all : unit -> t list

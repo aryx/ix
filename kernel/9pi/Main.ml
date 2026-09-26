@@ -27,6 +27,8 @@ let devices () =
     Machine.timer_arm tick_us;
     incr Proc.ticks;
     Proc.wakeup Ticks;
+    (* swcursor_clock's, to the mouse *)
+    Swcursor.clock (Devmouse.xy ());
     (* the alarms due (alarmkproc's) *)
     Array.iter (fun o -> match o with
       | Some p when p.alarm <> 0 && !Proc.ticks >= p.alarm && p.state <> Zombie ->
@@ -114,24 +116,25 @@ let () =
   Callback.register "irq" irq;
   Callback.register "fault" fault;
   Callback.register "process_start" process_start;
-  Devcons.print "mini-9pi\n";
   Dev.seconds := (fun () -> !Proc.ticks / 100);
-  (* devtab's order (9pi's conf: its "reset" lines) *)
-  Devroot.init ();
-  Devcons.init ();
-  Devenv.init ();
-  Devproc.init ();
-  Devsys.init ();
-  Devpipe.init ();
-  Devdup.init ();
-  Devarch.init ();
-  Devmnt.init ();
-  Devsrv.init ();
-  Devmouse.init ();
-  Devkbin.init ();
-  Devsd.init ();
-  Devusb.init ();
-  Devstub.init ();
+  (* the screen first, the console on it (9pi's screeninit, before its
+   * first print) *)
+  Swconsole.init ();
+  Devmouse.screen := Swconsole.rect ();
+  if Swconsole.rect () <> None then Swcursor.init ();
+  (* 9pi's banner: its machine's lines as the C kernel prints them under
+   * QEMU (mini-9pi does not measure them) *)
+  Devcons.print "\nPlan 9 from Bell Labs\nboard rev: 0x900021 firmware rev: 346337\ncpu0: 0MHz ARM 1176JZF-S\n";
+  Devcons.print "fp: 16 registers,  no simd\nfp: arm arch VFPv2; rev 5\n";
+  (* the devices, in devtab's order (9pi's conf), each reset after its
+   * line (chandevreset: a device's own messages after it) *)
+  List.iteri (fun i (name, init) -> Devcons.print (Printf.sprintf "reset %d, %s\n" i name); init ())
+    [ "root", Devroot.init; "cons", Devcons.init; "env", Devenv.init; "proc", Devproc.init; "sys", Devsys.init;
+      "pipe", Devpipe.init; "dup", Devdup.init; "arch", Devarch.init; "mnt", Devmnt.init; "srv", Devsrv.init;
+      "draw", Devstub.draw; "mouse", Devmouse.init; "kbin", Devkbin.init; "kbmap", Devstub.kbmap; "sd", Devsd.init;
+      "ether", Devstub.ether; "ip", Devstub.ip; "uart", Devstub.uart; "usb", Devusb.init ];
+  (* confinit's summary, 9pi's numbers *)
+  Devcons.print "448M memory: 91M kernel data, 357M user, 1696M swap\n";
   Proc.idle := (fun () -> Machine.wait_interrupt (); ignore (devices ()));
   Machine.timer_arm tick_us;
   Machine.uart_rx_enable ();

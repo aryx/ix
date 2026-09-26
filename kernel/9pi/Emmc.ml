@@ -69,6 +69,8 @@ let dto = 14
 let clkdiv d = ((d lsl 8) land 0xff00) lor (((d lsr 8) lsl 6) land 0xc0)
 
 let init () =
+  (* emmcinit's message (the clock's rate from the firmware: 50MHz) *)
+  Devcons.print (Printf.sprintf "eMMC external clock %d Mhz\n" (extclk / 1000000));
   wr control1 srsthc;
   ignore (poll (fun () -> hi control1 land (srsthc lsr 16) = 0))
 

@@ -12,12 +12,14 @@
  * button's change queued), mousein (usb/kb writes a USB mouse's moves:
  * "m dx dy buttons [msec]"), mousectl (buttonmap, swap, scrollswap,
  * accelerated, linear), cursor (the cursor's image: 9pi's arrow at
- * first). The position is kept within the screen (none before stage D's
- * step 3: then moves are dropped, as 9pi's without a gscreen); the
- * cursor is not drawn yet. *)
+ * first, drawn by Swcursor). The position is kept within the screen
+ * (without one, moves are dropped, as 9pi's without a gscreen). *)
 
 (* the screen's rectangle (min x, min y, max x, max y), once there is one *)
 val screen : (int * int * int * int) option ref
 
-(* the device registered *)
+(* mousexy: the mouse's position *)
+val xy : unit -> int * int
+
+(* the device registered; the arrow cursor loaded and drawn *)
 val init : unit -> unit

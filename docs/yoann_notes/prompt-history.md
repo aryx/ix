@@ -6736,3 +6736,35 @@ Claude confirmed three sibling directories: compat/, simple/, and opti/, with ea
 **Claude (summary):**
 
 Claude identified CLI hooks as the seam for splitting the C compiler backend. Claude moved acom out of Check into compat/Acom.ml for the back-end record. Claude updated CLI wiring with a single back-end record grouping for future -simple flag support. Claude verified the refactoring by building without warnings and comparing listing outputs against 5c and 7c. Claude updated the tutorial module table and paths in docs to reflect the new structure.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:57
+
+**Yoann:**
+
+> let's commit
+
+**Claude (summary):**
+
+Claude committed files from the current split session, excluding uncommitted work from other sessions. Claude did not include kernel/9pi and Makefile in the commit as they were from another session. Claude found that prompt-history.md ended up in the commit without being explicitly staged. Claude discovered the file was already staged from some prior operation or session. Claude was investigating the file's contents to understand the unexpected staging situation.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:58
+
+**Yoann:**
+
+> ok what's next?
+
+**Claude (summary):**
+
+Claude recommended starting with Emit output-side move, then Lower and Gen for arm64, estimated 1,000–1,200 lines. Typed stack IR in simple/Lower.ml generates arm64 in simple/Gen.ml, sharing only output infrastructure. Yoann accepted the approach but emphasized code simplicity and smaller overall LOC as top priorities. Yoann asked whether arm32 support should be included alongside arm64 in simple/. Claude outlined design questions about floats, initializers, and Emit sharing.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:00
+
+**Yoann:**
+
+> whatever you think is best, and lead to simpler and smaller LOC. Also we should arm32 support too at some point also for simple/ no?

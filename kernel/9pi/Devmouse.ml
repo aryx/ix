@@ -56,6 +56,15 @@ let arrow =
 let bplong v = let s = Machine.le32 v in String.make 1 s.[3] ^ String.make 1 s.[2] ^ String.make 1 s.[1] ^ String.make 1 s.[0]
 let cursor = ref (bplong (-1) ^ bplong (-1) ^ String.sub arrow 8 64)
 
+(* BGLONG, little-endian (its 24 low bits, sign-extended: an offset
+ * is small, and bit 31 does not fit a 31-bit int) *)
+let bglong s o =
+  let v = Char.code s.[o] lor (Char.code s.[o + 1] lsl 8) lor (Char.code s.[o + 2] lsl 16) in
+  if v land 0x800000 <> 0 then v - 0x1000000 else v
+
+(* Cursortocursor: the cursor's 72 bytes (offset, clr, set) drawn *)
+let setcursor c = Swcursor.ksetcursor (bglong c 0, bglong c 4) (String.sub c 8 32) (String.sub c 40 32)
+
 let scale x =
   let sign = if x < 0 then -1 else 1 and x = abs x in
   sign * (if x <= 3 then x else if x = 4 then 6 + (!acceleration asr 2) else if x = 5 then 9 + (!acceleration asr 1) else x * !maxacc)
@@ -75,6 +84,8 @@ let mousetrack dx dy b msec =
         if List.length !queue = 16 then qfull := true
       end;
       Proc.wakeup Mouse_change
+
+let xy () = (!st.x, !st.y)
 
 let changed () = !lastcounter <> !st.counter || !lastresize <> !resize
 
@@ -117,6 +128,9 @@ let rec read_mouse n =
   end
 
 let init () =
+  (* mousereset's, then mouseinit's *)
+  setcursor arrow;
+  ignore (Swcursor.cursoron ());
   Kbd.kbdmouse := (fun b -> kbdbuttons := b; mousetrack 0 0 0 (now_ms ()));
   mousetime := !Dev.seconds ();
   let d = Dev.default 'm' "mouse" in
@@ -144,7 +158,10 @@ let init () =
     Dev.write = (fun c s _ ->
       let n = String.length s in
       if c.qid.path = qcursor then begin
+        Swcursor.cursoroff ();
         cursor := (if n < 72 then bplong (-1) ^ bplong (-1) ^ String.sub arrow 8 64 else String.sub s 0 72);
+        setcursor (if n < 72 then arrow else !cursor);
+        ignore (Swcursor.cursoron ());
         min n 72
       end
       else if c.qid.path = qmousectl then begin

@@ -11,6 +11,8 @@
 # kernel/xv6's and kernel/9pi's Makefiles, which set first
 #   ML      their OCaml modules, in order (after kernel/lib's: LIB_ML)
 #   FS      the disk image embedded in the kernel (start.s's fs_image)
+#   EXTRA_OBJS  more objects to link (kernel/9pi's: principia's C pixel
+#           libraries), built by the kernel's own rules
 # and then add their own targets (run, check, ...). A board (BOARD=pi1,
 # the default, or pi4) is lib/pi1/ or lib/pi4/: its Arch.ml, machine.c,
 # start.s, board.h, kernel.ld; lib/ has the rest of the machine (the
@@ -73,7 +75,7 @@ RUNTIME = startup fail roots signals misc freelist major_gc minor_gc memory allo
   floats str array io extern intern hash sys parsing gc_ctrl terminfo md5 obj lexing printexc \
   backtrace callback weak compact custom
 RTOBJS = $(RUNTIME:%=$(B)/rt_%.o) $(B)/rt_$(TARGET).o
-OBJS = $(B)/start.o $(B)/ocaml.o $(RTOBJS) $(B)/runtime.o $(B)/usb.o $(B)/machine.o $(B)/libc.o
+OBJS = $(B)/start.o $(B)/ocaml.o $(RTOBJS) $(B)/runtime.o $(B)/usb.o $(B)/machine.o $(B)/libc.o $(EXTRA_OBJS)
 
 all: $(IMAGE)
 

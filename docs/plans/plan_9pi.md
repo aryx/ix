@@ -445,3 +445,27 @@ keyboard's printable characters, shifted ones with shift) gives the C
 `tests/session-usb`). Not the same yet: `ps`'s order of usbd's
 processes when two start together, `kbd repeat`'s state, usbd's size
 (4K): timing.
+
+2026-09-26, **stage D, step 3a: the screen and the cursor**. principia's
+pixel libraries (decision 4: libmemdraw, libmemlayer, a few of
+libdraw's files) are compiled by gcc as Plan 9 C (`-fplan9-extensions`,
+`p9gcc.h`, principia's headers) and linked in (kernel.mk's
+`EXTRA_OBJS`). `draw9.c` gives them the Plan 9 libc they call (mallocz,
+werrstr, print, qsort, the image pool, EABI's 64-bit division...) and
+the kernel an interface (`d9_*`); `drawglue.c` makes it OCaml's
+(`Draw`: an image is a C pointer, outside the OCaml heap). `Swconsole`
+draws the console as 9pi's swconsole.c and screen.c's screenwin do (the
+framebuffer first all 0x7F, fbinit's "blue screen"; the black frame,
+the white window, the orange title bar and " Plan 9 Console ",
+scrolling by 8 lines), and `Swcursor` is swcursor.c (the arrow, what it
+covers kept aside, hidden by any drawing over it, as memdraw's hwdraw
+hook does; redrawn by the clock at the mouse's position). The boot
+prints 9pi's banner and devices' resets. **The screen is the C 9pi's
+pixel for pixel** after a session and after the USB mouse moved (usb/kb's
+accelerated moves), under mini-qemu and QEMU (`make check`:
+`tests/screen-c.ppm.gz`, `tests/screen-move-c.ppm.gz`, made by
+`make expected-screen`). `mini-pi -g mini-9pi` opens it in a window.
+QEMU warns of a re-entrant I/O on bcm2835-fb at the framebuffer's
+mailbox request, for the C 9pi as for mini-9pi: filtered out of the
+sessions. Next, step 3b: `#i`, devdraw's protocol, over the same
+libraries.

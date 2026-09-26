@@ -55,6 +55,8 @@ let devtab = ref []
 
 let register d = devtab := !devtab @ [ d ]
 
+let set_rune dc r = devtab := List.map (fun d -> if d.dc = dc then { d with drune = r } else d) !devtab
+
 let all () = !devtab
 
 let find dc =
