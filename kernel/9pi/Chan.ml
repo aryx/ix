@@ -11,10 +11,43 @@
 
 open Types
 
+let mrepl = 0
+let mbefore = 1
+let mafter = 2
+let mcreate = 4
+
 let mode_of_int m =
   if m land lnot (16 lor 32 lor 64 lor 3) <> 0 then raise (Error ebadarg);
   { access = (match m land 3 with 0 -> Oread | 1 -> Owrite | 2 -> Ordwr | _ -> Oexec);
     trunc = m land 16 <> 0; cexec = m land 32 <> 0; rclose = m land 64 <> 0 }
+
+(* a copy of the channel's fields (the same fid: see clone) *)
+let copy c =
+  { dev = c.dev; devno = c.devno; qid = c.qid; offset = 0; opened = None; cname = c.cname; umh = []; dri = 0;
+    cref = 1; fid = c.fid }
+
+(* a copy that is a file of its own (devmnt: a new fid) *)
+let clone c = let nc = copy c in (Dev.find c.dev).Dev.clone c nc; nc
+
+(* an unopened channel no one holds *)
+let clunk c = if c.opened = None then (Dev.find c.dev).Dev.clunk c
+
+let same a b = a.dev = b.dev && a.devno = b.devno && a.qid.path = b.qid.path
+
+(*****************************************************************************)
+(* Walking *)
+(*****************************************************************************)
+
+(* cleanname: "." and empty elements gone, ".." removing its parent
+ * (at the root: the root) *)
+let cleanname path =
+  let rec go acc l =
+    match l with
+    | [] -> List.rev acc
+    | ("" | ".") :: r -> go acc r
+    | ".." :: r -> go (match acc with [] -> [] | _ :: a -> a) r
+    | e :: r -> go (e :: acc) r in
+  go [] (String.split_on_char '/' path)
 
 (* a path's elements, each with the offset of its end in the path ("."
  * and empty ones dropped) *)
@@ -28,33 +61,162 @@ let elements path start =
       go (j + 1) (if e = "" || e = "." then acc else (e, j) :: acc) in
   go start []
 
-let clone c = { dev = c.dev; qid = c.qid; offset = 0; opened = None; cname = c.cname }
+let findmount (pg : pgrp) c = try Some (List.find (fun h -> same h.mpt c) pg.mnt) with Not_found -> None
 
-let namec (p : proc) path =
+(* a mount point replaced by its union's first member, the union kept
+ * (the mount point's channel, the walk's own, dropped) *)
+let domount (pg : pgrp) c =
+  match findmount pg c with
+  | Some { members = m :: _ as members } ->
+      let nc = clone m.mchan in
+      nc.cname <- c.cname;
+      nc.umh <- members;
+      clunk c;
+      nc
+  | _ -> c
+
+let join name e = if name = "/" then "/" ^ e else name ^ "/" ^ e
+
+(* one step: the union's members tried in order (the first's error) *)
+let step c e =
+  let members = match c.umh with [] -> [ c ] | ms -> List.map (fun m -> m.mchan) ms in
+  let rec try_ ms first_err =
+    match ms with
+    | [] -> raise (Error (match first_err with Some e -> e | None -> enonexist))
+    | m :: rest ->
+        (try
+          let nc = copy m in
+          nc.qid <- (Dev.find m.dev).Dev.walk m nc e;
+          nc.cname <- join c.cname e;
+          nc
+        with Error err -> try_ rest (match first_err with None -> Some err | s -> s)) in
+  try_ members None
+
+let walk (p : proc) path nomount =
   if path = "" then nameerror path enonexist;
-  let base, start =
+  let pg = p.pgrp in
+  let base, elems, shown =
     match path.[0] with
-    | '/' -> p.slash, 1
+    | '/' ->
+        (* the cleaned path's elements, an error naming the path so far *)
+        let es = cleanname path in
+        let rec with_ends acc pre l = match l with
+          | [] -> List.rev acc
+          | e :: r -> let pre = pre ^ "/" ^ e in with_ends ((e, String.length pre) :: acc) pre r in
+        p.slash, with_ends [] "" es, "/" ^ String.concat "/" es
     | '#' ->
         if String.length path < 2 then raise (Error ebadsharp);
-        let j = try String.index_from path 2 '/' with Not_found -> String.length path in
-        (Dev.find path.[1]).Dev.attach (String.sub path 2 (j - 2)), j
-    | _ -> p.dot, 0 in
-  let d = Dev.find base.dev in
-  List.fold_left
-    (fun c (e, stop) ->
-      let q = try d.Dev.walk c e with Error err -> nameerror (String.sub path 0 stop) err in
-      c.qid <- q;
-      c.cname <- (if c.cname = "/" then "/" ^ e else c.cname ^ "/" ^ e);
-      c)
-    (clone base) (elements path start)
+        (* claude: index_from wants a start inside the string (1.07) *)
+        let j = if String.length path = 2 then 2 else try String.index_from path 2 '/' with Not_found -> String.length path in
+        (Dev.find path.[1]).Dev.attach (String.sub path 2 (j - 2)), elements path j, path
+    | _ -> p.dot, elements path 0, path in
+  let n = List.length elems in
+  (* each channel the walk goes through its own: dropped once past *)
+  let rec go c i l =
+    match l with
+    | [] -> c
+    | (e, stop) :: rest ->
+        let nc = try step c e with Error err -> clunk c; nameerror (String.sub shown 0 (min stop (String.length shown))) err in
+        clunk c;
+        go (if i = n - 1 && nomount then nc else domount pg nc) (i + 1) rest in
+  let c = clone base in
+  c.umh <- base.umh;
+  go (if n = 0 && nomount then c else domount pg c) 0 elems
 
+let namec p path = walk p path false
+let namec_nomount p path = walk p path true
+
+(*****************************************************************************)
+(* Open, create *)
+(*****************************************************************************)
+
+(* a channel the device gives back (#d's, #s's) is already open: kept
+ * as it is *)
 let open_ c m =
-  (Dev.find c.dev).Dev.open_ c m;
-  c.opened <- Some m;
-  c.offset <- 0
+  let nc = (Dev.find c.dev).Dev.open_ c m in
+  if nc == c then begin
+    c.opened <- Some m;
+    c.offset <- 0;
+    c.dri <- 0
+  end;
+  nc
 
-let close c = if c.opened <> None then (Dev.find c.dev).Dev.close c
+let incref c = c.cref <- c.cref + 1
+
+let close c =
+  c.cref <- c.cref - 1;
+  if c.cref = 0 && c.opened <> None then (Dev.find c.dev).Dev.close c
+
+let dirs c =
+  match c.umh with
+  | [] -> (Dev.find c.dev).Dev.dirs c
+  | ms -> List.concat (List.map (fun m -> (Dev.find m.mchan.dev).Dev.dirs m.mchan) ms)
+
+let split path =
+  let path = if String.length path > 1 && path.[String.length path - 1] = '/' then String.sub path 0 (String.length path - 1) else path in
+  try
+    let i = String.rindex path '/' in
+    (if i = 0 then "/" else String.sub path 0 i), String.sub path (i + 1) (String.length path - i - 1)
+  with Not_found -> ".", path
+
+let create (p : proc) path m perm =
+  let exists = try Some (namec p path) with Error _ -> None in
+  match exists with
+  | Some c ->
+      if perm land 0x1000 <> 0 then raise (Error eexist);
+      open_ c { m with trunc = true }
+  | None ->
+      let dirname, name = split path in
+      if name = "" || name = "." || name = ".." then raise (Error eexist);
+      let d = namec p dirname in
+      let target =
+        match d.umh with
+        | [] -> d
+        | ms ->
+            (try let mc = (List.find (fun mm -> mm.mcreate) ms).mchan in let t = clone mc in t.cname <- d.cname; t
+             with Not_found -> raise (Error enocreate)) in
+      (Dev.find target.dev).Dev.create target name m perm;
+      target.cname <- join d.cname name;
+      target.opened <- Some m;
+      target.offset <- 0;
+      target
+
+(*****************************************************************************)
+(* The namespace *)
+(*****************************************************************************)
+
+let bind (pg : pgrp) newc old flag =
+  if (newc.qid.typ = Qt_dir) <> (old.qid.typ = Qt_dir) then raise (Error "inconsistent mount");
+  let m = { mchan = newc; mcreate = flag land mcreate <> 0 } in
+  match findmount pg old with
+  | None ->
+      let members =
+        if flag land 3 = mrepl then [ m ]
+        else if flag land 3 = mbefore then [ m; { mchan = old; mcreate = false } ]
+        else [ { mchan = old; mcreate = false }; m ] in
+      pg.mnt <- pg.mnt @ [ { mpt = old; members = members } ]
+  | Some h ->
+      h.members <-
+        (if flag land 3 = mrepl then [ m ] else if flag land 3 = mbefore then m :: h.members else h.members @ [ m ])
+
+let unmount (pg : pgrp) newc old =
+  match findmount pg old with
+  | None -> raise (Error eunmount)
+  | Some h ->
+      (match newc with
+       | None -> pg.mnt <- List.filter (fun x -> x != h) pg.mnt
+       | Some nc ->
+           if not (List.exists (fun m -> same m.mchan nc) h.members) then raise (Error eunmount);
+           h.members <- List.filter (fun m -> not (same m.mchan nc)) h.members;
+           if h.members = [] then pg.mnt <- List.filter (fun x -> x != h) pg.mnt)
+
+let pgrp_copy (pg : pgrp) = { mnt = List.map (fun h -> { mpt = h.mpt; members = h.members }) pg.mnt }
+
+(*****************************************************************************)
+(* The descriptors *)
+(*****************************************************************************)
+
+let nfd = 100
 
 let fdalloc (p : proc) c =
   let fds = p.fgrp.fds in
@@ -62,6 +224,13 @@ let fdalloc (p : proc) c =
     if fd = Array.length fds then raise (Error enofd)
     else match fds.(fd) with None -> fds.(fd) <- Some c; fd | Some _ -> go (fd + 1) in
   go 0
+
+let fdalloc_at (p : proc) fd c =
+  let fds = p.fgrp.fds in
+  if fd < 0 || fd >= Array.length fds then raise (Error ebadfd);
+  let old = fds.(fd) in
+  fds.(fd) <- Some c;
+  match old with Some o when o != c -> close o | _ -> ()
 
 let fdtochan (p : proc) fd access =
   let fds = p.fgrp.fds in
@@ -76,5 +245,15 @@ let fdtochan (p : proc) fd access =
            let a = if a = Oexec then Oread else a and has = if m.access = Oexec then Oread else m.access in
            if a <> has && has <> Ordwr then raise (Error ebadusefd));
       c
+
+let fgrp_copy (f : fgrp) =
+  Array.iter (fun o -> match o with Some c -> incref c | None -> ()) f.fds;
+  { fds = Array.copy f.fds; fref = 1 }
+let fgrp_new () = { fds = Array.make nfd None; fref = 1 }
+
+let fgrp_close (f : fgrp) =
+  f.fref <- f.fref - 1;
+  if f.fref = 0 then
+    Array.iteri (fun fd o -> match o with Some c -> f.fds.(fd) <- None; close c | None -> ()) f.fds
 
 let basename path = try let i = String.rindex path '/' in String.sub path (i + 1) (String.length path - i - 1) with Not_found -> path

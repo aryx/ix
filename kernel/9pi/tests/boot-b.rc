@@ -1,0 +1,29 @@
+#!/boot/rc -m /boot/rcmain
+# Claude Code
+#
+# Copyright (C) 2026 Yoann Padioleau
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public License
+# (LGPL) as published by the Free Software Foundation; either version
+# 2 of the License, or (at your option) any later version.
+#
+# mini-9pi's stage B check (plan_9pi.md): /boot/boot replaced by this,
+# boot.rc's first lines (the devices bound, before the SD card), then
+# an interactive rc on the console, as boot.rc's last line starts it.
+
+/boot/echo booooooooting ARM ...
+
+path=(/bin /boot)
+
+bind -c '#e' /env
+bind -a '#ec' /env
+bind -c '#s' /srv
+bind '#p' /proc
+bind '#d' /fd
+bind '#k' /sys
+echo -n 'start' > '#c/swap'
+bind -a '#P' /dev
+bind -a '#S' /dev
+
+. -i '#d/0'

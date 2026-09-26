@@ -1,3 +1,4 @@
 build/
 kernel-pi1.img
 kernel-pi4.elf
+kernel-pi1-b.img

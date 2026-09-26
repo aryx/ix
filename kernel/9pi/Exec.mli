@@ -15,13 +15,15 @@
  *   d              bss, zero, brk's to grow     d = ROUND(t+data)
  *   b                                           b = ROUND(t+data+bss)
  *   ...
- *   USTKTOP-USTKSIZE  the stack (8MB; its top pages given at exec: no
- *                     demand paging yet)
+ *   USTKTOP-USTKSIZE  the stack (8MB)
  *   USTKTOP-ssize-4   argc, then argv[], 0, then the strings, then
  *   USTKTOP-72        the Tos (clock, pid, ...: libc's _tos)
  *   USTKTOP 0x20000000
  *
- * as sysexec and arch_execregs lay it out, byte for byte. *)
+ * as sysexec and arch_execregs lay it out, byte for byte. Only the
+ * header is read, and the stack's pages the arguments are on written:
+ * the rest comes at its first touch (Fault: text and data from the
+ * file, the channel kept for that). *)
 
 open Types
 

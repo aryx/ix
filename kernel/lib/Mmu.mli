@@ -19,6 +19,9 @@ val nfree : unit -> int
 (* a new one, empty; or None *)
 val create : unit -> int option
 
+(* claude: whether a page is mapped at [va] (mini-9pi's page faults) *)
+val mapped : int -> int -> bool
+
 (* [alloc pgdir oldsz newsz]: [oldsz, newsz) given fresh zeroed pages
  * (uvmalloc): the new size, or None (past the user's addresses, or no
  * page left: what it added freed) *)
@@ -36,6 +39,10 @@ val free : int -> unit
 
 (* [copy pgdir sz]: [0, sz) copied into a new space (copyuvm), or None *)
 val copy : int -> int -> int option
+
+(* [copy_range pgdir dst lo hi]: the pages of [lo, hi) mapped in pgdir
+ * copied into the space dst (false: no page left, dst to be freed) *)
+val copy_range : int -> int -> int -> int -> bool
 
 (* a process's bytes, through its table (xv6-riscv's copyin, copyout,
  * copyinstr: the user's pages only, the guard page refused).

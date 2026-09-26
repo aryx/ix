@@ -1,0 +1,63 @@
+mini-9pi
+booooooooting ARM ...
+partition...
+dossrv: serving #s/dos
+bind: #i: unknown device in # filename
+bind: #I: unknown device in # filename
+usbd: #u: unknown device in # filename
+% ls /
+/9PI
+/ADM
+/ARCH
+/BOOTCODE.BIN
+/CONFIG.TXT
+/DOCS
+/FIXUP_CD.DAT
+/LIB
+/LICENCE
+/LICENCE.BROADCOM
+/LICENCE.LUCENT
+/PAD.TXT
+/RC
+/README.TXT
+/SRC
+/START_CD.ELF
+/TESTS
+/TMP
+/USR
+/bin
+/boot
+/dev
+/env
+/fd
+/mnt
+/net
+/proc
+/root
+/srv
+/sys
+% echo hello from mini-qemu
+hello from mini-qemu
+% ls -l /dev/sdM0
+--rw-r--r-- S 0 pad pad          0 Sep  9  2026 /dev/sdM0/ctl
+--rw-r----- S 0 pad pad 1073741824 Sep  9  2026 /dev/sdM0/data
+--rw-r----- S 0 pad pad  536870912 Sep  9  2026 /dev/sdM0/dos
+-lrw------- S 0 pad pad          0 Sep  9  2026 /dev/sdM0/raw
+% cat /dev/sdM0/ctl
+inquiry Arasan eMMC SD Host Controller 02 Version 24
+rca 4567 ocr 80ffff00
+cid aa585951454d552101deadbeef006200 csd 002600325f59e3ffffffdfff92600000
+geometry 2097152 512
+part data 0 2097152
+part dos 1 1048577
+% echo written by the emulator > /x.txt
+% cat /x.txt
+written by the emulator
+% ls /arch/arm/bin | wc
+    202     202    3959
+% cat /CONFIG.TXT | wc
+     49     194    1346
+% echo 1.5*2 | hoc
+hoc 40: suicide: undefined instruction: pc 0x3ba4
+
+% 

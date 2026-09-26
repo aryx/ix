@@ -1,0 +1,15 @@
+ls /boot
+echo hello world
+x=(a b c); echo $x(2) $#x
+ls /env
+ls -l /dev/cons /env/x
+cd /boot; ls rc echo; cd /
+echo 'echo in a pipe' | /boot/rc -m /boot/rcmain
+ls -d /proc/1 /fd/0
+echo `{echo command substitution}
+{echo a; echo b} > /env/y; ls -l /env/y
+nosuch
+fn f { echo in f $* }; f 1 2
+/boot/echo $status
+ls /fd
+ls -l /dev

@@ -14,8 +14,10 @@
 # (a string), or at the timeout (exit 1: not reached).
 #
 #   session.py [--until S] [--timeout N] [--out F] [--screendump P]
-#              [--usb] [--move DX,DY;...] LINES... -- EMULATOR...
+#              [--usb] [--move DX,DY;...] [--prompt P] LINES... -- EMULATOR...
 #
+# --prompt: the shell's prompt, "$ " by default (mini-9pi's rc: "% ");
+# --lines F: the lines to type from a file (after LINES).
 # With --screendump, the emulator is given a QMP socket and, once the
 # session is over, the screen is written to P (a PPM), as QMP's
 # screendump writes it. With --usb, the lines are typed on the USB
@@ -53,7 +55,7 @@ class Qmp:
 
 def main():
     args = sys.argv[1:]
-    until, timeout, out, dump, usb, moves = None, 60, None, None, False, []
+    until, timeout, out, dump, usb, moves, prompt, more = None, 60, None, None, False, [], "$ ", []
     while args and args[0].startswith("--") and args[0] != "--":
         if args[0] == "--usb":
             usb = True; args = args[1:]; continue
@@ -63,9 +65,11 @@ def main():
         elif opt == "--timeout": timeout = float(val)
         elif opt == "--out": out = val
         elif opt == "--screendump": dump = os.path.abspath(val)
+        elif opt == "--prompt": prompt = val
+        elif opt == "--lines": more = open(val).read().splitlines()
         elif opt == "--move": moves = [tuple(map(int, m.split(","))) for m in val.split(";") if m]
     k = args.index("--")
-    lines, cmd = args[:k], args[k + 1:]
+    lines, cmd = args[:k] + more, args[k + 1:]
     sock = None
     if dump or usb:
         sock = os.path.join(tempfile.mkdtemp(), "qmp.sock")
@@ -88,10 +92,10 @@ def main():
         text = buf.replace(b"\r", b"")
         if until is not None and until.encode() in text:
             ok = True; break
-        # a prompt: "$ " ending the output, after what was typed last,
+        # a prompt ("$ ") ending the output, after what was typed last,
         # and a second of quiet (a file's text may hold one: cat README's
         # does, and a slow emulator may pause right after it)
-        if len(text) > mark and text.endswith(b"$ ") and time.time() - last > 1:
+        if len(text) > mark and text.endswith(prompt.encode()) and time.time() - last > 1:
             if seen < len(lines):
                 if usb:
                     if qmp is None: qmp = Qmp(sock)

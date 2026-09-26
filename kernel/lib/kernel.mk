@@ -26,7 +26,9 @@ MAKEFLAGS += --no-builtin-rules
 BOARD ?= pi1
 LIB = ../lib
 BD = $(LIB)/$(BOARD)
-B = build/$(BOARD)
+# the build directory, the image: a kernel may build another (kernel/9pi's
+# check: a test boot script in its bootdir) with its own B and IMAGE
+B ?= build/$(BOARD)
 MINIQEMU = ../../_build/default/raspberry/Main.exe
 SESSION_PY = $(LIB)/session.py
 
@@ -37,7 +39,7 @@ CROSS = arm-linux-gnueabihf-
 CPU = -march=armv6kz -mfpu=vfp -mfloat-abi=hard -marm
 ASFLAGS = -march=armv6kz -mfpu=vfp -mfloat-abi=hard
 TARGET = arm
-IMAGE = kernel-pi1.img
+IMAGE ?= kernel-pi1.img
 BOOT = -M raspi1ap -device loader,file=$(IMAGE),addr=0x8000,cpu-num=0,force-raw=on -nographic
 QEMU = qemu-system-arm
 QEMU_BOOT = $(BOOT)
@@ -50,7 +52,7 @@ CROSS =
 CPU = -mstrict-align -fno-tree-vectorize
 ASFLAGS =
 TARGET = arm64
-IMAGE = kernel-pi4.elf
+IMAGE ?= kernel-pi4.elf
 BOOT = -cpu cortex-a72 -M raspi4b -kernel $(IMAGE) -m 2G -nographic
 # QEMU's raspi4b wants its four cores (mini-pi's QEMU64)
 QEMU ?= $(or $(wildcard /media/pad/extradrive1/pad/work/TOOLCHAINS/qemu/build/qemu-system-aarch64),qemu-system-aarch64)
@@ -93,7 +95,7 @@ $(B)/machine.o: $(BD)/machine.c $(BD)/board.h | $(B)
 	$(CROSS)gcc $(CFLAGS) -c $< -o $@
 
 $(B)/start.o: $(BD)/start.s $(B)/fs.img $(B)/font.bin | $(B)
-	$(CROSS)as $(ASFLAGS) $< -o $@
+	$(CROSS)as $(ASFLAGS) -I $(B) $< -o $@
 
 # the OCaml: kernel/lib's modules (the board's Arch), then the kernel's
 LIB_SRC = $(foreach m,$(filter-out Arch,$(LIB_ML)),$(LIB)/$(m).ml $(LIB)/$(m).mli) $(LIB)/Arch.mli $(BD)/Arch.ml
@@ -113,9 +115,11 @@ $(B)/font.bin: $(LIB)/font1.bin | $(B)
 $(B)/kernel.elf: $(OBJS) $(BD)/kernel.ld
 	$(CROSS)ld -T $(BD)/kernel.ld -o $@ $(OBJS)
 
-kernel-pi1.img: $(B)/kernel.elf
+ifeq ($(BOARD),pi1)
+$(IMAGE): $(B)/kernel.elf
 	$(CROSS)objcopy -O binary $< $@
-
-kernel-pi4.elf: $(B)/kernel.elf
+else
+$(IMAGE): $(B)/kernel.elf
 	cp $< $@
+endif
 

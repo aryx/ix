@@ -1,0 +1,80 @@
+mini-9pi
+booooooooting ARM ...
+% ls /boot
+/boot/bind
+/boot/boot
+/boot/dossrv
+/boot/echo
+/boot/fdisk
+/boot/ls
+/boot/mount
+/boot/rc
+/boot/rcmain
+% echo hello world
+hello world
+% x=(a b c); echo $x(2) $#x
+b 3
+% ls /env
+/env/*
+/env/0
+/env/cflag
+/env/fn#sigexit
+/env/home
+/env/ifs
+/env/path
+/env/pid
+/env/prompt
+/env/rcname
+/env/status
+/env/x
+% ls -l /dev/cons /env/x
+--rw-rw---- c 0 '' '' 0 Sep  9  2026 /dev/cons
+--rw-rw-rw- e 0 '' '' 6 Sep  9  2026 /env/x
+% cd /boot; ls rc echo; cd /
+echo
+rc
+% echo 'echo in a pipe' | /boot/rc -m /boot/rcmain
+in a pipe
+% ls -d /proc/1 /fd/0
+/fd/0
+/proc/1
+% echo `{echo command substitution}
+command substitution
+% {echo a; echo b} > /env/y; ls -l /env/y
+--rw-rw-rw- e 0 '' '' 4 Sep  9  2026 /env/y
+% nosuch
+nosuch: '/boot/nosuch' file does not exist
+% fn f { echo in f $* }; f 1 2
+in f 1 2
+% /boot/echo $status
+
+% ls /fd
+/fd/0
+/fd/0ctl
+/fd/1
+/fd/1ctl
+/fd/2
+/fd/2ctl
+/fd/3
+/fd/3ctl
+% ls -l /dev
+--rw-rw-r-- c 0 '' '' 24 Sep  9  2026 /dev/bintime
+--rw-rw---- c 0 '' ''  0 Sep  9  2026 /dev/cons
+---w--w---- c 0 '' ''  0 Sep  9  2026 /dev/consctl
+--r--r--r-- P 0 '' ''  0 Sep  9  2026 /dev/cputemp
+--r--r--r-- c 0 '' '' 72 Sep  9  2026 /dev/cputime
+--r--r--r-- P 0 '' ''  0 Sep  9  2026 /dev/cputype
+--r--r----- c 0 '' ''  0 Sep  9  2026 /dev/kmesg
+--r--r----- c 0 '' ''  0 Sep  9  2026 /dev/kprint
+--rw-rw-rw- c 0 '' ''  0 Sep  9  2026 /dev/null
+--r--r--r-- c 0 '' '' 12 Sep  9  2026 /dev/pgrpid
+--r--r--r-- c 0 '' '' 12 Sep  9  2026 /dev/pid
+--r--r--r-- c 0 '' '' 12 Sep  9  2026 /dev/ppid
+--r--r--r-- c 0 '' ''  0 Sep  9  2026 /dev/random
+d-r-xr-xr-x S 0 '' ''  0 Sep  9  2026 /dev/sdM0
+--rw-r--r-- S 0 '' ''  0 Sep  9  2026 /dev/sdctl
+--rw-rw-r-- c 0 '' ''  0 Sep  9  2026 /dev/swap
+--rw-rw-r-- c 0 '' '' 78 Sep  9  2026 /dev/time
+--rw-rw-rw- c 0 '' ''  0 Sep  9  2026 /dev/user
+--r--r--r-- c 0 '' ''  0 Sep  9  2026 /dev/zero
+% 

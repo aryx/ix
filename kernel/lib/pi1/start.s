@@ -232,7 +232,21 @@ prefetch_entry:
 kernel_prefetch:
 	mov	r0, #2
 	b	fault
+@ claude: an undefined instruction from user mode is the process's (as
+@ an abort: user_abort, kind 1; 9pi's FPA code, mini-9pi's hoc), from
+@ the kernel a kernel's fault
 undefined_entry:
+	mrs	sp, spsr
+	and	sp, sp, #0x1f
+	cmp	sp, #0x10
+	ldr	sp, =und_stack_top
+	bne	kernel_undefined
+	save_user
+	cps	#0x13
+	mov	r0, #1
+	bl	user_abort
+	b	user_return
+kernel_undefined:
 	mov	r0, #1
 fault:
 	mov	r1, lr
@@ -255,7 +269,7 @@ swtch:
 	.global fs_image
 	.global fs_image_end
 fs_image:
-	.incbin	"build/pi1/fs.img"
+	.incbin	"fs.img"			@ claude: from the build directory (as -I)
 fs_image_end:
 
 @ the console's font, xv6 arm-pi1's (font1.bin: 128 characters, 16 bytes
@@ -263,7 +277,7 @@ fs_image_end:
 	.balign	16
 	.global	font_image
 font_image:
-	.incbin	"build/pi1/font.bin"
+	.incbin	"font.bin"		@ claude: from the build directory (as -I)
 
 @ the page tables of the boot: the kernel's (16KB, 16KB aligned), the
 @ vectors' second-level table (1KB) and page, the empty user table

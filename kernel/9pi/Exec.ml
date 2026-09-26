@@ -21,7 +21,7 @@ let tos_size = 72
 let hdr_size = 32
 let aout_magic = 0x647
 
-(* the stack's pages given at exec, until faults give them *)
+(* the most the arguments may take (TSTKSIZ's pages) *)
 let stack_pages = 64
 
 (* the Pi1's clock, as 9pi's Tos says it (cpu->cpuhz) *)
@@ -33,18 +33,6 @@ let be32 s o =
 (*****************************************************************************)
 (* The file *)
 (*****************************************************************************)
-
-(* all of a channel's first [n] bytes *)
-let read_all c n =
-  let d = Dev.find c.dev in
-  let b = Buffer.create n in
-  let rec go () =
-    if Buffer.length b < n then begin
-      let s = d.Dev.read c (n - Buffer.length b) (Buffer.length b) in
-      if s <> "" then begin Buffer.add_string b s; go () end
-    end in
-  go ();
-  Buffer.contents b
 
 (* a "#!" line's words (shargs): the interpreter and its arguments *)
 let shargs s =
@@ -118,25 +106,29 @@ let exec p path args =
   let d = round (t + data) pgsize and b = round (t + data + bss) pgsize in
   let ssize, stack = stack_image args p.pid in
   if ssize > stack_pages * pgsize then begin Chan.close c; raise (Error enovmem) end;
-  let file = read_all c (hdr_size + text + data) in
-  Chan.close c;
-  if String.length file <> hdr_size + text + data then raise (Error ebadexec);
-  let pgdir = match Mmu.create () with Some d -> d | None -> raise (Error enovmem) in
+  (* the new space: only the stack's pages the arguments are on; the
+   * rest at their first touch (Fault) *)
+  let pgdir = match Mmu.create () with Some d -> d | None -> Chan.close c; raise (Error enovmem) in
   (try
-    alloc pgdir utzero b;
-    alloc pgdir (ustktop - (stack_pages * pgsize)) ustktop;
-    ignore (Mmu.write pgdir utzero (String.sub file 0 (hdr_size + text)));
-    ignore (Mmu.write pgdir t (String.sub file (hdr_size + text) data));
+    alloc pgdir (ustktop - round (String.length stack) pgsize) ustktop;
     ignore (Mmu.write pgdir (ustktop - String.length stack) stack)
-  with e -> Mmu.free pgdir; raise e);
-  (* committed: the old memory freed, the close-on-exec files closed *)
+  with e -> Mmu.free pgdir; Chan.close c; raise e);
+  (* committed: the old memory freed, the close-on-exec files closed;
+   * text and data read from the file (c, held by both) *)
   let old = p.pgdir in
+  Fault.release p.segs;
+  Chan.incref c;
   p.pgdir <- pgdir;
-  p.segs <- [ { kind = Text; base = utzero; top = t }; { kind = Data; base = t; top = d };
-              { kind = Bss; base = d; top = b }; { kind = Stack; base = ustktop - ustksize; top = ustktop } ];
+  p.segs <- [ { kind = Text; base = utzero; top = t; image = Some c; fstart = 0; flen = hdr_size + text };
+              { kind = Data; base = t; top = d; image = Some c; fstart = hdr_size + text; flen = data };
+              { kind = Bss; base = d; top = b; image = None; fstart = 0; flen = 0 };
+              { kind = Stack; base = ustktop - ustksize; top = ustktop; image = None; fstart = 0; flen = 0 } ];
   p.text <- Chan.basename path;
+  (* the arguments' first 128 bytes, NUL-separated (/proc/n/args) *)
+  let a = String.concat "" (List.map (fun a -> a ^ "\000") args) in
+  p.args <- (if String.length a > 128 then String.sub a 0 128 else a);
   Array.iteri (fun fd o -> match o with
-    | Some c when (match c.opened with Some m -> m.cexec | None -> false) -> Chan.close c; p.fgrp.fds.(fd) <- None
+    | Some c when (match c.opened with Some m -> m.cexec | None -> false) -> p.fgrp.fds.(fd) <- None; Chan.close c
     | _ -> ()) p.fgrp.fds;
   Machine.mmu_switch pgdir;
   if old <> 0 then Mmu.free old;

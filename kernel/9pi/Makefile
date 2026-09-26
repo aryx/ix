@@ -13,41 +13,72 @@
 # programs from ~/principia that 9pi links into its own image).
 #
 #   make            kernel-pi1.img
+# The SD card is principia's (qemu-sd.img: its FAT, served by dossrv,
+# the root), its writes kept in memory (snapshot=on).
+#
 #   make run        under mini-qemu (Ctrl-A x quits)
 #   make qemu       under QEMU
-#   make check      the boot under mini-qemu and QEMU, its console as
-#                   expected (stage A: /boot/echo's hello)
+#   make check      stage C's session (raspberry/tests/9pi.py's, typed
+#                   at the boot's rc: tests/session-c.cmds) under
+#                   mini-qemu and QEMU, the console as tests/session-c:
+#                   the C 9pi's under QEMU but hoc's pid (40, 9pi's 48:
+#                   its usbd's processes, stage D); then stage B's
+#                   (tests/boot-b.rc as /boot/boot, no card: the
+#                   namespace, the environment, pipes, processes;
+#                   tests/session-b)
 
 MAKEFLAGS += --no-builtin-rules
 
 PRINCIPIA ?= $(HOME)/principia
-ML = Types Dev Proc Devroot Devcons Chan Exec Syscall Main
+ML = Types Dev Proc Chan Devroot Devcons Devenv Devsys Devarch Devdup Devsrv Devpipe Devproc Emmc Devsd P9 Devmnt Fault Exec Syscall Main
 
-# the bootdir, as kernel/conf/arm/pi's: boot.rc as /boot/boot
+# the bootdir, as kernel/conf/arm/pi's: boot.rc as /boot/boot (or a
+# test's script: BOOTRC)
 BIN = $(PRINCIPIA)/ROOT/arch/arm/bin
-BOOTDIR = boot=$(PRINCIPIA)/kernel/init/user/boot/arm/boot.rc rcmain=$(PRINCIPIA)/ROOT/rc/lib/rcmain \
+BOOTRC ?= $(PRINCIPIA)/kernel/init/user/boot/arm/boot.rc
+BOOTDIR = boot=$(BOOTRC) rcmain=$(PRINCIPIA)/ROOT/rc/lib/rcmain \
   $(foreach p,rc echo bind fdisk dossrv mount ls,$(p)=$(BIN)/$(p))
-FS = build/$(BOARD)/bootdir
+FS = $(B)/bootdir
+
+# the devices' files' date: 9pi's (its conf's object, compiled with
+# -DKERNDATE=`date -n`), so that ls -l says what 9pi's says
+KERNDATE ?= $(shell stat -c %Y $(PRINCIPIA)/kernel/COMPILE/9/bcm/pi.5 2>/dev/null || date +%s)
 
 include ../lib/kernel.mk
 
-$(FS): mkbootdir.py | $(B)
-	./mkbootdir.py $@ $(BOOTDIR)
+SD = -drive file=$(PRINCIPIA)/qemu-sd.img,if=sd,format=raw,snapshot=on
+
+$(FS): mkbootdir.py $(BOOTRC) | $(B)
+	./mkbootdir.py $@ $(KERNDATE) $(BOOTDIR)
 
 run: $(IMAGE)
-	$(MINIQEMU) $(BOOT)
+	$(MINIQEMU) $(BOOT) $(SD)
 
 qemu: $(IMAGE)
-	$(QEMU) $(QEMU_BOOT)
+	$(QEMU) $(QEMU_BOOT) $(SD)
 
-# the console until the boot process ends (session.py drops the CRs)
-check: $(IMAGE)
-	$(SESSION_PY) --until "boot process died: unknown" --timeout 60 --out $(B)/mini.txt -- $(MINIQEMU) $(BOOT)
-	diff $(B)/mini.txt expected && echo "ok 9pi: the boot under mini-qemu"
-	$(SESSION_PY) --until "boot process died: unknown" --timeout 60 --out $(B)/qemu.txt -- $(QEMU) $(QEMU_BOOT)
-	diff $(B)/qemu.txt expected && echo "ok 9pi: the boot under QEMU"
+check: $(IMAGE) kernel-pi1-b.img
+	$(SESSION_PY) --prompt "% " --timeout 300 --out $(B)/mini-c.txt --lines tests/session-c.cmds -- $(MINIQEMU) $(BOOT) $(SD)
+	diff $(B)/mini-c.txt tests/session-c && echo "ok 9pi: stage C's session under mini-qemu"
+	$(SESSION_PY) --prompt "% " --timeout 120 --out $(B)/qemu-c.txt --lines tests/session-c.cmds -- $(QEMU) $(QEMU_BOOT) $(SD)
+	diff $(B)/qemu-c.txt tests/session-c && echo "ok 9pi: stage C's session under QEMU"
+	$(SESSION_PY) --prompt "% " --timeout 120 --out $(B)/mini-b.txt --lines tests/session-b.cmds -- $(MINIQEMU) $(BOOT_B)
+	diff $(B)/mini-b.txt tests/session-b && echo "ok 9pi: stage B's session under mini-qemu"
+	$(SESSION_PY) --prompt "% " --timeout 60 --out $(B)/qemu-b.txt --lines tests/session-b.cmds -- $(QEMU) $(BOOT_B)
+	diff $(B)/qemu-b.txt tests/session-b && echo "ok 9pi: stage B's session under QEMU"
+
+# stage B's image: its own build directory, tests/boot-b.rc as /boot/boot
+# (the rule in the outer make only: the inner one builds it as IMAGE)
+ifneq ($(IMAGE),kernel-pi1-b.img)
+kernel-pi1-b.img: FORCE
+	$(MAKE) B=build/pi1-b IMAGE=$@ BOOTRC=tests/boot-b.rc $@
+endif
+
+BOOT_B = $(subst $(IMAGE),kernel-pi1-b.img,$(BOOT))
+
+FORCE:
 
 clean:
-	rm -rf build kernel-pi1.img kernel-pi4.elf
+	rm -rf build kernel-pi1.img kernel-pi1-b.img kernel-pi4.elf
 
-.PHONY: all run qemu check clean
+.PHONY: all run qemu check clean FORCE

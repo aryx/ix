@@ -9,10 +9,12 @@
  *)
 (* '#c', the console (principia's devcons.c): /dev/cons, what the
  * programs read and write, on the serial console (the screen's is
- * stage D). Its input cooked as Plan 9's: echoed, a line at a time,
- * backspace and ^U editing it, ^D ending it without a newline (an empty
- * one: the end of file). Output as 9pi's UART gives it: a CR before
- * each LF. Also /dev/null. *)
+ * stage D). Its input cooked as Plan 9's: each character echoed as
+ * typed, a line at a time, backspace and ^U editing it, ^D ending it
+ * without a newline (an empty one: the end of file); raw (consctl's
+ * rawon): neither. Output as 9pi's UART gives it: a CR before each LF.
+ * Also consdir's other files: pid, ppid, user, time, null, zero, swap
+ * (its writes ignored: no swapping here)... *)
 
 (* a character typed (the UART's interrupt) *)
 val intr : int -> unit

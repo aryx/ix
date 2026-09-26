@@ -279,7 +279,7 @@ swtch:
 	.global	fs_image
 	.global	fs_image_end
 fs_image:
-	.incbin	"build/pi4/fs.img"
+	.incbin	"fs.img"			// claude: from the build directory (as -I)
 fs_image_end:
 
 // the console's font, xv6 arm-pi1's (font1.bin: 128 characters, 16 bytes
@@ -287,7 +287,7 @@ fs_image_end:
 	.balign	16
 	.global	font_image
 font_image:
-	.incbin	"build/pi4/font.bin"
+	.incbin	"font.bin"		// claude: from the build directory (as -I)
 
 // the tables: the kernel's, the boot's, the empty one (TTBR0 when no
 // process runs); cleared with the bss

@@ -30,9 +30,14 @@ let root_entries =
 let boot_entries = ref []
 let boot_data = ref []
 
+(* the root's other directories are empty: mount points *)
 let entries path =
-  if path = qdir then root_entries else if path = qboot then !boot_entries else raise (Error enotdir)
+  if path = qdir then root_entries
+  else if path = qboot then !boot_entries
+  else if path > qdir && path < qboot then []
+  else raise (Error enotdir)
 
+(* the root's parent the root (Dev.tab_stat: its name "/") *)
 let parent path = if path > qboot then dirqid qboot else dirqid qdir
 
 (*****************************************************************************)
@@ -48,7 +53,8 @@ let line pa =
 
 let init () =
   let hdr, pa = line (Machine.fs_base ()) in
-  if hdr <> "9pi bootdir" then ignore (Machine.panic "devroot: no bootdir");
+  if String.length hdr < 12 || String.sub hdr 0 12 <> "9pi bootdir " then ignore (Machine.panic "devroot: no bootdir");
+  Dev.kerndate := int_of_string (String.sub hdr 12 (String.length hdr - 12));
   let rec files pa i =
     let l, data = line pa in
     if l <> "end" then begin
@@ -60,16 +66,14 @@ let init () =
       files (data + size) (i + 1)
     end in
   files pa 1;
-  Dev.register {
-    Dev.dc = '/';
-    Dev.attach = (fun _ -> Dev.attach '/' (dirqid qdir));
-    Dev.walk = Dev.walk_tab entries parent;
-    Dev.open_ = Dev.open_tab;
+  let d = Dev.default '/' "root" in
+  Dev.register { d with
+    Dev.attach = (fun _ -> Dev.attach '/' 0 (dirqid qdir));
+    Dev.walk = Dev.tab_walk entries parent;
+    Dev.stat = Dev.tab_stat "/" entries parent;
+    Dev.dirs = Dev.tab_dirs entries;
+    Dev.open_ = Dev.tab_open;
     Dev.read = (fun c n off ->
-      (* a directory's reading: with stat (stage B) *)
-      if c.qid.typ = Qt_dir then raise (Error egreg);
       let pa, size = List.assoc c.qid.path !boot_data in
       if off >= size then "" else Machine.Phys.read (pa + off) (min n (size - off)));
-    Dev.write = Dev.no_write;
-    Dev.close = (fun _ -> ());
   }

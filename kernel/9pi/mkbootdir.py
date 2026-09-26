@@ -11,16 +11,18 @@
 # mini-9pi's bootdir (plan_9pi.md): the files 9pi links into its image
 # (kernel/conf/arm/pi's bootdir: /boot/boot the rc script, rcmain, rc,
 # echo, bind, fdisk, dossrv, mount, ls), packed for devroot (Devroot.ml)
-# as the kernel's embedded image: a line "9pi bootdir", then for each
-# file a line "name size" and its bytes, then a line "end".
+# as the kernel's embedded image: a line "9pi bootdir KERNDATE" (the
+# time the devices' files say they were made: 9pi's kerndate, its
+# build's `date -n`), then for each file a line "name size" and its
+# bytes, then a line "end".
 #
-# Usage: mkbootdir.py OUT NAME=PATH...
+# Usage: mkbootdir.py OUT KERNDATE NAME=PATH...
 
 import sys
 
-out, pairs = sys.argv[1], sys.argv[2:]
+out, kerndate, pairs = sys.argv[1], int(sys.argv[2]), sys.argv[3:]
 with open(out, "wb") as f:
-    f.write(b"9pi bootdir\n")
+    f.write(b"9pi bootdir %d\n" % kerndate)
     for p in pairs:
         name, path = p.split("=", 1)
         data = open(path, "rb").read()

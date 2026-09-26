@@ -22,17 +22,20 @@
 #   ./mini-pi mini-xv6-pi4   the same kernel on the Pi4, with xv6
 #                       arm64-pi4's fs.img (one core); -g for both: its
 #                       console drawn in a window, a USB keyboard and mouse
+#   ./mini-pi mini-9pi       ix's mini-9pi (kernel/9pi/: 9pi in OCaml) on the
+#                       Pi1, principia's SD card image, to rc's prompt;
+#                       built first (no graphics yet: plan_9pi.md, stage D)
 #
 # Options:
 #   -g   a window: the framebuffer (and for xv6, a USB keyboard: type in
 #        the window or in the terminal; for 9pi, a USB keyboard and
 #        mouse: the draw console, rio from it; a click grabs the mouse,
 #        Ctrl-Alt-G releases it)
-#   -w   9pi: write to the SD card image (by default its writes are kept
+#   -w   9pi, mini-9pi: write to the SD card image (by default its writes are kept
 #        in memory and lost at exit, QEMU's snapshot=on)
 #   -q   run QEMU instead, with the same arguments (to compare)
 #   -d   mini-qemu's log of unassigned I/O and undefined instructions
-#   -n   no build (use mini-qemu, and mini-xv6, as last built)
+#   -n   no build (use mini-qemu, and mini-xv6 or mini-9pi, as last built)
 #   -c N xv6-pi4: N cores (1 to 4, default 1; xv6's idle cores spin, so
 #        each one more slows it down)
 #
@@ -40,7 +43,8 @@
 #
 # Where the kernels are: $XV6 (default ~/xv6: xv6-multiarch, its ports
 # built), $PRINCIPIA (default ~/principia: 9pi built, qemu-sd.img),
-# mini-xv6 in ix's kernel/xv6/ (with $XV6's arm-pi1 and arm64-pi4 fs.img).
+# mini-xv6 in ix's kernel/xv6/ (with $XV6's arm-pi1 and arm64-pi4 fs.img),
+# mini-9pi in ix's kernel/9pi/ (with $PRINCIPIA's bootdir and qemu-sd.img).
 
 set -e
 # claude: ix's checkout, also when run as bin/mini-pi (a link into
@@ -99,6 +103,19 @@ case $1 in
       args=(-cpu cortex-a72 -M raspi4b -kernel $image -m 2G -smp $smp "${display[@]}")
     fi
     ;;
+  mini-9pi)
+    dir=$ROOT/kernel/9pi
+    [ $graphics = 1 ] && { echo "mini-pi: mini-9pi has no graphics yet (plan_9pi.md, stage D)"; exit 1; }
+    [ -f $PRINCIPIA/qemu-sd.img ] || { echo "mini-pi: no $PRINCIPIA/qemu-sd.img (principia: mk disk)"; exit 1; }
+    if [ $build = 1 ]; then
+      $ROOT/kernel/ocaml-light.sh arm > /dev/null && make -C $dir PRINCIPIA=$PRINCIPIA > /dev/null || { echo "mini-pi: mini-9pi not built"; exit 1; }
+    fi
+    image=kernel-pi1.img
+    snapshot=",snapshot=on"; [ $write = 1 ] && snapshot=""
+    # its console the PL011 (kernel/lib's), in this terminal
+    args=(-M raspi1ap -device loader,file=$image,addr=0x8000,cpu-num=0,force-raw=on
+          -drive file=$PRINCIPIA/qemu-sd.img,if=sd,format=raw$snapshot -nographic)
+    ;;
   9pi)
     dir=$PRINCIPIA
     image=kernel/COMPILE/9/bcm/9pi
@@ -124,10 +141,10 @@ qemu_exe=$(command -v qemu-system-arm); case $1 in xv6-pi4|mini-xv6-pi4) qemu_ex
 say() { echo "mini-pi: $*" >&2; }
 say "emulator: $emulator$( [ $qemu = 0 ] && echo " (mini-qemu)")"
 say "kernel:   $dir/$image ($(stat -c %s $dir/$image) bytes, built $(date -r $dir/$image '+%Y-%m-%d %H:%M'))"
-if [ $1 = 9pi ]; then
+if [ $1 = 9pi ] || [ $1 = mini-9pi ]; then
   if [ $write = 1 ]; then mode="written in place"; else mode="read-only: writes kept in memory, lost at exit (-w to keep them)"; fi
-  say "SD card:  $dir/qemu-sd.img ($(( $(stat -c %s $dir/qemu-sd.img) / 1024 / 1024 )) MB, $mode)"
-  say "console:  the mini UART (serial 1)"
+  say "SD card:  $PRINCIPIA/qemu-sd.img ($(( $(stat -c %s $PRINCIPIA/qemu-sd.img) / 1024 / 1024 )) MB, $mode)"
+  if [ $1 = 9pi ]; then say "console:  the mini UART (serial 1)"; else say "console:  the PL011 (serial 0)"; fi
 else
   say "disk:     the file system is inside the kernel image (xv6's ramdisk)"
   say "console:  the PL011 (serial 0)"

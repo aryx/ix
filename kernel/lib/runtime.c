@@ -223,3 +223,48 @@ void user_fault(int ec, unsigned long esr, unsigned long elr, unsigned long far)
   callback2(*handler, Val_int(ec), regs);
   CAMLreturn0;
 }
+
+/* claude: the peripherals' registers, by their offset from IO_BASE (the
+ * 0x20000000 region where start.s maps it: mini-9pi's EMMC driver). A
+ * read gives one 16-bit half of the 32-bit register (loaded whole), a
+ * write takes the word's two halves: a word does not fit the Pi1's
+ * 31-bit ints. */
+value io_get16(value off, value high)
+{
+  unsigned v = *(volatile unsigned *)(IO_BASE + Long_val(off));
+  return Val_int(Bool_val(high) ? v >> 16 : v & 0xffff);
+}
+
+value io_set32(value off, value hi, value lo)
+{
+  *(volatile unsigned *)(IO_BASE + Long_val(off)) = ((unsigned)Long_val(hi) << 16) | ((unsigned)Long_val(lo) & 0xffff);
+  return Val_unit;
+}
+
+/* claude: a device's data port read [n] bytes' worth (n/4 32-bit loads,
+ * little-endian), or written with a string's words (the EMMC's DATA) */
+value io_read_fifo(value off, value n)
+{
+  CAMLparam2(off, n);
+  CAMLlocal1(s);
+  volatile unsigned *r = (volatile unsigned *)(IO_BASE + Long_val(off));
+  unsigned char *p;
+  long i, len = Long_val(n) & ~3L;
+  s = alloc_string(len);
+  p = (unsigned char *)String_val(s);
+  for (i = 0; i < len; i += 4) {
+    unsigned v = *r;
+    p[i] = v; p[i + 1] = v >> 8; p[i + 2] = v >> 16; p[i + 3] = v >> 24;
+  }
+  CAMLreturn(s);
+}
+
+value io_write_fifo(value off, value s)
+{
+  volatile unsigned *r = (volatile unsigned *)(IO_BASE + Long_val(off));
+  unsigned char *p = (unsigned char *)String_val(s);
+  long i, len = string_length(s) & ~3L;
+  for (i = 0; i < len; i += 4)
+    *r = p[i] | (p[i + 1] << 8) | (p[i + 2] << 16) | ((unsigned)p[i + 3] << 24);
+  return Val_unit;
+}

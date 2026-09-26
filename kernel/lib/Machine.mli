@@ -65,6 +65,17 @@ external fb_init : int -> int -> int -> int = "fb_init"
 external fb_pitch : unit -> int = "fb_pitch"
 external font_base : unit -> int = "font_base"
 
+(* claude: a peripheral's register by its offset from the peripherals'
+ * base (0x20000000 on the Pi1): [io_get16 off high] one 16-bit half of
+ * the 32-bit word, [io_set32 off hi lo] the word written from its
+ * halves (a word is past the Pi1's ints) *)
+external io_get16 : int -> bool -> int = "io_get16"
+external io_set32 : int -> int -> int -> unit = "io_set32"
+(* claude: a data port read [n] bytes' worth (32-bit loads), or written
+ * a string's words *)
+external io_read_fifo : int -> int -> string = "io_read_fifo"
+external io_write_fifo : int -> string -> unit = "io_write_fifo"
+
 (* the console's output, as it is (no CR before a newline: xv6-riscv's) *)
 val putc : char -> unit
 

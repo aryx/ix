@@ -66,6 +66,9 @@ let lookup pgdir va =
   | Some e -> Arch.decode_page (Arch.get_entry e)
   | None -> None
 
+(* claude: a page mapped at va (mini-9pi's faults) *)
+let mapped pgdir va = lookup pgdir va <> None
+
 let set pgdir va page =
   match walk pgdir va true with
   | Some e -> Arch.set_entry e (Arch.encode_page page); true
@@ -127,20 +130,24 @@ let free pgdir =
   table pgdir Arch.levels
 
 (* a copy of [0, sz) in a new space (fork's uvmcopy), or None *)
+(* claude: [lo, hi)'s pages copied into [dst] (mini-9pi's fork copies
+ * its segments: a Plan 9 stack is at 512MB, not after the rest) *)
+let copy_range pgdir dst lo hi =
+  let rec go a =
+    if a >= hi then true
+    else match lookup pgdir a with
+      | None -> go (a + pgsize)
+      | Some pg ->
+          (match kalloc () with
+           | Some pa when set dst a (Some { pa = pa; perm = pg.perm }) -> Phys.copy pa pg.pa pgsize; go (a + pgsize)
+           | Some pa -> kfree pa; false
+           | None -> false) in
+  go (lo land lnot (pgsize - 1))
+
 let copy pgdir sz =
   match create () with
   | None -> None
-  | Some d ->
-      let rec go a =
-        if a >= sz then Some d
-        else match lookup pgdir a with
-          | None -> go (a + pgsize)
-          | Some pg ->
-              (match kalloc () with
-               | Some pa when set d a (Some { pa = pa; perm = pg.perm }) -> Phys.copy pa pg.pa pgsize; go (a + pgsize)
-               | Some pa -> kfree pa; free d; None
-               | None -> free d; None) in
-      go 0
+  | Some d -> if copy_range pgdir d 0 sz then Some d else begin free d; None end
 
 (*****************************************************************************)
 (* A user's bytes *)

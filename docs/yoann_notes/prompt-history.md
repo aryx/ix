@@ -5122,3 +5122,91 @@ Claude implemented Solid and Raytrace modules for comprehensive pixel-by-pixel r
 **Yoann:**
 
 > let's commit and move forward
+
+**Claude (summary):**
+
+Added TODO for ortho bug; Phase 2 complete with shadow rays, lighting, and ICFP bug tests.
+Implemented evolution view showing all algorithms together in PovraySpheres.exe, labeled ray casting, Lambert, shadow rays.
+Still mode steps through algorithms with left/right arrows; shape3d scenes cycle through them with y key.
+Raytrace.algorithms only appends and never overwrites, preserving every algorithm from ray casting through shadow rays.
+Phase 3 (progressive coarse-to-fine rendering with per-frame ray budget) proposed next.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 23:18
+
+**Yoann:**
+
+> let's do it
+
+**Claude (summary):**
+
+Claude analyzed bitmap caching constraints and added export capability passing down from program's Cap.main.
+Claude built the progressive renderer in the Raytrace module with incremental pixel rendering.
+Claude switched PovraySpheres to orbit mode so the picture stays still until dragged.
+Claude tested frame rendering, animation evolution view, and interactive drag behavior with timing checks.
+Claude verified the full test suite after confirming 0.3 second real clock performance.
+
+------------------------------------------------------------------------
+
+## 2026-09-25 23:46
+
+**Yoann:**
+
+> let's do it
+
+**Claude (summary):**
+
+Claude worked on BVH Phase 4, optimizing SAH from sorting to binning at each level. The optimization reduced build time from 16.5 seconds to 1.0 second while maintaining good tree quality. All BVH tests passed with the tree achieving 4.9 tests per ray. The final Cubes3d benchmark showed BVH at 1.5 seconds versus brute force at 38 seconds, producing identical output. Benchmark results were recorded in Bvh.mli as specified.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 00:00
+
+**Yoann:**
+
+> ok let's do it
+
+**Claude (summary):**
+
+Claude optimized SAH to bin instead of sorting, cutting the build time from 16.5 seconds to 1.0 second. Implemented BVH acceleration achieving 1.5 seconds on Cubes3d versus 38 seconds with brute force. Verified the BVH produces byte-for-byte identical PNG output to ensure correctness. Added a new `-rt-brute` flag for the brute force path and moved tests to `world`. Recorded performance numbers in `Bvh.mli` and launched the full test suite.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 00:09
+
+**Yoann:**
+
+> let's do it
+
+**Claude (summary):**
+
+Claude verified stage C works: mini-9pi boots principia's SD card to rc prompt.
+boot.rc partitions #S/sdM0, dossrv serves FAT partition, card mounted on /root and bound to /.
+Then ramfs, mkdir, hostowner writes run from the card, and rc prompt appears.
+Added Emmc/Devsd SD drivers, 9P protocol, Devmnt mount, demand paging, FIFO scheduling, and date support.
+Fixed Pi1 31-bit bugs; hoc's pid diverges (40 vs 48); remaining diffs (notes, #i #I #u) noted.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 05:54
+
+**Yoann:**
+
+> can I boot mini-9pi via mini-pi?
+
+------------------------------------------------------------------------
+
+## 2026-09-26 05:55
+
+**Yoann:**
+
+> let's do it
+
+------------------------------------------------------------------------
+
+## 2026-09-26 05:57
+
+**Yoann:**
+
+> and then commit

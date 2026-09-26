@@ -231,3 +231,114 @@ What stage B starts from: with `/boot/boot` as the first program, rc
 (158KB, run through `#!`) starts and reads rcmain. It then fails on
 exactly the missing pieces, in this order: notify; create in `/env`
 (`#e`, and initcode's binds); rfork.
+
+2026-09-26, **stage B, first part**: 2,127 lines of OCaml. boot.rc now
+runs as `/boot/boot`, the way 9pi runs it. It prints
+`booooooooting ARM ...`, binds `#e #ec #s #p #d #k #P`, writes
+`#c/swap`, and reaches `partition...`, where the C 9pi goes on to its
+SD card (stage C). `make check` has this boot under both emulators. It
+also has a second image whose `/boot/boot` is `tests/boot-b.rc`: boot.rc's
+first lines, then an interactive rc typed `tests/session-b.cmds`. That
+session covers `ls` of `/boot`, `/env`, `/dev` (the union of `#c` and
+`#P`) and `/fd`, variables and functions, `cd`, a pipe into another rc,
+command substitution, `>` into `/env`, `$status`, and a missing command.
+Its console is the same under mini-qemu and QEMU (`tests/session-b`).
+
+What was added:
+
+- The namespace. `Chan.namec` cleans absolute paths lexically (as
+  cleanname does), and at each mount point it walks the union's members
+  in order (Plan 9's domount and umh). Binds support MREPL, MBEFORE,
+  MAFTER and MCREATE; create goes to the first MCREATE member;
+  directory reads go over the whole union. Chans are reference counted
+  (cref), so a descriptor table copied by rfork shares its chans, and a
+  pipe hangs up at its last close.
+- Processes. rfork implements its flags (the fd, name and env groups:
+  copied, cleaned or shared; RFNOWAIT; RFNOTEG). The memory is copied
+  per segment with `Mmu.copy_range`, new in kernel/lib: a Plan 9 stack
+  is at 512MB, far above the rest. await returns pexit's records, last
+  child first, formatted `%d %lud %lud %lud %q`.
+- System calls: create, remove, chdir, dup, fd2path, seek (its vlong
+  result goes through the first argument, as 5c returns it), stat and
+  fstat (with the name set to the path's last element), wstat, pipe,
+  bind, unmount, sleep. notify only records the handler.
+- Devices: `#e` (devenv's behavior, including remove moving the last
+  entry into the hole), `#s`, `#|`, `#d`, `#k`, `#P`, `#p` (status,
+  args, fd, ns, segment, noteid, ctl kill), and `#c` with consdir's
+  files and echo as typed.
+- The stat format is in `Dev` (convD2M and convM2D). DMDIR is written
+  from the qid's type, and wstat's "unchanged" ~0 decodes as -1.
+- kernel/lib: the build directory and the image can be overridden
+  (`start.s` finds its images with `as -I`). session.py gained
+  `--prompt` and `--lines`.
+
+Still missing from stage B: devmnt and 9P (mount, fversion, fauth),
+which the SD card's dossrv needs, so they come with stage C. Notes
+(their delivery, noted), alarm, rendezvous and semaphores, RFMEM, and
+demand paging (the stack's top 64 pages are still allocated at exec).
+Also the clock that `ls -l` dates come from (1970 here, the C's
+`Sep  9  2026`), and eve before boot.rc names the hostowner.
+
+2026-09-26, **stage C: the boot to rc's prompt** (3,124 lines of
+OCaml). mini-9pi boots principia's own SD card (`qemu-sd.img`) as 9pi
+does. boot.rc partitions `#S/sdM0`, dossrv serves the FAT, and the
+card is mounted on `/root` and bound to `/`. `/arch/arm/bin` and
+`/rc/bin` join `/bin`, then ramfs, mkdir and the hostowner write run
+from the card, and finally rc's prompt. On that prompt, 9pi.py's
+session (ls, echo, `ls -l` and `cat` of `/dev/sdM0`, a file written
+and read back, `wc` of a directory's listing and of a file, `hoc`)
+gives the **C 9pi's console under QEMU byte for byte, but for one
+number**: hoc's pid, 40 against 9pi's 48, because 9pi's usbd starts
+processes that need `#u` (stage D). mini-9pi's own console is the same
+under mini-qemu and QEMU (`make check`: `tests/session-c`).
+
+What was added:
+
+- `Emmc` (emmc.c and sdmmc.c): the Arasan controller and its card,
+  polled by PIO through the data port (9pi uses DMA and an interrupt),
+  and brought online with sdmmc's sequence. Registers are read in
+  16-bit halves and written from halves (`Machine.io_get16`, `io_set32`,
+  `io_read_fifo`, `io_write_fifo` in kernel/lib's runtime.c).
+  **Bug found**: the RCA argument, `rca lsl 16` = 0x45670000, is past
+  the Pi1's ints, and bit 31 came out set. mini-qemu ignores that
+  argument, but QEMU's card timed out on CMD9.
+- `Devsd` (devsd.c): `#S/sdctl`, `sdM0/{ctl,raw,data,parts}` with
+  devsd's qids, ctl text, the part and delpart commands, and sdbio's
+  block arithmetic. The data partition's length is 2^30, one past a
+  Pi1 int, so a directory entry now carries `d_lenhi` (its 2^30s).
+- `P9` (xix's Protocol_9P design): Request and Response variants and a
+  message record `{tag; mtyp}`, with the client's encoding and
+  decoding.
+- `Devmnt` (devmnt.c): a session per connection (Tversion), Tattach per
+  mount, a fid per chan, and walks one element at a time with the
+  intermediate fids clunked. A clone takes its own fid (a 9P fid can't
+  be walked once opened). Reads and writes are split to the msize, and
+  a small mountmux hands each reply to its tag's waiter. mount, fauth
+  and fversion are system calls now.
+- Demand paging (`Fault`): exec reads only the header and writes only
+  the argument pages of the stack. Text and data pages come from the
+  program's chan at their first touch, bss and stack pages as zeros.
+  System calls fault user buffers in first (validaddr), and brk only
+  moves the top. The Pi1's abort entry now backs its saved pc up to the
+  faulting instruction, so the kernel can restart it.
+- Traps as 9pi's notes: an undefined instruction (5c's FPA code: hoc)
+  or a bad fault prints `text pid: suicide: msg` on the process's fd 2
+  and exits with that message. The Pi1's undefined-instruction entry
+  now sends user-mode traps to the process rather than halting, and
+  reports a data abort's write as arm64's WnR.
+- Plan 9's scheduling: a FIFO run queue, a 100ms slice (hzsched), and
+  cooperative handing over (cpu->readied: a woken server answers at
+  once). **A divergence**: a process woken while the CPU was idle gets
+  a fresh slice (9pi keeps the stale one). Otherwise `echo 1.5*2 | hoc`
+  raced: under mini-qemu a tick preempted echo, hoc died first, and
+  echo printed a write error that the C 9pi doesn't.
+- Times, qid paths and versions are carried as their low 31 bits,
+  since a time after 2004 is past 2^30 (good until 2038). The devices'
+  files carry 9pi's own KERNDATE, the mtime of principia's `pi.5`,
+  passed in the bootdir's header, so `ls -l` shows 9pi's dates.
+
+Still missing: `#i` (draw), `#I` (IP) and `#u` (USB) are still
+"unknown device" when boot.rc binds them or runs usbd (stages D and E).
+Notes are not delivered to handlers. Fids are leaked by chans that are
+dropped without being opened (a stat by name clunks its own), and
+there's no MCACHE.

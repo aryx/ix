@@ -1,0 +1,9 @@
+ls /
+echo hello from mini-qemu
+ls -l /dev/sdM0
+cat /dev/sdM0/ctl
+echo written by the emulator > /x.txt
+cat /x.txt
+ls /arch/arm/bin | wc
+cat /CONFIG.TXT | wc
+echo 1.5*2 | hoc
