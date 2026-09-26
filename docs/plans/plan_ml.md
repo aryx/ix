@@ -1,4 +1,4 @@
-# Plan: mini-ml, an ML compiler from scratch, for arm and arm64 (`ml/`)
+# Plan: mini-ml, an ML compiler from scratch, for arm and arm64 (`languages/ml/`)
 
 Companions:
 [`notes_ml.md`](../tutorials/notes_ml.md), the tutorial: from a `.ml`
@@ -98,7 +98,7 @@ Those of [`../README.md`](../README.md), and five of its own:
 
 ## The subset, counted
 
-Counted with `ml/tests/count_ml.py` over mini-9pi (`kernel/9pi`,
+Counted with `languages/ml/tests/count_ml.py` over mini-9pi (`kernel/9pi`,
 `kernel/lib`: 61 files, 6,246 lines, the `.mli`s included), and for
 comparison over ocaml-light's stdlib (79 files, 10,074 lines) and its
 `test/` (46 files, 7,287 lines). Tokens with the comments and strings
@@ -268,7 +268,7 @@ uncaught exception. ocaml-light's `mlvalues.h`'s names (`Val_long`,
 
 ### 6. Reusing mini-cc's back end: its objects, its linker, its records
 
-What of mini-cc can be reused was read (`compiler/Emit.mli`,
+What of mini-cc can be reused was read (`languages/c/Emit.mli`,
 `Gen.mli`, `assembler/Asm.mli`, `linker/Link.mli`). mini-cc's `Gen` and
 `Emit` work on C's typed trees (`Tree.expr`: `regalloc`, `naddr`,
 `gopcode` take C nodes), and can't be called from ML's. What is reused
@@ -311,7 +311,7 @@ regular, with no preprocessor stacking inputs (C's reason for a lexer
 by hand). The one-file variant can't include a `.mly` and parses by
 precedence climbing.
 
-### 8. The kernel's route: through ix's toolchain
+### 8. The kernel's route: through ix's toolchain (decided)
 
 mini-9pi is linked today by GNU ld: ocaml-light's `.o` files (ELF,
 relocatable), its runtime and the kernel's C (by gcc), `start.s` (GNU
@@ -333,16 +333,36 @@ and mini-ld reads no ELF. Two roads:
   lines), but it redoes mini-ld's work (prologues, pools, constants,
   division) for another assembler, and leaves the kernel gcc's.
 
-(A) is ix's direction and principia's (9pi is 5c's and 5l's); it costs
-a phase of its own (phase 6) and touches mini-ld and the kernel's shim.
-(B) is the fallback if (A) stalls; the author decides.
+**Decided (the author, 2026-09-26): (A), with (B) as a fallback**
+("definitely A! and yes give option to generate B, as a fallback. we
+can always remove the code for B later, and hopefully it will be
+isolated from the rest"). (A) is ix's direction and principia's (9pi is
+5c's and 5l's); it costs a phase of its own (phase 6) and touches
+mini-ld and the kernel's shim.
+
+(B) is one module, `languages/ml/Gas.ml`, behind one flag (`mini-ml -gas`, GNU
+assembly out instead of an object), and nothing else in mini-ml knows
+it exists: it reads the same instruction list `-S` prints, after `Gen`,
+and does the little of mini-ld's work GNU's assembler doesn't (the
+prologue and epilogue from `TEXT` and `RET`, `SB`-relative addresses as
+`ldr =sym`, `DIV` as a call; the literal pools and branches `as` does
+itself). Removing it is deleting the file and the flag. Until then it
+has a use besides the fallback: in phase 6 it runs mini-9pi on
+mini-ml's code with the kernel's gcc build unchanged, so mini-ml's
+code and runtime in the kernel are tested apart from (A)'s pieces
+(mini-ld's image, the shim by mini-cc, the start in Plan 9's
+assembly), which then replace gcc's one at a time, each checked by the
+same sessions.
 
 ### 9. Where the code goes, and the names
 
-`ml/`, the command `mini-ml` (the target a flag, `-m 5` or `-m 7`,
-as mini-cc; `-S`, `-I`, `-o`, `-dlam` to print the intermediate
-language, `-i` to print the types), its runtime in `ml/runtime/`. The
-one-file variant is `tiny/TinyML.ml`, the command `tiny-ml`.
+`languages/ml/`, beside mini-cc's `languages/c/` (the author,
+2026-09-26: one directory per language, as the Playground's
+`libs/languages/`, room for more later). The command is `mini-ml` (the
+target a flag, `-m 5` or `-m 7`, as mini-cc; `-S`, `-I`, `-o`, `-dlam`
+to print the intermediate language, `-i` to print the types), its
+runtime in `languages/ml/runtime/`. The one-file variant is
+`tiny/TinyML.ml`, the command `tiny-ml`.
 
 ## How to be smaller than ocaml-light
 
@@ -370,17 +390,18 @@ kernel links) and 440 of assembly.
 
 | module | lines | what |
 |---|---:|---|
-| `ml/Lexer.mll`, `Parser.mly`, `Ast.ml` | 1,100 | the subset into a tree |
-| `ml/Scope.ml` | 400 | names: modules flattened, `.mli`s read, constructors, labels, exceptions, `external`s |
-| `ml/Typing.ml` | 1,100 | Hindley-Milner with levels, type declarations, the value restriction, the `.mli` against the `.ml` |
-| `ml/Match.ml` | 300 | patterns into tests and switches |
-| `ml/Lambda.ml` | 600 | the intermediate language, and the translation from the tree |
-| `ml/Closure.ml` | 350 | free variables, closures, known calls, currying (eval/apply) |
-| `ml/Gen.ml` | 700 | the stack machine into instructions, the value stack, tail calls, exceptions |
-| `ml/Arm.ml`, `ml/Arm64.ml` | 400 | the records |
-| `ml/CLI.ml`, `Main.ml` | 150 | the command, `-S`, the objects |
-| **compiler** | **about 5,100** | less than half of ocaml-light's for one machine |
-| `ml/runtime/*.c` | 1,300 | allocation and the collector 300, compare and hash 250, strings, arrays and primitives 350, channels 200, startup, callbacks, exceptions 200 |
+| `languages/ml/Lexer.mll`, `Parser.mly`, `Ast.ml` | 1,100 | the subset into a tree |
+| `languages/ml/Scope.ml` | 400 | names: modules flattened, `.mli`s read, constructors, labels, exceptions, `external`s |
+| `languages/ml/Typing.ml` | 1,100 | Hindley-Milner with levels, type declarations, the value restriction, the `.mli` against the `.ml` |
+| `languages/ml/Match.ml` | 300 | patterns into tests and switches |
+| `languages/ml/Lambda.ml` | 600 | the intermediate language, and the translation from the tree |
+| `languages/ml/Closure.ml` | 350 | free variables, closures, known calls, currying (eval/apply) |
+| `languages/ml/Gen.ml` | 700 | the stack machine into instructions, the value stack, tail calls, exceptions |
+| `languages/ml/Arm.ml`, `languages/ml/Arm64.ml` | 400 | the records |
+| `languages/ml/CLI.ml`, `Main.ml` | 150 | the command, `-S`, the objects |
+| `languages/ml/Gas.ml` | 250 | decision 8's fallback, GNU assembly (removable) |
+| **compiler** | **about 5,350** | less than half of ocaml-light's for one machine |
+| `languages/ml/runtime/*.c` | 1,300 | allocation and the collector 300, compare and hash 250, strings, arrays and primitives 350, channels 200, startup, callbacks, exceptions 200 |
 
 mini-cc missed its target by half (3,500 planned, 5,253 built), and
 mini-mk by 2.4; this one is stated before, compared after.
@@ -398,7 +419,7 @@ code. It is first because it settles, in a file one can read in an
 evening, the two questions the big one depends on: whether the value
 stack and a copying collector are as small as decision 5 says, and how
 much the stack machine costs in code quality. Its test: the programs of
-`ml/tests/tiny/` and random ones, the same output as ocaml-light's
+`languages/ml/tests/tiny/` and random ones, the same output as ocaml-light's
 arm64 `ocamlopt`.
 
 ## The modules, with their references
@@ -437,7 +458,7 @@ arm64 `ocamlopt`.
   mini-cc's) and arm64. The corpus: ocaml-light's `test/` without
   floats (35 files: fib, takc, taku, sieve, quicksort, soli, bdd,
   boyer, alloc, KB's Knuth-Bendix, Lex's lexer generator, Moretest's),
-  and `ml/tests/` by construct (patterns, closures and partial
+  and `languages/ml/tests/` by construct (patterns, closures and partial
   application, exceptions through C, deep recursion, tail calls in
   loops of a million).
 - **The objects' law**: `mini-ml -S | mini-asm` against `mini-ml`.
@@ -461,7 +482,7 @@ arm64 `ocamlopt`.
 
 ## Phasing
 
-0. **Groundwork**: the counts (`ml/tests/count_ml.py`, done); the
+0. **Groundwork**: the counts (`languages/ml/tests/count_ml.py`, done); the
    references (done: ocaml-light for arm and arm64 run a program here);
    the tutorial's listings from `ocamlopt -S` and `-dlambda` (done);
    the conventions checked: which registers 5c and 7c never allocate
@@ -477,10 +498,12 @@ arm64 `ocamlopt`.
 4. **Typing**: the type checker and the `.mli` check; its tests;
    milestone 2 with it on.
 5. **arm64**: the second record; the tests on both.
-6. **The kernel** (decision 8's route A): mini-ld's kernel image; the
-   kernel's C by mini-cc and its start in Plan 9's assembly; the
-   kernel's C on mini-ml's runtime (the stacks' switch, the roots, the
-   callbacks); milestone 3, then 4.
+6. **The kernel** (decision 8): first the kernel's C on mini-ml's
+   runtime (the stacks' switch, the roots, the callbacks) and `-gas`
+   (route B, `languages/ml/Gas.ml`), mini-9pi's sessions passing with gcc's
+   build; then route A, one piece at a time: mini-ld's kernel image,
+   the kernel's C by mini-cc, its start in Plan 9's assembly, until
+   neither gcc nor ocaml-light is left; milestone 3, then 4.
 7. **Later**: floats (boxed; on arm64 first: on arm mini-ld encodes 5c's
    FPA, not the Pi's VFP), exhaustiveness warnings (Maranget 2007),
    decision trees, a generational collector, keeping values in
@@ -489,12 +512,15 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, decision 8 decided**: route A, with B as an isolated,
+  removable fallback (`languages/ml/Gas.ml`, `-gas`), which phase 6 also uses as
+  its first step.
 - **2026-09-26, the plan written, for review.** Checked for it:
   - ocaml-light's `ocamlopt` for arm and arm64
     (`/tmp/ix-ocaml-light-{arm,arm64}`, from `kernel/ocaml-light.sh`)
     compile and run a test program (`fib 20` and `max_int`), arm under
     `qemu-arm`;
-  - the corpus's OCaml, with `ml/tests/count_ml.py` (the appendix); the
+  - the corpus's OCaml, with `languages/ml/tests/count_ml.py` (the appendix); the
     stdlib functions mini-9pi calls, and the primitives their modules
     name (56 of the compiler's, 62 in C);
   - which of `test/`'s files use floats, functors or objects (5
@@ -535,7 +561,7 @@ phase 7 lists; other machines.
 
 ## Appendix: the counts
 
-The evidence, from `ml/tests/count_ml.py` (2026-09-26).
+The evidence, from `languages/ml/tests/count_ml.py` (2026-09-26).
 
 ### mini-9pi (`count_ml.py kernel/9pi kernel/lib`)
 

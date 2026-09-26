@@ -10,7 +10,7 @@
 #
 # Lines of OCaml across ix (.ml, .mli, .mll and .mly), grouped as ix
 # is: the mini programs, the faithful twins (m-ix: assembler/,
-# compiler/, ..., kernel/), the tiny programs (t-ix: tiny/, one line
+# languages/c/, ..., kernel/), the tiny programs (t-ix: tiny/, one line
 # per file, since a file is a program), the shared libraries (lib_*/),
 # and apart from all of them the tests (every tests/ directory, and
 # the top tests/). Each line is counted once, as code (it has some
@@ -137,7 +137,7 @@ def count(text, c_comments=False):
 # (group, its top directories), in the order printed; the rest is
 # "other" (tiny-os's, docs/'s, ...)
 GROUPS = [
-    ("mini", ["assembler", "linker", "compiler", "machine", "raspberry",
+    ("mini", ["assembler", "linker", "languages", "machine", "raspberry",
               "kernel", "builder", "shell", "editor", "database",
               "version_control"]),
     ("tiny", ["tiny"]),
@@ -152,17 +152,20 @@ def classify(path, verbose):
     verbose the directory under the top one (kernel/xv6/), or the tests
     directory itself."""
     parts = path.split("/")
+    # languages/ holds a program per language (languages/c/, languages/ml/)
+    top = 2 if parts[0] == "languages" and len(parts) > 2 else 1
+    prog = "/".join(parts[:top]) + "/"
     if "tests" in parts[:-1]:
         if verbose:
             return "tests", "/".join(parts[:parts.index("tests") + 1]) + "/"
-        return "tests", parts[0] + "/"
+        return "tests", prog
     for group, tops in GROUPS:
         if parts[0] in tops:
             if group == "tiny" and len(parts) == 2:
                 return group, path
-            if verbose and len(parts) > 2:
-                return group, parts[0] + "/" + parts[1] + "/"
-            return group, parts[0] + "/"
+            if verbose and len(parts) > top + 1:
+                return group, "/".join(parts[:top + 1]) + "/"
+            return group, prog
     return "other", parts[0] + "/" if len(parts) > 1 else "./"
 
 

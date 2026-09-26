@@ -1,4 +1,4 @@
-# Plan: mini-cc, a C compiler from scratch, for arm and arm64 (`compiler/`)
+# Plan: mini-cc, a C compiler from scratch, for arm and arm64 (`languages/c/`)
 
 Companions:
 [`notes_cc.md`](../tutorials/notes_cc.md), the tutorial: from a `.c`
@@ -122,7 +122,7 @@ the same instructions for both machines (checked, `5c -O0` and `7c
 ```
 
 **But goken has two back ends, not one**: 5c and 7c are copies that
-drifted. How far, counted (`compiler/tests/compare_c.py`, comments and
+drifted. How far, counted (`languages/c/tests/compare_c.py`, comments and
 layout removed; the full output in the appendix):
 
 | | 5c | 7c | the same, in order | in any order |
@@ -148,7 +148,7 @@ one front end.
 
 ## The subset, counted
 
-Counted with `compiler/tests/count_c.py` over goken's libc (all of
+Counted with `languages/c/tests/count_c.py` over goken's libc (all of
 it), libbio, libregexp, libstring, the `hello_libc` programs and the
 utilities, with their headers: 399 files, 60,879 lines (the full counts
 in the appendix). Tokens, not a parse: so the counts are close, not
@@ -225,7 +225,7 @@ allocated per expression and freed after it, no peephole. That leaves
 the part of 5c and 7c that is the design (trees to instructions), and
 drops the part that is tuning (2,700 lines of dataflow and patterns per
 machine). The comparison is on the listings, normalized
-(`compiler/tests/`: the operand spellings of 5c's and 5ck's listings,
+(`languages/c/tests/`: the operand spellings of 5c's and 5ck's listings,
 the digits of a float), and on the executables, with mini-ld.
 
 ### 4. The dialect: Plan 9's C, as 5c at `-O0` reads it
@@ -262,7 +262,10 @@ operands); for mini-rc's `syn.y`, yacc would have been as short.
 
 ### 7. Where the code goes, and the names
 
-`compiler/`, xix's name (principia's is `compilers/`). The command is
+`compiler/` at first, xix's name (principia's is `compilers/`); moved
+to `languages/c/` (2026-09-26, the author) when a second compiler came
+(`languages/ml/`, plan_ml.md), as the Playground has
+`libs/languages/`. The command is
 `mini-cc`, the target a flag (`-m 5` or `-m 7`), with `-S`, `-I`, `-D`,
 `-o`. (`mini-cc` is also the common name of Bellard's TCC: the related
 work says so, and the README's "mini-cc" stays the program's
@@ -288,14 +291,14 @@ with `reg.c` and `peep.c`. Where mini-cc saves:
 
 | module | lines | what |
 |---|---:|---|
-| `compiler/Pre.ml` | 200 | the preprocessor |
-| `compiler/Lexer.ml` | 250 | tokens, the typedef names |
-| `compiler/Parser.mly` | 650 | declarations, statements, expressions |
-| `compiler/Tree.ml`, `Declare.ml`, `Check.ml` | 700 | types, declarations, typechecking, conversions, constants, 64-bit calls |
-| `compiler/Gen.ml` | 900 | expressions, conditions, structures, statements, switches |
-| `compiler/Arm64.ml` | 300 | the record for arm64 |
-| `compiler/Arm.ml` | 350 | the record for arm, 64-bit arithmetic's calls |
-| `compiler/Obj.ml`, `CLI.ml` | 150 | objects, `-S`, the command |
+| `languages/c/Pre.ml` | 200 | the preprocessor |
+| `languages/c/Lexer.ml` | 250 | tokens, the typedef names |
+| `languages/c/Parser.mly` | 650 | declarations, statements, expressions |
+| `languages/c/Tree.ml`, `Declare.ml`, `Check.ml` | 700 | types, declarations, typechecking, conversions, constants, 64-bit calls |
+| `languages/c/Gen.ml` | 900 | expressions, conditions, structures, statements, switches |
+| `languages/c/Arm64.ml` | 300 | the record for arm64 |
+| `languages/c/Arm.ml` | 350 | the record for arm, 64-bit arithmetic's calls |
+| `languages/c/Obj.ml`, `CLI.ml` | 150 | objects, `-S`, the command |
 | **total** | **about 3,500** | a fifth of goken's (without the optimizers), a sixth with |
 
 *As built (2026-09-24, the trees an ADT)*, with comments and blank lines (the `.mli`s,
@@ -340,9 +343,9 @@ of their own, and the passes functions from trees to trees; the
 accessors of a node's sides (`Tree.l n`, 134 uses) and the tests of its
 op (80) are gone, the assignments to fields down from 331 to 116, and
 the listings the same at the first run. The `-x` dump is the ADT's own
-now, so `compiler/tests/front.sh`, which compared it with cck's, is
+now, so `languages/c/tests/front.sh`, which compared it with cck's, is
 retired; the listings cover what the front end decides, and
-`compiler/tests/c/` the corners the corpus may not reach. Two fixes on
+`languages/c/tests/c/` the corners the corpus may not reach. Two fixes on
 the way: a wide string initializing an array gives its runes (5c's
 nextinit; the port gave zeros), and com64's calls no longer consult
 arm's machcap, which is always false.
@@ -393,13 +396,13 @@ after the compiler, by what it taught.
 ## Phasing
 
 0. **Groundwork**: the counts and the comparisons (done, in
-   `compiler/tests/`); the listing normalizer; `5c -O0` against `5ck
+   `languages/c/tests/`); the listing normalizer; `5c -O0` against `5ck
    -O0` over all of libc, to settle the front end's reference; the
    calling convention and `char`'s signedness per machine, checked.
 1. **Front end**: Pre, Lexer, Parser, Tree, Declare, Check, for the whole
    corpus: every file parsed and typechecked (a `-dump` against a
    sample by hand; 5c's errors are not compared).
-   *Done (2026-09-23)*: `compiler/tests/front.sh` compares `mini-cc
+   *Done (2026-09-23)*: `languages/c/tests/front.sh` compares `mini-cc
    -x` with cck's `-x` (5ck, 7c) over the corpus's 235 files that cck
    compiles here: the same trees on both machines. The front end is
    3,023 lines (non-blank), where 1,800 were planned: the
@@ -411,7 +414,7 @@ after the compiler, by what it taught.
 
 2. **Gen and arm**: the listings of the corpus against `5c -O0`,
    function by function; milestone 1 for 5; the fuzzer.
-   *Done for arm (2026-09-24)*: `compiler/tests/listing.sh 5` compares
+   *Done for arm (2026-09-24)*: `languages/c/tests/listing.sh 5` compares
    `mini-cc -S` with `5c -O0 -S` over the 235 files of the corpus 5c
    compiles: all the same, line for line. And `MINICC=1
    linker/tests/libc.sh 5` builds libc and the 17 hello_libc programs
@@ -525,10 +528,10 @@ after the compiler, by what it taught.
     `-O0` turns off `reg.c` and `peep.c` and nothing else (goken's
     notes);
   - the back ends' and front ends' alikeness (the table above), with
-    `compiler/tests/compare_c.py`;
+    `languages/c/tests/compare_c.py`;
   - `5c -O0` and `5ck -O0` print the same code for 130 libc files (13
     differ in a float's printed digits only);
-  - the corpus's C, with `compiler/tests/count_c.py`;
+  - the corpus's C, with `languages/c/tests/count_c.py`;
   - the tutorial's listings (hello, a loop, a switch, a vlong add, a
     structure returned), from `5c -O0 -S` and `7c -O0 -S`;
   - qc--'s size per target, and xix's compiler: 5,553 lines, its
@@ -555,7 +558,7 @@ in).
 
 ## Appendix: the counts and the comparisons
 
-The evidence, from `compiler/tests/` (2026-09-23).
+The evidence, from `languages/c/tests/` (2026-09-23).
 
 ### The C of the corpus (`count_c.py`)
 

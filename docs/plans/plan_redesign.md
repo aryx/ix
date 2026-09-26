@@ -12,7 +12,7 @@ globals)?
 
 Sources: six read-only comparisons of ix against the author's xix
 (`~/github/xix`: `builder/`, `shell/`, `editor/`, `assembler/`,
-`linker/`, `compiler/`), and ideas of our own, marked **(ours)**. The
+`linker/`, `languages/c/`), and ideas of our own, marked **(ours)**. The
 output contract is unchanged: byte-identical to 9base and goken,
 checked by the tests named with each item.
 
@@ -44,11 +44,11 @@ below are local redesigns, not rewrites.
    while it parses, so an unknown mnemonic is an error with file:line
    at assembly time. The compiler's backends write constructors, not
    strings: `ins "MOVW"`, `"CMN" ^ String.sub cmp 3`
-   (`compiler/Emit.ml` ~144), and `(p ()).as_ <- "BGT"`
-   (`compiler/Arm.ml` ~200). To decide: keep the string in the object
+   (`languages/c/Emit.ml` ~144), and `(p ()).as_ <- "BGT"`
+   (`languages/c/Arm.ml` ~200). To decide: keep the string in the object
    (arch-neutral `Asm.obj`, about 10 lines of decode at load), or make
    the object an arch-indexed sum. Risk: none to output; golden.sh,
-   libc.sh, compiler/tests/listing.sh.
+   libc.sh, languages/c/tests/listing.sh.
 2. **Suffixes decoded once (ours and both reports).**
    - arm: the condition and the S/P/W/U flags, now re-parsed from
      `suffixes : string list` by `Arm.scond` on every `view`, which
@@ -95,7 +95,7 @@ below are local redesigns, not rewrites.
    - `exception Return` used as control flow in `cgen`.
    - Keep: `xcom`'s cached complexity (xix recomputes it,
      quadratically), the immutable instruction list.
-   - Risk: listing.sh 5 and 7, compiler/tests/fuzz.sh.
+   - Risk: listing.sh 5 and 7, languages/c/tests/fuzz.sh.
 
 ## The shell
 

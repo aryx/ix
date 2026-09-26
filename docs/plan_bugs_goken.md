@@ -82,7 +82,7 @@ row of TDOUBLE) gives TFLOAT for a double and a float, while a float
 and a double give TDOUBLE. So `d * f` loses the double's precision:
 7c -O0 on `r1 = d * f; r2 = f * d;` emits `FCVTDS F0,F0` and `FMULS`
 for the first, `FCVTSD` and `FMULD` for the second. Probably a typo
-in the table. mini-cc reproduces it (`compiler/Tree.ml`'s
+in the table. mini-cc reproduces it (`languages/c/Tree.ml`'s
 `arith_tab`, which says so).
 
 ### 5d. A narrowing cast tested as a condition is not narrowed
@@ -115,7 +115,7 @@ In cck's `com64.c`, `nodv2uh = fvn("_v2ul", TUSHORT)`: a vlong cast to
 `ushort` calls `_v2ul`, like a cast to `ulong`, while every other
 conversion has its own function. Probably a typo for `_v2uh`; the
 result isn't truncated to 16 bits by the call. Only 5c uses these
-calls. ix: the same (`compiler/Gen.ml`, `of_v`). Not checked at run
+calls. ix: the same (`languages/c/Gen.ml`, `of_v`). Not checked at run
 time.
 
 ### 8. The multiply table's cache and 0
@@ -134,14 +134,14 @@ computes in the host's `long` (64 bits), 7c's in `int32`.
 digits: `$4.294967e+09`, so a `5ck -S` listing doesn't reassemble to
 the same object. Principia's 5c prints `%.17e` (with Plan 9's fmt,
 the fewest digits that read back, then zeros). ix: mini-cc prints as
-principia's 5c (`compiler/Emit.ml`, `e17`).
+principia's 5c (`languages/c/Emit.ml`, `e17`).
 
 ### 10. cck's `-x` dump: runes and offsets
 
 `prtree` prints an `L"..."` string with `%S` on 4-byte runes, which
 comes out as `"\072\z\z\z..."`, and an offset as an unsigned 32-bit
 number (`4294967288` for `-8`). Debug output only.
-`compiler/tests/strip_x.py` normalized the first, while mini-cc's `-x`
+`languages/c/tests/strip_x.py` normalized the first, while mini-cc's `-x`
 printed 5c's trees (until 2026-09-24, when the trees became an OCaml
 ADT and `-x` its own dump; the script is in the history).
 
@@ -239,8 +239,8 @@ pipe, a missing program's stage exits with the `$status` it inherited
 
 The runners that compare ix with its reference, case by case or file
 by file: mini-mk's, mini-rc's and mini-ed's `differential.sh` and
-fuzzers, against 9base; `compiler/tests/front.sh` (trees, while they were 5c's),
-`compiler/tests/listing.sh` (listings), `linker/tests/libc.sh`
+fuzzers, against 9base; `languages/c/tests/front.sh` (trees, while they were 5c's),
+`languages/c/tests/listing.sh` (listings), `linker/tests/libc.sh`
 (executables, and running them) and `linker/tests/fuzz.py`, against
 goken; `tiny/TinyC_fuzz.py`, against 7c; and reading the C while
 porting it.

@@ -26,7 +26,7 @@ before relying on them for teaching; camlboot's are from its paper
 | CakeML (2014-) | A compiler proved correct | a dozen intermediate languages, each with its proof |
 | MinCaml (2005) | A compiler for a course, efficient code | K-normal form, closures, register allocation |
 | camlboot (2022) | Building OCaml without a bootstrap binary | an untyped subset compiled to OCaml's bytecode |
-| `ml/` (mini-ml) | Seeing what an ML compiler does, on a real kernel | types forgotten; a stack machine; a value stack |
+| `languages/ml/` (mini-ml) | Seeing what an ML compiler does, on a real kernel | types forgotten; a stack machine; a value stack |
 
 ## Part 1: the first MLs
 

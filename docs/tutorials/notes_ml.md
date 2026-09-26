@@ -1,4 +1,4 @@
-# An ML compiler, from scratch: a tutorial for `ml/`
+# An ML compiler, from scratch: a tutorial for `languages/ml/`
 
 How an ML file becomes the instructions that mini-ld links, on arm and
 arm64: a front end that reads ocaml-light's ML into a tree and resolves
@@ -26,16 +26,16 @@ The modules as planned (plan_ml.md, "How to be smaller"):
 
 | module | what | section |
 |---|---|---|
-| `ml/Ast` | the tree | §4 |
-| `ml/Lexer.mll`, `Parser.mly` | ML into a tree | §4 |
-| `ml/Scope` | modules, `.mli`s, constructors, labels, exceptions, `external`s | §5 |
-| `ml/Typing` | types inferred, declarations, the `.mli` checked | §6 |
-| `ml/Match` | patterns into tests | §7 |
-| `ml/Lambda` | the small language, and the translation into it | §8 |
-| `ml/Closure` | functions into closures, calls into direct or generic ones | §9 |
-| `ml/Gen` | the stack machine into instructions, the value stack | §10 |
-| `ml/Arm`, `Arm64` | what each machine decides | §10 |
-| `ml/runtime/` | allocation, the collector, the primitives, in C | §11 |
+| `languages/ml/Ast` | the tree | §4 |
+| `languages/ml/Lexer.mll`, `Parser.mly` | ML into a tree | §4 |
+| `languages/ml/Scope` | modules, `.mli`s, constructors, labels, exceptions, `external`s | §5 |
+| `languages/ml/Typing` | types inferred, declarations, the `.mli` checked | §6 |
+| `languages/ml/Match` | patterns into tests | §7 |
+| `languages/ml/Lambda` | the small language, and the translation into it | §8 |
+| `languages/ml/Closure` | functions into closures, calls into direct or generic ones | §9 |
+| `languages/ml/Gen` | the stack machine into instructions, the value stack | §10 |
+| `languages/ml/Arm`, `Arm64` | what each machine decides | §10 |
+| `languages/ml/runtime/` | allocation, the collector, the primitives, in C | §11 |
 | `tiny/TinyML.ml` | all of it, smaller, in one file | §14 |
 
 Read §1 and §3 first: the rest follows from how a value looks at run
@@ -461,9 +461,11 @@ collector walks the sleeping stacks through a hook
 (`kernel/lib/runtime.c`'s header says how). With mini-ml, a process
 owns a value stack; the switch saves its pointer and the exception
 handler's, and the collector scans every process's value stack. The
-route to building the kernel with ix's tools (mini-ld's kernel image,
-the shim through mini-cc, the start in Plan 9's assembly) is
-plan_ml.md's decision 8.
+kernel is then built by ix's tools alone (plan_ml.md, decision 8):
+mini-ld's kernel image, the shim through mini-cc, the start in Plan
+9's assembly. On the way, `mini-ml -gas` prints GNU assembly
+(`languages/ml/Gas.ml`, one removable module), so that mini-ml's code runs in
+the kernel while gcc still builds the rest.
 
 ## 13. Compared with ocaml-light, camlboot and MinCaml
 

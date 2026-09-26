@@ -1,4 +1,4 @@
-# A C compiler, from scratch: a tutorial for `compiler/`
+# A C compiler, from scratch: a tutorial for `languages/c/`
 
 How a C file becomes the instructions that mini-ld links, on arm and
 arm64, the Plan 9 way: a front end that reads C into a typed tree, and
@@ -24,15 +24,15 @@ goken's 5c and 7c, and xix's `compiler/`.
 
 | module | what | section |
 |---|---|---|
-| `compiler/Tree` | the types, the tree, the symbols | §3, §4 |
-| `compiler/Pre` | the preprocessor | §3 |
-| `compiler/Lexer`, `Parser` (ocamlyacc) | C into a tree | §3 |
-| `compiler/Declare` | declarations, scopes, frames, initializers | §3, §7 |
-| `compiler/Check` | types, and the tree made explicit | §4 |
-| `compiler/Gen` | code from the tree | §4, §5, §6, §7 |
-| `compiler/Multiply` | a multiplication by a constant | §5 |
-| `compiler/Arm`, `Arm64` | what each machine decides | §8 |
-| `compiler/Emit`, `CLI` | the instructions, `-S`, the objects, `mini-cc` | §9 |
+| `languages/c/Tree` | the types, the tree, the symbols | §3, §4 |
+| `languages/c/Pre` | the preprocessor | §3 |
+| `languages/c/Lexer`, `Parser` (ocamlyacc) | C into a tree | §3 |
+| `languages/c/Declare` | declarations, scopes, frames, initializers | §3, §7 |
+| `languages/c/Check` | types, and the tree made explicit | §4 |
+| `languages/c/Gen` | code from the tree | §4, §5, §6, §7 |
+| `languages/c/Multiply` | a multiplication by a constant | §5 |
+| `languages/c/Arm`, `Arm64` | what each machine decides | §8 |
+| `languages/c/Emit`, `CLI` | the instructions, `-S`, the objects, `mini-cc` | §9 |
 
 Each module's `.mli` says what it does and where it departs from 5c
 and 7c, with the papers it follows; read Tree's first, then in the
@@ -279,7 +279,7 @@ sits beside the compiled ones.
 - **The executables**: goken's libc and programs, compiled and linked
   by ix only, against goken's, byte for byte, and run.
 - **A fuzzer**: random C of the subset through both compilers.
-- **The corners** the corpus may not reach (`compiler/tests/c/`):
+- **The corners** the corpus may not reach (`languages/c/tests/c/`):
   declaration words, the lexer, structure copies, initializers,
   vlongs.
 

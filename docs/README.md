@@ -16,8 +16,8 @@ own machines, the kernels, the code that is not OCaml):
 | mini-rc, the shell | [plan_rc.md](plans/plan_rc.md) | [notes_rc.md](tutorials/notes_rc.md) | [notes_rc_related_work.md](related-work/notes_rc_related_work.md) | `shell/`, `tiny/TinyShell.ml` |
 | mini-ed, the editor | [plan_ed.md](plans/plan_ed.md) | [notes_ed.md](tutorials/notes_ed.md) | [notes_ed_related_work.md](related-work/notes_ed_related_work.md) | `editor/`, `tiny/TinyEditor.ml` |
 | mini-asm and mini-ld, the assembler and the linker | [plan_asm.md](plans/plan_asm.md) | [notes_asm.md](tutorials/notes_asm.md) | [notes_asm_related_work.md](related-work/notes_asm_related_work.md) | `assembler/`, `linker/`, `tiny/TinyAssembler.ml` |
-| mini-cc, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `compiler/`, `tiny/TinyC.ml` |
-| mini-ml, the ML compiler (ocaml-light's ML, native, for arm and arm64; the target: mini-9pi) | [plan_ml.md](plans/plan_ml.md) | [notes_ml.md](tutorials/notes_ml.md) | [notes_ml_related_work.md](related-work/notes_ml_related_work.md) | `ml/`, `tiny/TinyML.ml` (planned) |
+| mini-cc, the C compiler | [plan_cc.md](plans/plan_cc.md) | [notes_cc.md](tutorials/notes_cc.md) | [notes_cc_related_work.md](related-work/notes_cc_related_work.md) | `languages/c/`, `tiny/TinyC.ml` |
+| mini-ml, the ML compiler (ocaml-light's ML, native, for arm and arm64; the target: mini-9pi) | [plan_ml.md](plans/plan_ml.md) | [notes_ml.md](tutorials/notes_ml.md) | [notes_ml_related_work.md](related-work/notes_ml_related_work.md) | `languages/ml/`, `tiny/TinyML.ml` (planned) |
 | mini-chidb, the relational database | [plan_db.md](plans/plan_db.md) | [notes_db.md](tutorials/notes_db.md) | [notes_db_related_work.md](related-work/notes_db_related_work.md) | `database/`, `tiny/TinyDatabase.ml` |
 | mini-git, mini-diff and mini-merge3, version control | [plan_vcs.md](plans/plan_vcs.md) | [notes_vcs.md](tutorials/notes_vcs.md) | [notes_vcs_related_work.md](related-work/notes_vcs_related_work.md) | `version_control/`, `lib_security/`, `lib_compression/`, `tiny/TinyVCS.ml` |
 | mini-5i, the ARM emulator (arm32, arm64; Linux's or Plan 9's system calls) | [plan_arm.md](plans/plan_arm.md) | [notes_arm.md](tutorials/notes_arm.md) | [notes_arm_related_work.md](related-work/notes_arm_related_work.md) | `machine/`, `tiny/TinyCPUArm.ml`, `tiny/TinyLibArm.ml`, `tiny/TinyCPU.ml`, `tiny/TinyLibCPU.ml`, `tiny/TinyMachine.ml` |
@@ -102,7 +102,7 @@ plan restates only where it differs.
       `&&`, `||`, `!` as `?:`, `while` as `for`): fewer constructors,
       fewer cases in every match.
     - **The output is the contract, the representation is free**: a
-      twin matches its reference byte for byte (compiler/'s listings
+      twin matches its reference byte for byte (languages/c/'s listings
       are 5c's and 7c's), yet keeps the C original's shape only where
       the output depends on it (allocation order, sort ties, number
       formats); `-x`'s dump became the ADT's own.
@@ -111,7 +111,7 @@ plan restates only where it differs.
       catch-all, a sentinel): the software engineering lesson, kept
       short (the history is in git), and marked, since other comments
       describe the code as it is (principle 11).
-    - Clarity first, fewer lines second: the rewrite of compiler/'s
+    - Clarity first, fewer lines second: the rewrite of languages/c/'s
       trees removed 134 uses of `Tree.l n`, 80 tests of `.op` and two
       thirds of the assignments to fields, for 75 lines fewer.
 

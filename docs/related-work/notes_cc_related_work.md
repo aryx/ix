@@ -24,7 +24,7 @@ on them for teaching.
 | GCC (1987), LLVM (2003) | Every language, every machine, optimizing | an IR (RTL, GIMPLE; LLVM's) and passes |
 | C-- (1997-), QBE (2015-) | A portable assembly language as the target | an IR small enough to target |
 | Small-C (1980), tcc (2001), c4 (2014), chibicc (2019) | A compiler one person reads, or writes | none, or a stack machine |
-| `compiler/` (mini-cc) | Seeing what a C compiler does, on real programs | Plan 9's instructions, one generator, a record per machine |
+| `languages/c/` (mini-cc) | Seeing what a C compiler does, on real programs | Plan 9's instructions, one generator, a record per machine |
 
 ## Part 1: code from expressions
 

@@ -23,7 +23,7 @@ Names in italics are planned.
 
 - **mini-xxx** (m-ix): a Plan 9 program's faithful twin, named after
   it, its output the original's byte for byte (`builder/`, `shell/`,
-  `editor/`, `assembler/`, `linker/`, `compiler/`, `database/`,
+  `editor/`, `assembler/`, `linker/`, `languages/c/`, `database/`,
   `version_control/`, `machine/`, `raspberry/`).
 - **tiny-xxx** (t-ix): a free variant in one file under `tiny/`,
   named after what it does, keeping the idea and redesigning the rest.

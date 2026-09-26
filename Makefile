@@ -48,7 +48,7 @@ test-differential: all
 # programs with its libc, byte for byte and run; see linker/tests/
 # (golden.sh record re-records the fixtures' bytes from goken). The
 # compiler's listings against 5c -O0's and 7c -O0's, on the corpus, on
-# compiler/tests/c/ and on random programs; see compiler/tests/ (and
+# languages/c/tests/c/ and on random programs; see languages/c/tests/ (and
 # MINICC=1 linker/tests/libc.sh for the executables mini-cc and mini-ld
 # make).
 GOKEN_W = /tmp/ix-goken
@@ -58,9 +58,9 @@ test-goken: all
 	./tiny/TinyAssembler_test.sh
 	./tiny/TinyC_test.sh
 	mkdir -p $(GOKEN_W)/tinyc32 && ./tiny/TinyC_fuzz.py --32 $(GOKEN_W)/tinyc32 100 && ./tiny/TinyC_test.sh $(GOKEN_W)/tinyc32/*.c
-	./compiler/tests/listing.sh 5 $(GOKEN_W)/listing5 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
-	./compiler/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c compiler/tests/c/*.c
-	./compiler/tests/fuzz.sh $(GOKEN_W)/fuzz 150
+	./languages/c/tests/listing.sh 5 $(GOKEN_W)/listing5 $(HOME)/goken/tests/c/hello_libc/*.c languages/c/tests/c/*.c
+	./languages/c/tests/listing.sh 7 $(GOKEN_W)/listing7 $(HOME)/goken/tests/c/hello_libc/*.c languages/c/tests/c/*.c
+	./languages/c/tests/fuzz.sh $(GOKEN_W)/fuzz 150
 	P9DIFF=$(GOKEN_W)/p9diff ./version_control/tests/diff_fuzz.py 500
 	./machine/tests/corpus.py 5 $(GOKEN_W)/libc5/*/*.exe
 	./machine/tests/corpus.py 7 $(GOKEN_W)/libc7/*/*.exe

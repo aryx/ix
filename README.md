@@ -38,7 +38,7 @@ in `bin/`, e.g. `./bin/mini-mk`), each with its tiny variants:
   executables are goken's byte for byte; tiny-assembler, the two in
   one.
 - **mini-cc**, the C compiler for arm and arm64
-  ([`compiler/`](compiler/)), whose listings are goken's `5c -O0` and
+  ([`languages/c/`](languages/c/)), whose listings are goken's `5c -O0` and
   `7c -O0`'s instruction for instruction; tiny-c, for arm64 and, with
   `-tm`, for tiny-cpu.
 - **mini-chidb**, the database ([`database/`](database/)); tiny-db.

@@ -8,7 +8,7 @@
  * 2 of the License, or (at your option) any later version.
  *)
 (* A tiny C compiler for arm64, in one file, through an intermediate
- * language of its own. mini-cc (compiler/) is 5c's and 7c's twin,
+ * language of its own. mini-cc (languages/c/) is 5c's and 7c's twin,
  * byte for byte: their front end, their trees, their code generator,
  * and a record per machine. This is what is left when the code need
  * only be correct:

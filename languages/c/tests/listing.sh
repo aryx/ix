@@ -5,7 +5,7 @@
 # usage: listing.sh 5 workdir [prog.c...]
 set -u
 export PATH=$HOME/goken/bin:$HOME/goken/ROOT/arch/boot-gcc/bin:$PATH
-IX=$(cd $(dirname $0)/../.. && pwd)/_build/default
+IX=$(cd $(dirname $0)/../../.. && pwd)/_build/default
 O=$1; W=$2; shift 2
 # the programs' paths absolute: the loop below changes directory
 [ $# -gt 0 ] && set -- $(realpath "$@")
@@ -17,7 +17,7 @@ one() {  # dir flags src
   # the listing is the lines with a tab; 5c may print it and still fail
   (cd $1 && ${O}c -O0 $2 -S -o /dev/null $3 > $W/$b.out 2>/dev/null) || { echo "${O}c-FAIL $b"; return; }
   grep '^	' $W/$b.out > $W/$b.g
-  (cd $1 && $IX/compiler/Main.exe -m $O $2 -S -o $W/$b.$O $3 > $W/$b.t 2>&1) || { echo "FAIL $b: $(tail -1 $W/$b.t)"; fail=$((fail+1)); return; }
+  (cd $1 && $IX/languages/c/Main.exe -m $O $2 -S -o $W/$b.$O $3 > $W/$b.t 2>&1) || { echo "FAIL $b: $(tail -1 $W/$b.t)"; fail=$((fail+1)); return; }
   if cmp -s $W/$b.g $W/$b.t; then same=$((same+1)); else echo "DIFF $b $(diff $W/$b.g $W/$b.t | grep -c '^[<>]')"; diff=$((diff+1)); fi
 }
 for d in lib_core/libc lib_core/libbio lib_strings/libregexp lib_strings/libstring \

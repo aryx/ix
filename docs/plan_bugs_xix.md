@@ -109,5 +109,5 @@ reproduces it (`plan_bugs_goken.md`, 3).
 ## To do
 
 Run xix's `occ`, `5a`/`5l` and `7l` over the same corpus runners
-(`compiler/tests/listing.sh`, `linker/tests/libc.sh`) to find its
+(`languages/c/tests/listing.sh`, `linker/tests/libc.sh`) to find its
 actual bugs, rather than its gaps.

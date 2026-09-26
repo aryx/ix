@@ -5437,3 +5437,122 @@ Claude refactored a raytracer backend with progressive pixel sampling and split-
 **Yoann:**
 
 > we should add if it adds moderate LOC for what it teaches
+
+**Claude (summary):**
+
+Claude fixed the default algorithm to use Whitted instead of path tracing and rewrote a garbled index computation.
+Claude renamed the surface from white to plaster to avoid shadowing Playground's built-in color.
+Claude revised the tutorial with corrected section references (§8b, §8c, §9, §12) that resolve properly.
+Claude ran the golden tests confirming all document revisions work correctly.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:44
+
+**Yoann:**
+
+> let's commit the current documents
+
+**Claude (summary):**
+
+Claude committed three mini-ml documents as commit 0faea5d with docs index row and counting script. The commit included prompt-history.md because it was already staged, though it covered multiple earlier sessions. Kernel work, the Makefile, and debugging notes remained uncommitted and awaited further direction from Yoann. Claude flagged decision 8 about mini-9pi's build process as requiring Yoann's explicit input to proceed. Claude offered to move prompt-history.md to a separate commit if Yoann preferred to split the changes.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:47
+
+**Yoann:**
+
+> let's commit the progress
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:50
+
+**Yoann:**
+
+> What is decision 8 ?
+
+**Claude (summary):**
+
+Decision 8 is how to link mini-9pi after mini-ml compiles it, replacing ocaml-light.
+Claude recommended option A: rebuild the kernel with ix's own tools, requiring mini-ld to generate kernel images.
+Mini-cc must compile the C shim and start.s must be rewritten in Plan 9 assembly.
+This approach eliminates all gcc and ocaml-light dependencies from the build.
+Claude offered option B as a fallback: generating GNU assembly from mini-ml instead.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:52
+
+**Yoann:**
+
+> yes definitily A! and yes give option to generate B, as a fallback. we can always remove the code for B later, and hopefully it will be isolated from the rest so not polluting the main program
+
+**Claude (summary):**
+
+Claude recorded decision 8 in docs/plans/plan_ml.md as route A with B fallback. Claude isolated B in ml/Gas.ml (250 lines), toggled by -gas flag, not referenced elsewhere. Claude added phase 6 step running mini-ml through -gas for early testing before replacing pieces. Claude updated the module table, compiler target, and tutorial notes to match. Claude asked whether to commit plan_ml.md and notes_ml.md changes.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:53
+
+**Yoann:**
+
+> at this point maybe we should have languages/{c,ml} instead of the current compiler/ (that's what we do also in ~/playground/libs/languages), and maybe later we can even add scheme and prolog and what's not
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:53
+
+**Yoann:**
+
+> dunno if we also want to move the assembler under languages/ ... maybe not
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:54
+
+**Yoann:**
+
+> please use git mv not Edit for such changes
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:54
+
+**Yoann:**
+
+> if moving compiler/ under languages/c/
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:54
+
+**Yoann:**
+
+> what do you think? Better that way?
+
+------------------------------------------------------------------------
+
+## 2026-09-26 07:55
+
+**Yoann:**
+
+> great finding!
+
+**Claude (summary):**
+
+Claude fixed a garbled index computation and renamed the surface white to plaster.
+Claude committed phase 8 with soft shadows and path tracing implemented in Raytrace.ml.
+Claude moved the raytracing plan to done/ and repointed its links across four files.
+Claude created plan_raytracing_remaining.md to document unfinished work and revised the tutorial sections.
+Claude ran the full test suite to verify all changes were working correctly.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 08:03
+
+**Yoann:**
+
+> let's commit this change
