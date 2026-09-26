@@ -512,6 +512,15 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 3: KB, and the fuzzer.** `tests/run.sh` takes a
+  directory of units (ordered by `mini-ml -M`): KB (Knuth-Bendix, five
+  units with their `.mli`s) the same as `ocamlopt`'s on arm64 and arm;
+  Moretest's six on arm too (signals ends in an uncaught `End_of_file`,
+  on which ocaml-light's arm executable hangs). The fuzzer's programs
+  (`tiny/TinyML_fuzz.py`, which use the stdlib's List): 150 the same on
+  arm64, 48 of 50 on arm, where `ocamlopt` itself fails on the other two:
+  **its arm back end writes `mov r4, r5, lsl #32` for `x mod 1`**, which
+  its assembler rejects.
 - **2026-09-26, phase 3: milestone 1, ocaml-light's `test/`.** Its
   programs through mini-ml, run and compared live with its `ocamlopt`
   (`LIVE=1 tests/run.sh`), and with `ML_HEAP=64`: fib, takc, taku,

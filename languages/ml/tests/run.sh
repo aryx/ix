@@ -18,7 +18,9 @@
 # recorded by tiny/TinyML_test.sh's RECORD=1 for tests/tiny/), or, with
 # LIVE=1, with ocamlopt's for that machine run now. With ML_HEAP=64
 # again: the collector's law.
-# usage: run.sh 5|7 workdir prog.ml...
+# A program is a file, or a directory of units (ordered by their
+# dependencies, mini-ml -M).
+# usage: run.sh 5|7 workdir prog.ml|dir...
 
 set -u
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
@@ -53,18 +55,53 @@ needs() {
   for u in $units; do [ -n "${seen[${u^}]:-}" ] && echo -n "${u^} "; done
 }
 
+# a directory's units in their dependencies' order (a unit before the
+# ones naming it), then its main, the unit no other names
+local_order() {
+  local d=$1 u v done_=" " out=() progress=1
+  local all=$(for f in $d/*.ml; do basename $f .ml; done)
+  declare -A ldeps
+  for u in $all; do ldeps[$u]=$($ML -M -I $S $d/$u.ml); done
+  while [ $progress = 1 ]; do
+    progress=0
+    for u in $all; do
+      [[ "$done_" == *" $u "* ]] && continue
+      local ready=1
+      for v in ${ldeps[$u]}; do for w in $all; do [ "${w^}" = "$v" ] && [[ "$done_" != *" $w "* ]] && ready=0; done; done
+      [ $ready = 1 ] && { out+=($u); done_="$done_$u "; progress=1; }
+    done
+  done
+  echo ${out[@]}
+}
+
 failures=0
 for ml in "$@"; do
   ml=$(realpath $ml)
   b=$(basename $ml .ml)
-  $ML -m $O -I $S -o $W/$b.$O $ml || { echo "FAIL $b: mini-ml"; failures=$((failures + 1)); continue; }
-  names=$(needs Pervasives $($ML -M -I $S $ml))
-  $ML -m $O -start $names ${b^} Std_exit -o $W/$b.start.$O
+  # a program: a file, or a directory of units
+  if [ -d $ml ]; then srcs=(); for u in $(local_order $ml); do srcs+=($ml/$u.ml); done
+  else srcs=($ml); fi
+  own=(); mods=(); ok=1
+  for src in ${srcs[@]}; do
+    u=$(basename $src .ml)
+    $ML -m $O -I $S -o $W/$b.$u.$O $src || { ok=0; break; }
+    own+=($W/$b.$u.$O); mods+=(${u^})
+  done
+  [ $ok = 1 ] || { echo "FAIL $b: mini-ml"; failures=$((failures + 1)); continue; }
+  names=$(needs Pervasives $(for src in ${srcs[@]}; do $ML -M -I $S $src; done))
+  $ML -m $O -start $names ${mods[@]} Std_exit -o $W/$b.start.$O
   objs=$(for u in $names; do echo -n "$W/std/${u,}.$O "; done)
-  $IX/linker/Main.exe -m $O -H7 -o $W/$b $W/$b.start.$O $objs $W/$b.$O $W/std/std_exit.$O $W/runtime.$O $W/libc/t/libc.a \
+  $IX/linker/Main.exe -m $O -H7 -o $W/$b $W/$b.start.$O $objs ${own[@]} $W/std/std_exit.$O $W/runtime.$O $W/libc/t/libc.a \
     || { echo "FAIL $b: mini-ld"; failures=$((failures + 1)); continue; }
   if [ -n "${LIVE:-}" ]; then
-    (cd $W/run && cp $ml $b.ml && $OCL/bin/ocamlopt -o $b.ref $b.ml 2>/dev/null) || { echo "FAIL $b: ocamlopt"; failures=$((failures + 1)); continue; }
+    (cd $W/run && rm -f *.cm* *.mli || exit 1
+     for src in ${srcs[@]}; do
+       u=$(basename $src .ml); cp $src .
+       if [ -f ${src%.ml}.mli ]; then cp ${src%.ml}.mli . && $OCL/bin/ocamlopt -c $u.mli || exit 1; fi
+       $OCL/bin/ocamlopt -c $u.ml || exit 1
+     done
+     $OCL/bin/ocamlopt -o $b.ref $(for src in ${srcs[@]}; do echo -n "$(basename $src .ml).cmx "; done)) > /dev/null 2>&1 \
+      || { echo "FAIL $b: ocamlopt"; failures=$((failures + 1)); continue; }
     want=$(cd $W/run && timeout 20 $RUN ./$b.ref 2>&1; echo "exit $?")
   else
     want=$(cat ${ml%.ml}.out)
