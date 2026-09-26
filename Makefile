@@ -99,6 +99,13 @@ test-chidb: all
 clean:
 	dune clean
 
+# Lines of OCaml, per mini program, tiny program and library
+# (scripts/stats/loc.py; -v: kernel/'s steps, each tests/, ...).
+loc:
+	scripts/stats/loc.py
+loc-v:
+	scripts/stats/loc.py -v
+
 # Build and test in a fresh Ubuntu, as GitHub Actions does
 # (.github/workflows/docker.yml).
 build-docker:
@@ -107,7 +114,7 @@ build-docker:
 build-docker-ocaml5:
 	docker build -t "ix" --build-arg OCAML_VERSION=5.1.1 .
 
-.PHONY: all test test-differential test-goken test-ocaml test-chidb test-pi clean build-docker build-docker-ocaml5
+.PHONY: all test test-differential test-goken test-ocaml test-chidb test-pi clean loc loc-v build-docker build-docker-ocaml5
 
 # mini-qemu against QEMU (plan_pi.md): 9pi's session, the Pi1 xv6
 # ports' boots and graphics, the Pi4's boot and 16 of usertests' tests
