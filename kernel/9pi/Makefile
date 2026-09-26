@@ -24,7 +24,9 @@
 #                   the C 9pi's under QEMU but hoc's pid (40, 9pi's 48:
 #                   its usbd's processes, stage D); step D1's (the
 #                   processes: sleep, a kill by note, plumber's threads
-#                   and mount: tests/session-d); then stage B's
+#                   and mount: tests/session-d); a session typed on
+#                   QEMU's USB keyboard (usbd, usb/kb, #Ι/kbin: the C
+#                   9pi's byte for byte; tests/session-usb); then stage B's
 #                   (tests/boot-b.rc as /boot/boot, no card: the
 #                   namespace, the environment, pipes, processes;
 #                   tests/session-b)
@@ -32,7 +34,7 @@
 MAKEFLAGS += --no-builtin-rules
 
 PRINCIPIA ?= $(HOME)/principia
-ML = Types Dev Proc Chan Devroot Devcons Devenv Devsys Devarch Devdup Devsrv Devpipe Devproc Emmc Devsd P9 Devmnt Usb Usbdwc Devusb Devstub Fault Exec Syscall Main
+ML = Types Dev Proc Chan Devroot Devcons Devenv Devsys Devarch Devdup Devsrv Devpipe Devproc Emmc Devsd P9 Devmnt Usb Usbdwc Devusb Kbd Devkbin Devmouse Devstub Fault Exec Syscall Main
 
 # the bootdir, as kernel/conf/arm/pi's: boot.rc as /boot/boot (or a
 # test's script: BOOTRC)
@@ -50,6 +52,7 @@ KERNDATE ?= $(shell ./kerndate.py $(PRINCIPIA))
 include ../lib/kernel.mk
 
 SD = -drive file=$(PRINCIPIA)/qemu-sd.img,if=sd,format=raw,snapshot=on
+USB = -device usb-kbd -device usb-mouse
 
 $(FS): mkbootdir.py $(BOOTRC) | $(B)
 	./mkbootdir.py $@ $(KERNDATE) $(BOOTDIR)
@@ -69,6 +72,10 @@ check: $(IMAGE) kernel-pi1-b.img
 	diff $(B)/mini-d.txt tests/session-d && echo "ok 9pi: step D1's session under mini-qemu"
 	$(SESSION_PY) --prompt "% " --timeout 120 --out $(B)/qemu-d.txt --lines tests/session-d.cmds -- $(QEMU) $(QEMU_BOOT) $(SD)
 	diff $(B)/qemu-d.txt tests/session-d && echo "ok 9pi: step D1's session under QEMU"
+	$(SESSION_PY) --prompt "% " --usb --timeout 700 --out $(B)/mini-usb.txt --lines tests/session-usb.cmds -- $(MINIQEMU) $(BOOT) $(SD) $(USB)
+	diff $(B)/mini-usb.txt tests/session-usb && echo "ok 9pi: a session typed on the USB keyboard under mini-qemu"
+	$(SESSION_PY) --prompt "% " --usb --timeout 300 --out $(B)/qemu-usb.txt --lines tests/session-usb.cmds -- $(QEMU) $(QEMU_BOOT) $(SD) $(USB)
+	diff $(B)/qemu-usb.txt tests/session-usb && echo "ok 9pi: a session typed on the USB keyboard under QEMU"
 	$(SESSION_PY) --prompt "% " --timeout 120 --out $(B)/mini-b.txt --lines tests/session-b.cmds -- $(MINIQEMU) $(BOOT_B)
 	diff $(B)/mini-b.txt tests/session-b && echo "ok 9pi: stage B's session under mini-qemu"
 	$(SESSION_PY) --prompt "% " --timeout 60 --out $(B)/qemu-b.txt --lines tests/session-b.cmds -- $(QEMU) $(BOOT_B)

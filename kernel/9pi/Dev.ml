@@ -13,6 +13,7 @@ open Types
 
 type t = {
   dc : char;
+  drune : int;
   name : string;
   attach : string -> chan;
   walk : chan -> chan -> string -> qid;
@@ -33,6 +34,7 @@ let perm () = raise (Error eperm)
 
 let default dc name = {
   dc = dc;
+  drune = Char.code dc;
   name = name;
   attach = (fun _ -> perm ());
   walk = (fun _ _ _ -> perm ());
@@ -59,8 +61,21 @@ let find dc =
   try List.find (fun d -> d.dc = dc) !devtab
   with Not_found -> raise (Error ebadsharp)
 
+(* a rune (below 0x10000: Plan 9's) in UTF-8 *)
+let utf8 r =
+  let b v = String.make 1 (Char.chr v) in
+  if r < 0x80 then b r
+  else if r < 0x800 then b (0xc0 lor (r lsr 6)) ^ b (0x80 lor (r land 0x3f))
+  else b (0xe0 lor (r lsr 12)) ^ b (0x80 lor ((r lsr 6) land 0x3f)) ^ b (0x80 lor (r land 0x3f))
+
+let rune_of dc = try (List.find (fun d -> d.dc = dc) !devtab).drune with Not_found -> Char.code dc
+
+let find_rune r =
+  try List.find (fun d -> d.drune = r) !devtab
+  with Not_found -> raise (Error ebadsharp)
+
 let attach dc devno qid =
-  { dev = dc; devno = devno; qid = qid; offset = 0; opened = None; cname = "#" ^ String.make 1 dc;
+  { dev = dc; devno = devno; qid = qid; offset = 0; opened = None; cname = "#" ^ utf8 (rune_of dc);
     umh = []; dri = 0; cref = 1; fid = 0 }
 
 let eve = ref ""
@@ -120,7 +135,7 @@ let u31 v =
 let encode d =
   let dir = d.d_qid.typ = Qt_dir in
   let body =
-    le16 (Char.code d.d_type) ^ u31 d.d_dev
+    le16 (rune_of d.d_type) ^ u31 d.d_dev
     ^ byte (if dir then 0x80 else 0) ^ u31 d.d_qid.vers ^ u31 d.d_qid.path ^ le32 0
     (* the mode: DMDIR the top byte's bit *)
     ^ (if d.d_perm = -1 then le32 (-1)

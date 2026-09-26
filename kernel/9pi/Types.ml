@@ -161,10 +161,10 @@ type segment = {
 (* what a sleeping process waits for: a line typed, a child's exit (the
  * process's own pid), a pipe's data or room (its number), the clock, a
  * mount's 9P reply (its number), a rendezvous's partner (the process's
- * pid), a semaphore (its physical address) *)
+ * pid), a semaphore (its physical address), the mouse's next state *)
 type wait_chan =
   | Console_input | Child_exit of int | Pipe_data of int | Pipe_room of int | Ticks | Mnt_reply of int
-  | Rendez of int | Semaphore of int
+  | Rendez of int | Semaphore of int | Mouse_change
 
 (* a note's kind: sent by a process (NUser), one that ends the process
  * (NExit: a kill), a trap's (NDebug) *)

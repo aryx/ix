@@ -66,9 +66,8 @@ let send () =
   Buffer.clear line;
   Proc.wakeup Console_input
 
-(* a character typed: echoed as it is (echo()), then kbd's editing *)
-let intr c =
-  let c = if c = 13 then 10 else c in
+(* a byte of input: echoed as it is (echo()), then kbd's editing *)
+let input c =
   let ch = Char.chr c in
   if !raw then begin Buffer.add_char line ch; send () end
   else begin
@@ -85,6 +84,12 @@ let intr c =
     else if c = 4 then send ()
     else begin Buffer.add_char line ch; if ch = '\n' then send () end
   end
+
+(* a character from the serial line (kbdcr2nl: CR as LF) *)
+let intr c = input (if c = 13 then 10 else c)
+
+(* a character from the keyboard (kbdputc: a rune, its UTF-8 bytes) *)
+let kbdputc r = let s = Dev.utf8 r in for i = 0 to String.length s - 1 do input (Char.code s.[i]) done
 
 let rec read_cons n =
   match !lines with

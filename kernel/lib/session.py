@@ -21,8 +21,8 @@
 # With --screendump, the emulator is given a QMP socket and, once the
 # session is over, the screen is written to P (a PPM), as QMP's
 # screendump writes it. With --usb, the lines are typed on the USB
-# keyboard (QMP's send-key, a key at a time; lowercase, digits, and
-# " -./") instead of the serial line; --move, the mouse moved (QMP's
+# keyboard (QMP's send-key, a key at a time; a US keyboard's printable
+# characters, a shifted one with shift) instead of the serial line; --move, the mouse moved (QMP's
 # input-send-event) once they are done, before the screendump.
 #
 # mini-xv6 against xv6 arm-pi1's own C kernel (Makefile's compare,
@@ -35,7 +35,15 @@ import json, os, select, socket, subprocess, sys, tempfile, time
 # slow the emulator)
 class Qmp:
     QCODES = dict([(c, c) for c in "abcdefghijklmnopqrstuvwxyz0123456789"] +
-                  [(" ", "spc"), ("\n", "ret"), ("-", "minus"), (".", "dot"), ("/", "slash")])
+                  [(" ", "spc"), ("\n", "ret"), ("-", "minus"), (".", "dot"), ("/", "slash"),
+                   ("'", "apostrophe"), ("=", "equal"), (",", "comma"), (";", "semicolon"), ("[", "bracket_left"),
+                   ("]", "bracket_right"), ("\\", "backslash"), ("`", "grave_accent")])
+    # claude: the shifted ones, typed as shift and their key together (a
+    # US keyboard's)
+    SHIFTED = dict(list(zip("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")) +
+                   list(zip("!@#$%^&*()_+:\"<>?{}|~", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "minus",
+                        "equal", "semicolon", "apostrophe", "comma", "dot", "slash", "bracket_left", "bracket_right",
+                        "backslash", "grave_accent"])))
     def __init__(self, sock):
         self.c = socket.socket(socket.AF_UNIX)
         self.c.connect(sock)
@@ -48,7 +56,11 @@ class Qmp:
             r = json.loads(self.f.readline())
             if "return" in r or "error" in r: return r
     def key(self, ch):
-        self.cmd({"execute": "send-key", "arguments": {"keys": [{"type": "qcode", "data": self.QCODES[ch]}]}})
+        if ch in self.SHIFTED:
+            keys = [{"type": "qcode", "data": "shift"}, {"type": "qcode", "data": self.SHIFTED[ch]}]
+        else:
+            keys = [{"type": "qcode", "data": self.QCODES[ch]}]
+        self.cmd({"execute": "send-key", "arguments": {"keys": keys}})
         time.sleep(0.5)
     def close(self):
         self.c.close()

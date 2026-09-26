@@ -1,0 +1,5 @@
+echo hello usb
+ls /dev/usb
+ls -l /dev/usb/ep3.1
+cat /dev/usb/ep3.0/ctl
+ls -l '#m'

@@ -127,6 +127,8 @@ let () =
   Devarch.init ();
   Devmnt.init ();
   Devsrv.init ();
+  Devmouse.init ();
+  Devkbin.init ();
   Devsd.init ();
   Devusb.init ();
   Devstub.init ();

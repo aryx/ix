@@ -429,3 +429,19 @@ upstream OCaml's rounding of the outgoing area, as a patch
 `kernel/ocaml-light.sh` applies to its clone
 (`kernel/ocaml-light-patches/`). The hunt is written up in
 `docs/notes_debugging_techniques.md`, technique 8.
+
+2026-09-26, **stage D, step 2b: the USB keyboard and mouse**. `Kbd`
+(portkbd.c's kbdputsc and its five tables: scan codes to runes, the
+escapes, shift, ctrl, caps; compose sequences, latin1, not yet),
+`Devkbin` (`#Ι/kbin`: a device letter that is a rune, U+0399, so
+devices now have a `drune` and `#` paths decode UTF-8) and `Devmouse`
+(`#m`: mouse, mousein, mousectl, cursor, devmouse's queue of clicks and
+its formats; the position clamped to a screen there is none of yet, so
+moves wait for step 3, as 9pi's without a gscreen). With QEMU's
+usb-kbd and usb-mouse, usbd starts usb/kb for both, and **a session
+typed on the USB keyboard** (session.py --usb, which now types a US
+keyboard's printable characters, shifted ones with shift) gives the C
+9pi's console byte for byte, under mini-qemu and QEMU (`make check`:
+`tests/session-usb`). Not the same yet: `ps`'s order of usbd's
+processes when two start together, `kbd repeat`'s state, usbd's size
+(4K): timing.

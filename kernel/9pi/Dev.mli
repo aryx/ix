@@ -16,8 +16,12 @@
 
 open Types
 
+(* a device: its letter (a byte of mini-9pi's channels), its letter as
+ * the user names it (a rune: '#Ι' kbin's is U+0399, its byte a private
+ * one), ... *)
 type t = {
   dc : char;
+  drune : int;
   name : string;
   (* a channel on the device's root; the spec after "#c" *)
   attach : string -> chan;
@@ -54,6 +58,11 @@ val default : char -> string -> t
 (* the devices, and one by its letter (Error: '#x' unknown) *)
 val register : t -> unit
 val find : char -> t
+
+(* a device by the rune of its letter; a letter's rune; a rune in UTF-8 *)
+val find_rune : int -> t
+val rune_of : char -> int
+val utf8 : int -> string
 val all : unit -> t list
 
 (* [attach dc devno qid]: a new channel on a device's file (devattach) *)

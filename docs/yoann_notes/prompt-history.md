@@ -6535,3 +6535,128 @@ The `.claude/settings.json` hook logged all ix sessions regardless of their actu
 **Claude (summary):**
 
 Claude was regenerating one hundred fifty-three summaries using Haiku in parallel batches of four. The regeneration recovers mid-turn messages by teaching exchanges() to read queued_command attachments as prompts. This preserves messages that otherwise get lost like "dunno if we also…" and "please use git mv…". After the regeneration completes, Claude will validate results against the backup copy. Finally, Claude will commit the fix to resolve the transcript corruption from overlapping sessions.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 10:47
+
+**Yoann:**
+
+> excellent. what's next?
+
+**Claude (summary):**
+
+Claude outlined continuing phase 0 with two checks: a value stack register and mini-ld's tail call handling.
+Then phase 1 would build tiny-ml, a 1,500-line HM-typed ML compiler outputting arm64 via a stack machine.
+The runtime is C from tiny-c with Cheney's garbage collector and a value stack.
+Tests compare tiny/ml against ocamlopt, verify the collector with small heaps, and fuzz random well-typed programs.
+Both phase 0 checks take about an hour each and should be recorded in the plan's status log.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 10:50
+
+**Yoann:**
+
+> yes, let's commit the progress
+
+**Claude (summary):**
+
+Claude committed progress as `91e0161` with the ocaml-light compiler fix, patch, debugging notes, and plan.
+Discovered 110 untracked `*.5` ARM object files from mini-9pi modules appearing unexpectedly in the repository.
+Left those files untouched since they appeared from a prior session's toolchain attempt, not this work.
+Previewed next step 2b with three components: `#Ι/kbin` scancode translation, `#m/mousein`, and USB keyboard typing in rc.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 08:18
+
+**Yoann:**
+
+> so you can make progress, commit as you go, until you reach the end maybe
+
+**Claude (summary):**
+
+Claude built tiny-ml compiler (1,089 lines) and fuzzer testing 600 programs agreeing with ocamlopt. Committed tiny-ml, then built mini-ml parser handling all 184 corpus files successfully. Implemented scope phase and type resolution (Typing.ml 408 lines) across both arm and arm64. Committed parser at 8f8057f, phase 4 at f715237, with multiple intermediate commits staged carefully. Final test run shows 520 checks passing with zero failures across the entire toolchain.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:13
+
+**Yoann:**
+
+> how is it that mini-ml is smaller than mini-cc, but tinyML is bigger than TinyC?
+
+**Claude (summary):**
+
+Claude noted that TinyC and TinyML both use the same stack machine IR, with TinyML borrowing from TinyC's design.
+The one-file rule prevents extracting this shared IR into a library, forcing both compilers to duplicate it internally.
+This monolithic constraint is fundamental to the tiny level philosophy, keeping each implementation self-contained in a single file.
+TinyML is larger because it needs type inference, pattern matching, closures, exceptions, and GC support that C lacks.
+For contrast, mini-cc's size stems from matching 7c's output exactly, requiring complex register allocation and compiler-specific quirks.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:21
+
+**Yoann:**
+
+> can TinyC and TinyML share code in a TinyLibXxx ? like the IR? instead of copy pasting it?
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:22
+
+**Yoann:**
+
+> TinyLibIR ?
+
+**Claude (summary):**
+
+Claude proposed examining TinyC's intermediate representation as a reference design for TinyLibIR.
+Claude planned to study TinyC's ARM64 code generation approach for comparison.
+Claude intended to use these insights to guide TinyLibIR architecture decisions.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:22
+
+**Yoann:**
+
+> STOP
+
+**Claude (summary):**
+
+Claude halted work immediately and made no modifications to any project files.
+Rebuilt the tiny/ directory and ran TinyC_test.sh and TinyML_test.sh as baseline tests.
+Both test suites passed with zero failures, confirming the system stability baseline.
+No implementation work on the TinyLibIR.ml component had begun at the stop point.
+All baseline testing and verification steps were complete before implementation would start.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:23
+
+**Yoann:**
+
+> Do you think it's worth it? If it's saving 20 LOC, it's not worth it
+
+**Claude (summary):**
+
+Claude rejected the refactoring since IR types could not be meaningfully shared between compilers.
+Although six constructors overlapped, each had different semantics in each compiler implementation.
+The only shared code was eight to ten lines of register-stack bookkeeping per backend.
+Extracting it would cost an extra file and hide a crucial invariant rule.
+Claude left both files unchanged and saved the twenty-line threshold to memory.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 11:25
+
+**Yoann:**
+
+> What if we were relaxing the constraint on mini-c like we did on mini-ml? Would that lead to far simpler code? I'm not asking to go the full TinyC road, just a simpler mini-c
+
+**Claude (summary):**
+
+Claude identified roughly 1,100–1,300 removable lines specific to byte-identity: Multiply.ml (155), acom in Check.ml (125), the hooks record (492 in Arm.ml and Arm64.ml), and back-end optimizations (2,000 to 1,000–1,200 lines). The preprocessor, parser, typechecker, and ABI totaling about 2,900 lines would remain in any version. Claude recommended keeping mini-cc as-is to preserve byte-identity testing and the 5c twin mapping, but his detailed breakdown of what-stays-versus-what-goes enabled Yoann's structural counter-proposal: split the code into shared common parts and separate version-specific subfolders with a flag.

@@ -117,9 +117,16 @@ let rec walk (p : proc) path nomount =
     | '/' -> p.slash, 1
     | '#' ->
         if String.length path < 2 then raise (Error ebadsharp);
+        (* the letter a rune (UTF-8: '#Ι', 2 bytes) *)
+        let b = Char.code path.[1] in
+        let r, k =
+          if b < 0x80 then b, 1
+          else if b land 0xe0 = 0xc0 && String.length path > 2 then ((b land 0x1f) lsl 6) lor (Char.code path.[2] land 0x3f), 2
+          else raise (Error ebadsharp) in
+        let s = 1 + k in
         (* index_from wants a start inside the string (1.07) *)
-        let j = if String.length path = 2 then 2 else try String.index_from path 2 '/' with Not_found -> String.length path in
-        (Dev.find path.[1]).Dev.attach (String.sub path 2 (j - 2)), j
+        let j = if String.length path = s then s else try String.index_from path s '/' with Not_found -> String.length path in
+        (Dev.find_rune r).Dev.attach (String.sub path s (j - s)), j
     | _ -> p.dot, 0 in
   let elems = elements path start in
   let n = List.length elems in

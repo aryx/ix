@@ -1,0 +1,27 @@
+mini-9pi
+#u/usb/ep1.0: dwcotg: port 0X0 irq 9
+booooooooting ARM ...
+partition...
+dossrv: serving #s/dos
+usb/hub... usb/kb... usb/kb... % echo hello usb
+hello usb
+% ls /dev/usb
+/dev/usb/ctl
+/dev/usb/ep1.0
+/dev/usb/ep2.0
+/dev/usb/ep3.0
+/dev/usb/ep3.1
+/dev/usb/ep4.0
+/dev/usb/ep4.1
+% ls -l /dev/usb/ep3.1
+--rw-rw-r-- u 0 pad pad 0 Sep  9  2026 /dev/usb/ep3.1/ctl
+-lr--r----- u 0 pad pad 0 Sep  9  2026 /dev/usb/ep3.1/data
+% cat /dev/usb/ep3.0/ctl
+enabled control rw speed full maxpkt 8 pollival 0 samplesz 0 hz 0 hub 2 port 1 busy
+hid csp 0x010103 vid 0x0627 did 0x0001 QEMU 'QEMU USB Keyboard' dwcotg
+% ls -l '#m'
+--rw-rw-rw- m 0 pad pad 0 Sep  9  2026 #m/cursor
+--rw-rw-rw- m 0 pad pad 0 Sep  9  2026 #m/mouse
+---w--w---- m 0 pad pad 0 Sep  9  2026 #m/mousectl
+---w--w---- m 0 pad pad 0 Sep  9  2026 #m/mousein
+% 

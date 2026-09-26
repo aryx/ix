@@ -16,8 +16,10 @@
  * Also consdir's other files: pid, ppid, user, time, null, zero, swap
  * (its writes ignored: no swapping here)... *)
 
-(* a character typed (the UART's interrupt) *)
+(* a character typed on the serial line (the UART's interrupt: a CR is
+ * a LF, kbdcr2nl); a rune from the keyboard (kbdputc, Kbd's) *)
 val intr : int -> unit
+val kbdputc : int -> unit
 
 (* the console's output (the kernel's messages too) *)
 val print : string -> unit
