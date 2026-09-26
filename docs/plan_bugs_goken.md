@@ -263,7 +263,7 @@ its value stack are below R26: a function of more than 32 slots crashed.
 Reproduce: `printf '\tTEXT\t_main(SB), $-8\n\tMOV\tR0, -264(R26)\n\tRETURN\n'
 > t.s; 7a t.s; 7l -H7 -s t.7`, then `objdump -D -b binary -m aarch64`.
 ix: mini-ld makes the same bytes (it is 7l's twin); mini-ml computes
-such a slot's address itself (`languages/ml/Gen.ml`, `slot_ref`). Fix:
+such a slot's address itself (`languages/ml/simple/Gen.ml`, `slot_ref`). Fix:
 a MOVN (or a MOVZ/MOVK sequence) for a negative constant, as for a
 positive one.
 

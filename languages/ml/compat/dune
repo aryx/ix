@@ -1,0 +1,5 @@
+; GNU's assembly for as and ld, from Gen's (route B, Gas.mli)
+(library
+ (name ix_ml_compat)
+ (modules Gas)
+ (libraries ix_asm))

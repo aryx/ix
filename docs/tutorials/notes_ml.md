@@ -32,6 +32,11 @@ the code in phase 8. Where the code differs from what follows:
   tests (§7) and closures (§9) made on the way; there is no `-dlam`,
   `-dir` prints the stack machine's code.
 - `Arm` and `Arm64` are two records in `Gen`.
+- The back end is a directory of its own (2026-09-26, plan_ml.md's
+  "Later: compat/, simple/, opti/ here too"): `languages/ml/simple/`
+  holds `Lower` and `Gen`, `languages/ml/compat/` holds `Gas`; the
+  front end (`Ast` to `Typing`) and the command stay in
+  `languages/ml/`. An `opti/` may come beside `simple/`.
 - A call's closure and arguments are in slots of the frame on the value
   stack, which the stack machine's call names; the arguments are passed
   in registers (R1.., the closure in R0). The value stack's top is R10
@@ -488,7 +493,7 @@ handler's, and the collector scans every process's value stack. The
 kernel is then built by ix's tools alone (plan_ml.md, decision 8):
 mini-ld's kernel image, the shim through mini-cc, the start in Plan
 9's assembly. On the way, `mini-ml -gas` prints GNU assembly
-(`languages/ml/Gas.ml`, one removable module), so that mini-ml's code runs in
+(`languages/ml/compat/Gas.ml`, one removable module), so that mini-ml's code runs in
 the kernel while gcc still builds the rest.
 
 ## 13. Compared with ocaml-light, camlboot and MinCaml

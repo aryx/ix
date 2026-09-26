@@ -1,0 +1,7 @@
+; the back end: the scoped tree to a stack machine (Lower), then to
+; Plan 9's assembly for arm and arm64 (Gen)
+(library
+ (name ix_ml_simple)
+ (modules Lower Gen)
+ (flags (:standard -open Ix_ml))
+ (libraries ix_ml ix_asm))

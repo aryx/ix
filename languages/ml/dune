@@ -1,15 +1,25 @@
+; the language, shared by the back ends: simple/ (Lower's stack
+; machine, Gen), compat/ (GNU's assembly, Gas), and later opti/
+; (plan_ml.md, "Later: compat/, simple/, opti/ here too")
 (library
  (name ix_ml)
- (modules Ast Lexer Parser Scope Typing Lower Gen Gas CLI)
+ (modules Ast Lexer Parser Scope Typing)
  (libraries ix_core ix_asm fpath logs caps))
 
 (ocamllex Lexer)
 
 (ocamlyacc Parser)
 
+; the command: the front end given its back ends
+(library
+ (name ix_ml_cli)
+ (modules CLI)
+ (flags (:standard -open Ix_ml -open Ix_ml_simple -open Ix_ml_compat))
+ (libraries ix_ml ix_ml_simple ix_ml_compat ix_core ix_asm fpath logs caps))
+
 (executable
  (name Main)
  (public_name mini-ml)
  (package ix)
  (modules Main)
- (libraries ix_ml caps))
+ (libraries ix_ml_cli caps))

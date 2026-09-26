@@ -6852,3 +6852,31 @@ Yoann confirmed he wants to begin with this first-client milestone immediately.
 **Yoann:**
 
 > and maybe later we can do the same for languages/ml/ and have a compat/ there too with Gas.ml in it, simple/ for the current way to do, and later an opti/
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:58
+
+**Yoann:**
+
+> can you add some notes about all the fuzzing technique you used until now, in notes_fuzzing_techniques.md, seems very useful to teach
+
+**Claude (summary):**
+
+Claude agreed to write fuzzing notes by first examining existing notes and repo fuzzers.
+Ran arm with `-simple` successfully: all libc compiled, sixteen of seventeen programs matched the reference build.
+Launched background test runs: arm and arm64 each with two hundred random programs on rebuilt libc.
+Updated documentation: marked plan steps two through four complete and revised tutorial and CLI files.
+Recorded the languages/ml/ idea in plan_ml.md for future development.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 13:18
+
+**Yoann:**
+
+> let's commit!
+
+**Claude (summary):**
+
+Claude committed the ARM stack machine implementation as e53580c with 29 files changed. Claude suggested splitting languages/ml/ into compat/ containing Gas.ml and simple/ containing current Lower and Gen. Gas.ml is an output format rather than a fidelity level, justifying the compat/ separation. Future work could add opti/ variant with SSA and other optimizations built on simple/. Kernel work, Makefile, mini-pi, and plan_9pi.md remain uncommitted.

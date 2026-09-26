@@ -762,7 +762,23 @@ a fidelity; it runs after the same `Lower` as the Plan 9 route. So the
 cut may be two axes rather than one directory each: the back end's
 design (simple/, then opti/'s passes on `Lower`'s IR, as for C) and
 the output's syntax (Plan 9's or GNU's, a printer over the same
-instructions). Not started.
+instructions).
+
+*Done, as the author chose (2026-09-26: "let's split also
+languages/ml/ with compat/ containing Gas.ml and simple/ containing
+the current Lower and Gen that maybe later one we could change in a new
+opti/ variant (with SSA and what's not, if useful)")*: the front end
+(`Ast`, `Lexer`, `Parser`, `Scope`, `Typing`: the library `ix_ml`) in
+`languages/ml/`, the command a library of its own (`ix_ml_cli`);
+`simple/` (`ix_ml_simple`) holds `Lower` and `Gen`, `compat/`
+(`ix_ml_compat`) holds `Gas`. A pure move: `-S` on both machines and
+`-gas`, over ocaml-light's 41 stdlib units and the 14 programs of
+`tests/tiny/`, the same as before the move, 165 of 165 (the pre-split
+mini-ml built from a worktree of HEAD); `corpus.sh` 192 ok,
+`types.sh` 0 failures, `run.sh 7` on `tests/tiny/` and `run.sh 5` on
+`make test-ocaml`'s nine, 0 failures, with `ML_HEAP=64` too. An
+`opti/` (passes on `Lower`'s IR, SSA if it pays) is for later, measured
+as mini-cc's will be.
 
 ## Appendix: the counts
 
