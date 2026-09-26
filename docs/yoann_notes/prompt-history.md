@@ -6912,3 +6912,31 @@ An opti/ subdirectory is planned next to both simple/ directories as an optimiza
 The pattern isolates byte-for-byte compatibility constraints in compat/ subdirectories while preserving freedom for clean implementations in simple/.
 Mini-cc and mini-ml now share identical layouts, providing a template for other mini-xxx programs.
 Prompt history was staged in the commit; other work on kernel/9pi remains uncommitted.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 12:44
+
+**Yoann:**
+
+> yes
+
+**Claude (summary):**
+
+Claude implemented the draw device (Devdraw.ml, 818 lines) handling all draw protocol messages in the OCaml kernel.
+Wrote kernel/9pi/graphics.py test that replays graphics and rio operations, verifying all eleven screens match the C original.
+Achieved pixel-perfect matching under both mini-qemu and real QEMU, confirming rio window manager works identically on mini-9pi.
+Console, cursor, window operations, and all graphics tests pass; make check completes in thirty-five minutes without failures.
+Project stages three and four are now complete and ready for committing.
+
+------------------------------------------------------------------------
+
+## 2026-09-26 13:39
+
+**Yoann:**
+
+> yes! Fantastic work!
+
+**Claude (summary):**
+
+Claude committed draw device and rio implementation as commit 68c0b28 to kernel/9pi/ and mini-pi. Stage D is complete with mini-9pi booting to draw console and running rio identically. Implementation works under both mini-qemu and QEMU, testable with ./mini-pi -g mini-9pi then rio. Claude proposed stages E for networking and F for memdraw in OCaml. Yoann approved the work but requested reorganizing kernel/9pi/ to match other projects first.
