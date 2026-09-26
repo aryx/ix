@@ -22,10 +22,12 @@ type mach = {
   sp : string;
   link : string;
   frame : string;           (* TEXT's: no frame of mini-ld's *)
+  aapcs : bool;             (* C's arguments: gcc's, R0-R3 then 0(SP); else 5c's, R0 then w*(i+1)(SP) *)
 }
 
-let arm = { arch = Arm; w = 4; mov = "MOVW"; nregs = 8; tmp = 9; vsp = 10; sp = "R13"; link = "R14"; frame = "$-4" }
-let arm64 = { arch = Arm64; w = 8; mov = "MOV"; nregs = 15; tmp = 16; vsp = 26; sp = "RSP"; link = "R30"; frame = "$-8" }
+let arm = { arch = Arm; w = 4; mov = "MOVW"; nregs = 8; tmp = 9; vsp = 10; sp = "R13"; link = "R14"; frame = "$-4"; aapcs = false }
+let arm64 = { arch = Arm64; w = 8; mov = "MOV"; nregs = 15; tmp = 16; vsp = 26; sp = "RSP"; link = "R30"; frame = "$-8"; aapcs = false }
+let gnu m = { m with aapcs = true }
 let arch m = m.arch
 let error fmt = Printf.ksprintf failwith fmt
 let sprintf = Printf.sprintf
@@ -73,9 +75,11 @@ let func m out (fn : func) =
   let reload () = for r = 1 to !sp do get (spill_slot r) r done in
   let result () = ins "%s\tR0, R%d" mov (push ()) in
   let jump l = Hashtbl.replace depth_at l !sp in
+  (* the link's slot: 0, or above gcc's outgoing arguments (4 words) *)
+  let link = if m.aapcs then 4 * w else 0 in
   let epilogue () =
     line (fun f _ _ -> sprintf "\tSUB\t$%d, R%d\n" (w * f) vsp);
-    ins "%s\t0(%s), %s" mov m.sp m.link;
+    ins "%s\t%d(%s), %s" mov link m.sp m.link;
     line (fun _ m' _ -> sprintf "\tADD\t$%d, %s\n" m' m.sp)
   in
   let record c k = c + (4 * w * k) in
@@ -98,7 +102,10 @@ let func m out (fn : func) =
   let call_c f n =
     cargs := max !cargs n;
     get (spill_slot !sp) 0;
-    for k = 1 to n - 1 do get (spill_slot (!sp - k)) m.tmp; ins "%s\tR%d, %d(%s)" mov m.tmp (w * (k + 1)) m.sp done;
+    for k = 1 to n - 1 do
+      if m.aapcs && k < 4 then get (spill_slot (!sp - k)) k
+      else (get (spill_slot (!sp - k)) m.tmp; ins "%s\tR%d, %d(%s)" mov m.tmp (if m.aapcs then w * (k - 4) else w * (k + 1)) m.sp)
+    done;
     sp := !sp - n;
     ins "%s\tR%d, ml_vsp(SB)" mov vsp;
     ins "BL\t%s(SB)" f
@@ -186,8 +193,8 @@ let func m out (fn : func) =
         spill ();
         cargs := max !cargs 2;
         ins "%s\t$%d, R0" mov n;
-        ins "%s\t$%d, R%d" mov tag m.tmp;
-        ins "%s\tR%d, %d(%s)" mov m.tmp (2 * w) m.sp;
+        if m.aapcs then ins "%s\t$%d, R1" mov tag
+        else (ins "%s\t$%d, R%d" mov tag m.tmp; ins "%s\tR%d, %d(%s)" mov m.tmp (2 * w) m.sp);
         ins "%s\tR%d, ml_vsp(SB)" mov vsp;
         ins "BL\tml_alloc(SB)";
         for k = 0 to n - 1 do get (spill_slot (!sp - k)) m.tmp; ins "%s\tR%d, %d(R0)" mov m.tmp (w * k) done;
@@ -224,11 +231,12 @@ let func m out (fn : func) =
         branch_zero true 0 (sprintf "L%d" handler)
     | TryExit k -> at k (3 * w) (fun o -> sprintf "%s\t%d(%s), R%d" mov o m.sp m.tmp); ins "%s\tR%d, ml_handler(SB)" mov m.tmp)
     fn.code;
-  let f = fn.nslots + !maxsp and c = round (w * (!cargs + 1)) 16 in
+  if m.aapcs && !cargs > 8 then error "%s: a call of C with %d arguments" fn.name !cargs;
+  let f = fn.nslots + !maxsp and c = round (max (w * (!cargs + 1)) (link + w)) 16 in
   let msize = record c !tries in
   let pr fmt = Printf.bprintf out fmt in
   pr "\tTEXT\t%s(SB), %s\n" fn.name m.frame;
-  pr "\tSUB\t$%d, %s\n\t%s\t%s, 0(%s)\n\tADD\t$%d, R%d\n" msize m.sp mov m.link m.sp (w * f) vsp;
+  pr "\tSUB\t$%d, %s\n\t%s\t%s, %d(%s)\n\tADD\t$%d, R%d\n" msize m.sp mov m.link link m.sp (w * f) vsp;
   if fn.nparams > m.nregs then error "%s: %d parameters" fn.name fn.nparams;
   let slot i = let pre, a = slot_ref m (w * (i - f)) in pr "%s" pre; a in
   for i = 0 to fn.nparams do let a = slot i in pr "\t%s\tR%d, %s\n" mov i a done;

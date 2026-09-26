@@ -17,7 +17,9 @@
 # compared with prog.out (the plan's contract: ocaml-light's ocamlopt's,
 # recorded by tiny/TinyML_test.sh's RECORD=1 for tests/tiny/), or, with
 # LIVE=1, with ocamlopt's for that machine run now. With ML_HEAP=64
-# again: the collector's law.
+# again: the collector's law. GAS=1 (arm): through GNU's tools instead,
+# decision 8's route B: mini-ml -gas, the runtime by gcc, glibc, GNU's
+# ld, the executable run under qemu-arm.
 # A program is a file, or a directory of units (ordered by their
 # dependencies, mini-ml -M).
 # usage: run.sh 5|7 workdir prog.ml|dir...
@@ -28,6 +30,11 @@ IX=$ROOT/_build/default
 ML=$IX/languages/ml/Main.exe
 O=$1; W=$(realpath -m $2); shift 2
 case $O in 5) ARCH=arm; RUN="qemu-arm";; 7) ARCH=arm64; RUN="";; esac
+GAS=${GAS:-}
+if [ -n "$GAS" ]; then
+  [ $O = 5 ] || { echo "GAS=1: arm only"; exit 2; }
+  RUN="qemu-arm -L /usr/arm-linux-gnueabihf"; E=s; FLAGS=-gas
+else E=$O; FLAGS=; fi
 OCL=${OCL:-/tmp/ix-ocaml-light-$ARCH}
 S=/tmp/ix-ocaml-light-arm64/src/stdlib
 mkdir -p $W/std $W/run
@@ -35,12 +42,16 @@ export PATH=$HOME/goken/bin:$HOME/goken/ROOT/arch/boot-gcc/bin:$PATH
 INC="-I$HOME/goken/include -I$HOME/goken/include/ALL -I$HOME/goken/include/arch/$ARCH"
 
 # the libc, once per workdir; the runtime and the stdlib, each run
+if [ -n "$GAS" ]; then
+  arm-linux-gnueabihf-gcc -marm -w -c -o $W/runtime.o $ROOT/languages/ml/runtime/runtime.c || { echo "FAIL the runtime"; exit 1; }
+else
 [ -f $W/libc/t/libc.a ] || $ROOT/linker/tests/libc.sh $O $W/libc > /dev/null
 $IX/languages/c/Main.exe -m $O $INC -o $W/runtime.$O $ROOT/languages/ml/runtime/runtime.c || { echo "FAIL the runtime"; exit 1; }
+fi
 units=$(sed -n '/^OBJS=/,/^$/p' $S/Makefile | grep -o '[a-z0-9_]*\.cmo' | sed 's/\.cmo$//')
 declare -A deps
 for u in $units std_exit; do
-  $ML -m $O -I $S -o $W/std/$u.$O $S/$u.ml || { echo "FAIL the stdlib: $u"; exit 1; }
+  $ML -m $O $FLAGS -I $S -o $W/std/$u.$E $S/$u.ml || { echo "FAIL the stdlib: $u"; exit 1; }
   deps[${u^}]=$($ML -M -I $S $S/$u.ml)
 done
 # the units a program needs, transitively, in the stdlib's order
@@ -84,15 +95,20 @@ for ml in "$@"; do
   own=(); mods=(); ok=1
   for src in ${srcs[@]}; do
     u=$(basename $src .ml)
-    $ML -m $O -I $S -o $W/$b.$u.$O $src || { ok=0; break; }
-    own+=($W/$b.$u.$O); mods+=(${u^})
+    $ML -m $O $FLAGS -I $S -o $W/$b.$u.$E $src || { ok=0; break; }
+    own+=($W/$b.$u.$E); mods+=(${u^})
   done
   [ $ok = 1 ] || { echo "FAIL $b: mini-ml"; failures=$((failures + 1)); continue; }
   names=$(needs Pervasives $(for src in ${srcs[@]}; do $ML -M -I $S $src; done))
-  $ML -m $O -start $names ${mods[@]} Std_exit -o $W/$b.start.$O
-  objs=$(for u in $names; do echo -n "$W/std/${u,}.$O "; done)
+  $ML -m $O $FLAGS -start $names ${mods[@]} Std_exit -o $W/$b.start.$E
+  objs=$(for u in $names; do echo -n "$W/std/${u,}.$E "; done)
+  if [ -n "$GAS" ]; then
+    arm-linux-gnueabihf-gcc -marm -o $W/$b $W/$b.start.s $objs ${own[@]} $W/std/std_exit.s $W/runtime.o -lm 2> $W/$b.ld.log \
+      || { echo "FAIL $b: gcc: $(head -1 $W/$b.ld.log)"; failures=$((failures + 1)); continue; }
+  else
   $IX/linker/Main.exe -m $O -H7 -o $W/$b $W/$b.start.$O $objs ${own[@]} $W/std/std_exit.$O $W/runtime.$O $W/libc/t/libc.a \
     || { echo "FAIL $b: mini-ld"; failures=$((failures + 1)); continue; }
+  fi
   if [ -n "${LIVE:-}" ]; then
     (cd $W/run && rm -f *.cm* *.mli || exit 1
      for src in ${srcs[@]}; do

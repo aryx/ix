@@ -1,8 +1,9 @@
-(* mini-ml [-m 5|7] [-S] [-o out] [-I dir] [-i] [-unsafe-types] [-M] [-dast] [-dscope] [-dir] file.ml
- * mini-ml [-m 5|7] [-S] [-o out] -start Unit...
+(* mini-ml [-m 5|7] [-S | -gas] [-o out] [-I dir] [-i] [-unsafe-types] [-M] [-dast] [-dscope] [-dir] file.ml
+ * mini-ml [-m 5|7] [-S | -gas] [-o out] -start Unit...
  * A unit into its object (mini-asm's format, for mini-ld: out, or x.5
  * or x.7 in the current directory), -m the machine (5, arm, the
- * default; 7, arm64), -S its assembly on stdout instead; another unit's
+ * default; 7, arm64), -S its assembly on stdout instead, -gas GNU's
+ * assembly for as (arm; x.s; Gas.mli); another unit's
  * names from its .mli (or .ml) in the source's directory, then the
  * -Is. -start: the program's start, which initializes the units in
  * their order. -i prints the toplevel's types, as ocamlopt -i

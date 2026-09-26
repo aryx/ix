@@ -42,8 +42,11 @@ let loader (caps : < caps; .. >) dirs : Scope.loader =
       | Error m -> raise (Scope.Error (0, m)))
 
 (* the assembly into the object, through mini-asm's parser *)
+let gas = ref false
+
 let output (caps : < caps; .. >) mach ~listing ~out ~file text =
   if listing then print caps text
+  else if !gas then Files.write caps out (Gas.obj (Ix_asm.Parser.parse caps (Gen.arch mach) file text))
   else Ix_asm.Asm.save caps out (Ix_asm.Parser.parse caps (Gen.arch mach) file text)
 
 let main (caps : < caps; .. >) (argv : string array) : int =
@@ -58,6 +61,7 @@ let main (caps : < caps; .. >) (argv : string array) : int =
     | "-i" :: rest -> show_types := true; args rest
     | "-unsafe-types" :: rest -> unsafe := true; args rest
     | "-S" :: rest -> listing := true; args rest
+    | "-gas" :: rest -> gas := true; args rest
     | "-start" :: rest -> start := true; args rest
     | "-m" :: "5" :: rest -> mach := Gen.arm; args rest
     | "-m" :: "7" :: rest -> mach := Gen.arm64; args rest
@@ -67,8 +71,9 @@ let main (caps : < caps; .. >) (argv : string array) : int =
     | [] -> ()
   in
   args (List.tl (Array.to_list argv));
+  if !gas then mach := Gen.gnu !mach;
   let path s = match Files.path s with Ok p -> p | Error m -> failwith m in
-  let ext = match Gen.arch !mach with Arm -> ".5" | Arm64 -> ".7" in
+  let ext = match Gen.arch !mach with _ when !gas -> ".s" | Arm -> ".5" | Arm64 -> ".7" in
   let outfile file = if !out <> "" then path !out else Fpath.set_ext ext (Fpath.base file) in
   let fail m = eprint caps (m ^ "\n"); 1 in
   match List.rev !files, List.map path (List.rev !incs) with

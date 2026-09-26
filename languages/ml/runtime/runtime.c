@@ -31,8 +31,12 @@
  * an index out of bounds a fatal error. Floats are for phase 7: their
  * primitives here fail when called. */
 
+#ifdef __GNUC__
+#include "gnu.h"
+#else
 #include <u.h>
 #include <libc.h>
+#endif
 
 typedef intptr value;
 typedef uintptr uvalue;

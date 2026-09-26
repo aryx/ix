@@ -512,6 +512,21 @@ arm64 `ocamlopt`.
 
 ## Status
 
+- **2026-09-26, phase 6's first step, route B, in user programs.**
+  `languages/ml/Gas.ml` (`mini-ml -gas`, arm): the object mini-asm's
+  parser makes of Gen's text, printed for GNU's as (a static address a
+  literal, a pool after each unconditional branch and every 200
+  instructions without one, an offset beyond 12 bits in R12, a division
+  libgcc's `__aeabi_idiv`, names made local or spelled for as). And one
+  thing more than the plan said: gcc's C takes its arguments in R0-R3
+  (AAPCS), 5c's in R0 then on the stack, so with `-gas` Gen calls C
+  gcc's way (`Gen.gnu`), the link's slot above the outgoing arguments.
+  `runtime/gnu.h` gives the runtime what it uses of Plan 9's libc from
+  POSIX. `GAS=1 tests/run.sh 5`: the programs through as, gcc's runtime,
+  glibc and GNU's ld, under qemu-arm: tests/tiny/, ocaml-light's
+  test/, KB, Moretest's the same as `ocamlopt`'s (but the three
+  uncaught exceptions, on which ocaml-light's arm executables hang).
+  The kernel itself waits: its files are changing (the USB work).
 - **2026-09-26, the size, and `make test-ocaml`.** mini-ml: 2,403
   lines of code (3,117 with comments), Lower 688 lines, Scope 552,
   Parser 444, Typing 408, Gen 309; the plan's target was about 5,350.

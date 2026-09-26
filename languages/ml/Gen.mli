@@ -25,6 +25,9 @@ val arm : mach
 val arm64 : mach
 val arch : mach -> Ix_asm.Asm.arch
 
+(* the machine with gcc's calls of C (AAPCS): for -gas *)
+val gnu : mach -> mach
+
 (* a unit's assembly *)
 val unit_ : mach -> Lower.unit_ -> string
 
